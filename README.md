@@ -3,8 +3,11 @@
 <div align="center">
     <img src="img/Felix.png" alt="Felix" />
 </div>
+<br><br>
 
-Felix is a plan driven execPutor for Ralph style autonomous software delivery. He turns Ralph from “a loop you run” into an operable system with durable state, explicit modes, and a clean separation between planning and doing.
+# Felix
+
+Felix is a plan driven executor for Ralph style autonomous software delivery. He turns Ralph from “a loop you run” into an operable system with durable state, explicit modes, and a clean separation between planning and doing.
 
 Ralph’s core insight is naive persistence: restart the agent in a simple outer loop so every iteration gets fresh context, while progress is kept on disk and validated by backpressure like tests, typechecks, and builds. ([Clayton Farr][1])
 Felix keeps that philosophy, but moves the discipline from “best effort prompt compliance” into enforceable runtime scaffolding.
@@ -148,7 +151,19 @@ Felix intentionally stays smaller:
 ### Versus Gas Town style multi agent orchestration
 
 Gas Town is a workspace manager for coordinating multiple Claude Code agents with persistent work tracking. ([GitHub][5])
-Felix is not trying to be a multi agent factory. Felix focuses on making a single loop rock solid and operable. If you later want parallelism, you should be able to run multiple Felix instances, each with clear state and boundaries.
+
+Felix is **single agent by default**, but **multi agent capable by design**.
+
+Felix does not prohibit parallel execution. Instead, it avoids baking scheduling, leasing, and merge policy into the core executor. Naively allowing multiple agents to pull from the same plan introduces race conditions, conflicting edits, and ambiguous backpressure.
+
+Felix is designed so parallelism can be added cleanly in a second phase by composition:
+
+- multiple Felix runners
+- isolated workspaces per runner
+- a shared task source with explicit claiming
+- an integration and merge policy outside the core loop
+
+This preserves the simplicity and reliability of the Ralph loop while keeping a clear path to controlled parallel execution.
 
 ### Versus the Claude Code Ralph Wiggum plugin
 
@@ -215,10 +230,3 @@ This separation is intentional: the UI is an operator console, not the brain.
 - `mikeyobrien/ralph-orchestrator` orchestration framework variant. ([GitHub][4])
 - `steveyegge/gastown` multi agent workspace manager for Claude Code. ([GitHub][5])
 - Claude Code Ralph Wiggum plugin documentation. ([GitHub][6])
-
-[1]: https://claytonfarr.github.io/ralph-playbook/ "The Ralph Playbook"
-[2]: https://github.com/ClaytonFarr/ralph-playbook "GitHub - ClaytonFarr/ralph-playbook: A comprehensive guide to running autonomous AI coding loops using Geoff Huntley's Ralph methodology. View as formatted guide below "
-[3]: https://github.com/snarktank/ralph?utm_source=chatgpt.com "Ralph is an autonomous AI agent loop that runs repeatedly ..."
-[4]: https://github.com/mikeyobrien/ralph-orchestrator?utm_source=chatgpt.com "mikeyobrien/ralph-orchestrator"
-[5]: https://github.com/steveyegge/gastown?utm_source=chatgpt.com "steveyegge/gastown: Gas Town - multi-agent workspace ..."
-[6]: https://github.com/anthropics/claude-code/blob/main/plugins/ralph-wiggum/README.md?utm_source=chatgpt.com "claude-code/plugins/ralph-wiggum/README.md at main"
