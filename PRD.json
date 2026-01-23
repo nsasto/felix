@@ -1,0 +1,1126 @@
+{
+    "meta": {
+        "prdVersion": "1.0.0",
+        "schema": "claude-prd",
+        "title": "Ralph Script Monitor",
+        "description": "A browser-based, offline-first application for executing, monitoring, and managing local scripts using an executable PRD.json model.",
+        "status": "mvp",
+        "branchName": "main",
+        "folder": "ui-scaffolding-ai"
+    },
+    "architecture": {
+        "overview": "Offline-first SPA with a local companion runner responsible for script execution and file monitoring.",
+        "frameworks": {
+            "frontend": {
+                "primary": "ReactJS",
+                "version": "18+"
+            }
+        },
+        "executionEnvironment": {
+            "type": "local",
+            "runner": "local companion process",
+            "supportedShells": [
+                "bash",
+                "powershell"
+            ],
+            "dockerSupport": {
+                "enabled": false,
+                "planned": true
+            }
+        },
+        "communication": {
+            "protocols": [
+                "http",
+                "websocket"
+            ],
+            "offlineSupport": true
+        },
+        "storage": {
+            "type": "local",
+            "mechanisms": [
+                "IndexedDB",
+                "localStorage",
+                "filesystem"
+            ]
+        },
+        "aiIntegration": {
+            "providers": [
+                "Claude",
+                "OpenAI"
+            ],
+            "usage": [
+                "PRD.json generation",
+                "PRD.json editing",
+                "Feature and user story execution"
+            ],
+            "constraints": [
+                "User approval required before applying AI changes",
+                "All AI output must be schema validated"
+            ]
+        }
+    },
+    "styling": {
+        "uiFramework": "Tailwind CSS v4",
+        "componentLibrary": "shadcn/ui",
+        "darkMode": {
+            "enabled": true,
+            "strategy": "class-based"
+        },
+        "tailwind": {
+            "version": "4",
+            "importStyle": "@import \"tailwindcss\"",
+            "configFile": "none",
+            "customization": "@theme directives only",
+            "postcssPlugin": "@tailwindcss/postcss"
+        },
+        "rules": [
+            "No tailwind.config.js file",
+            "All theming must be done via CSS",
+            "Consistent spacing and typography",
+            "Accessibility-friendly contrast"
+        ],
+        "accessibility": {
+            "wcagLevel": "AA",
+            "keyboardNavigation": true,
+            "colorContrast": true
+        }
+    },
+    "policies": {
+        "development": {
+            "testingRequirement": "Minimum 80% coverage",
+            "commitMessageFormat": "feat(scope): description",
+            "codeQuality": [
+                "eslint",
+                "prettier"
+            ]
+        }
+    },
+    "notifications": {
+        "enabled": true,
+        "channels": {
+            "teams": {
+                "enabled": true,
+                "configSource": "config.ini",
+                "webhookKey": "teams_webhook_url"
+            }
+        },
+        "events": {
+            "storyStart": true,
+            "storyComplete": true,
+            "featureComplete": true,
+            "allStoriesComplete": true,
+            "onFailure": true
+        }
+    },
+    "features": [
+        {
+            "id": "F-000",
+            "title": "Codebase Setup \u0026 Tooling",
+            "description": "Initialize and configure the application codebase with required frameworks, tooling, and conventions.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-0001",
+                    "title": "Initialize Frontend Project",
+                    "type": "setup",
+                    "priority": 0,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "React project initialized using Vite",
+                        "TypeScript enabled",
+                        "Project runs locally with a single start command"
+                    ]
+                },
+                {
+                    "id": "US-0002",
+                    "title": "Configure Tailwind CSS v4",
+                    "type": "setup",
+                    "priority": 1,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Tailwind CSS v4 installed",
+                        "Tailwind imported via CSS using @import",
+                        "No tailwind.config.js file exists",
+                        "Dark mode works using class-based strategy"
+                    ]
+                },
+                {
+                    "id": "US-0003",
+                    "title": "Install shadcn/ui",
+                    "type": "setup",
+                    "priority": 2,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "shadcn/ui installed and usable",
+                        "At least one shadcn component renders correctly",
+                        "Component styles respect Tailwind and dark mode rules"
+                    ]
+                },
+                {
+                    "id": "US-0004",
+                    "title": "Configure Linting and Formatting",
+                    "type": "setup",
+                    "priority": 3,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "ESLint configured for React + TypeScript",
+                        "Prettier configured and integrated",
+                        "Lint and format commands run successfully",
+                        "No lint errors on initial codebase"
+                    ]
+                },
+                {
+                    "id": "US-0005",
+                    "title": "Setup Testing Framework",
+                    "type": "setup",
+                    "priority": 4,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Testing framework installed (Jest or Vitest)",
+                        "Sample test passes",
+                        "Coverage reporting enabled",
+                        "Tests can be run with a single command"
+                    ]
+                },
+                {
+                    "id": "US-0006",
+                    "title": "Establish Project Structure",
+                    "type": "setup",
+                    "priority": 5,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Standard folder structure created (components, features, hooks, utils)",
+                        "Folder structure documented",
+                        "Structure supports feature-based organization"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-001",
+            "title": "Project Management",
+            "description": "Create and manage projects that encapsulate scripts and their PRD.json definitions.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-001",
+                    "title": "Create Project",
+                    "type": "feature",
+                    "priority": 6,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can create a project with name and description",
+                        "Each project owns a single PRD.json",
+                        "Project data is persisted locally"
+                    ]
+                },
+                {
+                    "id": "US-002",
+                    "title": "Delete Project",
+                    "type": "feature",
+                    "priority": 2,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can delete a project",
+                        "Associated execution history is removed",
+                        "Deletion requires confirmation"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-002",
+            "title": "PRD.json Editor \u0026 Builder",
+            "description": "Create and edit PRD.json using structured UI and AI assistance.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "parallel"
+            },
+            "userStories": [
+                {
+                    "id": "US-003",
+                    "title": "Visual PRD Editor",
+                    "type": "feature",
+                    "priority": 3,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can edit PRD.json sections via UI",
+                        "Editor enforces schema validity",
+                        "Invalid PRD.json cannot be saved"
+                    ]
+                },
+                {
+                    "id": "US-004",
+                    "title": "AI-Assisted PRD Editing",
+                    "type": "feature",
+                    "priority": 4,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can modify PRD.json via chat",
+                        "AI suggestions require user approval",
+                        "Changes are schema validated before apply"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-003",
+            "title": "Script Execution \u0026 Monitoring",
+            "description": "Execute local scripts and monitor logs and progress in real time.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-005",
+                    "title": "Start and Stop Script Execution",
+                    "type": "feature",
+                    "priority": 5,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can start a script from the UI",
+                        "User can stop a running script",
+                        "Only one script runs per project at a time"
+                    ]
+                },
+                {
+                    "id": "US-006",
+                    "title": "Live Log Streaming",
+                    "type": "feature",
+                    "priority": 6,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Stdout and stderr are streamed live",
+                        "Logs update in near real time",
+                        "Large logs are handled efficiently"
+                    ]
+                },
+                {
+                    "id": "US-007",
+                    "title": "Progress File Monitoring",
+                    "type": "feature",
+                    "priority": 7,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "progress.txt is monitored in real time",
+                        "Progress updates are reflected in UI",
+                        "Missing progress file does not crash execution"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-004",
+            "title": "Feature \u0026 Story Execution",
+            "description": "Execute user stories and features using AI agents based on PRD.json.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-008",
+                    "title": "Execute User Story",
+                    "type": "feature",
+                    "priority": 8,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can execute a single user story",
+                        "Agent receives scoped PRD context",
+                        "Story status updates automatically"
+                    ]
+                },
+                {
+                    "id": "US-009",
+                    "title": "Execute Feature Group",
+                    "type": "feature",
+                    "priority": 9,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can execute all stories in a feature",
+                        "Execution respects strategy and dependencies",
+                        "Failures halt execution when configured"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-005",
+            "title": "Alerts \u0026 Reporting",
+            "description": "Notify users and export execution results.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "parallel"
+            },
+            "userStories": [
+                {
+                    "id": "US-010",
+                    "title": "Execution Alerts",
+                    "type": "feature",
+                    "priority": 10,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Notifications are sent on configured events",
+                        "Notification channels are configurable",
+                        "Failures trigger alerts"
+                    ]
+                },
+                {
+                    "id": "US-011",
+                    "title": "Export Reports",
+                    "type": "feature",
+                    "priority": 11,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Execution reports can be exported as JSON",
+                        "Reports include PRD snapshot and results",
+                        "Exports are stored locally"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-002A",
+            "title": "Kanban Board for Features & Stories",
+            "description": "Visual kanban-style board for managing features and user stories with drag-and-drop support, inline editing, and priority-based ordering.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-012",
+                    "title": "Kanban Board View with Four Columns",
+                    "type": "feature",
+                    "priority": 1,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Board displays four columns: Backlog, Todo, Busy, Complete",
+                        "Features are displayed as cards based on their status property",
+                        "Features are populated from the PRD.json file",
+                        "Each feature card shows story count and completion progress (x/y format)",
+                        "Each feature card shows a progress bar visualizing completion percentage",
+                        "UI is responsive and works on different screen sizes"
+                    ]
+                },
+                {
+                    "id": "US-013",
+                    "title": "Expandable Feature View",
+                    "type": "feature",
+                    "priority": 2,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can expand/collapse a feature card to show/hide its user stories",
+                        "User stories are displayed as nested cards under the expanded feature",
+                        "User stories show their status, priority, and title",
+                        "Expanding one feature does not affect other features",
+                        "Expand/collapse state is visually indicated (icon or chevron)"
+                    ]
+                },
+                {
+                    "id": "US-014",
+                    "title": "Feature Priority Ordering",
+                    "type": "feature",
+                    "priority": 3,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Features are ordered by priority property (lower number = higher priority)",
+                        "User can reorder features by dragging them up/down within their column",
+                        "Reordering updates the priority property in PRD.json",
+                        "Only features in 'todo' column are picked up by the agent for execution",
+                        "Feature order is persisted to PRD.json"
+                    ]
+                },
+                {
+                    "id": "US-015",
+                    "title": "Drag and Drop Features Between Backlog and Todo",
+                    "type": "feature",
+                    "priority": 4,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can ONLY drag feature cards between Backlog and Todo columns",
+                        "Cannot drag features from/to Busy or Complete columns",
+                        "Dropping a feature between Backlog/Todo updates its status in PRD.json",
+                        "Visual feedback during drag operation",
+                        "Drag targets are only enabled for Backlog and Todo columns",
+                        "Moving to Backlog sets status to 'backlog', moving to Todo sets status to 'todo'"
+                    ]
+                },
+                {
+                    "id": "US-016",
+                    "title": "Feature Detail View",
+                    "type": "feature",
+                    "priority": 5,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Clicking a feature card opens a detail modal/panel",
+                        "Detail view shows full feature information (title, description, execution settings)",
+                        "Detail view displays all user story cards for that feature",
+                        "User can navigate between features without closing the modal",
+                        "User can close detail view and return to board"
+                    ]
+                },
+                {
+                    "id": "US-017",
+                    "title": "Add New Story",
+                    "type": "feature",
+                    "priority": 6,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can add a new story to a feature",
+                        "New stories default to status 'todo'",
+                        "User can enter title, type, priority, and acceptance criteria",
+                        "New story is saved to PRD.json under the correct feature"
+                    ]
+                },
+                {
+                    "id": "US-018",
+                    "title": "Edit Story Details",
+                    "type": "feature",
+                    "priority": 7,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can click a story card to edit its details",
+                        "User can edit: title, type, priority, acceptanceCriteria",
+                        "Editing is only allowed for stories with status 'todo'",
+                        "Stories with status 'busy' or 'complete' are read-only",
+                        "Changes are saved to PRD.json"
+                    ]
+                },
+                {
+                    "id": "US-019",
+                    "title": "Edit Feature Details",
+                    "type": "feature",
+                    "priority": 8,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "User can edit feature properties in the detail view",
+                        "Editable fields: title, description, execution mode, execution strategy",
+                        "Editing is only allowed for features with status 'todo' or 'backlog'",
+                        "Features with status 'busy' or 'complete' are read-only",
+                        "Changes are saved to PRD.json"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-002B",
+            "title": "Fix Kanban Board Status Mapping",
+            "description": "Correct the status-to-column mapping and enforce editing restrictions based on status.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-021",
+                    "title": "Fix Status-to-Column Mapping",
+                    "type": "bugfix",
+                    "priority": 1,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Features/stories with status 'backlog' appear in Backlog column",
+                        "Features/stories with status 'todo' appear in Todo column",
+                        "Features/stories with status 'busy' appear in Busy column",
+                        "Features/stories with status 'complete' appear in Complete column",
+                        "No items appear in wrong columns",
+                        "Column assignment is based on the status property from PRD.json"
+                    ]
+                },
+                {
+                    "id": "US-022",
+                    "title": "Enforce Editing Restrictions by Status",
+                    "type": "bugfix",
+                    "priority": 2,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Only features/stories with status 'backlog' can be edited",
+                        "Features/stories with status 'todo', 'busy', or 'complete' are read-only",
+                        "Edit buttons/forms are disabled for non-backlog items",
+                        "Visual indication shows which items are editable vs read-only",
+                        "Attempting to edit non-backlog items shows appropriate message"
+                    ]
+                },
+                {
+                    "id": "US-023",
+                    "title": "New Items Default to Backlog",
+                    "type": "bugfix",
+                    "priority": 3,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Newly created features default to status 'backlog'",
+                        "Newly created stories default to status 'backlog'",
+                        "New items appear in the Backlog column",
+                        "New items are saved to PRD.json with status 'backlog'"
+                    ]
+                },
+                {
+                    "id": "US-024",
+                    "title": "Fix Screen size",
+                    "type": "bugfix",
+                    "priority": 4,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Application must fill the entire screen.",
+                        "When the board scrolls, only scroll the board area, not the entire page.",
+                        "No white space should be visible around the application.",
+                        "UI elements should be properly aligned and spaced.",
+                        "The application layout should be responsive to different screen sizes."
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-006",
+            "title": "Replace Kanban Modals with Left-Side Drawer",
+            "description": "Replace Kanban board modal dialogs (Feature Detail, Add Story, Edit Story) with a unified left-side drawer component using shadcn/ui Sheet for improved UX and accessibility.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-025",
+                    "title": "Install and Configure shadcn Sheet Component",
+                    "type": "feature",
+                    "priority": 1,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "shadcn/ui Sheet component installed and added to src/components/ui/sheet.tsx",
+                        "Sheet component configured for left-side opening by default",
+                        "Sheet component supports dark mode and respects Tailwind CSS v4 theming",
+                        "Sheet component includes proper accessibility features (focus trap, ESC handling, ARIA)",
+                        "Component exports include Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter"
+                    ]
+                },
+                {
+                    "id": "US-026",
+                    "title": "Create Shared Drawer Wrapper Component",
+                    "type": "feature",
+                    "priority": 2,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "AppDrawer wrapper component created at src/components/ui/app-drawer.tsx",
+                        "Wrapper supports three size variants: sm (400px), md (600px), lg (800px)",
+                        "Wrapper standardizes open/onOpenChange prop pattern",
+                        "Wrapper includes consistent animation and transition behavior from left side",
+                        "Wrapper provides header, content, and footer layout sections",
+                        "Component is reusable across Kanban feature components"
+                    ]
+                },
+                {
+                    "id": "US-027",
+                    "title": "Replace FeatureDetailDialog with Drawer",
+                    "type": "feature",
+                    "priority": 3,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "FeatureDetailDialog migrated from Dialog to Sheet component (lg size)",
+                        "Drawer opens from left side when feature card is clicked",
+                        "All existing functionality preserved (title, description, execution settings display)",
+                        "User story cards displayed correctly within drawer",
+                        "Feature navigation (prev/next) works within drawer",
+                        "Read-only state for busy/complete features preserved",
+                        "Drawer closes on ESC key and backdrop click",
+                        "No visual regressions in dark mode"
+                    ]
+                },
+                {
+                    "id": "US-028",
+                    "title": "Replace AddStoryDialog with Drawer",
+                    "type": "feature",
+                    "priority": 4,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "AddStoryDialog migrated from Dialog to Sheet component (md size)",
+                        "Drawer opens from left side when 'Add Story' is clicked",
+                        "All form fields work correctly (title, type, priority, acceptance criteria)",
+                        "Form validation functions properly",
+                        "New story is saved to PRD.json with correct feature association",
+                        "New stories default to 'backlog' status",
+                        "Drawer closes after successful save",
+                        "Cancel button closes drawer without saving"
+                    ]
+                },
+                {
+                    "id": "US-029",
+                    "title": "Replace EditStoryDialog with Drawer",
+                    "type": "feature",
+                    "priority": 5,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "EditStoryDialog migrated from Dialog to Sheet component (md size)",
+                        "Drawer opens from left side when story card is clicked",
+                        "All editable fields work correctly (title, type, priority, acceptance criteria)",
+                        "Read-only mode enforced for stories with status 'todo', 'busy', or 'complete'",
+                        "Only stories with status 'backlog' can be edited",
+                        "Changes are saved to PRD.json correctly",
+                        "Visual indication shows when story is read-only",
+                        "Drawer closes after successful save or on cancel"
+                    ]
+                },
+                {
+                    "id": "US-030",
+                    "title": "Handle Nested Drawer Behavior in Kanban",
+                    "type": "feature",
+                    "priority": 6,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "When AddStoryDialog opens from FeatureDetailDialog, FeatureDetail drawer closes",
+                        "When EditStoryDialog opens from FeatureDetailDialog, FeatureDetail drawer closes",
+                        "After saving/canceling AddStory or EditStory, FeatureDetail drawer reopens",
+                        "State is preserved when returning to FeatureDetail drawer",
+                        "Navigation flow feels natural and intuitive",
+                        "No drawer stacking or z-index issues occur"
+                    ]
+                },
+                {
+                    "id": "US-031",
+                    "title": "Clean Up Old Kanban Dialog Code",
+                    "type": "feature",
+                    "priority": 7,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Old Dialog imports removed from Kanban components",
+                        "All Kanban components use Sheet/AppDrawer instead of Dialog",
+                        "No unused Dialog-related code remains in Kanban feature",
+                        "All Kanban functionality tested and working with drawer pattern",
+                        "TypeScript builds without errors",
+                        "ESLint passes with no warnings",
+                        "No visual regressions on Kanban board"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-007",
+            "title": "Wider Drawer and Add Feature Button",
+            "description": "Increase drawer width to at least 1/3 of screen and add capability to create new features from the Kanban board via a button above the Backlog column.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-032",
+                    "title": "Increase Drawer Width",
+                    "type": "feature",
+                    "priority": 1,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Large (lg) drawer width updated to at least 1/3 of screen width (minimum 33.33vw or ~33%)",
+                        "Drawer remains responsive and doesn't break on smaller screens",
+                        "Content within drawer is properly visible and not cramped",
+                        "Drawer width is consistent across all Kanban drawer instances (FeatureDetail, AddStory, EditStory)",
+                        "Dark mode styling works correctly with wider drawer",
+                        "Drawer animation is smooth at new width"
+                    ]
+                },
+                {
+                    "id": "US-033",
+                    "title": "Add 'Add Feature' Button Above Backlog Column",
+                    "type": "feature",
+                    "priority": 2,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Button is positioned above the Backlog column header",
+                        "Button has clear label (e.g., '+ Add Feature' or 'New Feature')",
+                        "Button styling is consistent with application theme",
+                        "Button is visible and accessible in both light and dark modes",
+                        "Button has proper hover and focus states for accessibility",
+                        "Button click opens the Add Feature drawer from left side"
+                    ]
+                },
+                {
+                    "id": "US-034",
+                    "title": "Create Add Feature Drawer Component",
+                    "type": "feature",
+                    "priority": 3,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "AddFeatureDrawer component created using Sheet component (lg size)",
+                        "Drawer opens from left side when 'Add Feature' button is clicked",
+                        "Form includes fields: title (required), description (required), execution mode (dropdown), execution strategy (dropdown)",
+                        "Form includes field for initial status with default value 'backlog'",
+                        "All form fields have proper labels and validation",
+                        "Required field validation is enforced",
+                        "Form has Save and Cancel buttons"
+                    ]
+                },
+                {
+                    "id": "US-035",
+                    "title": "Generate Feature ID and Save New Feature",
+                    "type": "feature",
+                    "priority": 4,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "New feature ID is auto-generated following existing pattern (F-XXX format)",
+                        "Feature ID is unique and sequential (finds next available number)",
+                        "New feature is saved to PRD.json in the features array",
+                        "New feature includes empty userStories array",
+                        "Default execution mode is 'group' if not specified",
+                        "Default execution strategy is 'sequential' if not specified",
+                        "New feature appears immediately in Backlog column after save",
+                        "Drawer closes after successful save"
+                    ]
+                },
+                {
+                    "id": "US-036",
+                    "title": "Handle Add Feature Form Validation and Errors",
+                    "type": "feature",
+                    "priority": 5,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Empty title shows validation error message",
+                        "Empty description shows validation error message",
+                        "Save button is disabled when form is invalid",
+                        "Error messages are clearly visible and accessible",
+                        "Cancel button works and closes drawer without saving",
+                        "Form resets when drawer is closed and reopened",
+                        "Success message or feedback shown after feature is created",
+                        "Focus is properly managed when drawer opens and closes"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-008",
+            "title": "Backend PRD.json Persistence Service",
+            "description": "Create a backend service running via concurrently that provides API endpoints for loading and saving PRD.json files to the user's machine based on project meta.folder names.",
+            "status": "complete",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-037",
+                    "title": "Setup Backend Service with Concurrently",
+                    "type": "feature",
+                    "priority": 1,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Backend service created using Node.js/Express or similar",
+                        "Concurrently package installed and configured in package.json",
+                        "npm/yarn scripts updated to run frontend and backend simultaneously",
+                        "Backend runs on a separate port (e.g., 3001) from frontend",
+                        "CORS configured to allow frontend requests",
+                        "Backend starts automatically when running dev command",
+                        "Backend structure follows best practices (routes, controllers, services)"
+                    ]
+                },
+                {
+                    "id": "US-038",
+                    "title": "Create File System Service for PRD.json",
+                    "type": "feature",
+                    "priority": 2,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "File service module created to handle read/write operations",
+                        "Service determines file path using pattern: {meta.folder}.json",
+                        "Service validates PRD.json against schema before saving",
+                        "Service handles file system errors gracefully (file not found, permissions, etc.)",
+                        "Service creates backup of existing file before overwriting",
+                        "Service supports configurable base directory for PRD files",
+                        "File operations are async and non-blocking"
+                    ]
+                },
+                {
+                    "id": "US-039",
+                    "title": "Implement Load PRD.json API Endpoint",
+                    "type": "feature",
+                    "priority": 3,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "GET endpoint created at /api/prd/:folderName",
+                        "Endpoint reads PRD.json file from {folderName}.json",
+                        "Returns parsed JSON content with proper content-type header",
+                        "Returns 404 status if file doesn't exist",
+                        "Returns 500 status with error message on file read errors",
+                        "Validates JSON structure before returning",
+                        "Endpoint is tested and working with sample PRD files"
+                    ]
+                },
+                {
+                    "id": "US-040",
+                    "title": "Implement Save PRD.json API Endpoint",
+                    "type": "feature",
+                    "priority": 4,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "POST/PUT endpoint created at /api/prd/:folderName",
+                        "Endpoint accepts PRD.json data in request body",
+                        "Validates that meta.folder matches :folderName parameter",
+                        "Validates PRD.json against schema before saving",
+                        "Writes file to {folderName}.json on user's machine",
+                        "Returns success response with saved data confirmation",
+                        "Returns 400 status for validation errors with detailed messages",
+                        "Returns 500 status for file write errors",
+                        "File is formatted (pretty-printed) when saved"
+                    ]
+                },
+                {
+                    "id": "US-041",
+                    "title": "Create Project List API Endpoint",
+                    "type": "feature",
+                    "priority": 5,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "GET endpoint created at /api/projects",
+                        "Endpoint scans configured directory for .json files",
+                        "Returns list of available projects with meta information",
+                        "Each project includes: folder name, title, description, status from meta",
+                        "Filters out invalid or corrupted JSON files",
+                        "Returns empty array if no projects found",
+                        "Response includes count of available projects"
+                    ]
+                },
+                {
+                    "id": "US-042",
+                    "title": "Integrate Frontend with Backend API",
+                    "type": "feature",
+                    "priority": 6,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Frontend API client/service created for backend communication",
+                        "Project loading uses backend API instead of localStorage/IndexedDB",
+                        "PRD.json edits trigger save API call to backend",
+                        "Loading states shown while fetching from backend",
+                        "Error handling displays user-friendly messages for API failures",
+                        "Frontend falls back gracefully if backend is unavailable",
+                        "All existing features work with new backend integration",
+                        "No data loss during transition from local storage to file system"
+                    ]
+                },
+                {
+                    "id": "US-043",
+                    "title": "Add Auto-save and Conflict Resolution",
+                    "type": "feature",
+                    "priority": 7,
+                    "status": "complete",
+                    "passes": true,
+                    "acceptanceCriteria": [
+                        "Changes to PRD.json auto-save after short debounce period (e.g., 2 seconds)",
+                        "Visual indicator shows save status (saving, saved, error)",
+                        "File watcher detects external changes to PRD.json files",
+                        "User is notified if file was modified externally",
+                        "Option to reload from disk or keep current version on conflict",
+                        "Manual save button available for immediate save",
+                        "Unsaved changes warning shown before closing/navigating away"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "F-009",
+            "title": "Toggle Kanban Board Between Features and User Stories",
+            "description": "Add the ability to switch the kanban board view between displaying features and displaying individual user stories, allowing users to manage at different levels of granularity.",
+            "status": "backlog",
+            "execution": {
+                "mode": "group",
+                "strategy": "sequential"
+            },
+            "userStories": [
+                {
+                    "id": "US-044",
+                    "title": "Add View Toggle Control",
+                    "type": "feature",
+                    "priority": 1,
+                    "status": "backlog",
+                    "passes": false,
+                    "acceptanceCriteria": [
+                        "Toggle control added to kanban board header/toolbar",
+                        "Toggle has two options: 'Features' and 'User Stories'",
+                        "Toggle styling is consistent with application theme",
+                        "Toggle is accessible via keyboard navigation",
+                        "Active view is clearly indicated visually",
+                        "Toggle works in both light and dark modes"
+                    ]
+                },
+                {
+                    "id": "US-045",
+                    "title": "Display User Stories in Kanban Columns",
+                    "type": "feature",
+                    "priority": 2,
+                    "status": "backlog",
+                    "passes": false,
+                    "acceptanceCriteria": [
+                        "When 'User Stories' view is selected, individual user stories appear as cards",
+                        "User stories are distributed across columns based on their status property",
+                        "Each user story card displays: title, type, priority, parent feature name",
+                        "User story cards are visually distinct from feature cards",
+                        "User stories from all features are shown in the board",
+                        "Empty columns show appropriate empty state",
+                        "Column headers remain: Backlog, Todo, Busy, Complete"
+                    ]
+                },
+                {
+                    "id": "US-046",
+                    "title": "User Story Card Interactions",
+                    "type": "feature",
+                    "priority": 3,
+                    "status": "backlog",
+                    "passes": false,
+                    "acceptanceCriteria": [
+                        "Clicking a user story card opens edit/detail drawer",
+                        "User story drawer shows all story details and parent feature info",
+                        "Read-only enforcement applies (only backlog stories editable)",
+                        "User can navigate to parent feature from story detail view",
+                        "Drawer behavior consistent with feature detail drawer",
+                        "User story status badge displays correctly on card"
+                    ]
+                },
+                {
+                    "id": "US-047",
+                    "title": "Drag and Drop User Stories",
+                    "type": "feature",
+                    "priority": 4,
+                    "status": "backlog",
+                    "passes": false,
+                    "acceptanceCriteria": [
+                        "User stories can be dragged between Backlog and Todo columns only",
+                        "Cannot drag stories from/to Busy or Complete columns",
+                        "Dragging updates the user story status in PRD.json",
+                        "Visual feedback during drag operation",
+                        "Drag behavior is consistent with feature drag behavior",
+                        "Parent feature is not affected when dragging individual stories"
+                    ]
+                },
+                {
+                    "id": "US-048",
+                    "title": "Add Filtering and Grouping for User Story View",
+                    "type": "feature",
+                    "priority": 5,
+                    "status": "backlog",
+                    "passes": false,
+                    "acceptanceCriteria": [
+                        "Filter control allows filtering by feature (show stories from specific feature)",
+                        "Filter control allows filtering by story type (setup, feature, bugfix, etc.)",
+                        "Option to group user stories by parent feature within each column",
+                        "Clear/reset filter button to show all stories",
+                        "Active filters are visually indicated",
+                        "Filter state persists when switching between views"
+                    ]
+                },
+                {
+                    "id": "US-049",
+                    "title": "Add User Story from Board",
+                    "type": "feature",
+                    "priority": 6,
+                    "status": "backlog",
+                    "passes": false,
+                    "acceptanceCriteria": [
+                        "Add Story button appears above Backlog column in User Stories view",
+                        "Button click opens Add Story drawer",
+                        "Form includes dropdown to select parent feature (required)",
+                        "Form includes all standard user story fields",
+                        "New story defaults to 'backlog' status",
+                        "New story appears immediately in Backlog column after save",
+                        "Cannot add story if no features exist (show message)"
+                    ]
+                },
+                {
+                    "id": "US-050",
+                    "title": "Persist View Preference and Maintain State",
+                    "type": "feature",
+                    "priority": 7,
+                    "status": "backlog",
+                    "passes": false,
+                    "acceptanceCriteria": [
+                        "Selected view (Features/User Stories) persists in localStorage",
+                        "Board remembers last selected view on page reload",
+                        "Switching views preserves scroll position when returning",
+                        "Column collapse/expand states are view-specific",
+                        "Active filters reset when switching views (or persist separately)",
+                        "View toggle transition is smooth and performant",
+                        "No data loss occurs when switching between views"
+                    ]
+                }
+            ]
+        }
+    ],
+    "phases": [
+        {
+            "phase": "Phase 1 – MVP",
+            "scope": [
+                "Codebase setup",
+                "Project management",
+                "PRD.json editor",
+                "Local script execution",
+                "Live logs and progress"
+            ]
+        },
+        {
+            "phase": "Phase 2",
+            "scope": [
+                "AI-assisted execution",
+                "Feature-level orchestration",
+                "Alerts and reporting"
+            ]
+        }
+    ]
+}
