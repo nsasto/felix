@@ -282,6 +282,7 @@ async def update_spec(
     Update or create a spec file.
     
     If the file doesn't exist, it will be created.
+    Validates path against project policies (allowlist/denylist).
     """
     if not validate_filename(filename):
         raise HTTPException(status_code=400, detail=f"Invalid filename: {filename}")
@@ -292,6 +293,12 @@ async def update_spec(
     # Ensure specs directory exists
     if not specs_dir.exists():
         raise HTTPException(status_code=400, detail="Project has no specs/ directory")
+    
+    # Validate path against policies
+    relative_path = f"specs/{filename}"
+    is_allowed, error_msg = validate_path_against_policies(relative_path, project_path, operation="write")
+    if not is_allowed:
+        raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
     
     spec_path = specs_dir / filename
     
@@ -332,9 +339,16 @@ async def update_plan(
 ):
     """
     Update the project's IMPLEMENTATION_PLAN.md.
+    
+    Validates path against project policies (allowlist/denylist).
     """
     project_path = get_project_path(project_id)
     plan_path = project_path / "IMPLEMENTATION_PLAN.md"
+    
+    # Validate path against policies
+    is_allowed, error_msg = validate_path_against_policies("IMPLEMENTATION_PLAN.md", project_path, operation="write")
+    if not is_allowed:
+        raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
     
     try:
         plan_path.write_text(request.content, encoding='utf-8')
@@ -384,9 +398,9 @@ async def update_requirements(
 ):
     """
     Update the project's felix/requirements.json.
-    """
-    import json
     
+    Validates path against project policies (allowlist/denylist).
+    """
     project_path = get_project_path(project_id)
     req_path = project_path / "felix" / "requirements.json"
     
@@ -394,6 +408,11 @@ async def update_requirements(
     felix_dir = project_path / "felix"
     if not felix_dir.exists():
         raise HTTPException(status_code=400, detail="Project has no felix/ directory")
+    
+    # Validate path against policies
+    is_allowed, error_msg = validate_path_against_policies("felix/requirements.json", project_path, operation="write")
+    if not is_allowed:
+        raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
     
     try:
         # Convert requirements to dict format for JSON
@@ -422,6 +441,7 @@ async def create_spec(
     Create a new spec file.
     
     Returns 409 Conflict if the file already exists.
+    Validates path against project policies (allowlist/denylist).
     """
     if not validate_filename(request.filename):
         raise HTTPException(status_code=400, detail=f"Invalid filename: {request.filename}")
@@ -432,6 +452,12 @@ async def create_spec(
     # Ensure specs directory exists
     if not specs_dir.exists():
         raise HTTPException(status_code=400, detail="Project has no specs/ directory")
+    
+    # Validate path against policies
+    relative_path = f"specs/{request.filename}"
+    is_allowed, error_msg = validate_path_against_policies(relative_path, project_path, operation="write")
+    if not is_allowed:
+        raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
     
     spec_path = specs_dir / request.filename
     
