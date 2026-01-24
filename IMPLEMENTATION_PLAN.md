@@ -74,16 +74,16 @@ This is the **current plan**, not the historical record.
 ### 2.4 Planning Mode Implementation
 
 - [x] Read all specs from specs/
-- [ ] Generate IMPLEMENTATION_PLAN.md via LLM
-- [ ] Update felix/requirements.json status
+- [x] Generate IMPLEMENTATION_PLAN.md via LLM (enhanced prompt with clear workflow and file modification instructions)
+- [x] Update felix/requirements.json status (prompt now instructs LLM to update status)
 - [x] No code changes (enforce rule)
 
 ### 2.5 Building Mode Implementation
 
-- [ ] Parse IMPLEMENTATION_PLAN.md for next task
-- [ ] Investigate existing code (search codebase)
-- [ ] Execute code changes via LLM
-- [ ] Mark task complete in plan
+- [x] Parse IMPLEMENTATION_PLAN.md for next task (prompt now instructs to find first `- [ ]` item)
+- [x] Investigate existing code (search codebase) (prompt includes Grep/Glob guidance)
+- [x] Execute code changes via LLM (prompt workflow includes implementation step)
+- [x] Mark task complete in plan (prompt instructs to change `- [ ]` to `- [x]`)
 
 ---
 
