@@ -1,0 +1,17 @@
+{
+  "description": "Operations explicitly prohibited for Felix executor",
+  "denied_commands": [
+    "rm -rf /",
+    "format",
+    "shutdown",
+    "reboot",
+    "curl",
+    "wget"
+  ],
+  "denied_operations": [
+    "network_access_planning_mode",
+    "code_changes_planning_mode",
+    "config_modification",
+    "prompt_modification"
+  ]
+}
