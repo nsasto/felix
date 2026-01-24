@@ -38,13 +38,13 @@ This is the **current plan**, not the historical record.
 
 ### 1.3 File Operations API
 
-- [ ] `GET /api/projects/:id/specs` - List spec files
-- [ ] `GET /api/projects/:id/specs/:filename` - Read spec
-- [ ] `PUT /api/projects/:id/specs/:filename` - Update spec
-- [ ] `GET /api/projects/:id/plan` - Read IMPLEMENTATION_PLAN.md
-- [ ] `PUT /api/projects/:id/plan` - Update plan
-- [ ] `GET /api/projects/:id/requirements` - Read requirements.json
-- [ ] Add path validation against allowlist/denylist
+- [x] `GET /api/projects/:id/specs` - List spec files
+- [x] `GET /api/projects/:id/specs/:filename` - Read spec
+- [x] `PUT /api/projects/:id/specs/:filename` - Update spec
+- [x] `GET /api/projects/:id/plan` - Read IMPLEMENTATION_PLAN.md
+- [x] `PUT /api/projects/:id/plan` - Update plan
+- [x] `GET /api/projects/:id/requirements` - Read requirements.json
+- [x] Add path validation against allowlist/denylist
 
 ---
 
@@ -52,28 +52,28 @@ This is the **current plan**, not the historical record.
 
 ### 2.1 Agent Script
 
-- [ ] Create `app/backend/agent.py` - Main agent entry point
-- [ ] Implement `RalphExecutor` class with basic loop
-- [ ] Add CLI argument parsing (project path)
-- [ ] Load artifacts (specs, plan, AGENTS.md, requirements.json)
-- [ ] Write minimal state updates to felix/state.json
+- [x] Create `app/backend/agent.py` - Main agent entry point
+- [x] Implement `RalphExecutor` class with basic loop
+- [x] Add CLI argument parsing (project path)
+- [x] Load artifacts (specs, plan, AGENTS.md, requirements.json)
+- [x] Write minimal state updates to felix/state.json
 
 ### 2.2 Mode Logic
 
-- [ ] Implement mode determination (planning vs building)
-- [ ] Read auto_transition from felix/config.json
-- [ ] Implement mode switching logic
+- [x] Implement mode determination (planning vs building)
+- [x] Read auto_transition from felix/config.json
+- [x] Implement mode switching logic
 
 ### 2.3 LLM Integration
 
-- [ ] Add Anthropic API client initialization
-- [ ] Load prompt templates from felix/prompts/
-- [ ] Implement context gathering (specs + plan + AGENTS)
+- [x] Add droid exec integration for LLM execution
+- [x] Load prompt templates from felix/prompts/
+- [x] Implement context gathering (specs + plan + AGENTS)
 - [ ] Make test LLM call to verify connectivity
 
 ### 2.4 Planning Mode Implementation
 
-- [ ] Read all specs from specs/
+- [x] Read all specs from specs/
 - [ ] Generate IMPLEMENTATION_PLAN.md via LLM
 - [ ] Update felix/requirements.json status
 - [ ] No code changes (enforce rule)
@@ -91,23 +91,24 @@ This is the **current plan**, not the historical record.
 
 ### 3.1 Test Execution
 
-- [ ] Parse test commands from AGENTS.md
-- [ ] Run tests as subprocess
-- [ ] Capture stdout/stderr
-- [ ] Retry on failure (max N attempts)
-- [ ] Mark task blocked if tests fail
+- [x] Parse test commands from AGENTS.md
+- [x] Run tests as subprocess
+- [x] Capture stdout/stderr
+- [x] Retry on failure (max N attempts)
+- [x] Mark task blocked if tests fail
 
 ### 3.2 Run Artifacts
 
-- [ ] Create runs/<run-id>/ directory
-- [ ] Write requirement_id.txt, plan.snapshot.md
+- [x] Create runs/<run-id>/ directory
+- [x] Write plan.snapshot.md
+- [ ] Write requirement_id.txt
 - [ ] Log commands to commands.log.jsonl
-- [ ] Generate diff.patch and report.md
+- [x] Generate diff.patch and report.md
 
 ### 3.3 Git Integration
 
-- [ ] Implement git commit after successful task
-- [ ] Generate meaningful commit messages
+- [x] Implement git commit after successful task
+- [x] Generate meaningful commit messages
 
 ---
 
