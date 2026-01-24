@@ -14,16 +14,24 @@ Felix is intentionally simple. If you understand where the artifacts live and wh
 
 ## Mental model first
 
-Felix runs a **loop**, not a chat.
+Felix runs an **autonomous loop**, not a chat.
 
-Each iteration:
+Felix continuously iterates until work is complete:
 
-- loads a small set of files
+- loads a small set of files each iteration
 - runs in either planning or building mode
 - produces one concrete outcome
-- exits cleanly
+- updates state on disk
+- continues to next task
 
-All memory lives in files, not conversation state.
+**Felix runs to completion by default.** You start it, it finishes the work, then stops.
+
+All memory lives in files, not conversation state. This means:
+
+- You can stop and resume anytime
+- Progress is visible in git commits
+- No chat history to maintain
+- State is inspectable and recoverable
 
 ---
 
@@ -362,14 +370,36 @@ Felix exits after one iteration.
 
 ## Day to day usage
 
-### Normal loop
+### Autonomous operation (default)
 
-1. Run Felix
+**Felix runs autonomously through all tasks:**
+
+1. Start Felix
+2. Felix iterates continuously:
+   - Picks next task
+   - Implements
+   - Validates
+   - Updates status
+   - Commits
+   - Repeats
+3. Felix stops when:
+   - All requirements complete
+   - All remaining tasks blocked
+   - Fatal error encountered
+
+You can start Felix and walk away. State persists on disk. Progress is visible through commits and `felix/state.json`.
+
+### Manual operation (optional)
+
+For tighter control or debugging:
+
+1. Run Felix with single-iteration flag
 2. One task executes
 3. Felix exits
-4. Repeat
+4. Review changes
+5. Repeat manually
 
-Most runs are building mode.
+Most production runs use autonomous mode. Manual mode is for development and troubleshooting.
 
 ---
 
