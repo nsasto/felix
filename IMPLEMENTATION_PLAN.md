@@ -69,7 +69,7 @@ This is the **current plan**, not the historical record.
 - [x] Add droid exec integration for LLM execution
 - [x] Load prompt templates from felix/prompts/
 - [x] Implement context gathering (specs + plan + AGENTS)
-- [ ] Make test LLM call to verify connectivity
+- [x] Make test LLM call to verify connectivity (`python agent.py <path> --test-connection`)
 
 ### 2.4 Planning Mode Implementation
 

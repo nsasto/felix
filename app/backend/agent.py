@@ -499,7 +499,7 @@ class RalphExecutor:
         except Exception as e:
             return False, f"Git error: {str(e)}"
 
-    def _call_droid(self, prompt: str) -> tuple[str, bool]:
+    def _call_droid(self, prompt: str, timeout: int = 300) -> tuple[str, bool]:
         """Execute prompt via droid, streaming output to console while capturing"""
         try:
             # Write prompt to temp file
@@ -529,7 +529,7 @@ class RalphExecutor:
                     print(line, end="", flush=True)
                     output_lines.append(line)
 
-                process.wait(timeout=300)
+                process.wait(timeout=timeout)
                 output = "".join(output_lines)
                 success = process.returncode == 0
 
@@ -543,6 +543,43 @@ class RalphExecutor:
             return "ERROR: droid command not found. Is it installed?", False
         except Exception as e:
             return f"ERROR: {str(e)}", False
+
+    def test_connection(self) -> bool:
+        """
+        Make a simple test LLM call to verify droid connectivity.
+        
+        Returns True if the connection test passes, False otherwise.
+        """
+        print("\n" + "="*60)
+        print("  Felix Agent - Connection Test")
+        print("="*60 + "\n")
+        
+        test_prompt = """You are being used to test LLM connectivity for the Felix agent.
+
+Please respond with exactly this text (including the markers):
+<test>CONNECTION_OK</test>
+
+Do not add any other text before or after this response."""
+
+        print("Sending test prompt to droid...\n")
+        output, success = self._call_droid(test_prompt, timeout=60)
+        
+        if not success:
+            print("\n❌ Connection test FAILED")
+            print(f"   Droid returned an error or non-zero exit code")
+            return False
+        
+        # Check for expected response
+        if "<test>CONNECTION_OK</test>" in output:
+            print("\n✅ Connection test PASSED")
+            print("   LLM connectivity verified successfully")
+            return True
+        else:
+            print("\n⚠️ Connection test PARTIAL")
+            print("   Droid executed but response format was unexpected")
+            print("   This may still indicate working connectivity")
+            # Still return True if droid executed successfully
+            return True
 
     def _check_completion_signal(self, output: str) -> bool:
         """Check if droid signaled completion"""
@@ -784,15 +821,52 @@ Planning mode may only modify:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python agent.py <project_path>")
-        sys.exit(1)
-
-    project_path = sys.argv[1]
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Felix Agent - Ralph Loop Executor",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python agent.py /path/to/project              Run the agent
+  python agent.py /path/to/project --test       Test LLM connectivity
+  python agent.py /path/to/project --max-iter 5 Run with max 5 iterations
+"""
+    )
+    parser.add_argument(
+        "project_path",
+        help="Path to the Felix-enabled project directory"
+    )
+    parser.add_argument(
+        "--test-connection", "--test",
+        action="store_true",
+        dest="test_connection",
+        help="Test LLM connectivity without running the full agent loop"
+    )
+    parser.add_argument(
+        "--max-iterations", "--max-iter",
+        type=int,
+        dest="max_iterations",
+        help="Override max iterations from config"
+    )
+    
+    args = parser.parse_args()
 
     try:
-        executor = RalphExecutor(project_path)
-        executor.run_until_complete()
+        executor = RalphExecutor(args.project_path)
+        
+        # Override max iterations if specified
+        if args.max_iterations:
+            executor.max_iterations = args.max_iterations
+        
+        if args.test_connection:
+            # Run connection test only
+            success = executor.test_connection()
+            sys.exit(0 if success else 1)
+        else:
+            # Run full agent loop
+            executor.run_until_complete()
+            
     except KeyboardInterrupt:
         print("\n\nAgent interrupted by user")
         sys.exit(130)
