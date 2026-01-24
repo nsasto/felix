@@ -333,6 +333,124 @@ class RalphExecutor:
         except Exception as e:
             return f"Error capturing git diff: {str(e)}"
 
+    def _get_changed_files(self) -> List[str]:
+        """Get list of files changed in working directory (both staged and unstaged)"""
+        try:
+            # Get both staged and unstaged changes
+            result = subprocess.run(
+                ["git", "diff", "--name-only", "HEAD"],
+                cwd=str(self.project_path),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            files = result.stdout.strip().split("\n") if result.stdout.strip() else []
+            
+            # Also get untracked files
+            untracked = subprocess.run(
+                ["git", "ls-files", "--others", "--exclude-standard"],
+                cwd=str(self.project_path),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if untracked.stdout.strip():
+                files.extend(untracked.stdout.strip().split("\n"))
+            
+            return [f for f in files if f]  # Filter empty strings
+        except Exception as e:
+            print(f"Warning: Could not get changed files: {e}")
+            return []
+
+    def _check_planning_mode_violations(self) -> Tuple[bool, List[str]]:
+        """
+        Check if planning mode made unauthorized changes.
+        
+        Planning mode may only modify:
+        - IMPLEMENTATION_PLAN.md
+        - felix/requirements.json
+        - felix/state.json (handled by agent)
+        - runs/ directory (handled by agent)
+        
+        Returns (has_violations, list_of_violating_files)
+        """
+        allowed_patterns = [
+            "IMPLEMENTATION_PLAN.md",
+            "felix/requirements.json",
+            "felix/state.json",
+            "runs/",
+        ]
+        
+        changed_files = self._get_changed_files()
+        violations = []
+        
+        for file_path in changed_files:
+            is_allowed = False
+            for pattern in allowed_patterns:
+                if pattern.endswith("/"):
+                    # Directory pattern
+                    if file_path.startswith(pattern):
+                        is_allowed = True
+                        break
+                else:
+                    # Exact file match
+                    if file_path == pattern:
+                        is_allowed = True
+                        break
+            
+            if not is_allowed:
+                violations.append(file_path)
+        
+        return len(violations) > 0, violations
+
+    def _revert_unauthorized_changes(self, files: List[str]) -> Tuple[bool, str]:
+        """
+        Revert unauthorized changes to specific files.
+        
+        Returns (success, message)
+        """
+        if not files:
+            return True, "No files to revert"
+        
+        try:
+            # Revert tracked files
+            tracked_files = []
+            untracked_files = []
+            
+            for f in files:
+                # Check if file is tracked
+                result = subprocess.run(
+                    ["git", "ls-files", "--error-unmatch", f],
+                    cwd=str(self.project_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if result.returncode == 0:
+                    tracked_files.append(f)
+                else:
+                    untracked_files.append(f)
+            
+            # Checkout tracked files (revert changes)
+            if tracked_files:
+                subprocess.run(
+                    ["git", "checkout", "HEAD", "--"] + tracked_files,
+                    cwd=str(self.project_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+            
+            # Remove untracked files created during planning
+            for f in untracked_files:
+                file_path = self.project_path / f
+                if file_path.exists() and file_path.is_file():
+                    file_path.unlink()
+            
+            return True, f"Reverted {len(tracked_files)} files, removed {len(untracked_files)} untracked files"
+        except Exception as e:
+            return False, f"Error reverting changes: {str(e)}"
+
     def _git_commit(self, message: str) -> Tuple[bool, str]:
         """
         Commit current changes with the given message.
@@ -531,12 +649,47 @@ class RalphExecutor:
             self._write_run_artifacts(run_dir, mode, output, True)
             return False
 
-        # In building mode, run backpressure validation
+        # Mode-specific post-processing
         backpressure_report = ""
         git_diff = ""
         commands_log: List[Dict[str, Any]] = []
         overall_success = droid_success
+        planning_violation_report = ""
 
+        # Planning mode guardrails: check for unauthorized code changes
+        if mode == "planning" and droid_success:
+            has_violations, violating_files = self._check_planning_mode_violations()
+            
+            if has_violations:
+                print(f"\n{'='*60}")
+                print("  ⚠️ PLANNING MODE VIOLATION DETECTED")
+                print(f"{'='*60}")
+                print(f"\nPlanning mode attempted to modify unauthorized files:")
+                for f in violating_files:
+                    print(f"  - {f}")
+                
+                # Revert unauthorized changes
+                revert_success, revert_msg = self._revert_unauthorized_changes(violating_files)
+                print(f"\n{revert_msg}")
+                
+                planning_violation_report = f"""## Planning Mode Violation
+
+**Planning mode attempted unauthorized changes to:**
+{chr(10).join(f'- `{f}`' for f in violating_files)}
+
+**Action taken:** {revert_msg}
+
+Planning mode may only modify:
+- `IMPLEMENTATION_PLAN.md`
+- `felix/requirements.json`
+"""
+                overall_success = False
+                self._save_state({
+                    "status": "planning_violation",
+                    "last_iteration_outcome": "unauthorized_changes_reverted"
+                })
+
+        # In building mode, run backpressure validation
         if mode == "building" and droid_success:
             # Capture git diff before potential commit
             git_diff = self._capture_git_diff()
@@ -569,9 +722,14 @@ class RalphExecutor:
                 self._mark_requirement_blocked()
         
         # Write run artifacts
+        # Combine backpressure_report and planning_violation_report for the validation report
+        validation_report = backpressure_report
+        if planning_violation_report:
+            validation_report = planning_violation_report + "\n" + backpressure_report
+        
         self._write_run_artifacts(
             run_dir, mode, output, overall_success,
-            backpressure_report=backpressure_report,
+            backpressure_report=validation_report,
             git_diff=git_diff,
             commands_log=commands_log
         )

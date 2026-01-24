@@ -76,7 +76,7 @@ This is the **current plan**, not the historical record.
 - [x] Read all specs from specs/
 - [ ] Generate IMPLEMENTATION_PLAN.md via LLM
 - [ ] Update felix/requirements.json status
-- [ ] No code changes (enforce rule)
+- [x] No code changes (enforce rule)
 
 ### 2.5 Building Mode Implementation
 
