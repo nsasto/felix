@@ -201,11 +201,20 @@ class RalphExecutor:
         
         return commands
 
-    def _run_validation_command(self, command: str, timeout: int = 120) -> Tuple[str, int]:
+    def _run_validation_command(self, command: str, timeout: int = 120) -> Tuple[str, int, Dict[str, Any]]:
         """
-        Run a single validation command and return (output, return_code).
+        Run a single validation command and return (output, return_code, log_entry).
+        
+        log_entry contains command metadata for commands.log.jsonl
         """
         print(f"  Running: {command}")
+        
+        start_time = datetime.now()
+        log_entry = {
+            "command": command,
+            "started_at": start_time.isoformat(),
+            "cwd": str(self.project_path),
+        }
         
         try:
             # Handle cd commands by parsing and setting cwd
@@ -215,11 +224,16 @@ class RalphExecutor:
                 cd_part = parts[0].strip()
                 dir_name = cd_part[3:].strip()
                 cwd = str(self.project_path / dir_name)
+                log_entry["cwd"] = cwd
                 if len(parts) > 1:
                     command = parts[1].strip()
+                    log_entry["command"] = command
                 else:
                     # Just a cd command, skip it
-                    return "", 0
+                    log_entry["skipped"] = True
+                    log_entry["return_code"] = 0
+                    log_entry["duration_ms"] = 0
+                    return "", 0, log_entry
             
             process = subprocess.run(
                 command,
@@ -230,22 +244,37 @@ class RalphExecutor:
                 timeout=timeout,
             )
             
+            end_time = datetime.now()
+            duration_ms = int((end_time - start_time).total_seconds() * 1000)
+            
             output = process.stdout + process.stderr
-            return output, process.returncode
+            log_entry["return_code"] = process.returncode
+            log_entry["duration_ms"] = duration_ms
+            log_entry["output_length"] = len(output)
+            
+            return output, process.returncode, log_entry
             
         except subprocess.TimeoutExpired:
-            return f"Command timed out after {timeout}s", 1
+            log_entry["return_code"] = 1
+            log_entry["error"] = f"Command timed out after {timeout}s"
+            log_entry["duration_ms"] = timeout * 1000
+            return f"Command timed out after {timeout}s", 1, log_entry
         except Exception as e:
-            return f"Error running command: {str(e)}", 1
+            log_entry["return_code"] = 1
+            log_entry["error"] = str(e)
+            return f"Error running command: {str(e)}", 1, log_entry
 
-    def _run_backpressure(self, max_retries: int = 2) -> Tuple[bool, str]:
+    def _run_backpressure(self, max_retries: int = 2) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """
         Run backpressure validation (tests, build, lint).
         
-        Returns (success, report) where report contains command outputs.
+        Returns (success, report, commands_log) where:
+        - report contains command outputs for display
+        - commands_log contains structured command metadata for JSONL logging
         """
         commands = self._parse_agents_commands()
         report_lines = ["## Backpressure Validation\n"]
+        commands_log: List[Dict[str, Any]] = []
         overall_success = True
         
         # Run in order: lint, build, test
@@ -260,24 +289,35 @@ class RalphExecutor:
             for cmd in cmds:
                 success = False
                 last_output = ""
+                last_log_entry = None
                 
                 for attempt in range(max_retries + 1):
-                    output, return_code = self._run_validation_command(cmd)
+                    output, return_code, log_entry = self._run_validation_command(cmd)
+                    log_entry["validation_type"] = validation_type
+                    log_entry["attempt"] = attempt + 1
                     last_output = output
+                    last_log_entry = log_entry
                     
                     if return_code == 0:
                         success = True
+                        log_entry["success"] = True
+                        commands_log.append(log_entry)
                         report_lines.append(f"✅ `{cmd}` - Passed\n")
                         break
                     elif attempt < max_retries:
+                        log_entry["success"] = False
+                        commands_log.append(log_entry)
                         print(f"  Retry {attempt + 1}/{max_retries} for: {cmd}")
                 
                 if not success:
                     overall_success = False
+                    if last_log_entry:
+                        last_log_entry["success"] = False
+                        commands_log.append(last_log_entry)
                     report_lines.append(f"❌ `{cmd}` - Failed\n```\n{last_output[:500]}...\n```\n")
         
         report = "\n".join(report_lines)
-        return overall_success, report
+        return overall_success, report, commands_log
 
     def _capture_git_diff(self) -> str:
         """Capture git diff of current changes"""
@@ -399,9 +439,16 @@ class RalphExecutor:
 
     def _write_run_artifacts(
         self, run_dir: Path, mode: str, output: str, success: bool,
-        backpressure_report: str = "", git_diff: str = ""
+        backpressure_report: str = "", git_diff: str = "",
+        commands_log: Optional[List[Dict[str, Any]]] = None
     ):
         """Write execution artifacts to run directory"""
+        # Write requirement_id.txt with current requirement being worked on
+        state = self._load_state()
+        current_req_id = state.get("current_requirement_id")
+        if current_req_id:
+            (run_dir / "requirement_id.txt").write_text(current_req_id)
+
         # Snapshot plan
         plan_file = self.project_path / "IMPLEMENTATION_PLAN.md"
         if plan_file.exists():
@@ -414,11 +461,17 @@ class RalphExecutor:
         if git_diff:
             (run_dir / "diff.patch").write_text(git_diff)
 
+        # Write commands log as JSONL (one JSON object per line)
+        if commands_log:
+            jsonl_lines = [json.dumps(entry) for entry in commands_log]
+            (run_dir / "commands.log.jsonl").write_text("\n".join(jsonl_lines) + "\n")
+
         # Write report
         report = f"""# Run Report
 
 **Mode:** {mode}
 **Iteration:** {self.iteration}
+**Requirement:** {current_req_id or "N/A"}
 **Success:** {success}
 **Timestamp:** {datetime.now().isoformat()}
 
@@ -481,6 +534,7 @@ class RalphExecutor:
         # In building mode, run backpressure validation
         backpressure_report = ""
         git_diff = ""
+        commands_log: List[Dict[str, Any]] = []
         overall_success = droid_success
 
         if mode == "building" and droid_success:
@@ -491,7 +545,7 @@ class RalphExecutor:
             print("  Running Backpressure Validation")
             print(f"{'='*60}\n")
             
-            backpressure_success, backpressure_report = self._run_backpressure()
+            backpressure_success, backpressure_report, commands_log = self._run_backpressure()
             
             if backpressure_success:
                 print("\n✅ Backpressure passed! Committing changes...")
@@ -518,7 +572,8 @@ class RalphExecutor:
         self._write_run_artifacts(
             run_dir, mode, output, overall_success,
             backpressure_report=backpressure_report,
-            git_diff=git_diff
+            git_diff=git_diff,
+            commands_log=commands_log
         )
 
         # Check for mode transition (auto_transition)

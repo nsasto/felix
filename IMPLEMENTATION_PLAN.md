@@ -101,8 +101,8 @@ This is the **current plan**, not the historical record.
 
 - [x] Create runs/<run-id>/ directory
 - [x] Write plan.snapshot.md
-- [ ] Write requirement_id.txt
-- [ ] Log commands to commands.log.jsonl
+- [x] Write requirement_id.txt
+- [x] Log commands to commands.log.jsonl
 - [x] Generate diff.patch and report.md
 
 ### 3.3 Git Integration
