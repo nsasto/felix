@@ -34,6 +34,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(projects.router)
+app.include_router(files.router)
 
 @app.get("/health")
 async def health_check():
