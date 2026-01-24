@@ -104,6 +104,27 @@ At a high level:
 Ralph’s minimal loop is famously just a bash while loop that feeds a prompt file repeatedly. ([Clayton Farr][1])
 Felix preserves the simplicity of that model, but formalizes the “what happens in an iteration” so it can be observed, tested, and extended.
 
+### Autonomous by default
+
+**Felix runs to completion without human intervention.**
+
+Once started, Felix:
+
+- Iterates through all tasks in the plan
+- Switches between planning and building modes as needed
+- Handles validation failures by marking tasks blocked
+- Continues until all requirements are complete or permanently blocked
+- Exits only when done or when encountering unrecoverable errors
+
+Human intervention is **optional** and used for:
+
+- Reviewing progress mid-run
+- Adjusting specs or priorities
+- Unblocking tasks manually
+- Emergency stops
+
+The lightweight UI is an **observer console**, not a control panel. Felix's state is on disk, not in a chat window. You can start Felix, walk away, and come back to completed work.
+
 ### Key artifacts (canonical Ralph style)
 
 The Playbook centers on a small set of files as the stable context. ([Clayton Farr][1])
