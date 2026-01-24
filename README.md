@@ -240,8 +240,9 @@ Felix maintains its state in a `felix/` directory and execution evidence in `run
 
 ## References
 
-- The Ralph Playbook (Clayton Farr), formatted guide and detailed mechanics. ([Clayton Farr][1])
-- `snarktank/ralph` autonomous PRD driven loop implementation. ([GitHub][3])
-- `mikeyobrien/ralph-orchestrator` orchestration framework variant. ([GitHub][4])
-- `steveyegge/gastown` multi agent workspace manager for Claude Code. ([GitHub][5])
-- Claude Code Ralph Wiggum plugin documentation. ([GitHub][6])
+[1]: https://docs.google.com/document/d/1UB9ei9sJhf5yWe3Ry86P8R6P2lBJhLPY6LlhO8CZDNI/edit "The Ralph Playbook by Clayton Farr"
+[2]: https://github.com/snarktank/ralph "snarktank/ralph - Ralph Playbook reference implementation"
+[3]: https://github.com/snarktank/ralph "snarktank/ralph - Autonomous PRD-driven loop implementation"
+[4]: https://github.com/mikeyobrien/ralph-orchestrator "mikeyobrien/ralph-orchestrator - Orchestration framework variant"
+[5]: https://github.com/steveyegge/gastown "steveyegge/gastown - Multi-agent workspace manager for Claude Code"
+[6]: https://github.com/anthropics/anthropic-quickstarts/tree/main/claude-code-ralph-wiggum "Claude Code Ralph Wiggum plugin"
