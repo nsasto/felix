@@ -4,26 +4,60 @@ This file tells Felix **how to run the system**.
 
 ## Install Dependencies
 
+### Backend
+
 ```bash
-# To be added when implementation begins
+cd app/backend
+python -m pip install -r requirements.txt
+```
+
+### Frontend
+
+```bash
+cd app/frontend
+npm install
 ```
 
 ## Run Tests
 
 ```bash
-# To be added when implementation begins
+# To be added when tests are implemented
 ```
 
 ## Build the Project
 
 ```bash
-# To be added when implementation begins
+# Backend builds are not needed (Python)
+# Frontend build:
+cd app/frontend
+npm run build
 ```
 
 ## Start the Application
 
+### Development Mode
+
+**Backend (FastAPI):**
+
 ```bash
-# To be added when implementation begins
+cd app/backend
+python main.py
+# Runs on http://localhost:8080
+# API docs at http://localhost:8080/docs
+```
+
+**Frontend (React):**
+
+```bash
+cd app/frontend
+npm run dev
+# Runs on http://localhost:3000
+```
+
+### Production Mode
+
+```bash
+# To be added when production setup is ready
 ```
 
 ## Repository Conventions

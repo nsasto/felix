@@ -1,0 +1,8 @@
+{
+  "name": "Felix AI Companion",
+  "description": "A sophisticated, context-aware AI assistant inspired by the Felix project, featuring multi-modal interactions, real-time grounding, and a sleek OS-like interface.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

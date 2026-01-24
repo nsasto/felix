@@ -372,22 +372,43 @@ Felix exits after one iteration.
 
 ### Autonomous operation (default)
 
-**Felix runs autonomously through all tasks:**
+**Felix agent runs autonomously through all tasks:**
 
-1. Start Felix
-2. Felix iterates continuously:
-   - Picks next task
-   - Implements
-   - Validates
-   - Updates status
-   - Commits
-   - Repeats
-3. Felix stops when:
-   - All requirements complete
-   - All remaining tasks blocked
-   - Fatal error encountered
+**Option A: Via UI**
 
-You can start Felix and walk away. State persists on disk. Progress is visible through commits and `felix/state.json`.
+1. Open Felix UI (http://localhost:3000)
+2. Select project or register new one
+3. Click "Start Run"
+4. Backend spawns agent process for that project
+5. Agent runs to completion
+6. UI shows real-time progress via WebSocket
+
+**Option B: Via CLI (Pure Ralph)**
+
+1. Navigate to project: `cd my-todo-app`
+2. Run agent: `felix run` (or `felix-agent .`)
+3. Agent runs to completion
+4. No UI needed - pure command line
+
+**What the agent does:**
+
+- Starts in planning mode if no plan exists
+- Generates implementation plan
+- **Automatically transitions to building mode**
+- Iterates continuously through tasks:
+  - Picks next task
+  - Implements
+  - Validates
+  - Updates status
+  - Commits
+  - Repeats
+- Returns to planning mode if plan becomes stale
+- Transitions back to building after replanning
+- Stops when all requirements complete or all tasks blocked
+
+**Mode transitions are automatic.** Start the agent once, it plans and builds until done.
+
+You can start the agent and walk away. State persists on disk. Progress is visible through commits and `felix/state.json`.
 
 ### Manual operation (optional)
 

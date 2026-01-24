@@ -2,11 +2,41 @@
   "requirements": [
     {
       "id": "S-0001",
-      "title": "Initial project setup",
+      "title": "Felix Agent Executor",
       "spec_path": "specs/initial-setup.md",
       "status": "in_progress",
+      "priority": "critical",
+      "labels": ["foundation", "agent"],
+      "depends_on": [],
+      "updated_at": "2026-01-24"
+    },
+    {
+      "id": "S-0002",
+      "title": "Felix Backend API Server",
+      "spec_path": "specs/backend-api.md",
+      "status": "planned",
       "priority": "high",
-      "labels": ["infrastructure", "documentation"],
+      "labels": ["backend", "api"],
+      "depends_on": ["S-0001"],
+      "updated_at": "2026-01-24"
+    },
+    {
+      "id": "S-0003",
+      "title": "Felix Frontend Observer UI",
+      "spec_path": "specs/frontend-ui.md",
+      "status": "planned",
+      "priority": "high",
+      "labels": ["frontend", "ui"],
+      "depends_on": ["S-0002", "S-0001"],
+      "updated_at": "2026-01-24"
+    },
+    {
+      "id": "S-0004",
+      "title": "Artifact Templates and Scaffolding",
+      "spec_path": "specs/artifact-templates.md",
+      "status": "planned",
+      "priority": "medium",
+      "labels": ["tooling", "dx"],
       "depends_on": [],
       "updated_at": "2026-01-24"
     }
