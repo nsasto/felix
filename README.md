@@ -106,15 +106,19 @@ Felix preserves the simplicity of that model, but formalizes the “what happens
 
 ### Key artifacts (canonical Ralph style)
 
-The Playbook centers four files as the stable context set. ([Clayton Farr][1])
+The Playbook centers on a small set of files as the stable context. ([Clayton Farr][1])
 
 - `specs/*`
-  Requirements broken into narrowly scoped topics. ([Clayton Farr][1])
+  Requirements broken into narrowly scoped topics with descriptive filenames. IDs appear in the first line of each file. ([Clayton Farr][1])
+- `specs/CONTEXT.md`
+  Product and system context: tech stack, design standards, UX rules, and architectural invariants.
+- `felix/requirements.json`
+  Structured registry of requirements with stable IDs, status tracking, and dependencies. Provides machine-readable structure while Markdown specs hold the meaning.
 - `IMPLEMENTATION_PLAN.md`
-  Prioritized bullet list of tasks, updated continuously, and disposable. ([Clayton Farr][1])
+  Prioritized bullet list of tasks, updated continuously, and disposable. Snapshotted into each run for audit trail. ([Clayton Farr][1])
 - `AGENTS.md`
-  Operational “how to run/build/test” guide. It must stay short and operational or it pollutes every future loop. ([Clayton Farr][1])
-- `PROMPT_*.md`
+  Operational "how to run/build/test" guide. It must stay short and operational or it pollutes every future loop. ([Clayton Farr][1])
+- `felix/prompts/planning.md` and `felix/prompts/building.md`
   Mode specific instructions, including key language patterns and guardrails. ([Clayton Farr][1])
 
 Felix supports splitting “big PRD state” into smaller, more stable files when it helps, while still keeping the Playbook’s principle: prefer simple, token efficient, inspectable artifacts (often Markdown) over heavy schemas. ([Clayton Farr][1])
@@ -210,6 +214,17 @@ Felix is intended to be split into two detached parts:
   Observes, edits artifacts, starts and stops runs, and inspects iteration outputs.
 
 This separation is intentional: the UI is an operator console, not the brain.
+
+### Internal structure
+
+Felix maintains its state in a `felix/` directory and execution evidence in `runs/`:
+
+- `felix/requirements.json` – central registry of requirements and work state
+- `felix/state.json` – minimal control state (current requirement, last mode, iteration outcome)
+- `felix/config.json` – executor configuration
+- `felix/prompts/` – mode-specific prompt templates
+- `felix/policies/` – allowlists and constraints
+- `runs/<run-id>/` – per-iteration append-only logs, plan snapshots, diffs, and reports for auditing
 
 ---
 

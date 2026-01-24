@@ -1,0 +1,18 @@
+{
+  "version": "0.1.0",
+  "executor": {
+    "mode": "local",
+    "max_iterations": 100,
+    "default_mode": "building"
+  },
+  "paths": {
+    "specs": "specs",
+    "plan": "IMPLEMENTATION_PLAN.md",
+    "agents": "AGENTS.md",
+    "runs": "runs"
+  },
+  "backpressure": {
+    "enabled": true,
+    "commands": []
+  }
+}

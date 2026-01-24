@@ -1,0 +1,14 @@
+{
+  "requirements": [
+    {
+      "id": "S-0001",
+      "title": "Initial project setup",
+      "spec_path": "specs/initial-setup.md",
+      "status": "in_progress",
+      "priority": "high",
+      "labels": ["infrastructure", "documentation"],
+      "depends_on": [],
+      "updated_at": "2026-01-24"
+    }
+  ]
+}
