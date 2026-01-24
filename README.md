@@ -110,8 +110,10 @@ Felix preserves the simplicity of that model, but formalizes the “what happens
 
 Once started, Felix:
 
+- Automatically transitions between planning and building modes (via `auto_transition: true`)
+- Plans if no plan exists, then immediately starts building
 - Iterates through all tasks in the plan
-- Switches between planning and building modes as needed
+- Returns to planning mode when the plan becomes stale, then resumes building
 - Handles validation failures by marking tasks blocked
 - Continues until all requirements are complete or permanently blocked
 - Exits only when done or when encountering unrecoverable errors
@@ -227,25 +229,43 @@ The executor and prompts must bias toward searching and confirming existing func
 
 ## Repository shape and components
 
-Felix is intended to be split into two detached parts:
+Felix consists of three independent parts:
 
-- **Backend (executor + API)**
-  Owns artifacts, iteration state, tool execution, and completion criteria.
-- **Frontend (lightweight operator UI)**
-  Observes, edits artifacts, starts and stops runs, and inspects iteration outputs.
+- **Agent (standalone executor)**
+  Runs the Ralph loop as an independent process. Reads artifacts from project directory, calls LLM APIs, executes code changes, runs tests, writes to filesystem. Can run without backend.
+- **Backend (optional API server)**
+  Spawns and monitors agents, provides HTTP/WebSocket API for observing state, serves the frontend UI. Communicates with agents via filesystem.
+- **Frontend (lightweight observer UI)**
+  Observes project state, edits artifacts, spawns agents, monitors runs. All communication via backend API.
 
-This separation is intentional: the UI is an operator console, not the brain.
+This separation is intentional: agents run autonomously as processes, backend orchestrates and monitors via filesystem, UI observes without controlling.
+
+### Component architecture
+
+```
+Backend (FastAPI + WebSocket)
+    ↓ spawns via subprocess
+Agent Processes (one per active project)
+    ↓ reads/writes
+Filesystem (project directories)
+    ↑ watches
+Backend (file watchers)
+    ↑ WebSocket updates
+Frontend (React UI)
+```
 
 ### Internal structure
 
 Felix maintains its state in a `felix/` directory and execution evidence in `runs/`:
 
 - `felix/requirements.json` – central registry of requirements and work state
-- `felix/state.json` – minimal control state (current requirement, last mode, iteration outcome)
-- `felix/config.json` – executor configuration
-- `felix/prompts/` – mode-specific prompt templates
+- `felix/state.json` – minimal control state (current requirement, last mode, iteration outcome) - agent writes, backend reads
+- `felix/config.json` – executor configuration - backend writes, agent reads
+- `felix/prompts/` – mode-specific prompt templates for LLM
 - `felix/policies/` – allowlists and constraints
 - `runs/<run-id>/` – per-iteration append-only logs, plan snapshots, diffs, and reports for auditing
+
+**Communication:** Agents and backend communicate only via filesystem. No IPC, sockets, or shared memory. This keeps agents simple and enables remote execution.
 
 ---
 

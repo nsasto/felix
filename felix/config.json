@@ -3,7 +3,8 @@
   "executor": {
     "mode": "local",
     "max_iterations": 100,
-    "default_mode": "building"
+    "default_mode": "building",
+    "auto_transition": true
   },
   "paths": {
     "specs": "specs",

@@ -1,0 +1,94 @@
+# S-0003: Felix Frontend Observer UI
+
+## Narrative
+
+As a developer, I need a lightweight React UI that allows me to register projects, view specs and plans, spawn agents, and monitor their progress in real-time, while keeping state management simple via backend API calls and WebSocket updates.
+
+## Acceptance Criteria
+
+### Project Management Views
+
+- [ ] Project selector page: lists registered projects with status indicators
+- [ ] "Register Project" button: opens dialog to select directory
+- [ ] Project detail page: shows specs, plan, requirements, recent runs
+- [ ] Unregister project action with confirmation
+
+### Specs Editor
+
+- [ ] List all specs from project with IDs, titles, status badges
+- [ ] Click spec to open editor (Markdown with syntax highlighting)
+- [ ] Save changes via PUT /api/projects/:id/specs/:filename
+- [ ] Create new spec via template
+- [ ] Status indicators: draft, planned, in_progress, done, blocked
+
+### Implementation Plan View
+
+- [ ] Display IMPLEMENTATION_PLAN.md with Markdown rendering
+- [ ] Edit mode with live preview
+- [ ] Save changes via PUT /api/projects/:id/plan
+- [ ] Visual indicators for completed/in-progress/blocked tasks
+
+### Requirements Kanban Board
+
+- [ ] Column-based view: Draft → Planned → In Progress → Done → Blocked
+- [ ] Cards show requirement ID, title, priority, labels
+- [ ] Drag-and-drop to update status (updates felix/requirements.json)
+- [ ] Click card to view full spec
+- [ ] Filter by labels, priority, dependencies
+
+### Agent Run Controls
+
+- [ ] "Start Agent" button on project page
+- [ ] Calls POST /api/projects/:id/runs/start
+- [ ] Shows "Running" state when agent active
+- [ ] "Stop Agent" button (graceful interrupt)
+- [ ] Run history list with timestamps and outcomes
+
+### Real-time Run Monitor
+
+- [ ] WebSocket connection to /ws/projects/:id when project page open
+- [ ] Live iteration counter (e.g., "Iteration 5/100")
+- [ ] Current mode badge (Planning / Building)
+- [ ] Current task description
+- [ ] Status updates: running, complete, blocked, error
+- [ ] Auto-refresh on iteration_complete events
+
+### Run Artifact Viewer
+
+- [ ] View past runs from runs/ directory
+- [ ] Display report.md with formatting
+- [ ] Show output.log with syntax highlighting
+- [ ] View plan.snapshot.md to see plan state at that iteration
+- [ ] View diff.patch of changes made
+
+### Configuration Panel
+
+- [ ] Edit felix/config.json settings (max_iterations, auto_transition, default_mode)
+- [ ] Save via backend API
+- [ ] Input validation for numeric/boolean fields
+
+## Technical Notes
+
+**UI Philosophy:** The UI is an **observer console**, not a control panel. It displays state and spawns agents, but doesn't orchestrate work. Felix runs autonomously—UI just watches.
+
+**State model:** All state lives on disk (project directories). UI fetches via backend API, displays, enables editing. No client-side state management beyond ephemeral view state.
+
+**Real-time updates:** WebSocket for live progress only. Editing and management via REST API.
+
+**Existing code:** Current app/frontend/ has React scaffolding with Kanban, markdown editor, Gemini integration. Refactor to align with Felix architecture:
+
+- Remove Gemini integration (replaced by droid in agent)
+- Adapt Kanban to felix/requirements.json schema
+- Adapt markdown editor to specs editing
+- Add WebSocket integration for run monitoring
+
+**Component reuse:** Keep working components:
+
+- Markdown editor with syntax highlighting
+- Kanban board component (adapt data source)
+- Basic layout and navigation
+
+## Dependencies
+
+- S-0002 (backend API must exist)
+- S-0001 (agent must be working to make UI useful)

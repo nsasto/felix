@@ -1,0 +1,25 @@
+# FastAPI and ASGI server
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# WebSocket support
+websockets==13.1
+
+# LLM integration
+anthropic==0.39.0
+
+# Async file operations
+aiofiles==24.1.0
+
+# File watching
+watchfiles==0.24.0
+
+# Data validation
+pydantic==2.9.2
+pydantic-settings==2.6.0
+
+# CORS
+python-multipart==0.0.12
+
+# Utilities
+python-dotenv==1.0.1
