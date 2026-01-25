@@ -19,6 +19,7 @@
   },
   "backpressure": {
     "enabled": true,
-    "commands": []
+    "commands": [],
+    "max_retries": 3
   }
 }

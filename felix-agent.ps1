@@ -771,6 +771,62 @@ $output
                     $failedCmdSummary += "[$($failed.type)] $($failed.command) (exit: $($failed.exit_code))"
                 }
                 
+                # Determine retry count - check if this is the same blocked task being retried
+                $retryCount = 1
+                if ($state.blocked_task -and $state.blocked_task.description -eq $blockedTaskDesc) {
+                    $retryCount = $state.blocked_task.retry_count + 1
+                }
+                
+                # Get max retries from config (default to 3)
+                $maxRetries = if ($config.backpressure.max_retries) { $config.backpressure.max_retries } else { 3 }
+                
+                # Check if max retries exceeded
+                if ($retryCount -gt $maxRetries) {
+                    Write-Host ""
+                    Write-Host "[MAX RETRIES] Task has failed validation $retryCount times (max: $maxRetries)"
+                    Write-Host "[MAX RETRIES] Marking task as PERMANENTLY BLOCKED - requires manual intervention"
+                    
+                    $state.last_iteration_outcome = "max_retries_exceeded"
+                    $state.status = "max_retries_exceeded"
+                    $state.blocked_task = @{
+                        description     = $blockedTaskDesc
+                        blocked_at      = Get-Date -Format "o"
+                        reason          = "max_retries_exceeded"
+                        failed_commands = $failedCmdSummary
+                        iteration       = $iteration
+                        retry_count     = $retryCount
+                        max_retries     = $maxRetries
+                    }
+                    $state.updated_at = Get-Date -Format "o"
+                    $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
+                    
+                    # Write max retries report
+                    $maxRetriesReport = @"
+# Max Retries Exceeded Report
+
+**Task:** $blockedTaskDesc
+**Blocked At:** $(Get-Date -Format "o")
+**Retry Count:** $retryCount
+**Max Retries:** $maxRetries
+**Reason:** Validation has failed repeatedly
+
+## Failed Commands
+
+$($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
+
+## Next Steps
+
+This task requires manual intervention. The agent will not retry automatically.
+Review the validation failures and fix the underlying issues before restarting.
+"@
+                    Set-Content (Join-Path $runDir "max-retries-exceeded.md") $maxRetriesReport -Encoding UTF8
+                    
+                    Write-Host "Exiting due to max retries exceeded..."
+                    exit 2
+                }
+                
+                Write-Host "[RETRY] Retry attempt $retryCount of $maxRetries"
+                
                 # Update state to indicate blocked task with details
                 $state.last_iteration_outcome = "blocked"
                 $state.status = "blocked"
@@ -780,6 +836,8 @@ $output
                     reason          = "validation_failed"
                     failed_commands = $failedCmdSummary
                     iteration       = $iteration
+                    retry_count     = $retryCount
+                    max_retries     = $maxRetries
                 }
                 $state.updated_at = Get-Date -Format "o"
                 $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
@@ -791,6 +849,7 @@ $output
 **Task:** $blockedTaskDesc
 **Blocked At:** $(Get-Date -Format "o")
 **Reason:** Validation failed
+**Retry:** $retryCount of $maxRetries
 
 ## Failed Commands
 
@@ -804,7 +863,7 @@ $($backpressureResult.output)
 
 ## Next Steps
 
-The agent will retry this task in the next iteration.
+The agent will retry this task in the next iteration ($($maxRetries - $retryCount) attempts remaining).
 Fix the validation issues to unblock progress.
 "@
                 Set-Content (Join-Path $runDir "blocked-task.md") $blockedReport -Encoding UTF8
