@@ -370,7 +370,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         Write-Host $output
         
         # Write output log
-        Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8 -Encoding UTF8
+        Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8
         
         # ====================================================================
         # Planning Mode Guardrail Enforcement
@@ -405,7 +405,7 @@ $(($guardrailViolations.UnauthorizedFiles | ForEach-Object { "- $_" }) -join "`n
 
 All unauthorized changes have been reverted.
 "@
-                Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog -Encoding UTF8 -Encoding UTF8
+                Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog -Encoding UTF8
                 
                 # Update state with guardrail violation
                 $state.last_iteration_outcome = "guardrail_violation"
