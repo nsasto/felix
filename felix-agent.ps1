@@ -335,6 +335,146 @@ function Get-BackpressureCommands {
     return $commands
 }
 
+function Invoke-BackpressureValidation {
+    <#
+    .SYNOPSIS
+    Executes backpressure validation commands (tests, build, lint) after code changes
+    
+    .DESCRIPTION
+    Runs all backpressure commands parsed from AGENTS.md or config.json.
+    Returns a result object indicating success/failure and details.
+    
+    .PARAMETER WorkingDir
+    The project working directory
+    
+    .PARAMETER AgentsFilePath
+    Path to the AGENTS.md file
+    
+    .PARAMETER Config
+    The felix config object (for backpressure settings)
+    
+    .PARAMETER RunDir
+    Directory to write validation logs to
+    
+    .OUTPUTS
+    Hashtable with keys: success (bool), failed_commands (array), output (string)
+    #>
+    param(
+        [string]$WorkingDir,
+        [string]$AgentsFilePath,
+        [object]$Config,
+        [string]$RunDir
+    )
+    
+    $result = @{
+        success         = $true
+        failed_commands = @()
+        output          = ""
+        skipped         = $false
+    }
+    
+    # Check if backpressure is enabled
+    if (-not $Config.backpressure.enabled) {
+        Write-Host "[BACKPRESSURE] Backpressure validation is disabled in config"
+        $result.skipped = $true
+        return $result
+    }
+    
+    # Get backpressure commands
+    $configCommands = @()
+    if ($Config.backpressure.commands) {
+        $configCommands = @($Config.backpressure.commands)
+    }
+    
+    $commands = Get-BackpressureCommands -AgentsFilePath $AgentsFilePath -ConfigCommands $configCommands
+    
+    if ($commands.Count -eq 0) {
+        Write-Host "[BACKPRESSURE] No validation commands found - skipping backpressure"
+        $result.skipped = $true
+        return $result
+    }
+    
+    Write-Host ""
+    Write-Host "[BACKPRESSURE] Running validation commands..."
+    Write-Host ""
+    
+    $allOutput = @()
+    
+    Push-Location $WorkingDir
+    try {
+        foreach ($cmd in $commands) {
+            Write-Host "  [$($cmd.type)] Executing: $($cmd.command)"
+            
+            try {
+                # Execute the command
+                $cmdOutput = Invoke-Expression $cmd.command 2>&1
+                $exitCode = $LASTEXITCODE
+                
+                # Convert output to string
+                $outputStr = ($cmdOutput | Out-String).Trim()
+                $allOutput += "=== $($cmd.type): $($cmd.command) ==="
+                $allOutput += $outputStr
+                $allOutput += "Exit code: $exitCode"
+                $allOutput += ""
+                
+                if ($exitCode -ne 0) {
+                    Write-Host "    ❌ FAILED (exit code: $exitCode)"
+                    $result.success = $false
+                    $result.failed_commands += @{
+                        command   = $cmd.command
+                        type      = $cmd.type
+                        exit_code = $exitCode
+                        output    = $outputStr
+                    }
+                }
+                else {
+                    Write-Host "    ✅ PASSED"
+                }
+            }
+            catch {
+                Write-Host "    ❌ ERROR: $_"
+                $result.success = $false
+                $result.failed_commands += @{
+                    command   = $cmd.command
+                    type      = $cmd.type
+                    exit_code = -1
+                    output    = $_.ToString()
+                }
+                $allOutput += "=== $($cmd.type): $($cmd.command) ==="
+                $allOutput += "ERROR: $_"
+                $allOutput += ""
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    
+    $result.output = $allOutput -join "`n"
+    
+    # Write validation log to run directory
+    if ($RunDir -and (Test-Path $RunDir)) {
+        $logPath = Join-Path $RunDir "backpressure.log"
+        Set-Content $logPath $result.output -Encoding UTF8
+        Write-Host ""
+        Write-Host "[BACKPRESSURE] Validation log written to: $logPath"
+    }
+    
+    # Summary
+    Write-Host ""
+    if ($result.success) {
+        Write-Host "[BACKPRESSURE] ✅ All validation commands passed!"
+    }
+    else {
+        Write-Host "[BACKPRESSURE] ❌ Validation FAILED - $($result.failed_commands.Count) command(s) failed"
+        foreach ($failed in $result.failed_commands) {
+            Write-Host "  - [$($failed.type)] $($failed.command)"
+        }
+    }
+    
+    return $result
+}
+
 # Key paths
 $SpecsDir = Join-Path $ProjectPath "specs"
 $FelixDir = Join-Path $ProjectPath "felix"
@@ -608,7 +748,30 @@ $output
             Write-Host ""
             Write-Host "[TASK DONE] Task completed"
             
-            # Enforce git commit before continuing
+            # Run backpressure validation BEFORE committing
+            $backpressureResult = Invoke-BackpressureValidation `
+                -WorkingDir $ProjectPath `
+                -AgentsFilePath $AgentsFile `
+                -Config $config `
+                -RunDir $runDir
+            
+            if (-not $backpressureResult.skipped -and -not $backpressureResult.success) {
+                # Backpressure failed - do NOT commit, mark task as blocked
+                Write-Host ""
+                Write-Host "[BACKPRESSURE] ❌ Validation failed - changes will NOT be committed"
+                Write-Host "[BACKPRESSURE] Task marked as blocked pending validation fixes"
+                
+                # Update state to indicate validation failure
+                $state.last_iteration_outcome = "backpressure_failed"
+                $state.updated_at = Get-Date -Format "o"
+                $state | ConvertTo-Json | Set-Content $StateFile
+                
+                # Continue to next iteration - LLM should fix the issues
+                Write-Host "Continuing to next iteration to fix validation issues..."
+                continue
+            }
+            
+            # Backpressure passed (or was skipped) - proceed with commit
             $gitStatus = git status --porcelain 2>&1
             if ($gitStatus -and $LASTEXITCODE -eq 0) {
                 Write-Host "[COMMIT] Uncommitted changes detected, committing..."
