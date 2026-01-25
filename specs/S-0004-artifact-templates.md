@@ -96,6 +96,13 @@ Prefer Option B for now (simplicity, no separate CLI package).
 
 **Spec ID generation:** Parse existing specs/ to find highest S-NNNN ID, increment. Handle gaps gracefully.
 
+## Validation Criteria
+
+- [ ] Felix CLI module exists: `python -c "import felix.cli"` (exit code 0)
+- [ ] Init command available: `python -m felix init --help` (exit code 0)
+- [ ] Spec create command available: `python -m felix spec create --help` (exit code 0)
+- [ ] Validate command available: `python -m felix validate --help` (exit code 0)
+
 ## Dependencies
 
 None - scaffolding is orthogonal to execution.

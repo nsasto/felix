@@ -60,6 +60,39 @@ npm run dev
 # To be added when production setup is ready
 ```
 
+## Validate Requirement
+
+Run validation checks for a specific requirement. The validation script reads acceptance criteria from the spec file and executes any commands specified.
+
+```bash
+# Validate a specific requirement
+python scripts/validate-requirement.py S-0002
+
+# Example output:
+# Validating Requirement: S-0002
+# ✅ Backend starts: `python app/backend/main.py` (exit code 0)
+# ✅ Health endpoint responds: `curl http://localhost:8080/health` (status 200)
+# VALIDATION PASSED for S-0002
+```
+
+### Exit Codes
+
+- `0` - All acceptance criteria passed
+- `1` - One or more acceptance criteria failed
+- `2` - Invalid arguments or requirement not found
+
+### Validation Criteria Format
+
+Specs should include testable validation criteria with commands and expected outcomes. The script looks for "## Validation Criteria" first, then falls back to "## Acceptance Criteria":
+
+```markdown
+## Validation Criteria
+
+- [ ] Backend starts: `python app/backend/main.py` (exit code 0)
+- [ ] Health endpoint responds: `curl http://localhost:8080/health` (status 200)
+- [ ] Tests pass: `cd app/backend && pytest` (exit code 0)
+```
+
 ## Repository Conventions
 
 - Keep this file operational only

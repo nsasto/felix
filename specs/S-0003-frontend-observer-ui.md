@@ -88,6 +88,13 @@ As a developer, I need a lightweight React UI that allows me to register project
 - Kanban board component (adapt data source)
 - Basic layout and navigation
 
+## Validation Criteria
+
+- [ ] Frontend dependencies install: `cd app/frontend && npm install` (exit code 0)
+- [ ] Frontend builds successfully: `cd app/frontend && npm run build` (exit code 0)
+- [ ] Frontend dev server starts: `cd app/frontend && npm run dev` (exit code 0, server starts on port 3000)
+- [ ] TypeScript compiles: `cd app/frontend && npx tsc --noEmit` (exit code 0)
+
 ## Dependencies
 
 - S-0002 (backend API must exist)

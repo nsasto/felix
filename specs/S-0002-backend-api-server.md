@@ -75,6 +75,13 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 
 **Security:** Validate all file paths against policies. Never allow arbitrary filesystem access. Allowlist overrides denylist.
 
+## Validation Criteria
+
+- [ ] Backend starts: `cd app/backend && python main.py` (exit code 0 within 5 seconds, then Ctrl+C)
+- [ ] Health endpoint responds: `curl http://localhost:8080/health` (status 200)
+- [ ] Dependencies installed: `cd app/backend && python -c "import fastapi, uvicorn, websockets, aiofiles, watchfiles, pydantic"` (exit code 0)
+- [ ] CORS configured for frontend: `curl -I -X OPTIONS http://localhost:8080/health -H "Origin: http://localhost:3000"` (includes Access-Control-Allow-Origin)
+
 ## Dependencies
 
 - S-0001 (agent must exist to spawn)
