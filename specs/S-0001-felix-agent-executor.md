@@ -37,18 +37,18 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 
 ### Backpressure & Validation
 
-- [ ] Parses test commands from AGENTS.md
-- [ ] Executes validation (tests, build, lint) after code changes
-- [ ] Marks tasks blocked on validation failure
-- [ ] Retries failed tasks according to configuration
-- [ ] Only commits when validation passes
+- [x] Parses test commands from AGENTS.md
+- [x] Executes validation (tests, build, lint) after code changes
+- [x] Marks tasks blocked on validation failure
+- [x] Retries failed tasks according to configuration
+- [x] Only commits when validation passes
 
 ### Observability
 
 - [x] Logs iteration progress to stdout (iteration number, mode, current task)
 - [x] Records full LLM conversation in output.log
 - [x] Snapshots plan state at each iteration
-- [ ] Captures git diffs in diff.patch
+- [x] Captures git diffs in diff.patch
 - [x] Generates human-readable report.md summarizing outcome
 
 ## Technical Notes
