@@ -37,12 +37,12 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 
 ### Agent Spawning & Monitoring
 
-- [ ] `POST /api/projects/:id/runs/start` - Spawn agent process for project
+- [x] `POST /api/projects/:id/runs/start` - Spawn PowerShell agent process (felix-agent.ps1) for project
 - [ ] `POST /api/projects/:id/runs/stop` - Terminate running agent
 - [ ] `GET /api/projects/:id/runs` - List run history
 - [ ] `GET /api/projects/:id/runs/:runId` - Get run details and artifacts
-- [ ] Track agent PIDs, start times, exit codes
-- [ ] Store run metadata in backend memory (ephemeral, not persisted)
+- [x] Track agent PIDs, start times, exit codes
+- [x] Store run metadata in backend memory (ephemeral, not persisted)
 
 ### Real-time State Updates
 
