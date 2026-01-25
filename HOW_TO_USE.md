@@ -193,23 +193,39 @@ Keep this boring and stable. JSON grows painful when it tries to express nuance.
 
 ---
 
-## `IMPLEMENTATION_PLAN.md` – disposable plan
+## Plans – two-tier system
 
-This is the **current plan**, not the historical record.
+### `IMPLEMENTATION_PLAN.md` (root) – optional human reference
 
-Contents:
+This is a **comprehensive master plan** at the project root, useful for human understanding:
 
-- prioritized bullet list of tasks
-- phrased as concrete work items
-- often referencing requirement IDs
+- Shows the overall project approach
+- References all requirements and their relationships
+- Updated when major architectural decisions are made
+- **Not read by the agent during execution**
 
 Rules:
 
-- disposable
-- frequently rewritten
-- always reflects current understanding
+- Optional (can be absent)
+- Human-readable, comprehensive scope
+- Updated manually or during initial planning
 
-If the plan becomes cluttered or wrong, regenerate it.
+### `runs/<run-id>/plan-<req-id>.md` – agent execution plan
+
+This is the **narrow, disposable plan** the agent actually uses:
+
+- Scoped to a single requirement only
+- Created fresh for each requirement during planning mode
+- Prioritized bullet list of concrete tasks
+- Updated by the agent as work progresses
+
+Rules:
+
+- Disposable and requirement-specific
+- Frequently rewritten
+- Agent reads and updates only this plan
+
+If the plan becomes cluttered or wrong, the agent regenerates it.
 
 Felix assumes this is cheap.
 
@@ -240,14 +256,24 @@ If it would not help a new engineer run the repo, it does not belong here.
 
 ### `felix/prompts/planning.md`
 
-Planning mode instructions.
+Planning mode instructions with **iterative refinement**.
 
 Planning mode:
 
 - reads `specs/` and `felix/requirements.json`
-- updates `IMPLEMENTATION_PLAN.md`
+- creates/updates `runs/<run-id>/plan-<req-id>.md` (narrow scope, single requirement)
+- **loops with self-review** against 5 criteria:
+  - Philosophy alignment (Ralph principles)
+  - Tech stack consistency
+  - Simplicity (avoid over-engineering)
+  - Maintainability
+  - Scope appropriateness
+- refines the plan across multiple iterations
+- signals `<promise>PLAN_COMPLETE</promise>` when satisfied
 - may update requirement status
 - must not modify source code
+
+Planning is iterative: the agent will generate, review, and simplify until the approach is solid.
 
 ### `felix/prompts/building.md`
 
@@ -255,11 +281,13 @@ Building mode instructions.
 
 Building mode:
 
-- selects exactly one plan item from `IMPLEMENTATION_PLAN.md`
+- reads plan from `runs/<run-id>/plan-<req-id>.md` (narrow, requirement-specific)
+- selects exactly one plan item
 - inspects existing code first
 - implements one task
 - runs backpressure (tests, build, lint)
 - commits or reports failure
+- updates the plan in `runs/<run-id>/plan-<req-id>.md`
 - updates requirement status in `felix/requirements.json`
 
 ---

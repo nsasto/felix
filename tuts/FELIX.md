@@ -101,11 +101,13 @@ These files are the product as much as the code is.
 
 Humans write these. They're meant to be stable, narrow, and readable.
 
-### `IMPLEMENTATION_PLAN.md`: "What's next?"
+### Plans: Two-Tier System
 
-This is a disposable checklist. It's supposed to change.
+**`IMPLEMENTATION_PLAN.md` (root, optional):** Comprehensive master plan for human reference. Shows overall project approach and architecture. Not read by agent during execution.
 
-The plan is not sacred scripture; it's a whiteboard.
+**`runs/<run-id>/plan-<req-id>.md`:** Narrow, disposable plans scoped to single requirements. This is what the agent actually reads and updates. Created fresh during planning mode with iterative self-review.
+
+The run-specific plan is not sacred scripture; it's a whiteboard that gets regenerated when needed.
 
 ### `AGENTS.md`: "How do I run this repo?"
 
@@ -158,8 +160,8 @@ If those aren't present, it exits early instead of doing something wild.
 
 It selects the first requirement with:
 
-1) `status: in_progress`, otherwise
-2) `status: planned`
+1. `status: in_progress`, otherwise
+2. `status: planned`
 
 That's the "current requirement" for the run.
 
@@ -167,13 +169,14 @@ That's the "current requirement" for the run.
 
 Felix has two modes:
 
-- Planning mode: update plan and requirement status; no code edits.
-- Building mode: implement work; update plan checkboxes; possibly update requirement status.
+- Planning mode: create/update requirement-specific plan in `runs/<run-id>/plan-<req-id>.md`; iterate with self-review; no code edits.
+- Building mode: implement work; update plan in `runs/<run-id>/plan-<req-id>.md`; possibly update requirement status.
 
 In the current PowerShell agent:
 
-- If there is no `IMPLEMENTATION_PLAN.md` (or it's very short), it goes planning.
+- If there is no `runs/<run-id>/plan-<req-id>.md` for the current requirement, it goes planning.
 - Otherwise it goes building.
+- Planning mode loops multiple times with self-review before signaling `<promise>PLAN_COMPLETE</promise>`.
 - It tries to continue from the previous `last_mode` on the first iteration.
 
 ### Step D: Gather context and call the model
@@ -181,10 +184,12 @@ In the current PowerShell agent:
 The agent builds one big prompt from:
 
 - `AGENTS.md`
-- every `specs/*.md`
-- `IMPLEMENTATION_PLAN.md` (only in building mode)
+- the current requirement's spec file only (narrow scope)
+- `runs/<run-id>/plan-<req-id>.md` (only in building mode)
 - `felix/requirements.json` (embedded as JSON)
 - the current requirement ID
+
+Note: The agent loads only the current requirement's spec, not all specs. This keeps context narrow and focused.
 
 Then it shells out to:
 
@@ -202,7 +207,12 @@ For every iteration it creates `runs/<timestamp>/` and writes:
 
 ### Step F: Stop conditions
 
-The agent watches for `<promise>COMPLETE</promise>` in the model output to decide the work is finished.
+The agent watches for completion signals in the model output:
+
+- `<promise>PLAN_COMPLETE</promise>`: Planning iteration finished successfully; ready to transition to building mode
+- `<promise>COMPLETE</promise>`: Work iteration finished successfully; task or requirement is done
+
+These signals determine when to move to the next phase or iteration.
 
 ---
 
@@ -427,4 +437,3 @@ For the exact commands to run the backend and frontend, use:
 - `AGENTS.md`
 
 That file is intentionally short so Felix can read it every iteration without getting distracted.
-
