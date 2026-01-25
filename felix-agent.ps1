@@ -91,14 +91,22 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Determine mode
     $mode = "building"  # Default
     
-    # Check if plan exists and is not empty
-    if ((Test-Path $PlanFile)) {
-        $planContent = Get-Content $PlanFile -Raw
+    # Look for most recent plan for current requirement in runs/
+    $planPattern = "plan-$($currentReq.id).md"
+    $existingPlans = Get-ChildItem $RunsDir -Recurse -Filter $planPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+    
+    if ($existingPlans -and $existingPlans.Count -gt 0) {
+        # Found plan in runs/ - use building mode
+        $latestPlanPath = $existingPlans[0].FullName
+        $planContent = Get-Content $latestPlanPath -Raw
+        
+        # Check if plan is substantive
         if ($planContent.Trim().Length -lt 50) {
             $mode = "planning"
         }
     }
     else {
+        # No plan exists for current requirement - need to plan
         $mode = "planning"
     }
     
@@ -142,20 +150,28 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $contextParts += "# How to Run This Project`n`n$agentsContent"
     }
     
-    # Add all specs
-    $specFiles = Get-ChildItem $SpecsDir -Filter "*.md"
-    foreach ($specFile in $specFiles) {
-        $specContent = Get-Content $specFile.FullName -Raw
-        $contextParts += "# Spec: $($specFile.Name)`n`n$specContent"
+    # Add current requirement spec
+    $currentSpecPath = Join-Path $ProjectPath $currentReq.spec_path
+    if (Test-Path $currentSpecPath) {
+        $specContent = Get-Content $currentSpecPath -Raw
+        $contextParts += "# Current Requirement Spec: $($currentReq.id)`n`n$specContent"
+    }
+    
+    # Add CONTEXT.md
+    $contextFile = Join-Path $SpecsDir "CONTEXT.md"
+    if (Test-Path $contextFile) {
+        $contextContent = Get-Content $contextFile -Raw
+        $contextParts += "# Project Context`n`n$contextContent"
     }
     
     # Add plan if in building mode
-    if ($mode -eq "building" -and (Test-Path $PlanFile)) {
-        $planContent = Get-Content $PlanFile -Raw
-        $contextParts += "# Implementation Plan`n`n$planContent"
+    if ($mode -eq "building" -and $existingPlans -and $existingPlans.Count -gt 0) {
+        $latestPlanPath = $existingPlans[0].FullName
+        $planContent = Get-Content $latestPlanPath -Raw
+        $contextParts += "# Implementation Plan (from $($existingPlans[0].Directory.Name))`n`n$planContent"
         
-        # Snapshot plan
-        Copy-Item $PlanFile (Join-Path $runDir "plan.snapshot.md")
+        # Copy plan to current run for reference
+        Copy-Item $latestPlanPath (Join-Path $runDir "plan-$($currentReq.id).md")
     }
     
     # Add requirements status
@@ -164,6 +180,15 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     
     # Add current requirement ID
     $contextParts += "# Current Requirement`n`nYou are working on: **$($currentReq.id)** - $($currentReq.title)"
+    
+    # Add plan output path instruction
+    $planOutputPath = "runs/$runId/plan-$($currentReq.id).md"
+    if ($mode -eq "planning") {
+        $contextParts += "# Plan Output Path`n`nGenerate your implementation plan and save it to: **$planOutputPath**`n`nThis plan should contain ONLY tasks for requirement $($currentReq.id)."
+    }
+    else {
+        $contextParts += "# Plan Update Path`n`nWhen marking tasks complete, update the plan at: **$planOutputPath**"
+    }
     
     # Construct full prompt
     $context = $contextParts -join "`n`n---`n`n"
@@ -216,17 +241,11 @@ $output
             exit 0
         }
         
-        # Check for mode transition (if auto_transition enabled)
-        if ($autoTransition) {
-            if ($mode -eq "planning" -and (Test-Path $PlanFile)) {
-                $planContent = Get-Content $PlanFile -Raw
-                if ($planContent.Trim().Length -gt 100) {
-                    Write-Host ""
-                    Write-Host "-> Auto-transitioning to BUILDING mode"
-                    $mode = "building"
-                    $state.last_mode = "building"
-                }
-            }
+        # Check for mode transition signal from planning mode
+        if ($mode -eq "planning" -and $output -match '<promise>PLAN_COMPLETE</promise>') {
+            Write-Host ""
+            Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"
+            $state.last_mode = "building"
         }
         
         # Update state

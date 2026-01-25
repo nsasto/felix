@@ -37,7 +37,9 @@ Human in the loop conversation produces clear specs, broken into narrowly scoped
 
 ### Phase 2: Planning mode
 
-Generate or refresh `IMPLEMENTATION_PLAN.md` via gap analysis between `specs/*` and the codebase, with strong guardrails like “don’t assume not implemented.” ([GitHub][2])
+Generate or refresh requirement-specific plans in `runs/<run-id>/plan-<req-id>.md` via gap analysis between `specs/*` and the codebase, with strong guardrails like "don't assume not implemented." ([GitHub][2])
+
+**Planning is iterative:** The agent loops through multiple planning iterations, performing self-review against philosophy, tech stack, simplicity, maintainability, and scope before signaling `<promise>PLAN_COMPLETE</promise>` to transition to building.
 
 ### Phase 3: Building mode
 
@@ -135,12 +137,14 @@ The Playbook centers on a small set of files as the stable context. ([Clayton Fa
   Product and system context: tech stack, design standards, UX rules, and architectural invariants.
 - `felix/requirements.json`
   Structured registry of requirements with stable IDs, status tracking, and dependencies. Provides machine-readable structure while Markdown specs hold the meaning.
-- `IMPLEMENTATION_PLAN.md`
-  Prioritized bullet list of tasks, updated continuously, and disposable. Snapshotted into each run for audit trail. ([Clayton Farr][1])
+- `IMPLEMENTATION_PLAN.md` (root, optional)
+  Comprehensive master plan for human reference showing overall project approach. Not read by agent during execution. ([Clayton Farr][1])
+- `runs/<run-id>/plan-<req-id>.md`
+  Narrow, disposable plans scoped to single requirements. Agent reads and updates these during execution. Created fresh during planning mode with iterative self-review. ([Clayton Farr][1])
 - `AGENTS.md`
   Operational "how to run/build/test" guide. It must stay short and operational or it pollutes every future loop. ([Clayton Farr][1])
 - `felix/prompts/planning.md` and `felix/prompts/building.md`
-  Mode specific instructions, including key language patterns and guardrails. ([Clayton Farr][1])
+  Mode specific instructions, including key language patterns and guardrails. Planning includes iterative self-review loop. ([Clayton Farr][1])
 
 Felix supports splitting “big PRD state” into smaller, more stable files when it helps, while still keeping the Playbook’s principle: prefer simple, token efficient, inspectable artifacts (often Markdown) over heavy schemas. ([Clayton Farr][1])
 

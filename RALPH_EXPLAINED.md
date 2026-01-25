@@ -21,6 +21,7 @@ Most people would say: "That's impossible! How can they build anything?"
 But Ralph figured out the trick: **Write everything down in the right places.**
 
 Each morning, your builder:
+
 1. Reads the blueprint (what we're building)
 2. Reads the plan (what to do next)
 3. Reads the operations manual (how to use the tools)
@@ -45,16 +46,30 @@ Not a novel. Not vague wishes. **Clear, narrow specs.**
 Each spec answers: "What should exist?" Not how, not when - just what.
 
 **Example:**
--  Good: "User can sign in with email and password"
--  Bad: "We need authentication and it should be secure and maybe use OAuth and have 2FA eventually"
+
+- Good: "User can sign in with email and password"
+- Bad: "We need authentication and it should be secure and maybe use OAuth and have 2FA eventually"
 
 The rule of thumb: one sentence without the word "and."
 
 If you can't describe it simply, split it.
 
-### Phase 2: Planning Mode (Agent Plans)
+### Phase 2: Planning Mode (Agent Plans with Iteration)
 
-Now the agent reads your specs and generates a plan.
+Now the agent reads your specs and generates a plan - but it doesn't stop at the first draft.
+
+**Planning is iterative with self-review:**
+
+1. Generate initial plan
+2. Review against 5 criteria:
+   - Philosophy alignment (Ralph principles)
+   - Tech stack consistency
+   - Simplicity (avoid over-engineering)
+   - Maintainability
+   - Scope appropriateness
+3. Refine and simplify
+4. Repeat until satisfied
+5. Signal completion: `<promise>PLAN_COMPLETE</promise>`
 
 The plan is just a prioritized list of concrete tasks:
 
@@ -66,9 +81,12 @@ The plan is just a prioritized list of concrete tasks:
 5. Write integration tests
 ```
 
-**Key insight:** The plan is disposable. If it gets stale or wrong, regenerate it. Don't treat it like scripture.
+**Key insights:**
 
-The agent in planning mode has ONE rule: **No code changes.** Only planning.
+- The plan is disposable. If it gets stale or wrong, regenerate it.
+- Planning loops multiple times to ensure quality before building starts
+- The agent in planning mode has ONE rule: **No code changes.** Only planning.
+- Plans are scoped to a single requirement, not the entire project
 
 ### Phase 3: Building Mode (Agent Executes)
 
@@ -94,6 +112,7 @@ Then the whole loop starts over. Fresh agent. Fresh context. No baggage.
 AI models are like humans: they're brilliant when focused, confused when overwhelmed.
 
 Ralph keeps every iteration focused on:
+
 - What we're building (specs)
 - What to do next (plan)
 - How to do it (operational guide)
@@ -105,6 +124,7 @@ That's it. No 10,000-line conversation history. No "wait, what were we doing?"
 Instead of context windows, Ralph uses **the file system as memory.**
 
 The agent doesn't need to remember what happened yesterday - it's written down:
+
 - Specs persist
 - The plan persists
 - Progress is in git commits
@@ -150,6 +170,7 @@ done
 That's it. Seriously.
 
 The sophistication is in:
+
 - How the artifacts are structured
 - What the agent is prompted to do
 - How backpressure validates progress
@@ -166,11 +187,20 @@ Narrowly scoped requirement documents. Human readable. Stable over time.
 
 Each file answers one question: "What should this thing do?"
 
-### `IMPLEMENTATION_PLAN.md` - What to Do Next
+### Plans - Two-Tier System
 
-The current prioritized task list. Updated after every iteration.
+**`IMPLEMENTATION_PLAN.md` (root)** - Optional master plan for humans:
 
-**This is disposable.** If it's wrong, regenerate it.
+- Comprehensive view of the entire project
+- Shows overall approach and architecture
+- Not read by the agent during execution
+
+**`runs/<run-id>/plan-<req-id>.md`** - Agent execution plans:
+
+- Narrow scope (single requirement only)
+- Current prioritized task list for that requirement
+- Updated by the agent as work progresses
+- **This is disposable.** If it's wrong, regenerate it.
 
 ### `AGENTS.md` - How to Operate
 
