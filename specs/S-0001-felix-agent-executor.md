@@ -33,7 +33,7 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 - [x] Writes felix/state.json after each iteration (current_requirement_id, last_mode, status, iteration count)
 - [x] Creates run directories in runs/<timestamp>/ for each iteration
 - [x] Writes run artifacts: report.md, output.log, plan.snapshot.md, diff.patch
-- [ ] Updates felix/requirements.json with task/requirement status changes
+- [x] Updates felix/requirements.json with task/requirement status changes
 
 ### Backpressure & Validation
 

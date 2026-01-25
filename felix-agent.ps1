@@ -172,6 +172,49 @@ function Undo-PlanningViolations {
     }
 }
 
+function Update-RequirementStatus {
+    <#
+    .SYNOPSIS
+    Updates the status of a requirement in felix/requirements.json
+    #>
+    param(
+        [string]$RequirementsFilePath,
+        [string]$RequirementId,
+        [string]$NewStatus
+    )
+    
+    try {
+        # Read current requirements
+        $reqData = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
+        
+        # Find and update the requirement
+        $found = $false
+        foreach ($req in $reqData.requirements) {
+            if ($req.id -eq $RequirementId) {
+                $req.status = $NewStatus
+                $req.updated_at = Get-Date -Format "yyyy-MM-dd"
+                $found = $true
+                break
+            }
+        }
+        
+        if ($found) {
+            # Write back to file with proper formatting
+            $reqData | ConvertTo-Json -Depth 10 | Set-Content $RequirementsFilePath -Encoding UTF8
+            Write-Host "[REQUIREMENTS] Updated $RequirementId status to '$NewStatus'"
+            return $true
+        }
+        else {
+            Write-Host "[REQUIREMENTS] Warning: Requirement $RequirementId not found in requirements.json"
+            return $false
+        }
+    }
+    catch {
+        Write-Host "[REQUIREMENTS] Error updating requirements.json: $_"
+        return $false
+    }
+}
+
 # Key paths
 $SpecsDir = Join-Path $ProjectPath "specs"
 $FelixDir = Join-Path $ProjectPath "felix"
@@ -537,6 +580,9 @@ $output
                         $state.updated_at = Get-Date -Format "o"
                         $state | ConvertTo-Json | Set-Content $StateFile
                         
+                        # Update requirements.json to mark requirement as done
+                        Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "done"
+                        
                         Write-Host ""
                         Write-Host "Felix Agent complete - all tasks done and validated!"
                         exit 0
@@ -595,6 +641,9 @@ $output
                     $state.last_iteration_outcome = "complete"
                     $state.updated_at = Get-Date -Format "o"
                     $state | ConvertTo-Json | Set-Content $StateFile
+                    
+                    # Update requirements.json to mark requirement as done
+                    Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "done"
                     
                     Write-Host ""
                     Write-Host "Felix Agent complete - all tasks done and validated!"
