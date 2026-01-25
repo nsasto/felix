@@ -266,7 +266,7 @@ Right now it's best described as:
 - still wired to a Gemini-based helper (`app/frontend/services/geminiService.ts`)
 - not yet wired into the Felix backend API or its real artifacts
 
-The `specs/frontend-ui.md` file lays out the intended refactor:
+The `specs/S-0003-frontend-observer-ui.md` file lays out the intended refactor:
 
 - project registration + selection
 - specs editor (real `specs/*.md`)
@@ -424,7 +424,7 @@ These are the highest-leverage improvements that match the current architecture:
 - Add filesystem watching + WebSockets in the backend (the specs call for it).
 - Wire the frontend to real artifacts (specs editor, plan view, requirement kanban).
 - Unify/retire legacy agent code paths (the Python agent in `app/backend/agent.py` is useful for reference, but it's not what `runs.py` spawns today).
-- Add a `felix init` scaffolder (see `specs/artifact-templates.md`).
+- Add a `felix init` scaffolder (see `specs/S-0004-artifact-templates.md`).
 
 ---
 

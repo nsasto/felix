@@ -248,7 +248,7 @@ async def list_specs(project_id: str = PathParam(..., description="Project ID"))
 @router.get("/{project_id}/specs/{filename}", response_model=SpecContent)
 async def read_spec(
     project_id: str = PathParam(..., description="Project ID"),
-    filename: str = PathParam(..., description="Spec filename (e.g., 'initial-setup.md')")
+    filename: str = PathParam(..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')")
 ):
     """
     Read content of a specific spec file.
@@ -276,7 +276,7 @@ async def read_spec(
 async def update_spec(
     request: SpecUpdate,
     project_id: str = PathParam(..., description="Project ID"),
-    filename: str = PathParam(..., description="Spec filename (e.g., 'initial-setup.md')")
+    filename: str = PathParam(..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')")
 ):
     """
     Update or create a spec file.
