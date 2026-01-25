@@ -64,26 +64,13 @@ Factory.ai's droid tool provides enterprise LLM integration.
 
 #### Installation
 
-Contact Factory.ai for installation instructions (typically via internal tooling).
+Contact Factory.ai for installation instructions. Droid should be available in your PATH.
 
 #### Configuration
 
-```json
-{
-  "agent": {
-    "executable": "droid.ps1",
-    "args": ["exec", "--skip-permissions-unsafe"],
-    "working_directory": ".",
-    "environment": {
-      "FACTORY_API_KEY": "your-api-key"
-    }
-  }
-}
-```
+Felix agent calls `droid exec --skip-permissions-unsafe` directly (no configuration needed).
 
-- **executable**: Path to droid script/executable
-- **args**: droid-specific flags
-- **environment**: Required API key for authentication
+Authentication is handled via the `FACTORY_API_KEY` environment variable.
 
 ## Switching Agents
 

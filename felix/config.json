@@ -7,8 +7,8 @@
     "auto_transition": true
   },
   "agent": {
-    "executable": "C:\\Users\\nsast\\AppData\\Roaming\\npm\\codex.cmd",
-    "args": ["exec", "--model", "gpt-5-codex", "-"],
+    "executable": "droid",
+    "args": ["exec", "--skip-permissions-unsafe"],
     "working_directory": ".",
     "environment": {}
   },

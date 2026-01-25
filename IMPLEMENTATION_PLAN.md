@@ -118,12 +118,12 @@ This is the **current plan**, not the historical record.
 
 - [x] `POST /api/projects/:id/runs/start` - Spawn agent process
 - [x] Store agent PID, track status
-- [ ] `POST /api/projects/:id/runs/stop` - Kill agent process
+- [x] `POST /api/projects/:id/runs/stop` - Kill agent process
 
 ### 4.2 File Watching
 
-- [ ] Watch felix/state.json, requirements.json, runs/
-- [ ] Broadcast changes via WebSocket to clients
+- [x] Watch felix/state.json, requirements.json, runs/
+- [x] Broadcast changes via WebSocket to clients
 
 ### 4.3 WebSocket Server
 

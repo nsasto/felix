@@ -369,6 +369,119 @@ async def get_agent_status(project_id: str):
     return RunStatusResponse(project_id=project_id, running=False)
 
 
+class RunStopResponse(BaseModel):
+    """Response from stopping an agent run"""
+    
+    message: str
+    project_id: str
+    run_id: Optional[str] = None
+    pid: int
+    status: RunStatus
+
+
+@router.post("/{project_id}/runs/stop", response_model=RunStopResponse)
+async def stop_agent_run(project_id: str):
+    """
+    Stop a running Felix agent for the specified project.
+    
+    Sends a termination signal to the agent process and updates run history.
+    Returns 404 if no agent is running for this project.
+    """
+    import signal
+    
+    # Clean up any dead agents first
+    _cleanup_dead_agents()
+    
+    # Check if project exists
+    project = storage.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    
+    # Check if agent is running for this project
+    if project_id not in _running_agents:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No agent running for project {project_id}",
+        )
+    
+    info = _running_agents[project_id]
+    
+    # Verify process is still running
+    if not _is_process_running(info.pid):
+        # Process already dead, clean up
+        del _running_agents[project_id]
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent process already terminated for project {project_id}",
+        )
+    
+    # Find the run_id from history
+    run_id = None
+    if project_id in _run_history:
+        for entry in reversed(_run_history[project_id]):
+            if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
+                run_id = entry.run_id
+                break
+    
+    try:
+        # Terminate the process
+        if info.process is not None:
+            # Use the process object for cleaner termination
+            info.process.terminate()
+            # Give it a moment to terminate gracefully
+            try:
+                info.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                # Force kill if it doesn't terminate gracefully
+                info.process.kill()
+        else:
+            # Fallback to os.kill
+            if sys.platform == "win32":
+                # On Windows, use taskkill for more reliable termination
+                subprocess.run(
+                    ["taskkill", "/F", "/PID", str(info.pid)],
+                    capture_output=True,
+                    timeout=10
+                )
+            else:
+                # On Unix, send SIGTERM first, then SIGKILL if needed
+                os.kill(info.pid, signal.SIGTERM)
+                # Give it a moment
+                import time
+                time.sleep(1)
+                if _is_process_running(info.pid):
+                    os.kill(info.pid, signal.SIGKILL)
+        
+        # Update run history
+        if project_id in _run_history:
+            for entry in reversed(_run_history[project_id]):
+                if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
+                    entry.status = RunStatus.STOPPED
+                    entry.ended_at = datetime.now()
+                    entry.error_message = "Agent stopped by user"
+                    break
+        
+        # Remove from running agents
+        del _running_agents[project_id]
+        
+        return RunStopResponse(
+            message=f"Agent stopped for project {project.name}",
+            project_id=project_id,
+            run_id=run_id,
+            pid=info.pid,
+            status=RunStatus.STOPPED,
+        )
+        
+    except Exception as e:
+        # Even on error, try to clean up
+        if project_id in _running_agents:
+            del _running_agents[project_id]
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to stop agent process: {str(e)}",
+        )
+
+
 @router.get("/{project_id}/runs", response_model=RunHistoryResponse)
 async def get_run_history(project_id: str):
     """
