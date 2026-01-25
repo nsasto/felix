@@ -20,22 +20,27 @@ You are operating in **building mode**.
 
 ## Workflow
 
-1. Read `IMPLEMENTATION_PLAN.md` to find the next incomplete task (`- [ ]`)
-2. Select the FIRST incomplete task in priority order (top to bottom)
-3. Read relevant specs from `specs/` for context
-4. Search codebase for existing implementations (use Grep/Glob tools)
-5. Implement the task (create/edit files as needed)
-6. After implementation, update `IMPLEMENTATION_PLAN.md`:
+1. **FIRST: Activate virtual environment if working with Python backend**
+   - Check if `.venv` or `venv` directory exists in the project
+   - Activate it before running any Python commands: `.venv\Scripts\Activate.ps1` (Windows) or `source .venv/bin/activate` (Unix)
+   - Ensure all Python commands run within the activated environment
+2. Read `IMPLEMENTATION_PLAN.md` to find the next incomplete task (`- [ ]`)
+3. Select the FIRST incomplete task in priority order (top to bottom)
+4. Read relevant specs from `specs/` for context
+5. Search codebase for existing implementations (use Grep/Glob tools)
+6. Implement the task (create/edit files as needed)
+7. After implementation, update `IMPLEMENTATION_PLAN.md`:
    - Change `- [ ] <task>` to `- [x] <task>` using the Edit tool
-7. If this completes a requirement, update `felix/requirements.json`:
+8. If this completes a requirement, update `felix/requirements.json`:
    - Set `status: "done"` for completed requirements
    - Update `updated_at` to today's date
-8. Output a run report
+9. Output a run report
 
 ## Task Selection
 
 Parse `IMPLEMENTATION_PLAN.md` to find tasks marked with `- [ ]` (incomplete).
 Select the first one in the file that:
+
 - Is not blocked by dependencies
 - Belongs to the current requirement (see context below)
 

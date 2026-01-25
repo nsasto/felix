@@ -6,9 +6,11 @@ Handles agent spawning, stopping, and run history.
 import os
 import sys
 import subprocess
+import threading
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from pathlib import Path
+from enum import Enum
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -22,9 +24,12 @@ import storage
 router = APIRouter(prefix="/api/projects", tags=["runs"])
 
 
-# In-memory store for running agent processes
-# Key: project_id, Value: AgentProcess info
-_running_agents: Dict[str, "AgentProcessInfo"] = {}
+class RunStatus(str, Enum):
+    """Status of an agent run"""
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    STOPPED = "stopped"
 
 
 class AgentProcessInfo(BaseModel):
@@ -34,6 +39,37 @@ class AgentProcessInfo(BaseModel):
     pid: int
     started_at: datetime = Field(default_factory=datetime.now)
     project_path: str
+    process: Optional[subprocess.Popen] = None  # Actual process object for monitoring
+    
+    class Config:
+        arbitrary_types_allowed = True
+
+
+class RunHistoryEntry(BaseModel):
+    """A completed or historical run entry"""
+    
+    run_id: str
+    project_id: str
+    pid: int
+    status: RunStatus
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    exit_code: Optional[int] = None
+    project_path: str
+    error_message: Optional[str] = None
+
+
+# In-memory store for running agent processes
+# Key: project_id, Value: AgentProcess info
+_running_agents: Dict[str, AgentProcessInfo] = {}
+
+# In-memory store for run history (ephemeral, not persisted)
+# Key: project_id, Value: List of RunHistoryEntry
+_run_history: Dict[str, List[RunHistoryEntry]] = {}
+
+# Counter for generating run IDs
+_run_counter: int = 0
+_run_counter_lock = threading.Lock()
 
 
 class RunStartResponse(BaseModel):
@@ -41,6 +77,7 @@ class RunStartResponse(BaseModel):
 
     message: str
     project_id: str
+    run_id: str
     pid: int
     started_at: datetime
 
@@ -50,8 +87,34 @@ class RunStatusResponse(BaseModel):
 
     project_id: str
     running: bool
+    run_id: Optional[str] = None
     pid: Optional[int] = None
     started_at: Optional[datetime] = None
+    status: Optional[RunStatus] = None
+
+
+class RunHistoryResponse(BaseModel):
+    """Response for run history list"""
+    
+    project_id: str
+    runs: List[RunHistoryEntry]
+    total: int
+
+
+class RunDetailResponse(BaseModel):
+    """Detailed response for a specific run"""
+    
+    run: RunHistoryEntry
+    artifacts: List[str] = []  # List of available artifact files
+
+
+def _generate_run_id() -> str:
+    """Generate a unique run ID"""
+    global _run_counter
+    with _run_counter_lock:
+        _run_counter += 1
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"run-{timestamp}-{_run_counter:04d}"
 
 
 def _is_process_running(pid: int) -> bool:
@@ -65,11 +128,88 @@ def _is_process_running(pid: int) -> bool:
         return False
 
 
+def _add_to_history(entry: RunHistoryEntry):
+    """Add a run entry to the project's history"""
+    project_id = entry.project_id
+    if project_id not in _run_history:
+        _run_history[project_id] = []
+    _run_history[project_id].append(entry)
+    
+    # Keep only last 100 runs per project to prevent memory bloat
+    if len(_run_history[project_id]) > 100:
+        _run_history[project_id] = _run_history[project_id][-100:]
+
+
+def _update_run_status(run_id: str, project_id: str, status: RunStatus, 
+                       exit_code: Optional[int] = None, error_message: Optional[str] = None):
+    """Update the status of a run in history"""
+    if project_id in _run_history:
+        for entry in _run_history[project_id]:
+            if entry.run_id == run_id:
+                entry.status = status
+                entry.ended_at = datetime.now()
+                entry.exit_code = exit_code
+                entry.error_message = error_message
+                break
+
+
+def _check_and_update_agent_status(project_id: str):
+    """Check if a running agent has completed and update its status"""
+    if project_id not in _running_agents:
+        return
+    
+    info = _running_agents[project_id]
+    
+    # Check if process has completed
+    if info.process is not None:
+        exit_code = info.process.poll()
+        if exit_code is not None:
+            # Process has completed
+            status = RunStatus.COMPLETED if exit_code == 0 else RunStatus.FAILED
+            
+            # Find and update the run in history
+            if project_id in _run_history:
+                for entry in reversed(_run_history[project_id]):
+                    if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
+                        entry.status = status
+                        entry.ended_at = datetime.now()
+                        entry.exit_code = exit_code
+                        break
+            
+            # Remove from running agents
+            del _running_agents[project_id]
+
+
 def _cleanup_dead_agents():
-    """Remove entries for agents that are no longer running"""
+    """Remove entries for agents that are no longer running and update their history"""
     dead_projects = []
     for project_id, info in _running_agents.items():
+        # First check via the process object if available
+        if info.process is not None:
+            exit_code = info.process.poll()
+            if exit_code is not None:
+                # Process completed, update history
+                status = RunStatus.COMPLETED if exit_code == 0 else RunStatus.FAILED
+                if project_id in _run_history:
+                    for entry in reversed(_run_history[project_id]):
+                        if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
+                            entry.status = status
+                            entry.ended_at = datetime.now()
+                            entry.exit_code = exit_code
+                            break
+                dead_projects.append(project_id)
+                continue
+        
+        # Fallback to PID check
         if not _is_process_running(info.pid):
+            # Process died without proper exit code capture
+            if project_id in _run_history:
+                for entry in reversed(_run_history[project_id]):
+                    if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
+                        entry.status = RunStatus.FAILED
+                        entry.ended_at = datetime.now()
+                        entry.error_message = "Process terminated unexpectedly"
+                        break
             dead_projects.append(project_id)
 
     for project_id in dead_projects:
@@ -153,20 +293,37 @@ async def start_agent_run(project_id: str):
 
         process = subprocess.Popen(cmd, **kwargs)
 
-        # Store process info
+        # Generate run ID
+        run_id = _generate_run_id()
+        started_at = datetime.now()
+
+        # Store process info with process object for exit code tracking
         agent_info = AgentProcessInfo(
             project_id=project_id,
             pid=process.pid,
-            started_at=datetime.now(),
+            started_at=started_at,
             project_path=str(project_path),
+            process=process,
         )
         _running_agents[project_id] = agent_info
+
+        # Create run history entry
+        history_entry = RunHistoryEntry(
+            run_id=run_id,
+            project_id=project_id,
+            pid=process.pid,
+            status=RunStatus.RUNNING,
+            started_at=started_at,
+            project_path=str(project_path),
+        )
+        _add_to_history(history_entry)
 
         return RunStartResponse(
             message=f"Agent started for project {project.name}",
             project_id=project_id,
+            run_id=run_id,
             pid=process.pid,
-            started_at=agent_info.started_at,
+            started_at=started_at,
         )
 
     except Exception as e:
@@ -192,17 +349,101 @@ async def get_agent_status(project_id: str):
 
     if project_id in _running_agents:
         info = _running_agents[project_id]
+        # Find the current run_id from history
+        run_id = None
+        if project_id in _run_history:
+            for entry in reversed(_run_history[project_id]):
+                if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
+                    run_id = entry.run_id
+                    break
+        
         return RunStatusResponse(
             project_id=project_id,
             running=True,
+            run_id=run_id,
             pid=info.pid,
             started_at=info.started_at,
+            status=RunStatus.RUNNING,
         )
 
     return RunStatusResponse(project_id=project_id, running=False)
+
+
+@router.get("/{project_id}/runs", response_model=RunHistoryResponse)
+async def get_run_history(project_id: str):
+    """
+    Get the run history for a project.
+    
+    Returns a list of all runs (running, completed, failed, stopped) in reverse chronological order.
+    History is ephemeral and kept in memory - not persisted across server restarts.
+    """
+    # Clean up any dead agents first
+    _cleanup_dead_agents()
+
+    # Check if project exists
+    project = storage.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+
+    runs = _run_history.get(project_id, [])
+    # Return in reverse chronological order (newest first)
+    runs_sorted = sorted(runs, key=lambda r: r.started_at, reverse=True)
+    
+    return RunHistoryResponse(
+        project_id=project_id,
+        runs=runs_sorted,
+        total=len(runs_sorted),
+    )
+
+
+@router.get("/{project_id}/runs/{run_id}", response_model=RunDetailResponse)
+async def get_run_detail(project_id: str, run_id: str):
+    """
+    Get detailed information about a specific run, including available artifacts.
+    
+    Artifacts are read from the runs/ directory in the project.
+    """
+    # Check if project exists
+    project = storage.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+
+    # Find the run in history
+    run_entry = None
+    if project_id in _run_history:
+        for entry in _run_history[project_id]:
+            if entry.run_id == run_id:
+                run_entry = entry
+                break
+    
+    if not run_entry:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+    
+    # Scan for artifacts in the project's runs directory
+    artifacts = []
+    runs_dir = Path(project.path) / "runs"
+    if runs_dir.exists():
+        # Look for directories that might match this run
+        # The agent creates directories like runs/<timestamp>/
+        for run_dir in runs_dir.iterdir():
+            if run_dir.is_dir():
+                # List artifact files
+                for artifact_file in run_dir.iterdir():
+                    if artifact_file.is_file():
+                        artifacts.append(f"{run_dir.name}/{artifact_file.name}")
+    
+    return RunDetailResponse(
+        run=run_entry,
+        artifacts=artifacts,
+    )
 
 
 # Expose the running agents dict for cleanup during shutdown
 def get_running_agents() -> Dict[str, AgentProcessInfo]:
     """Get the dictionary of running agents (for shutdown cleanup)"""
     return _running_agents
+
+
+def get_run_history() -> Dict[str, List[RunHistoryEntry]]:
+    """Get the run history dictionary (for inspection/testing)"""
+    return _run_history
