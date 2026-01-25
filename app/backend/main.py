@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from routers import projects, files, runs
+from routers import projects, files, runs, websocket
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,6 +15,11 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     print("Felix Backend shutting down...")
+    
+    # Shutdown WebSocket connection manager
+    ws_manager = websocket.get_connection_manager()
+    await ws_manager.shutdown()
+    print("WebSocket connections closed.")
     
     # Clean up any running agent processes
     running_agents = runs.get_running_agents()
@@ -49,6 +54,7 @@ app.add_middleware(
 app.include_router(projects.router)
 app.include_router(files.router)
 app.include_router(runs.router)
+app.include_router(websocket.router)
 
 @app.get("/health")
 async def health_check():
