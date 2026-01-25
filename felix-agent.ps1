@@ -759,19 +759,69 @@ $output
                 # Backpressure failed - do NOT commit, mark task as blocked
                 Write-Host ""
                 Write-Host "[BACKPRESSURE] ❌ Validation failed - changes will NOT be committed"
-                Write-Host "[BACKPRESSURE] Task marked as blocked pending validation fixes"
+                Write-Host "[BACKPRESSURE] Task marked as BLOCKED pending validation fixes"
                 
-                # Update state to indicate validation failure
-                $state.last_iteration_outcome = "backpressure_failed"
+                # Extract task description from output for tracking
+                $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
+                $blockedTaskDesc = if ($matches) { $matches[1].Trim() } else { "Unknown task" }
+                
+                # Build failed commands summary
+                $failedCmdSummary = @()
+                foreach ($failed in $backpressureResult.failed_commands) {
+                    $failedCmdSummary += "[$($failed.type)] $($failed.command) (exit: $($failed.exit_code))"
+                }
+                
+                # Update state to indicate blocked task with details
+                $state.last_iteration_outcome = "blocked"
+                $state.status = "blocked"
+                $state.blocked_task = @{
+                    description     = $blockedTaskDesc
+                    blocked_at      = Get-Date -Format "o"
+                    reason          = "validation_failed"
+                    failed_commands = $failedCmdSummary
+                    iteration       = $iteration
+                }
                 $state.updated_at = Get-Date -Format "o"
-                $state | ConvertTo-Json | Set-Content $StateFile
+                $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
+                
+                # Write blocked task report to run directory
+                $blockedReport = @"
+# Blocked Task Report
+
+**Task:** $blockedTaskDesc
+**Blocked At:** $(Get-Date -Format "o")
+**Reason:** Validation failed
+
+## Failed Commands
+
+$($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
+
+## Backpressure Output
+
+``````
+$($backpressureResult.output)
+``````
+
+## Next Steps
+
+The agent will retry this task in the next iteration.
+Fix the validation issues to unblock progress.
+"@
+                Set-Content (Join-Path $runDir "blocked-task.md") $blockedReport -Encoding UTF8
+                Write-Host "[BLOCKED] Details written to: $(Join-Path $runDir 'blocked-task.md')"
                 
                 # Continue to next iteration - LLM should fix the issues
                 Write-Host "Continuing to next iteration to fix validation issues..."
                 continue
             }
             
-            # Backpressure passed (or was skipped) - proceed with commit
+            # Backpressure passed (or was skipped) - clear blocked state and proceed with commit
+            if ($state.blocked_task) {
+                Write-Host "[UNBLOCKED] Previous blocked task is now passing validation"
+                $state.blocked_task = $null
+                $state.status = "running"
+            }
+            
             $gitStatus = git status --porcelain 2>&1
             if ($gitStatus -and $LASTEXITCODE -eq 0) {
                 Write-Host "[COMMIT] Uncommitted changes detected, committing..."
