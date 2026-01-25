@@ -50,7 +50,6 @@ CONFIG_JSON_TEMPLATE = """{
   },
   "paths": {
     "specs": "specs",
-    "plan": "IMPLEMENTATION_PLAN.md",
     "agents": "AGENTS.md",
     "runs": "runs"
   },
@@ -80,7 +79,6 @@ CONFIG_JSON_CLEAN = """{
   },
   "paths": {
     "specs": "specs",
-    "plan": "IMPLEMENTATION_PLAN.md",
     "agents": "AGENTS.md",
     "runs": "runs"
   },
@@ -266,8 +264,7 @@ ALLOWLIST_JSON_TEMPLATE = """{
     "specs/**",
     "felix/requirements.json",
     "felix/state.json",
-    "AGENTS.md",
-    "IMPLEMENTATION_PLAN.md"
+    "AGENTS.md"
   ],
   
   "restricted_paths": [

@@ -39,17 +39,6 @@ class SpecUpdate(BaseModel):
     content: str = Field(..., description="Markdown content for the spec file")
 
 
-class PlanContent(BaseModel):
-    """Implementation plan content response"""
-    content: str
-    path: str
-
-
-class PlanUpdate(BaseModel):
-    """Request body for updating the plan"""
-    content: str = Field(..., description="Markdown content for IMPLEMENTATION_PLAN.md")
-
-
 class Requirement(BaseModel):
     """Single requirement from requirements.json"""
     id: str
@@ -106,7 +95,6 @@ class AgentConfig(BaseModel):
 class PathsConfig(BaseModel):
     """Paths configuration from felix/config.json"""
     specs: str = Field(default="specs", description="Specs directory path")
-    plan: str = Field(default="IMPLEMENTATION_PLAN.md", description="Implementation plan file path")
     agents: str = Field(default="AGENTS.md", description="AGENTS.md file path")
     runs: str = Field(default="runs", description="Runs directory path")
 
@@ -361,57 +349,6 @@ async def update_spec(
         raise HTTPException(status_code=500, detail=f"Failed to write spec: {str(e)}")
 
 
-# --- Plan Endpoints ---
-
-@router.get("/{project_id}/plan", response_model=PlanContent)
-async def read_plan(project_id: str = PathParam(..., description="Project ID")):
-    """
-    Read the project's IMPLEMENTATION_PLAN.md.
-    """
-    project_path = get_project_path(project_id)
-    plan_path = project_path / "IMPLEMENTATION_PLAN.md"
-    
-    if not plan_path.exists():
-        raise HTTPException(status_code=404, detail="IMPLEMENTATION_PLAN.md not found")
-    
-    try:
-        content = plan_path.read_text(encoding='utf-8')
-        return PlanContent(
-            content=content,
-            path=str(plan_path.relative_to(project_path))
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read plan: {str(e)}")
-
-
-@router.put("/{project_id}/plan", response_model=PlanContent)
-async def update_plan(
-    request: PlanUpdate,
-    project_id: str = PathParam(..., description="Project ID")
-):
-    """
-    Update the project's IMPLEMENTATION_PLAN.md.
-    
-    Validates path against project policies (allowlist/denylist).
-    """
-    project_path = get_project_path(project_id)
-    plan_path = project_path / "IMPLEMENTATION_PLAN.md"
-    
-    # Validate path against policies
-    is_allowed, error_msg = validate_path_against_policies("IMPLEMENTATION_PLAN.md", project_path, operation="write")
-    if not is_allowed:
-        raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
-    
-    try:
-        plan_path.write_text(request.content, encoding='utf-8')
-        return PlanContent(
-            content=request.content,
-            path=str(plan_path.relative_to(project_path))
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to write plan: {str(e)}")
-
-
 # --- Requirements Endpoints ---
 
 @router.get("/{project_id}/requirements", response_model=RequirementsContent)
@@ -441,6 +378,32 @@ async def read_requirements(project_id: str = PathParam(..., description="Projec
         raise HTTPException(status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read requirements: {str(e)}")
+
+
+# --- README Endpoint ---
+
+@router.get("/{project_id}/files/README.md")
+async def read_readme(project_id: str = PathParam(..., description="Project ID")):
+    """
+    Read the project's README.md file from the root directory.
+    """
+    project_path = get_project_path(project_id)
+    readme_path = project_path / "README.md"
+    
+    if not readme_path.exists():
+        raise HTTPException(status_code=404, detail="README.md not found in project root")
+    
+    try:
+        content = readme_path.read_text(encoding='utf-8')
+        return {
+            "content": content,
+            "path": "README.md"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read README.md: {str(e)}")
+
+
+# --- Requirements Endpoints ---
 
 
 @router.put("/{project_id}/requirements", response_model=RequirementsContent)

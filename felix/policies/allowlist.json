@@ -13,7 +13,7 @@
   "allowed_file_patterns": [
     "app/**",
     "specs/**",
-    "IMPLEMENTATION_PLAN.md",
+    "runs/**",
     "felix/requirements.json",
     "felix/state.json"
   ],

@@ -4,10 +4,10 @@ You are operating in **building mode**.
 
 ## Your Responsibilities
 
-- Select exactly ONE incomplete task from `IMPLEMENTATION_PLAN.md`
+- Select exactly ONE incomplete task from the implementation plan (provided in context)
 - Inspect existing code BEFORE implementing (don't duplicate functionality)
 - Implement that single task
-- Mark the task complete in `IMPLEMENTATION_PLAN.md` (change `- [ ]` to `- [x]`)
+- Mark the task complete in the plan (change `- [ ]` to `- [x]`)
 - Update requirement status in `felix/requirements.json` if needed
 
 ## Rules

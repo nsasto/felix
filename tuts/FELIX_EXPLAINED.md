@@ -21,7 +21,7 @@ Think of Felix like a very capable builder who wakes up every morning with mild 
 That sounds scary until you hand them:
 
 - A blueprint (`specs/*.md`)
-- A to-do list (`IMPLEMENTATION_PLAN.md`)
+- Working plans scoped to each requirement (`runs/<run-id>/plan-<req-id>.md`)
 - An operations manual (`AGENTS.md`)
 - A clipboard with status checkboxes (`felix/requirements.json`, `felix/state.json`)
 - A folder of receipts (everything under `runs/`)
@@ -101,13 +101,11 @@ These files are the product as much as the code is.
 
 Humans write these. They're meant to be stable, narrow, and readable.
 
-### Plans: Two-Tier System
+### Plans: Per-Requirement Focus
 
-**`IMPLEMENTATION_PLAN.md` (root, optional):** Comprehensive master plan for human reference. Shows overall project approach and architecture. Not read by agent during execution.
+**`runs/<run-id>/plan-<req-id>.md`:** Narrow, disposable plans scoped to single requirements. This is what the agent creates, reads, and updates. Created fresh during planning mode with iterative self-review.
 
-**`runs/<run-id>/plan-<req-id>.md`:** Narrow, disposable plans scoped to single requirements. This is what the agent actually reads and updates. Created fresh during planning mode with iterative self-review.
-
-The run-specific plan is not sacred scripture; it's a whiteboard that gets regenerated when needed.
+The plan is not sacred scripture; it's a whiteboard that gets regenerated when needed.
 
 ### `AGENTS.md`: "How do I run this repo?"
 
@@ -249,7 +247,7 @@ Important details:
 
 It validates writes against `felix/policies/allowlist.json` and `felix/policies/denylist.json`:
 
-- "You may write to `specs/**` and `IMPLEMENTATION_PLAN.md`..."
+- "You may write to `specs/**` and `runs/**`..."
 - "...but not to prompt templates or policies themselves."
 
 This exists because a file-editing API is one accidental path traversal away from becoming "remote control for your laptop".
@@ -270,7 +268,7 @@ The `specs/S-0003-frontend-observer-ui.md` file lays out the intended refactor:
 
 - project registration + selection
 - specs editor (real `specs/*.md`)
-- plan view (real `IMPLEMENTATION_PLAN.md`)
+- plan view (per-requirement plans from `runs/`)
 - requirement kanban (real `felix/requirements.json`)
 - run monitor (eventually via WebSockets + filesystem watching)
 

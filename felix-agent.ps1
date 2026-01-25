@@ -76,8 +76,7 @@ function Test-PlanningModeGuardrails {
         $allowedPatterns = @(
             "^runs/",                          # Run directories
             "^felix/state\.json$",             # State file
-            "^felix/requirements\.json$",      # Requirements file
-            "^IMPLEMENTATION_PLAN\.md$"        # Legacy plan location
+            "^felix/requirements\.json$"       # Requirements file
         )
         
         # Get current git state
@@ -177,7 +176,6 @@ function Undo-PlanningViolations {
 $SpecsDir = Join-Path $ProjectPath "specs"
 $FelixDir = Join-Path $ProjectPath "felix"
 $RunsDir = Join-Path $ProjectPath "runs"
-$PlanFile = Join-Path $ProjectPath "IMPLEMENTATION_PLAN.md"
 $AgentsFile = Join-Path $ProjectPath "AGENTS.md"
 $ConfigFile = Join-Path $FelixDir "config.json"
 $StateFile = Join-Path $FelixDir "state.json"

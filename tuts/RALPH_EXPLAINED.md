@@ -187,13 +187,7 @@ Narrowly scoped requirement documents. Human readable. Stable over time.
 
 Each file answers one question: "What should this thing do?"
 
-### Plans - Two-Tier System
-
-**`IMPLEMENTATION_PLAN.md` (root)** - Optional master plan for humans:
-
-- Comprehensive view of the entire project
-- Shows overall approach and architecture
-- Not read by the agent during execution
+### Plans - Per-Requirement Focus
 
 **`runs/<run-id>/plan-<req-id>.md`** - Agent execution plans:
 

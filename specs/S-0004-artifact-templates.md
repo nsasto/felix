@@ -41,7 +41,7 @@ As a developer starting a new Felix-enabled project, I need templates and scaffo
 **felix/policies/allowlist.json template:**
 
 - [ ] Allowed commands: git, npm, pip, python, node, cargo, make
-- [ ] Allowed file patterns: src/, tests/, app/, specs/, felix/, AGENTS.md, IMPLEMENTATION_PLAN.md
+- [ ] Allowed file patterns: src/, tests/, app/, specs/, felix/, AGENTS.md, runs/
 - [ ] Comments explaining allowlist semantics
 
 **felix/policies/denylist.json template:**
