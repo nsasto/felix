@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from routers import projects, files
+from routers import projects, files, runs
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,6 +15,19 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     print("Felix Backend shutting down...")
+    
+    # Clean up any running agent processes
+    running_agents = runs.get_running_agents()
+    if running_agents:
+        print(f"Terminating {len(running_agents)} running agent(s)...")
+        import os
+        import signal
+        for project_id, info in running_agents.items():
+            try:
+                os.kill(info.pid, signal.SIGTERM)
+                print(f"  Terminated agent for project {project_id} (PID: {info.pid})")
+            except (OSError, ProcessLookupError):
+                pass  # Process already dead
 
 app = FastAPI(
     title="Felix Backend",
@@ -35,6 +48,7 @@ app.add_middleware(
 # Include routers
 app.include_router(projects.router)
 app.include_router(files.router)
+app.include_router(runs.router)
 
 @app.get("/health")
 async def health_check():

@@ -2,37 +2,37 @@
 
 ## Narrative
 
-As a developer, I need a standalone Python agent that implements the Ralph methodology as a production-ready executor, following the three-phase funnel (requirements → planning → building) with autonomous operation, filesystem-based state persistence, and backpressure validation.
+As a developer, I need a standalone PowerShell agent that implements the Ralph methodology as a production-ready executor, following the three-phase funnel (requirements → planning → building) with autonomous operation, filesystem-based state persistence, and backpressure validation.
 
 ## Acceptance Criteria
 
 ### Agent Core
 
-- [ ] Standalone Python script (`app/backend/agent.py`) executable without backend
-- [ ] Loads Felix artifacts on startup: specs/, AGENTS.md, IMPLEMENTATION_PLAN.md, felix/requirements.json, felix/config.json
-- [ ] Validates project structure before execution
-- [ ] Runs autonomous loop to completion (configurable max iterations)
-- [ ] Exits with clear status codes (success, blocked, error)
+- [x] Standalone PowerShell script (`felix-agent.ps1`) executable without backend
+- [x] Loads Felix artifacts on startup: specs/, AGENTS.md, IMPLEMENTATION_PLAN.md, felix/requirements.json, felix/config.json
+- [x] Validates project structure before execution
+- [x] Runs autonomous loop to completion (configurable max iterations)
+- [x] Exits with clear status codes (success, blocked, error)
 
 ### Mode System
 
-- [ ] Implements planning mode: reads specs, generates/updates IMPLEMENTATION_PLAN.md, cannot modify code
-- [ ] Implements building mode: picks one task, investigates code, implements, validates, commits
-- [ ] Auto-transition: automatically switches from planning to building when `auto_transition: true` in felix/config.json
+- [x] Implements planning mode: reads specs, generates/updates IMPLEMENTATION_PLAN.md, cannot modify code
+- [x] Implements building mode: picks one task, investigates code, implements, validates, commits
+- [x] Auto-transition: automatically switches from planning to building when `auto_transition: true` in felix/config.json
 - [ ] Mode guardrails enforced at runtime (planning cannot commit code)
 
 ### LLM Integration
 
-- [ ] Calls LLM via droid exec (existing Factory tooling)
-- [ ] Loads mode-specific prompts from felix/prompts/planning.md and felix/prompts/building.md
-- [ ] Gathers fresh context each iteration (specs + plan + AGENTS + codebase state)
-- [ ] Handles authentication via FACTORY_API_KEY environment variable
+- [x] Calls LLM via droid exec (existing Factory tooling)
+- [x] Loads mode-specific prompts from felix/prompts/planning.md and felix/prompts/building.md
+- [x] Gathers fresh context each iteration (specs + plan + AGENTS + codebase state)
+- [x] Handles authentication via FACTORY_API_KEY environment variable
 
 ### State Management
 
-- [ ] Writes felix/state.json after each iteration (current_requirement_id, last_mode, status, iteration count)
-- [ ] Creates run directories in runs/<timestamp>/ for each iteration
-- [ ] Writes run artifacts: report.md, output.log, plan.snapshot.md, diff.patch
+- [x] Writes felix/state.json after each iteration (current_requirement_id, last_mode, status, iteration count)
+- [x] Creates run directories in runs/<timestamp>/ for each iteration
+- [x] Writes run artifacts: report.md, output.log, plan.snapshot.md, diff.patch
 - [ ] Updates felix/requirements.json with task/requirement status changes
 
 ### Backpressure & Validation
@@ -45,11 +45,11 @@ As a developer, I need a standalone Python agent that implements the Ralph metho
 
 ### Observability
 
-- [ ] Logs iteration progress to stdout (iteration number, mode, current task)
-- [ ] Records full LLM conversation in output.log
-- [ ] Snapshots plan state at each iteration
+- [x] Logs iteration progress to stdout (iteration number, mode, current task)
+- [x] Records full LLM conversation in output.log
+- [x] Snapshots plan state at each iteration
 - [ ] Captures git diffs in diff.patch
-- [ ] Generates human-readable report.md summarizing outcome
+- [x] Generates human-readable report.md summarizing outcome
 
 ## Technical Notes
 
