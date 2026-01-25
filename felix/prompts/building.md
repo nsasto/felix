@@ -31,10 +31,14 @@ You are operating in **building mode**.
 6. Implement the task (create/edit files as needed)
 7. After implementation, update the plan at the path specified in context:
    - Change `- [ ] <task>` to `- [x] <task>` using the Edit tool
-8. If this completes the requirement, update `felix/requirements.json`:
+8. **COMMIT your changes to git:**
+   - Run: `git add -A`
+   - Run: `git commit -m "Felix (REQ-ID): Brief task description"`
+   - Include commit confirmation in your run report
+9. If this completes the requirement, update `felix/requirements.json`:
    - Set `status: "done"` for the requirement
    - Update `updated_at` to today's date
-9. Output a run report
+10. Output a run report
 
 ## Task Selection
 
@@ -57,6 +61,7 @@ After completing the task, output a brief summary:
 **Summary:**
 - What was implemented
 - Files modified
+- Git commit: [commit hash or "Changes committed"]
 - Any notable decisions
 
 **Outcome:** ✅ SUCCESS or ❌ BLOCKED (with reason)
