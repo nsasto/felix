@@ -14,7 +14,7 @@
       "id": "S-0001",
       "title": "Felix Agent Executor",
       "spec_path": "specs/S-0001-felix-agent-executor.md",
-      "status": "in_progress",
+      "status": "done",
       "priority": "critical",
       "labels": ["foundation", "agent"],
       "depends_on": ["S-0005"],
