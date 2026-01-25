@@ -117,7 +117,7 @@ Any other file modifications will be automatically reverted.
 
 - **First iteration:** Generate initial plan, perform self-review, output summary
 - **Subsequent iterations:** Refine plan, perform self-review, output changes made
-- **When satisfied:** Output `<promise>PLAN_COMPLETE</promise>` to transition to building mode
+- **When satisfied:** Output appropriate signal to transition to building mode
 
 **Output format each iteration:**
 
@@ -135,7 +135,20 @@ Any other file modifications will be automatically reverted.
 - Maintainability: ✅ / ❌ [brief note]
 - Scope: ✅ / ❌ [brief note]
 
-**Status:** REFINING / READY
-
-[If READY] <promise>PLAN_COMPLETE</promise>
+**Status:** DRAFT / REFINING / READY
 ```
+
+## Completion Signals
+
+Use these signals to communicate planning status:
+
+- `<promise>PLAN_DRAFT</promise>` - Initial plan created. Agent will run review iteration next.
+- `<promise>PLAN_REFINING</promise>` - Plan reviewed, needs refinement. Agent continues iterating.
+- `<promise>PLAN_COMPLETE</promise>` - Plan reviewed and approved. Ready for building mode.
+
+**Workflow:**
+
+- **Iteration 1:** Generate initial plan → Signal `PLAN_DRAFT`
+- **Iteration 2+:** Self-review plan → Either `PLAN_REFINING` (needs work) or `PLAN_COMPLETE` (approved)
+
+**This forces at least 2 iterations:** Draft creation + Review before building can start.

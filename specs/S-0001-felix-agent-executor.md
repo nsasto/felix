@@ -19,7 +19,7 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 - [x] Implements planning mode: reads specs, generates/updates IMPLEMENTATION_PLAN.md, cannot modify code
 - [x] Implements building mode: picks one task, investigates code, implements, validates, commits
 - [x] Auto-transition: automatically switches from planning to building when `auto_transition: true` in felix/config.json
-- [ ] Mode guardrails enforced at runtime (planning cannot commit code)
+- [x] Mode guardrails enforced at runtime (planning cannot commit code)
 
 ### LLM Integration
 

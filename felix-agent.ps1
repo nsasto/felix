@@ -13,6 +13,166 @@ $ErrorActionPreference = "Stop"
 $ProjectPath = Resolve-Path $ProjectPath
 Write-Host "Felix Agent starting for: $ProjectPath"
 
+# ============================================================================
+# Mode Guardrails Functions
+# ============================================================================
+
+function Get-GitState {
+    <#
+    .SYNOPSIS
+    Captures the current git state for guardrail comparison
+    #>
+    param([string]$WorkingDir)
+    
+    Push-Location $WorkingDir
+    try {
+        $state = @{
+            CommitHash     = $null
+            ModifiedFiles  = @()
+            UntrackedFiles = @()
+        }
+        
+        # Get current commit hash
+        $state.CommitHash = git rev-parse HEAD 2>$null
+        
+        # Get list of modified files (staged and unstaged)
+        $state.ModifiedFiles = @(git diff --name-only HEAD 2>$null)
+        $staged = @(git diff --name-only --cached 2>$null)
+        if ($staged) {
+            $state.ModifiedFiles = @($state.ModifiedFiles) + @($staged) | Select-Object -Unique
+        }
+        
+        # Get untracked files
+        $state.UntrackedFiles = @(git ls-files --others --exclude-standard 2>$null)
+        
+        return $state
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Test-PlanningModeGuardrails {
+    <#
+    .SYNOPSIS
+    Checks if planning mode guardrails were violated (code files modified or committed)
+    Returns a hashtable with violation details
+    #>
+    param(
+        [string]$WorkingDir,
+        [hashtable]$BeforeState,
+        [string]$RunId
+    )
+    
+    Push-Location $WorkingDir
+    try {
+        $violations = @{
+            CommitMade        = $false
+            UnauthorizedFiles = @()
+            HasViolations     = $false
+        }
+        
+        # Allowed paths for planning mode (relative paths)
+        $allowedPatterns = @(
+            "^runs/",                          # Run directories
+            "^felix/state\.json$",             # State file
+            "^felix/requirements\.json$",      # Requirements file
+            "^IMPLEMENTATION_PLAN\.md$"        # Legacy plan location
+        )
+        
+        # Get current git state
+        $afterState = Get-GitState -WorkingDir $WorkingDir
+        
+        # Check if a new commit was made
+        if ($afterState.CommitHash -ne $BeforeState.CommitHash) {
+            $violations.CommitMade = $true
+            $violations.HasViolations = $true
+            Write-Host "[GUARDRAIL VIOLATION] New commit detected during planning mode!"
+        }
+        
+        # Check for unauthorized file modifications
+        $allModifiedFiles = @($afterState.ModifiedFiles) + @($afterState.UntrackedFiles) | 
+        Where-Object { $_ -and $_.Trim() -ne "" } |
+        Select-Object -Unique
+        
+        foreach ($file in $allModifiedFiles) {
+            # Skip if file was already modified before
+            if ($BeforeState.ModifiedFiles -contains $file -or $BeforeState.UntrackedFiles -contains $file) {
+                continue
+            }
+            
+            # Check if file matches allowed patterns
+            $isAllowed = $false
+            $normalizedFile = $file -replace '\\', '/'
+            foreach ($pattern in $allowedPatterns) {
+                if ($normalizedFile -match $pattern) {
+                    $isAllowed = $true
+                    break
+                }
+            }
+            
+            if (-not $isAllowed) {
+                $violations.UnauthorizedFiles += $file
+                $violations.HasViolations = $true
+            }
+        }
+        
+        if ($violations.UnauthorizedFiles.Count -gt 0) {
+            Write-Host "[GUARDRAIL VIOLATION] Unauthorized files modified in planning mode:"
+            foreach ($file in $violations.UnauthorizedFiles) {
+                Write-Host "  - $file"
+            }
+        }
+        
+        return $violations
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Undo-PlanningViolations {
+    <#
+    .SYNOPSIS
+    Reverts unauthorized changes made during planning mode
+    #>
+    param(
+        [string]$WorkingDir,
+        [hashtable]$BeforeState,
+        [hashtable]$Violations
+    )
+    
+    Push-Location $WorkingDir
+    try {
+        # Revert commit if one was made
+        if ($Violations.CommitMade) {
+            Write-Host "[GUARDRAIL] Reverting unauthorized commit..."
+            git reset --soft $BeforeState.CommitHash 2>$null
+        }
+        
+        # Revert unauthorized file changes
+        foreach ($file in $Violations.UnauthorizedFiles) {
+            if (Test-Path $file) {
+                # Check if it was an existing file (modified) or new file
+                $wasTracked = git ls-files $file 2>$null
+                if ($wasTracked) {
+                    Write-Host "[GUARDRAIL] Reverting changes to: $file"
+                    git checkout HEAD -- $file 2>$null
+                }
+                else {
+                    Write-Host "[GUARDRAIL] Removing unauthorized new file: $file"
+                    Remove-Item $file -Force
+                }
+            }
+        }
+        
+        Write-Host "[GUARDRAIL] Violations reverted."
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 # Key paths
 $SpecsDir = Join-Path $ProjectPath "specs"
 $FelixDir = Join-Path $ProjectPath "felix"
@@ -197,6 +357,13 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Write requirement ID
     Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id
     
+    # Capture git state before execution (for planning mode guardrails)
+    $gitStateBefore = $null
+    if ($mode -eq "planning") {
+        Write-Host "[GUARDRAIL] Capturing git state before planning iteration..."
+        $gitStateBefore = Get-GitState -WorkingDir $ProjectPath
+    }
+    
     # Call droid exec (like ralph.ps1)
     Write-Host "Calling droid exec...`n"
     
@@ -206,6 +373,55 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         
         # Write output log
         Set-Content (Join-Path $runDir "output.log") $output
+        
+        # ====================================================================
+        # Planning Mode Guardrail Enforcement
+        # ====================================================================
+        $guardrailViolations = $null
+        if ($mode -eq "planning" -and $gitStateBefore) {
+            Write-Host ""
+            Write-Host "[GUARDRAIL] Checking planning mode guardrails..."
+            $guardrailViolations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $gitStateBefore -RunId $runId
+            
+            if ($guardrailViolations.HasViolations) {
+                Write-Host ""
+                Write-Host "[GUARDRAIL] VIOLATIONS DETECTED - Reverting unauthorized changes..."
+                Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $gitStateBefore -Violations $guardrailViolations
+                
+                # Log the violation in the run directory
+                $violationLog = @"
+# Guardrail Violation Report
+
+**Mode:** planning
+**Run ID:** $runId
+**Timestamp:** $(Get-Date -Format "o")
+
+## Violations
+
+**Commit Made:** $($guardrailViolations.CommitMade)
+
+**Unauthorized Files:**
+$(($guardrailViolations.UnauthorizedFiles | ForEach-Object { "- $_" }) -join "`n")
+
+## Action Taken
+
+All unauthorized changes have been reverted.
+"@
+                Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog
+                
+                # Update state with guardrail violation
+                $state.last_iteration_outcome = "guardrail_violation"
+                $state.updated_at = Get-Date -Format "o"
+                $state | ConvertTo-Json | Set-Content $StateFile
+                
+                Write-Host "[GUARDRAIL] Continuing to next iteration after violation cleanup..."
+                Write-Host ""
+                continue  # Skip the rest of this iteration and continue to next
+            }
+            else {
+                Write-Host "[GUARDRAIL] No violations detected - planning mode guardrails passed."
+            }
+        }
         
         # Create report
         $success = $LASTEXITCODE -eq 0
@@ -226,22 +442,164 @@ $output
 "@
         Set-Content (Join-Path $runDir "report.md") $report
         
-        # Check for completion signal
-        if ($output -match '<promise>COMPLETE</promise>') {
+        # Check for task completion signal (building mode)
+        if ($mode -eq "building" -and $output -match '<promise>TASK_COMPLETE</promise>') {
             Write-Host ""
-            Write-Host "[COMPLETE] Completion signal detected!"
-            
-            $state.status = "complete"
-            $state.last_iteration_outcome = "complete"
-            $state.updated_at = Get-Date -Format "o"
-            $state | ConvertTo-Json | Set-Content $StateFile
-            
-            Write-Host ""
-            Write-Host "Felix Agent complete - all tasks done!"
-            exit 0
+            Write-Host "[TASK DONE] Task completed, continuing to next iteration..."
+            # Continue loop to next iteration
         }
         
-        # Check for mode transition signal from planning mode
+        # Check for all tasks completion signal (building mode)
+        if ($mode -eq "building" -and $output -match '<promise>ALL_COMPLETE</promise>') {
+            Write-Host ""
+            Write-Host "[ALL COMPLETE] All tasks done for requirement!"
+            
+            # Verify plan actually has no remaining tasks
+            $planPattern = "plan-$($currentReq.id).md"
+            $existingPlans = Get-ChildItem $RunsDir -Recurse -Filter $planPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+            
+            if ($existingPlans -and $existingPlans.Count -gt 0) {
+                $latestPlanPath = $existingPlans[0].FullName
+                $planContent = Get-Content $latestPlanPath -Raw
+                
+                # Check for unchecked tasks (- [ ])
+                $uncheckedTasks = ($planContent | Select-String '- \[ \]' -AllMatches).Matches.Count
+                
+                if ($uncheckedTasks -gt 0) {
+                    Write-Host "[WARNING] LLM signaled ALL_COMPLETE but $uncheckedTasks unchecked tasks remain in plan"
+                    Write-Host "Ignoring signal and continuing to next iteration..."
+                }
+                else {
+                    # All tasks truly complete - run validation before marking complete
+                    Write-Host ""
+                    Write-Host "[VALIDATION] All plan tasks complete. Running validation..."
+                    
+                    # Run validation script
+                    $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
+                    $validationPassed = $false
+                    
+                    if (Test-Path $validationScript) {
+                        try {
+                            $validationOutput = & python $validationScript $currentReq.id 2>&1
+                            $validationExitCode = $LASTEXITCODE
+                            
+                            Write-Host $validationOutput
+                            
+                            if ($validationExitCode -eq 0) {
+                                Write-Host ""
+                                Write-Host "[VALIDATION] ✅ Validation PASSED!"
+                                $validationPassed = $true
+                            }
+                            else {
+                                Write-Host ""
+                                Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
+                            }
+                        }
+                        catch {
+                            Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                        }
+                    }
+                    else {
+                        Write-Host "[VALIDATION] Warning: Validation script not found at $validationScript"
+                        Write-Host "[VALIDATION] Skipping validation - marking complete anyway"
+                        $validationPassed = $true
+                    }
+                    
+                    if ($validationPassed) {
+                        # Validation passed - mark requirement complete
+                        $state.status = "complete"
+                        $state.last_iteration_outcome = "complete"
+                        $state.updated_at = Get-Date -Format "o"
+                        $state | ConvertTo-Json | Set-Content $StateFile
+                        
+                        Write-Host ""
+                        Write-Host "Felix Agent complete - all tasks done and validated!"
+                        exit 0
+                    }
+                    else {
+                        # Validation failed - emit STUCK signal
+                        Write-Host ""
+                        Write-Host "[STUCK] Tasks complete but validation failed!"
+                        Write-Host "<promise>STUCK</promise>"
+                        
+                        $state.last_iteration_outcome = "validation_failed"
+                        $state.updated_at = Get-Date -Format "o"
+                        $state | ConvertTo-Json | Set-Content $StateFile
+                        
+                        # Continue to next iteration to allow LLM to fix issues
+                    }
+                }
+            }
+            else {
+                # No plan found - run validation anyway
+                Write-Host ""
+                Write-Host "[VALIDATION] No plan found. Running validation..."
+                
+                $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
+                $validationPassed = $false
+                
+                if (Test-Path $validationScript) {
+                    try {
+                        $validationOutput = & python $validationScript $currentReq.id 2>&1
+                        $validationExitCode = $LASTEXITCODE
+                        
+                        Write-Host $validationOutput
+                        
+                        if ($validationExitCode -eq 0) {
+                            Write-Host ""
+                            Write-Host "[VALIDATION] ✅ Validation PASSED!"
+                            $validationPassed = $true
+                        }
+                        else {
+                            Write-Host ""
+                            Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
+                        }
+                    }
+                    catch {
+                        Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                    }
+                }
+                else {
+                    Write-Host "[VALIDATION] Warning: Validation script not found at $validationScript"
+                    Write-Host "[VALIDATION] Skipping validation - marking complete anyway"
+                    $validationPassed = $true
+                }
+                
+                if ($validationPassed) {
+                    $state.status = "complete"
+                    $state.last_iteration_outcome = "complete"
+                    $state.updated_at = Get-Date -Format "o"
+                    $state | ConvertTo-Json | Set-Content $StateFile
+                    
+                    Write-Host ""
+                    Write-Host "Felix Agent complete - all tasks done and validated!"
+                    exit 0
+                }
+                else {
+                    Write-Host ""
+                    Write-Host "[STUCK] Validation failed!"
+                    Write-Host "<promise>STUCK</promise>"
+                    
+                    $state.last_iteration_outcome = "validation_failed"
+                    $state.updated_at = Get-Date -Format "o"
+                    $state | ConvertTo-Json | Set-Content $StateFile
+                }
+            }
+        }
+        
+        # Check for planning mode signals
+        if ($mode -eq "planning" -and $output -match '<promise>PLAN_DRAFT</promise>') {
+            Write-Host ""
+            Write-Host "[PLAN DRAFT] Initial plan created, will review next iteration"
+            # Continue loop for review iteration
+        }
+        
+        if ($mode -eq "planning" -and $output -match '<promise>PLAN_REFINING</promise>') {
+            Write-Host ""
+            Write-Host "[REFINING] Plan needs refinement, continuing iterations..."
+            # Continue loop
+        }
+        
         if ($mode -eq "planning" -and $output -match '<promise>PLAN_COMPLETE</promise>') {
             Write-Host ""
             Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"

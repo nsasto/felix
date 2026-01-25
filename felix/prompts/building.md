@@ -67,9 +67,15 @@ After completing the task, output a brief summary:
 The Felix agent will automatically run tests/build/lint after your changes.
 You do NOT need to run them yourself. Focus on implementation only.
 
-## Completion Signal
+## Completion Signals
 
-When you have completed the task and updated the plan, you may include:
-`<promise>COMPLETE</promise>`
+After completing the task and updating the plan, include the appropriate signal:
 
-This signals to the agent that you're done with this iteration.
+- `<promise>TASK_COMPLETE</promise>` - You finished this task. Agent will continue to next task.
+- `<promise>ALL_COMPLETE</promise>` - All tasks in the plan are done. Requirement is complete.
+
+**How to decide:**
+
+- After marking your task `- [x]`, check the plan for remaining `- [ ]` unchecked tasks
+- If unchecked tasks remain → use `TASK_COMPLETE`
+- If ALL tasks are checked `- [x]` → use `ALL_COMPLETE`

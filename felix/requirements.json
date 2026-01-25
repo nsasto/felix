@@ -1,14 +1,24 @@
 {
   "requirements": [
     {
+      "id": "S-0005",
+      "title": "Validation-Driven Completion",
+      "spec_path": "specs/S-0005-validation-driven-completion.md",
+      "status": "complete",
+      "priority": "critical",
+      "labels": ["foundation", "validation", "agent"],
+      "depends_on": [],
+      "updated_at": "2026-01-25"
+    },
+    {
       "id": "S-0001",
       "title": "Felix Agent Executor",
       "spec_path": "specs/S-0001-felix-agent-executor.md",
-      "status": "in_progress",
+      "status": "complete",
       "priority": "critical",
       "labels": ["foundation", "agent"],
-      "depends_on": [],
-      "updated_at": "2026-01-24"
+      "depends_on": ["S-0005"],
+      "updated_at": "2026-01-25"
     },
     {
       "id": "S-0002",
@@ -17,8 +27,8 @@
       "status": "planned",
       "priority": "high",
       "labels": ["backend", "api"],
-      "depends_on": ["S-0001"],
-      "updated_at": "2026-01-24"
+      "depends_on": ["S-0001", "S-0005"],
+      "updated_at": "2026-01-25"
     },
     {
       "id": "S-0003",
@@ -27,8 +37,8 @@
       "status": "planned",
       "priority": "high",
       "labels": ["frontend", "ui"],
-      "depends_on": ["S-0002", "S-0001"],
-      "updated_at": "2026-01-24"
+      "depends_on": ["S-0002", "S-0001", "S-0005"],
+      "updated_at": "2026-01-25"
     },
     {
       "id": "S-0004",
@@ -37,8 +47,8 @@
       "status": "planned",
       "priority": "medium",
       "labels": ["tooling", "dx"],
-      "depends_on": [],
-      "updated_at": "2026-01-24"
+      "depends_on": ["S-0005"],
+      "updated_at": "2026-01-25"
     }
   ]
 }
