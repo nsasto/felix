@@ -65,7 +65,7 @@ As a developer starting a new Felix-enabled project, I need templates and scaffo
 
 - [ ] `felix spec create <name>` command
 - [ ] Prompts for title, generates ID (incremental: S-0001, S-0002, etc.)
-- [ ] Creates specs/<name>.md with template structure
+- [ ] Creates specs/S-NNNN-<name>.md with template structure (e.g., S-0005-user-authentication.md)
 - [ ] Adds entry to felix/requirements.json with status="draft"
 
 ### Validation Command

@@ -3,7 +3,7 @@
     {
       "id": "S-0001",
       "title": "Felix Agent Executor",
-      "spec_path": "specs/initial-setup.md",
+      "spec_path": "specs/S-0001-felix-agent-executor.md",
       "status": "in_progress",
       "priority": "critical",
       "labels": ["foundation", "agent"],
@@ -13,7 +13,7 @@
     {
       "id": "S-0002",
       "title": "Felix Backend API Server",
-      "spec_path": "specs/backend-api.md",
+      "spec_path": "specs/S-0002-backend-api-server.md",
       "status": "planned",
       "priority": "high",
       "labels": ["backend", "api"],
@@ -23,7 +23,7 @@
     {
       "id": "S-0003",
       "title": "Felix Frontend Observer UI",
-      "spec_path": "specs/frontend-ui.md",
+      "spec_path": "specs/S-0003-frontend-observer-ui.md",
       "status": "planned",
       "priority": "high",
       "labels": ["frontend", "ui"],
@@ -33,7 +33,7 @@
     {
       "id": "S-0004",
       "title": "Artifact Templates and Scaffolding",
-      "spec_path": "specs/artifact-templates.md",
+      "spec_path": "specs/S-0004-artifact-templates.md",
       "status": "planned",
       "priority": "medium",
       "labels": ["tooling", "dx"],
