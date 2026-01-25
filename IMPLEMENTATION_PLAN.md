@@ -127,9 +127,9 @@ This is the **current plan**, not the historical record.
 
 ### 4.3 WebSocket Server
 
-- [ ] Create WebSocket endpoint `/ws`
-- [ ] Stream run logs in real-time
-- [ ] Send agent status updates
+- [x] Create WebSocket endpoint `/ws/projects/:id`
+- [x] Stream run logs in real-time
+- [x] Send agent status updates
 
 ---
 
@@ -137,7 +137,7 @@ This is the **current plan**, not the historical record.
 
 ### 5.1 Project Management UI
 
-- [ ] Create project selector/switcher component
+- [x] Create project selector/switcher component
 - [ ] Add "Register Project" flow
 - [ ] Display project list with status
 

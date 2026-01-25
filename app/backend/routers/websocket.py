@@ -31,6 +31,8 @@ class ConnectionManager:
         self._connections: Dict[str, Set[WebSocket]] = {}
         # project_id -> asyncio task watching files
         self._watchers: Dict[str, asyncio.Task] = {}
+        # project_id -> last known state (for detecting changes)
+        self._last_state: Dict[str, Dict[str, Any]] = {}
         # Lock for thread-safe operations
         self._lock = asyncio.Lock()
     
@@ -55,7 +57,7 @@ class ConnectionManager:
             if project_id in self._connections:
                 self._connections[project_id].discard(websocket)
                 
-                # If no more connections, cancel the watcher
+                # If no more connections, cancel the watcher and clean up state cache
                 if not self._connections[project_id]:
                     del self._connections[project_id]
                     if project_id in self._watchers:
@@ -65,6 +67,9 @@ class ConnectionManager:
                         except asyncio.CancelledError:
                             pass
                         del self._watchers[project_id]
+                    # Clean up cached state
+                    if project_id in self._last_state:
+                        del self._last_state[project_id]
     
     async def broadcast(self, project_id: str, message: dict):
         """Broadcast a message to all connections for a project"""
@@ -158,44 +163,134 @@ class ConnectionManager:
             path = Path(path_str)
             relative_path = path.relative_to(project_path) if path.is_relative_to(project_path) else path
             
-            # Determine event type based on what changed
-            event = await self._create_event(change_type, path, relative_path, project_path)
-            if event:
+            # Determine event type based on what changed - returns list of events
+            events = await self._create_event(change_type, path, relative_path, project_path, project_id)
+            for event in events:
                 await self.broadcast(project_id, event)
     
     async def _create_event(self, change_type: Change, path: Path, 
-                           relative_path: Path, project_path: Path) -> Optional[dict]:
-        """Create an event message based on the file change"""
+                           relative_path: Path, project_path: Path,
+                           project_id: str) -> list:
+        """Create event message(s) based on the file change. Returns a list of events."""
         path_parts = relative_path.parts
         timestamp = datetime.now().isoformat()
         
-        # state.json changes
+        # state.json changes - returns list of specific events
         if path_parts == ("felix", "state.json"):
-            return await self._create_state_event(path, timestamp)
+            return await self._create_state_event(path, timestamp, project_id)
         
         # requirements.json changes
         if path_parts == ("felix", "requirements.json"):
-            return await self._create_requirements_event(path, timestamp)
+            event = await self._create_requirements_event(path, timestamp)
+            return [event] if event else []
         
         # runs/ directory changes
         if len(path_parts) >= 1 and path_parts[0] == "runs":
-            return await self._create_run_event(change_type, path, relative_path, timestamp)
+            event = await self._create_run_event(change_type, path, relative_path, timestamp)
+            return [event] if event else []
         
-        return None
+        return []
     
-    async def _create_state_event(self, path: Path, timestamp: str) -> Optional[dict]:
-        """Create event for state.json changes"""
+    async def _create_state_event(self, path: Path, timestamp: str, 
+                                   project_id: str) -> list:
+        """
+        Create events for state.json changes.
+        
+        Returns a list of events based on what changed:
+        - mode_change: when last_mode changes
+        - status_update: when status changes  
+        - iteration_start: when current_iteration increases
+        - iteration_complete: when last_iteration_outcome changes
+        - run_complete: when status changes to 'idle' or 'complete'
+        - state_update: always sent with full state data
+        """
+        events = []
         try:
-            if path.exists():
-                content = json.loads(path.read_text())
-                return {
-                    "type": "state_update",
+            if not path.exists():
+                return events
+            
+            content = json.loads(path.read_text())
+            prev_state = self._last_state.get(project_id, {})
+            
+            # Check for mode change
+            if content.get("last_mode") != prev_state.get("last_mode"):
+                events.append({
+                    "type": "mode_change",
                     "timestamp": timestamp,
-                    "data": content
-                }
+                    "data": {
+                        "previous_mode": prev_state.get("last_mode"),
+                        "current_mode": content.get("last_mode"),
+                        "requirement_id": content.get("current_requirement_id")
+                    }
+                })
+            
+            # Check for status change
+            if content.get("status") != prev_state.get("status"):
+                events.append({
+                    "type": "status_update",
+                    "timestamp": timestamp,
+                    "data": {
+                        "previous_status": prev_state.get("status"),
+                        "current_status": content.get("status"),
+                        "requirement_id": content.get("current_requirement_id")
+                    }
+                })
+                
+                # Check for run_complete (status changed to idle or complete)
+                if content.get("status") in ("idle", "complete", "stopped"):
+                    events.append({
+                        "type": "run_complete",
+                        "timestamp": timestamp,
+                        "data": {
+                            "final_status": content.get("status"),
+                            "last_outcome": content.get("last_iteration_outcome"),
+                            "requirement_id": content.get("current_requirement_id"),
+                            "run_id": content.get("last_run_id")
+                        }
+                    })
+            
+            # Check for iteration change
+            prev_iteration = prev_state.get("current_iteration", 0)
+            curr_iteration = content.get("current_iteration", 0)
+            if curr_iteration > prev_iteration:
+                events.append({
+                    "type": "iteration_start",
+                    "timestamp": timestamp,
+                    "data": {
+                        "iteration": curr_iteration,
+                        "mode": content.get("last_mode"),
+                        "requirement_id": content.get("current_requirement_id")
+                    }
+                })
+            
+            # Check for iteration outcome change
+            if content.get("last_iteration_outcome") != prev_state.get("last_iteration_outcome"):
+                # Only send if we have a previous state (not initial load)
+                if prev_state:
+                    events.append({
+                        "type": "iteration_complete",
+                        "timestamp": timestamp,
+                        "data": {
+                            "iteration": content.get("current_iteration"),
+                            "outcome": content.get("last_iteration_outcome"),
+                            "mode": content.get("last_mode"),
+                            "requirement_id": content.get("current_requirement_id")
+                        }
+                    })
+            
+            # Always send full state update
+            events.append({
+                "type": "state_update",
+                "timestamp": timestamp,
+                "data": content
+            })
+            
+            # Update cached state
+            self._last_state[project_id] = content
+            
         except (json.JSONDecodeError, IOError):
             pass
-        return None
+        return events
     
     async def _create_requirements_event(self, path: Path, timestamp: str) -> Optional[dict]:
         """Create event for requirements.json changes"""
@@ -277,6 +372,7 @@ class ConnectionManager:
             
             self._watchers.clear()
             self._connections.clear()
+            self._last_state.clear()
 
 
 # Global connection manager instance
@@ -289,16 +385,24 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):
     WebSocket endpoint for real-time project updates.
     
     Clients connect to receive updates when:
-    - felix/state.json changes (iteration_start, iteration_complete, mode_change, status_update)
-    - felix/requirements.json changes (requirement status updates)
-    - runs/ directory changes (new runs, run artifacts)
+    - felix/state.json changes (mode_change, status_update, iteration_start, iteration_complete, run_complete, state_update)
+    - felix/requirements.json changes (requirements_update)
+    - runs/ directory changes (run_started, run_updated, run_artifact_created, run_artifact_updated)
     
     Events are JSON objects with format:
     {
-        "type": "state_update" | "requirements_update" | "run_started" | "run_artifact_created" | "run_artifact_updated",
+        "type": "<event_type>",
         "timestamp": "ISO datetime",
         "data": { ... event-specific data ... }
     }
+    
+    State-based events:
+    - mode_change: {previous_mode, current_mode, requirement_id}
+    - status_update: {previous_status, current_status, requirement_id}
+    - iteration_start: {iteration, mode, requirement_id}
+    - iteration_complete: {iteration, outcome, mode, requirement_id}
+    - run_complete: {final_status, last_outcome, requirement_id, run_id}
+    - state_update: full state.json content
     """
     # Verify project exists
     project = storage.get_project_by_id(project_id)
