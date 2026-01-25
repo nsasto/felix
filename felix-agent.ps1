@@ -445,7 +445,34 @@ $output
         # Check for task completion signal (building mode)
         if ($mode -eq "building" -and $output -match '<promise>TASK_COMPLETE</promise>') {
             Write-Host ""
-            Write-Host "[TASK DONE] Task completed, continuing to next iteration..."
+            Write-Host "[TASK DONE] Task completed"
+            
+            # Enforce git commit before continuing
+            $gitStatus = git status --porcelain 2>&1
+            if ($gitStatus -and $LASTEXITCODE -eq 0) {
+                Write-Host "[COMMIT] Uncommitted changes detected, committing..."
+                
+                # Extract task description from output for commit message
+                $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
+                $taskDesc = if ($matches) { $matches[1].Trim() } else { "Task completion" }
+                
+                git add -A 2>&1 | Out-Null
+                $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
+                $commitOutput = git commit -m $commitMsg 2>&1
+                
+                if ($LASTEXITCODE -eq 0) {
+                    $commitHash = git rev-parse --short HEAD 2>&1
+                    Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
+                }
+                else {
+                    Write-Host "[COMMIT] ⚠️ Git commit failed: $commitOutput"
+                }
+            }
+            else {
+                Write-Host "[COMMIT] No changes to commit (task may have been read-only)"
+            }
+            
+            Write-Host "Continuing to next iteration..."
             # Continue loop to next iteration
         }
         
