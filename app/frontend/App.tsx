@@ -1,30 +1,29 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  Message, 
-  MessageRole, 
-  Conversation, 
-  ModelType, 
-  Attachment,
-  ContextFile,
   Task,
   UIState,
   MarkdownAsset
 } from './types';
-import { geminiService } from './services/geminiService';
+import { felixApi, ProjectDetails } from './services/felixApi';
 import { 
   IconFelix, 
   IconSearch, 
-  IconTerminal, 
+  IconTerminal,
   IconFileCode,
   IconFileText,
   IconCpu,
   IconKanban,
-  IconMaximize,
-  IconChevronRight,
   IconPlus 
 } from './components/Icons';
-import ChatBubble from './components/ChatBubble';
+import ProjectSelector from './components/ProjectSelector';
+import RequirementsKanban from './components/RequirementsKanban';
+import AgentControls from './components/AgentControls';
+import RunArtifactViewer from './components/RunArtifactViewer';
+import SpecsEditor from './components/SpecsEditor';
+import RunMonitor from './components/RunMonitor';
+import ConfigPanel from './components/ConfigPanel';
+import PlanViewer from './components/PlanViewer';
 import { marked } from 'marked';
 
 const INITIAL_TASKS: Task[] = [
@@ -40,28 +39,54 @@ const INITIAL_ASSETS: MarkdownAsset[] = [
   { id: 'a3', name: 'ARCH.md', content: '# Architecture Overview\n\n| Component | Responsibility | Tech |\n| :--- | :--- | :--- |\n| UI Layer | React / Tailwind | Frontend |\n| Reasoning | Gemini 3 Pro | Intelligence |\n| Storage | Cloud Sync | Data |\n\n> "Felix is not just a tool, it is a collaborator in the engineering process."', lastEdited: Date.now() },
 ];
 
+// Extended UI state to include projects, config, and plan views
+type ExtendedUIState = UIState | 'projects' | 'config' | 'plan';
+
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [assets, setAssets] = useState<MarkdownAsset[]>(INITIAL_ASSETS);
-  const [uiState, setUiState] = useState<UIState>('kanban');
+  const [uiState, setUiState] = useState<ExtendedUIState>('projects'); // Start with projects view
   const [selectedAssetId, setSelectedAssetId] = useState<string>(INITIAL_ASSETS[0].id);
   const [assetViewMode, setAssetViewMode] = useState<'edit' | 'preview' | 'split'>('split');
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [inputText, setInputText] = useState('');
-  const [selectedModel, setSelectedModel] = useState<ModelType>(ModelType.FLASH);
-  const [isLoading, setIsLoading] = useState(false);
   const [parsedHtml, setParsedHtml] = useState<string>('');
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 'm1', role: MessageRole.MODEL, text: "Felix active. I'm monitoring your workspace. How can I help orchestrate your workflow?", timestamp: Date.now() }
-  ]);
+  
+  // Project management state
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<ProjectDetails | null>(null);
+  const [backendStatus, setBackendStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
+  
+  // Run artifact viewer state
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
-  const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Check backend status on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        await felixApi.healthCheck();
+        setBackendStatus('connected');
+      } catch (e) {
+        setBackendStatus('disconnected');
+        console.warn('Backend not available:', e);
+      }
+    };
+    checkBackend();
+    
+    // Periodically check backend status
+    const interval = setInterval(checkBackend, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSelectProject = (projectId: string, details: ProjectDetails) => {
+    setSelectedProjectId(projectId);
+    setSelectedProject(details);
+    // Switch to kanban view after selecting a project
+    if (uiState === 'projects') {
+      setUiState('kanban');
+    }
+  };
+
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const activeAsset = useMemo(() => assets.find(a => a.id === selectedAssetId) || assets[0], [assets, selectedAssetId]);
-
-  useEffect(() => {
-    if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-  }, [messages, isLoading]);
 
   // Reliable Markdown parsing effect
   useEffect(() => {
@@ -83,28 +108,6 @@ const App: React.FC = () => {
       clearTimeout(timeout); 
     };
   }, [activeAsset.content]);
-
-  const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
-    const userMsg: Message = { id: Date.now().toString(), role: MessageRole.USER, text: inputText, timestamp: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
-    setInputText('');
-    setIsLoading(true);
-
-    const context: ContextFile[] = uiState === 'assets' ? [
-      { id: activeAsset.id, name: activeAsset.name, path: activeAsset.name, content: activeAsset.content, language: 'markdown' }
-    ] : [];
-
-    try {
-      const response = await geminiService.generateResponse(selectedModel, messages, inputText, [], context, false);
-      const modelMsg: Message = { id: (Date.now() + 1).toString(), role: MessageRole.MODEL, text: response.text, sources: response.sources, timestamp: Date.now() };
-      setMessages(prev => [...prev, modelMsg]);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const updateAssetContent = (id: string, newContent: string) => {
     setAssets(prev => prev.map(a => a.id === id ? { ...a, content: newContent, lastEdited: Date.now() } : a));
@@ -232,7 +235,6 @@ export const executeTask = (taskId: string) => {
              </pre>
           </div>
         </div>
-        {renderFelixPane()}
       </div>
     );
   };
@@ -366,68 +368,248 @@ export const executeTask = (taskId: string) => {
               )}
            </div>
         </div>
-
-        {renderFelixPane()}
       </div>
     );
   };
 
-  const renderFelixPane = () => (
-    <div className="w-[450px] flex flex-col bg-[#050608] z-10 border-l border-slate-800/60 shadow-2xl flex-shrink-0 relative overflow-hidden">
-      {/* Decorative pulse background */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-felix-900/10 blur-[100px] pointer-events-none rounded-full -translate-y-1/2 translate-x-1/2"></div>
-      
-      <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between bg-[#0d1117]/50 backdrop-blur shrink-0">
-        <div className="flex items-center gap-2">
-          <IconFelix className="w-4 h-4 text-felix-400" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Felix Context Intelligence</span>
+  // Render the projects view
+  const renderProjects = () => {
+    return (
+      <div className="flex-1 flex bg-[#0d1117] overflow-hidden">
+        {/* Project Selector Panel */}
+        <div className="w-80 border-r border-slate-800/60 flex flex-col bg-[#0a0c10]/40 flex-shrink-0">
+          <ProjectSelector
+            selectedProjectId={selectedProjectId}
+            onSelectProject={handleSelectProject}
+          />
         </div>
-        <button onClick={() => setUiState('kanban')} className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300">
-           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/></svg>
-        </button>
-      </div>
-      <div ref={chatScrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 relative z-10">
-        {messages.map(msg => <ChatBubble key={msg.id} message={msg} />)}
-        {isLoading && (
-           <div className="flex items-center gap-3 text-slate-600 text-[10px] font-mono animate-pulse pl-2 border-l-2 border-felix-600/30">
-             <IconCpu className="w-3 h-3 animate-spin" />
-             Felix is synthesizing project state...
-           </div>
-        )}
-      </div>
-      <div className="p-4 border-t border-slate-800/60 bg-[#0d1117]/90 backdrop-blur shrink-0">
-         <div className="relative group">
-            <textarea 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-              className="w-full bg-[#161b22] border border-slate-700/50 rounded-2xl p-4 pr-14 text-sm focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all resize-none min-h-[50px] max-h-[200px] shadow-2xl placeholder:text-slate-600 selection:bg-felix-500/40"
-              placeholder={uiState === 'assets' ? `Ask Felix to refine ${activeAsset.name}...` : "Initiate reasoning sequence..."}
-              rows={1}
+
+        {/* Project Details Panel */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#0a0c10]/20">
+          {/* Show Run Artifact Viewer when a run is selected */}
+          {selectedRunId && selectedProjectId ? (
+            <RunArtifactViewer
+              projectId={selectedProjectId}
+              runId={selectedRunId}
+              onClose={() => setSelectedRunId(null)}
             />
-            <button 
-              onClick={handleSendMessage}
-              className="absolute right-3 bottom-3 p-2 bg-felix-600 text-white rounded-xl hover:bg-felix-500 transition-all transform active:scale-95 shadow-lg shadow-felix-900/40 disabled:opacity-50"
-              disabled={isLoading || !inputText.trim()}
-            >
-               <IconChevronRight className="w-4 h-4" />
-            </button>
-         </div>
-         <div className="mt-3 flex justify-center">
-            <span className="text-[8px] font-mono text-slate-700 uppercase tracking-[0.3em]">Neural Link Stable // 256-bit AES</span>
-         </div>
+          ) : selectedProject ? (
+            <>
+              {/* Project header */}
+              <div className="h-16 border-b border-slate-800/60 flex items-center px-8 bg-[#0d1117]/95 backdrop-blur">
+                <div className="flex-1">
+                  <h2 className="text-lg font-bold text-slate-200">
+                    {selectedProject.name || selectedProject.path.split(/[\\/]/).pop()}
+                  </h2>
+                  <p className="text-[10px] font-mono text-slate-600 truncate max-w-lg">
+                    {selectedProject.path}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  {selectedProject.status && (
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase ${
+                      selectedProject.status === 'running' ? 'bg-felix-500/20 text-felix-400' :
+                      selectedProject.status === 'complete' ? 'bg-emerald-500/20 text-emerald-400' :
+                      selectedProject.status === 'blocked' ? 'bg-red-500/20 text-red-400' :
+                      'bg-slate-800 text-slate-400'
+                    }`}>
+                      {selectedProject.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Project overview */}
+              <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-3 gap-6 mb-8">
+                  {/* Specs card */}
+                  <div className="bg-[#161b22] border border-slate-800/60 rounded-2xl p-6 hover:border-felix-600/40 transition-all">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-felix-500/10 rounded-xl flex items-center justify-center">
+                        <IconFileText className="w-5 h-5 text-felix-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-slate-200">
+                          {selectedProject.spec_count}
+                        </h3>
+                        <p className="text-[10px] font-mono text-slate-600 uppercase">
+                          Specifications
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setUiState('assets')}
+                      className="w-full py-2 text-xs text-felix-400 hover:text-felix-300 transition-colors"
+                    >
+                      View Specs →
+                    </button>
+                  </div>
+
+                  {/* Plan card */}
+                  <div className="bg-[#161b22] border border-slate-800/60 rounded-2xl p-6 hover:border-felix-600/40 transition-all">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        selectedProject.has_plan ? 'bg-emerald-500/10' : 'bg-slate-800'
+                      }`}>
+                        <IconKanban className={`w-5 h-5 ${
+                          selectedProject.has_plan ? 'text-emerald-400' : 'text-slate-600'
+                        }`} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-200">
+                          {selectedProject.has_plan ? 'Active' : 'None'}
+                        </h3>
+                        <p className="text-[10px] font-mono text-slate-600 uppercase">
+                          Implementation Plan
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setUiState('kanban')}
+                      className="w-full py-2 text-xs text-felix-400 hover:text-felix-300 transition-colors"
+                    >
+                      View Plan →
+                    </button>
+                  </div>
+
+                  {/* Requirements card */}
+                  <div className="bg-[#161b22] border border-slate-800/60 rounded-2xl p-6 hover:border-felix-600/40 transition-all">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        selectedProject.has_requirements ? 'bg-amber-500/10' : 'bg-slate-800'
+                      }`}>
+                        <IconCpu className={`w-5 h-5 ${
+                          selectedProject.has_requirements ? 'text-amber-400' : 'text-slate-600'
+                        }`} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-200">
+                          {selectedProject.has_requirements ? 'Configured' : 'None'}
+                        </h3>
+                        <p className="text-[10px] font-mono text-slate-600 uppercase">
+                          Requirements
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setUiState('kanban')}
+                      className="w-full py-2 text-xs text-felix-400 hover:text-felix-300 transition-colors"
+                    >
+                      View Board →
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick actions */}
+                <div className="bg-[#161b22] border border-slate-800/60 rounded-2xl p-6 mb-6">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+                    Quick Actions
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <button
+                      onClick={() => setUiState('assets')}
+                      className="py-3 px-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl text-sm text-slate-300 hover:text-slate-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <IconFileText className="w-4 h-4" />
+                      Edit Specs
+                    </button>
+                    <button
+                      onClick={() => setUiState('kanban')}
+                      className="py-3 px-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl text-sm text-slate-300 hover:text-slate-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <IconKanban className="w-4 h-4" />
+                      View Board
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setUiState('plan')}
+                      className="py-3 px-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl text-sm text-slate-300 hover:text-slate-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <IconFileCode className="w-4 h-4" />
+                      View Plan
+                    </button>
+                    <button
+                      onClick={() => setUiState('config')}
+                      className="py-3 px-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl text-sm text-slate-300 hover:text-slate-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Config
+                    </button>
+                  </div>
+                </div>
+
+                {/* Run Monitor - Real-time Status */}
+                <div className="mb-6">
+                  <RunMonitor
+                    projectId={selectedProjectId!}
+                    onRunComplete={(data) => {
+                      // Refresh project details when a run completes
+                      console.log('Run completed:', data);
+                    }}
+                  />
+                </div>
+
+                {/* Agent Controls */}
+                <AgentControls
+                  projectId={selectedProjectId!}
+                  onSelectRun={(runId) => setSelectedRunId(runId)}
+                />
+              </div>
+            </>
+          ) : (
+            // No project selected
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+              <div className="w-20 h-20 bg-slate-800/50 rounded-3xl flex items-center justify-center mb-6">
+                <IconFelix className="w-10 h-10 text-slate-700" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-400 mb-2">
+                No Project Selected
+              </h2>
+              <p className="text-sm text-slate-600 max-w-md mb-6">
+                Select a project from the list to view its details, or register a new project to get started.
+              </p>
+              {backendStatus === 'disconnected' && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 text-xs text-amber-400">
+                  <span className="font-bold">Backend Offline:</span> Start the Felix backend server to manage projects.
+                  <code className="block mt-2 bg-black/30 px-2 py-1 rounded text-amber-300">
+                    cd app/backend && python main.py
+                  </code>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#050608] text-slate-300 font-sans selection:bg-felix-500/30">
       {/* Primary Orchestration Sidebar */}
       <aside className="w-16 border-r border-slate-800/60 bg-[#0d1117] flex flex-col items-center py-6 gap-6 z-30 shadow-2xl flex-shrink-0">
-        <div className="p-2 bg-felix-600 rounded-2xl shadow-xl shadow-felix-900/50 transform hover:scale-110 transition-transform cursor-pointer group">
+        <div 
+          onClick={() => setUiState('projects')}
+          className="p-2 bg-felix-600 rounded-2xl shadow-xl shadow-felix-900/50 transform hover:scale-110 transition-transform cursor-pointer group"
+          title="Projects"
+        >
            <IconFelix className="w-6 h-6 text-white group-hover:rotate-45 transition-transform duration-500" />
         </div>
         <div className="flex-1 flex flex-col items-center gap-4 w-full px-2">
+          {/* Projects button */}
+          <button 
+            onClick={() => setUiState('projects')}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === 'projects' ? 'bg-slate-800 text-felix-400 shadow-md border border-slate-700/50' : 'text-slate-600 hover:text-slate-300 hover:bg-slate-800/30'}`}
+            title="Projects"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            {uiState === 'projects' && <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>}
+          </button>
           <button 
             onClick={() => setUiState('kanban')}
             className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === 'kanban' ? 'bg-slate-800 text-felix-400 shadow-md border border-slate-700/50' : 'text-slate-600 hover:text-slate-300 hover:bg-slate-800/30'}`}
@@ -458,7 +640,16 @@ export const executeTask = (taskId: string) => {
           </button>
         </div>
         <div className="mt-auto flex flex-col items-center gap-4">
-           <div className="w-9 h-9 rounded-2xl bg-[#161b22] flex items-center justify-center text-[10px] font-bold border border-slate-800 text-slate-500 shadow-inner hover:border-felix-600/50 transition-colors cursor-pointer">NS</div>
+          {/* Backend status indicator */}
+          <div 
+            className={`w-2 h-2 rounded-full ${
+              backendStatus === 'connected' ? 'bg-emerald-500' : 
+              backendStatus === 'disconnected' ? 'bg-red-500' : 
+              'bg-slate-600'
+            }`}
+            title={`Backend: ${backendStatus}`}
+          />
+          <div className="w-9 h-9 rounded-2xl bg-[#161b22] flex items-center justify-center text-[10px] font-bold border border-slate-800 text-slate-500 shadow-inner hover:border-felix-600/50 transition-colors cursor-pointer">NS</div>
         </div>
       </aside>
 
@@ -467,97 +658,105 @@ export const executeTask = (taskId: string) => {
         <header className="h-14 border-b border-slate-800/60 flex items-center px-8 justify-between bg-[#0a0c10]/70 backdrop-blur-2xl flex-shrink-0 z-10">
            <div className="flex items-center gap-4">
               <h2 className="text-sm font-bold tracking-[0.15em] text-white uppercase flex items-center gap-3">
+                {uiState === 'projects' && <div className="w-2 h-2 rounded-full bg-felix-500 shadow-lg shadow-felix-500/20"></div>}
                 {uiState === 'kanban' && <div className="w-2 h-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/20"></div>}
                 {uiState === 'canvas' && <div className="w-2 h-2 rounded-full bg-felix-400 shadow-lg shadow-felix-400/20"></div>}
                 {uiState === 'assets' && <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/20"></div>}
-                {uiState === 'kanban' ? 'System Board' : uiState === 'canvas' ? 'Orchestration Canvas' : 'Workspace Assets'}
+                {uiState === 'config' && <div className="w-2 h-2 rounded-full bg-slate-400 shadow-lg shadow-slate-400/20"></div>}
+                {uiState === 'plan' && <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/20"></div>}
+                {uiState === 'projects' ? 'Projects' : uiState === 'kanban' ? 'System Board' : uiState === 'canvas' ? 'Orchestration Canvas' : uiState === 'assets' ? 'Specifications' : uiState === 'config' ? 'Configuration' : uiState === 'plan' ? 'Implementation Plan' : 'Workspace Assets'}
               </h2>
               <div className="h-4 w-[1px] bg-slate-800 mx-2"></div>
-              <span className="text-[10px] font-mono text-slate-500 truncate max-w-[300px] hover:text-slate-300 transition-colors cursor-default">FELIX_OS_CORE / {activeAsset.name}</span>
+              <span className="text-[10px] font-mono text-slate-500 truncate max-w-[300px] hover:text-slate-300 transition-colors cursor-default">
+                {selectedProject ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop() : 'No project selected'}
+                {uiState !== 'projects' && activeAsset && ` / ${activeAsset.name}`}
+              </span>
            </div>
            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3 bg-slate-900/40 px-4 py-2 rounded-2xl border border-slate-800/50 group hover:border-felix-600/30 transition-all">
-                <IconCpu className="w-3.5 h-3.5 text-slate-600 group-hover:text-felix-400 transition-colors" />
-                <span className="text-[9px] font-mono font-bold text-slate-500 uppercase tracking-widest">
-                  {selectedModel === ModelType.FLASH ? 'Gemini 3 Flash' : 'Gemini 3 Pro'}
-                </span>
-              </div>
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/40 animate-pulse"></div>
-                <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-tighter">Live Sync</span>
+                <div className={`w-1.5 h-1.5 rounded-full ${backendStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'} shadow-lg`}></div>
+                <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-tighter">
+                  {backendStatus === 'connected' ? 'Backend Online' : 'Backend Offline'}
+                </span>
               </div>
            </div>
         </header>
 
-        {uiState === 'kanban' ? renderKanban() : uiState === 'canvas' ? renderCanvas() : renderAssets()}
-
-        {/* Floating AI Interface Component */}
-        {uiState === 'kanban' && (
-          <div className="absolute bottom-12 right-12 z-50 flex flex-col items-end gap-5">
-            {isChatOpen && (
-              <div className="w-[420px] h-[600px] bg-[#0d1117] border border-slate-800/80 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] rounded-3xl flex flex-col overflow-hidden animate-in backdrop-blur-xl">
-                <div className="h-14 border-b border-slate-800/60 bg-[#161b22]/80 px-5 flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                      <div className="p-1.5 bg-felix-600 rounded-lg">
-                        <IconFelix className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-200">Felix Assistant</span>
-                        <span className="text-[9px] font-mono text-emerald-500 uppercase leading-none">Context Active</span>
-                      </div>
-                   </div>
-                   <div className="flex items-center gap-2">
-                     <button 
-                       onClick={() => { setUiState('canvas'); setIsChatOpen(false); }}
-                       className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-all hover:text-felix-400" title="Expand Analysis"
-                     >
-                        <IconMaximize className="w-4 h-4" />
-                     </button>
-                     <button onClick={() => setIsChatOpen(false)} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-red-400 transition-all">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                     </button>
-                   </div>
-                </div>
-                <div ref={chatScrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 bg-black/30">
-                   {messages.map(msg => <ChatBubble key={msg.id} message={msg} />)}
-                   {isLoading && (
-                      <div className="flex items-center gap-3 text-slate-600 text-[10px] font-mono animate-pulse bg-slate-900/50 p-4 rounded-2xl border border-slate-800/50">
-                        <IconCpu className="w-4 h-4 animate-spin text-felix-500" />
-                        Synchronizing neural context...
-                      </div>
-                   )}
-                </div>
-                <div className="p-5 border-t border-slate-800/60 bg-[#161b22]/90">
-                   <div className="relative">
-                      <input 
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                        className="w-full bg-[#0d1117] border border-slate-700/40 rounded-2xl py-3 pl-5 pr-12 text-xs focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none placeholder:text-slate-700 shadow-inner"
-                        placeholder="Talk to Felix Assistant..."
-                      />
-                      <button 
-                        onClick={handleSendMessage}
-                        className="absolute right-2.5 top-2 p-1.5 text-felix-400 hover:text-white transition-colors hover:scale-110 active:scale-90"
-                      >
-                         <IconChevronRight className="w-5 h-5" />
-                      </button>
-                   </div>
-                </div>
-              </div>
-            )}
-            
-            {!isChatOpen && (
+        {uiState === 'projects' ? renderProjects() : uiState === 'kanban' ? (
+          selectedProjectId ? (
+            <RequirementsKanban 
+              projectId={selectedProjectId} 
+              onSelectRequirement={(req) => {
+                // Navigate to spec view when requirement is clicked
+                console.log('Selected requirement:', req.id);
+              }}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#050608]">
+              <span className="text-sm text-slate-500">Select a project to view requirements</span>
               <button 
-                onClick={() => setIsChatOpen(true)}
-                className="w-16 h-16 bg-felix-600 rounded-3xl shadow-2xl shadow-felix-900/60 hover:bg-felix-500 hover:scale-105 transition-all flex items-center justify-center group border border-felix-400/20 active:scale-95"
+                onClick={() => setUiState('projects')}
+                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
               >
-                <IconFelix className="w-8 h-8 text-white group-hover:rotate-12 transition-transform duration-300" />
-                <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-[3px] border-[#050608] animate-bounce"></div>
+                Go to Projects
               </button>
-            )}
-          </div>
-        )}
+            </div>
+          )
+        ) : uiState === 'canvas' ? renderCanvas() : uiState === 'assets' ? (
+          selectedProjectId ? (
+            <SpecsEditor 
+              projectId={selectedProjectId}
+              onSelectSpec={(filename) => {
+                console.log('Selected spec:', filename);
+              }}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#050608]">
+              <span className="text-sm text-slate-500">Select a project to view specs</span>
+              <button 
+                onClick={() => setUiState('projects')}
+                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+              >
+                Go to Projects
+              </button>
+            </div>
+          )
+        ) : uiState === 'config' ? (
+          selectedProjectId ? (
+            <ConfigPanel 
+              projectId={selectedProjectId}
+              onClose={() => setUiState('projects')}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#050608]">
+              <span className="text-sm text-slate-500">Select a project to view configuration</span>
+              <button 
+                onClick={() => setUiState('projects')}
+                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+              >
+                Go to Projects
+              </button>
+            </div>
+          )
+        ) : uiState === 'plan' ? (
+          selectedProjectId ? (
+            <PlanViewer 
+              projectId={selectedProjectId}
+              onBack={() => setUiState('projects')}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#050608]">
+              <span className="text-sm text-slate-500">Select a project to view implementation plan</span>
+              <button 
+                onClick={() => setUiState('projects')}
+                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+              >
+                Go to Projects
+              </button>
+            </div>
+          )
+        ) : renderAssets()}
+
       </div>
 
       {/* Persistent OS Status Bar */}

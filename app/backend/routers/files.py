@@ -85,6 +85,58 @@ class AgentsMdContent(BaseModel):
     path: str
 
 
+# --- Config Models ---
+
+class ExecutorConfig(BaseModel):
+    """Executor configuration from felix/config.json"""
+    mode: str = Field(default="local", description="Executor mode")
+    max_iterations: int = Field(default=100, description="Maximum iterations per run")
+    default_mode: str = Field(default="building", description="Default agent mode (planning or building)")
+    auto_transition: bool = Field(default=True, description="Auto-transition from planning to building")
+
+
+class AgentConfig(BaseModel):
+    """Agent configuration from felix/config.json"""
+    executable: str = Field(default="droid", description="Agent executable name")
+    args: List[str] = Field(default_factory=lambda: ["exec", "--skip-permissions-unsafe"], description="Agent arguments")
+    working_directory: str = Field(default=".", description="Working directory for agent")
+    environment: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+
+
+class PathsConfig(BaseModel):
+    """Paths configuration from felix/config.json"""
+    specs: str = Field(default="specs", description="Specs directory path")
+    plan: str = Field(default="IMPLEMENTATION_PLAN.md", description="Implementation plan file path")
+    agents: str = Field(default="AGENTS.md", description="AGENTS.md file path")
+    runs: str = Field(default="runs", description="Runs directory path")
+
+
+class BackpressureConfig(BaseModel):
+    """Backpressure configuration from felix/config.json"""
+    enabled: bool = Field(default=True, description="Whether backpressure is enabled")
+    commands: List[str] = Field(default_factory=list, description="Backpressure commands to run")
+
+
+class FelixConfig(BaseModel):
+    """Full felix/config.json configuration"""
+    version: str = Field(default="0.1.0", description="Config version")
+    executor: ExecutorConfig = Field(default_factory=ExecutorConfig)
+    agent: AgentConfig = Field(default_factory=AgentConfig)
+    paths: PathsConfig = Field(default_factory=PathsConfig)
+    backpressure: BackpressureConfig = Field(default_factory=BackpressureConfig)
+
+
+class ConfigContent(BaseModel):
+    """Config file content response"""
+    config: FelixConfig
+    path: str
+
+
+class ConfigUpdate(BaseModel):
+    """Request body for updating config"""
+    config: FelixConfig = Field(..., description="Configuration object")
+
+
 # --- Security Helpers ---
 
 # Allowed filename pattern: alphanumeric, hyphens, underscores, dots
@@ -493,3 +545,105 @@ async def read_agents_md(project_id: str = PathParam(..., description="Project I
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read AGENTS.md: {str(e)}")
+
+
+# --- Config Endpoints ---
+
+@router.get("/{project_id}/config", response_model=ConfigContent)
+async def read_config(project_id: str = PathParam(..., description="Project ID")):
+    """
+    Read the project's felix/config.json configuration.
+    
+    Returns the configuration with all sections (executor, agent, paths, backpressure).
+    If the config file doesn't exist, returns default values.
+    """
+    project_path = get_project_path(project_id)
+    config_path = project_path / "felix" / "config.json"
+    
+    if not config_path.exists():
+        # Return default config if file doesn't exist
+        return ConfigContent(
+            config=FelixConfig(),
+            path="felix/config.json"
+        )
+    
+    try:
+        data = json.loads(config_path.read_text(encoding='utf-8'))
+        
+        # Parse nested configuration objects
+        executor_data = data.get("executor", {})
+        agent_data = data.get("agent", {})
+        paths_data = data.get("paths", {})
+        backpressure_data = data.get("backpressure", {})
+        
+        config = FelixConfig(
+            version=data.get("version", "0.1.0"),
+            executor=ExecutorConfig(**executor_data) if executor_data else ExecutorConfig(),
+            agent=AgentConfig(**agent_data) if agent_data else AgentConfig(),
+            paths=PathsConfig(**paths_data) if paths_data else PathsConfig(),
+            backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig()
+        )
+        
+        return ConfigContent(
+            config=config,
+            path="felix/config.json"
+        )
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"Invalid JSON in config.json: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read config: {str(e)}")
+
+
+@router.put("/{project_id}/config", response_model=ConfigContent)
+async def update_config(
+    request: ConfigUpdate,
+    project_id: str = PathParam(..., description="Project ID")
+):
+    """
+    Update the project's felix/config.json configuration.
+    
+    Note: This endpoint bypasses the normal policy validation since config.json
+    is typically marked as restricted in allowlist.json. The UI needs to be able
+    to update configuration settings.
+    
+    Validates:
+    - max_iterations must be a positive integer
+    - default_mode must be 'planning' or 'building'
+    """
+    project_path = get_project_path(project_id)
+    config_path = project_path / "felix" / "config.json"
+    
+    # Ensure felix directory exists
+    felix_dir = project_path / "felix"
+    if not felix_dir.exists():
+        raise HTTPException(status_code=400, detail="Project has no felix/ directory")
+    
+    # Validate config values
+    config = request.config
+    
+    # Validate max_iterations is positive
+    if config.executor.max_iterations <= 0:
+        raise HTTPException(
+            status_code=400, 
+            detail="max_iterations must be a positive integer"
+        )
+    
+    # Validate default_mode
+    if config.executor.default_mode not in ("planning", "building"):
+        raise HTTPException(
+            status_code=400,
+            detail="default_mode must be 'planning' or 'building'"
+        )
+    
+    try:
+        # Convert to dict for JSON serialization
+        config_data = config.model_dump()
+        
+        config_path.write_text(json.dumps(config_data, indent=2), encoding='utf-8')
+        
+        return ConfigContent(
+            config=config,
+            path="felix/config.json"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write config: {str(e)}")

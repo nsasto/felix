@@ -1,0 +1,371 @@
+import React, { useState, useEffect } from 'react';
+import { felixApi, Requirement, RequirementsData } from '../services/felixApi';
+import { IconPlus, IconFileText } from './Icons';
+
+// Requirement status columns matching the felix/requirements.json schema
+type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked';
+
+interface Column {
+  status: RequirementStatus;
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+const COLUMNS: Column[] = [
+  { status: 'draft', label: 'Draft', color: 'bg-slate-500', bgColor: 'bg-slate-500/10', borderColor: 'border-slate-500/20' },
+  { status: 'planned', label: 'Planned', color: 'bg-blue-500', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20' },
+  { status: 'in_progress', label: 'In Progress', color: 'bg-amber-500', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/20' },
+  { status: 'complete', label: 'Complete', color: 'bg-emerald-500', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20' },
+  { status: 'blocked', label: 'Blocked', color: 'bg-red-500', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/20' },
+];
+
+const PRIORITY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  critical: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' },
+  high: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+  medium: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+  low: { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/20' },
+};
+
+interface RequirementsKanbanProps {
+  projectId: string;
+  onSelectRequirement?: (requirement: Requirement) => void;
+}
+
+const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSelectRequirement }) => {
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [draggedItem, setDraggedItem] = useState<Requirement | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<RequirementStatus | null>(null);
+
+  // Filter state
+  const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
+  const [labelFilter, setLabelFilter] = useState<string | null>(null);
+
+  // Fetch requirements on mount and when projectId changes
+  useEffect(() => {
+    const fetchRequirements = async () => {
+      if (!projectId) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const data = await felixApi.getRequirements(projectId);
+        setRequirements(data.requirements || []);
+      } catch (err) {
+        console.error('Failed to fetch requirements:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch requirements');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRequirements();
+  }, [projectId]);
+
+  // Get all unique labels for filter dropdown
+  const allLabels = React.useMemo(() => {
+    const labels = new Set<string>();
+    requirements.forEach(req => req.labels?.forEach(label => labels.add(label)));
+    return Array.from(labels).sort();
+  }, [requirements]);
+
+  // Get all unique priorities for filter dropdown
+  const allPriorities = React.useMemo(() => {
+    const priorities = new Set<string>();
+    requirements.forEach(req => priorities.add(req.priority));
+    return Array.from(priorities).sort((a, b) => {
+      const order = ['critical', 'high', 'medium', 'low'];
+      return order.indexOf(a) - order.indexOf(b);
+    });
+  }, [requirements]);
+
+  // Filter requirements
+  const filteredRequirements = React.useMemo(() => {
+    return requirements.filter(req => {
+      if (priorityFilter && req.priority !== priorityFilter) return false;
+      if (labelFilter && !req.labels?.includes(labelFilter)) return false;
+      return true;
+    });
+  }, [requirements, priorityFilter, labelFilter]);
+
+  // Get requirements for a specific column
+  const getColumnRequirements = (status: RequirementStatus) => {
+    return filteredRequirements.filter(req => req.status === status);
+  };
+
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent, requirement: Requirement) => {
+    setDraggedItem(requirement);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', requirement.id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, status: RequirementStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverColumn(status);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStatus: RequirementStatus) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+
+    if (!draggedItem || draggedItem.status === newStatus) {
+      setDraggedItem(null);
+      return;
+    }
+
+    // Optimistically update the UI
+    const updatedRequirements = requirements.map(req => 
+      req.id === draggedItem.id 
+        ? { ...req, status: newStatus, updated_at: new Date().toISOString().split('T')[0] }
+        : req
+    );
+    setRequirements(updatedRequirements);
+    setDraggedItem(null);
+
+    // Persist the change to the backend
+    try {
+      await felixApi.updateRequirements(projectId, updatedRequirements);
+    } catch (err) {
+      console.error('Failed to update requirements:', err);
+      // Revert on error - refetch from server
+      try {
+        const data = await felixApi.getRequirements(projectId);
+        setRequirements(data.requirements || []);
+      } catch {
+        // If refetch fails, show error
+        setError('Failed to save changes. Please refresh the page.');
+      }
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverColumn(null);
+  };
+
+  // Check if a requirement is blocked due to incomplete dependencies
+  const isBlockedByDependency = (requirement: Requirement): boolean => {
+    if (!requirement.depends_on || requirement.depends_on.length === 0) return false;
+    return requirement.depends_on.some(depId => {
+      const dep = requirements.find(r => r.id === depId);
+      return dep && dep.status !== 'complete';
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#050608]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
+          <span className="text-xs font-mono text-slate-500 uppercase tracking-widest">Loading requirements...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#050608]">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-6 py-4 text-center max-w-md">
+          <span className="text-xs font-bold text-red-400 uppercase">Error Loading Requirements</span>
+          <p className="text-sm text-red-300 mt-2">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 text-xs font-bold text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col bg-[#050608] overflow-hidden">
+      {/* Filter bar */}
+      <div className="h-12 border-b border-slate-800/60 flex items-center px-6 gap-4 bg-[#0d1117]/50 flex-shrink-0">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Filters:</span>
+        
+        {/* Priority filter */}
+        <select
+          value={priorityFilter || ''}
+          onChange={(e) => setPriorityFilter(e.target.value || null)}
+          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-felix-500/50 cursor-pointer"
+        >
+          <option value="">All Priorities</option>
+          {allPriorities.map(priority => (
+            <option key={priority} value={priority}>
+              {priority.charAt(0).toUpperCase() + priority.slice(1)}
+            </option>
+          ))}
+        </select>
+
+        {/* Label filter */}
+        <select
+          value={labelFilter || ''}
+          onChange={(e) => setLabelFilter(e.target.value || null)}
+          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-felix-500/50 cursor-pointer"
+        >
+          <option value="">All Labels</option>
+          {allLabels.map(label => (
+            <option key={label} value={label}>{label}</option>
+          ))}
+        </select>
+
+        {/* Clear filters button */}
+        {(priorityFilter || labelFilter) && (
+          <button
+            onClick={() => { setPriorityFilter(null); setLabelFilter(null); }}
+            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            Clear
+          </button>
+        )}
+
+        <div className="flex-1" />
+        
+        {/* Requirements count */}
+        <span className="text-[10px] font-mono text-slate-600">
+          {filteredRequirements.length} / {requirements.length} requirements
+        </span>
+      </div>
+
+      {/* Kanban columns */}
+      <div className="flex-1 flex gap-6 p-6 overflow-x-auto custom-scrollbar">
+        {COLUMNS.map(column => {
+          const columnRequirements = getColumnRequirements(column.status);
+          const isDropTarget = dragOverColumn === column.status;
+
+          return (
+            <div 
+              key={column.status} 
+              className="flex-shrink-0 w-80 flex flex-col gap-4"
+              onDragOver={(e) => handleDragOver(e, column.status)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, column.status)}
+            >
+              {/* Column header */}
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${column.color} ${column.status === 'in_progress' ? 'animate-pulse' : ''}`} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">{column.label}</h3>
+                </div>
+                <span className="text-[10px] font-mono text-slate-600 bg-slate-900 px-1.5 py-0.5 rounded">
+                  {columnRequirements.length}
+                </span>
+              </div>
+
+              {/* Cards container */}
+              <div 
+                className={`flex-1 space-y-3 min-h-[200px] rounded-xl transition-colors ${
+                  isDropTarget ? 'bg-slate-800/30 border-2 border-dashed border-felix-500/30' : ''
+                }`}
+              >
+                {columnRequirements.map(requirement => {
+                  const priorityStyle = PRIORITY_STYLES[requirement.priority] || PRIORITY_STYLES.medium;
+                  const hasBlockedDeps = isBlockedByDependency(requirement);
+                  const isDragging = draggedItem?.id === requirement.id;
+
+                  return (
+                    <div
+                      key={requirement.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, requirement)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => onSelectRequirement?.(requirement)}
+                      className={`
+                        bg-[#0d1117] border border-slate-800/60 p-4 rounded-xl 
+                        hover:border-felix-600/40 transition-all cursor-grab group 
+                        shadow-lg shadow-black/20
+                        ${isDragging ? 'opacity-50 scale-95' : ''}
+                        ${hasBlockedDeps && requirement.status !== 'blocked' ? 'border-l-2 border-l-amber-500/50' : ''}
+                      `}
+                    >
+                      {/* Header row: ID + Priority */}
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-mono font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded border border-felix-500/20">
+                          {requirement.id}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border}`}>
+                          {requirement.priority}
+                        </span>
+                      </div>
+
+                      {/* Title */}
+                      <h4 className="text-sm font-semibold text-slate-200 mb-2 group-hover:text-felix-400 transition-colors line-clamp-2">
+                        {requirement.title}
+                      </h4>
+
+                      {/* Dependencies warning */}
+                      {hasBlockedDeps && requirement.status !== 'blocked' && (
+                        <div className="flex items-center gap-1.5 mb-2 text-[9px] text-amber-400">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <span>Has incomplete dependencies</span>
+                        </div>
+                      )}
+
+                      {/* Labels */}
+                      {requirement.labels && requirement.labels.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {requirement.labels.map(label => (
+                            <span 
+                              key={label} 
+                              className="text-[9px] font-mono text-slate-600 border border-slate-800 px-1.5 py-0.5 rounded hover:text-slate-400 transition-colors"
+                            >
+                              #{label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Footer: Updated date + view spec link */}
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
+                        <span className="text-[9px] font-mono text-slate-600">
+                          Updated: {requirement.updated_at}
+                        </span>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onSelectRequirement?.(requirement); }}
+                          className="text-[9px] font-bold text-slate-500 hover:text-felix-400 transition-colors flex items-center gap-1"
+                        >
+                          <IconFileText className="w-3 h-3" />
+                          View Spec
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Empty state for column */}
+                {columnRequirements.length === 0 && (
+                  <div className={`
+                    flex flex-col items-center justify-center py-8 text-center
+                    border border-dashed rounded-xl
+                    ${isDropTarget ? 'border-felix-500/50 bg-felix-500/5' : 'border-slate-800/50'}
+                  `}>
+                    <span className="text-[10px] font-mono text-slate-600 uppercase">
+                      {isDropTarget ? 'Drop here' : 'No requirements'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default RequirementsKanban;

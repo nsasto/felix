@@ -108,6 +108,15 @@ class RunDetailResponse(BaseModel):
     artifacts: List[str] = []  # List of available artifact files
 
 
+class RunArtifactContent(BaseModel):
+    """Response for run artifact content"""
+    
+    run_id: str
+    filename: str
+    content: str
+    size: int
+
+
 def _generate_run_id() -> str:
     """Generate a unique run ID"""
     global _run_counter
@@ -549,6 +558,79 @@ async def get_run_detail(project_id: str, run_id: str):
         run=run_entry,
         artifacts=artifacts,
     )
+
+
+@router.get("/{project_id}/runs/{run_id}/artifacts/{filename:path}", response_model=RunArtifactContent)
+async def get_run_artifact(project_id: str, run_id: str, filename: str):
+    """
+    Read the content of a specific run artifact file.
+    
+    Artifacts are files in the runs/<run_id>/ directory such as:
+    - report.md: Run report in markdown format
+    - output.log: Agent output log
+    - plan-<requirement-id>.md: Plan snapshot for the run
+    - diff.patch: Changes made during the run
+    
+    The filename can include subdirectories (e.g., "subdir/file.txt").
+    
+    Returns 404 if the artifact file doesn't exist.
+    Returns 400 for invalid filenames (path traversal attempts).
+    """
+    # Check if project exists
+    project = storage.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    
+    # Validate filename - prevent path traversal
+    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+        raise HTTPException(status_code=400, detail="Invalid filename: path traversal not allowed")
+    
+    # Normalize path separators
+    filename = filename.replace('\\', '/')
+    
+    project_path = Path(project.path)
+    runs_dir = project_path / "runs"
+    
+    if not runs_dir.exists():
+        raise HTTPException(status_code=404, detail="No runs directory found in project")
+    
+    # Build path to artifact
+    # run_id is typically a timestamp like "2026-01-25T17-03-59"
+    artifact_path = runs_dir / run_id / filename
+    
+    # Ensure the path is still within runs directory (extra security check)
+    try:
+        artifact_path = artifact_path.resolve()
+        runs_dir_resolved = runs_dir.resolve()
+        if not str(artifact_path).startswith(str(runs_dir_resolved)):
+            raise HTTPException(status_code=400, detail="Invalid path: outside runs directory")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    
+    if not artifact_path.exists():
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Artifact not found: {run_id}/{filename}"
+        )
+    
+    if not artifact_path.is_file():
+        raise HTTPException(status_code=400, detail="Path is not a file")
+    
+    try:
+        content = artifact_path.read_text(encoding='utf-8')
+        return RunArtifactContent(
+            run_id=run_id,
+            filename=filename,
+            content=content,
+            size=len(content)
+        )
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot read file: not a text file or invalid encoding"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read artifact: {str(e)}")
 
 
 # Expose the running agents dict for cleanup during shutdown

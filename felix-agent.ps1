@@ -372,7 +372,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         Write-Host $output
         
         # Write output log
-        Set-Content (Join-Path $runDir "output.log") $output
+        Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8 -Encoding UTF8
         
         # ====================================================================
         # Planning Mode Guardrail Enforcement
@@ -407,7 +407,7 @@ $(($guardrailViolations.UnauthorizedFiles | ForEach-Object { "- $_" }) -join "`n
 
 All unauthorized changes have been reverted.
 "@
-                Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog
+                Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog -Encoding UTF8 -Encoding UTF8
                 
                 # Update state with guardrail violation
                 $state.last_iteration_outcome = "guardrail_violation"
@@ -440,7 +440,7 @@ $output
 ``````
 
 "@
-        Set-Content (Join-Path $runDir "report.md") $report
+        Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
         
         # Check for task completion signal (building mode)
         if ($mode -eq "building" -and $output -match '<promise>TASK_COMPLETE</promise>') {
@@ -480,7 +480,7 @@ $output
                     
                     if (Test-Path $validationScript) {
                         try {
-                            $validationOutput = & python $validationScript $currentReq.id 2>&1
+                            $validationOutput = python "$validationScript" $currentReq.id 2>&1
                             $validationExitCode = $LASTEXITCODE
                             
                             Write-Host $validationOutput
@@ -540,7 +540,7 @@ $output
                 
                 if (Test-Path $validationScript) {
                     try {
-                        $validationOutput = & python $validationScript $currentReq.id 2>&1
+                        $validationOutput = python "$validationScript" $currentReq.id 2>&1
                         $validationExitCode = $LASTEXITCODE
                         
                         Write-Host $validationOutput
@@ -631,7 +631,7 @@ $_
 ``````
 
 "@
-        Set-Content (Join-Path $runDir "report.md") $report
+        Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
         
         $state.last_iteration_outcome = "error"
         $state.status = "error"
