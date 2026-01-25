@@ -117,7 +117,7 @@ This is the **current plan**, not the historical record.
 ### 4.1 Agent Spawning
 
 - [x] `POST /api/projects/:id/runs/start` - Spawn agent process
-- [ ] Store agent PID, track status
+- [x] Store agent PID, track status
 - [ ] `POST /api/projects/:id/runs/stop` - Kill agent process
 
 ### 4.2 File Watching
