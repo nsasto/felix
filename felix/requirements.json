@@ -49,6 +49,16 @@
       "labels": ["tooling", "dx"],
       "depends_on": ["S-0005"],
       "updated_at": "2026-01-25"
+    },
+    {
+      "id": "S-0006",
+      "title": "Spec Edit Safety and Plan Invalidation",
+      "spec_path": "specs/S-0006-spec-edit-safety.md",
+      "status": "todo",
+      "priority": "high",
+      "labels": ["frontend", "ux", "safety"],
+      "depends_on": ["S-0003"],
+      "updated_at": "2026-01-25"
     }
   ]
 }
