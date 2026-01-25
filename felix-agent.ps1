@@ -215,6 +215,126 @@ function Update-RequirementStatus {
     }
 }
 
+function Get-BackpressureCommands {
+    <#
+    .SYNOPSIS
+    Parses test/build/lint commands from AGENTS.md
+    
+    .DESCRIPTION
+    Extracts executable commands from specific sections in AGENTS.md:
+    - "## Run Tests" - test commands
+    - "## Build the Project" or "## Build" - build commands
+    - "## Lint" - lint commands
+    
+    Commands are extracted from bash/sh code blocks within these sections.
+    
+    .PARAMETER AgentsFilePath
+    Path to the AGENTS.md file
+    
+    .PARAMETER ConfigCommands
+    Optional array of commands from config.json backpressure.commands
+    If provided and non-empty, these take precedence over parsing AGENTS.md
+    
+    .OUTPUTS
+    Array of hashtables with keys: command, type, description
+    #>
+    param(
+        [string]$AgentsFilePath,
+        [array]$ConfigCommands = @()
+    )
+    
+    $commands = @()
+    
+    # If config commands are explicitly provided, use those
+    if ($ConfigCommands -and $ConfigCommands.Count -gt 0) {
+        Write-Host "[BACKPRESSURE] Using commands from config.json"
+        foreach ($cmd in $ConfigCommands) {
+            $commands += @{
+                command     = $cmd
+                type        = "config"
+                description = "Command from config.json"
+            }
+        }
+        return $commands
+    }
+    
+    # Parse commands from AGENTS.md
+    if (-not (Test-Path $AgentsFilePath)) {
+        Write-Host "[BACKPRESSURE] Warning: AGENTS.md not found at $AgentsFilePath"
+        return $commands
+    }
+    
+    Write-Host "[BACKPRESSURE] Parsing commands from AGENTS.md"
+    $content = Get-Content $AgentsFilePath -Raw
+    
+    # Define sections to parse and their types
+    $sectionPatterns = @(
+        @{ pattern = '##\s*Run\s+Tests'; type = 'test'; name = 'Run Tests' }
+        @{ pattern = '##\s*Build(\s+the\s+Project)?'; type = 'build'; name = 'Build' }
+        @{ pattern = '##\s*Lint'; type = 'lint'; name = 'Lint' }
+    )
+    
+    foreach ($section in $sectionPatterns) {
+        # Find section start
+        $sectionMatch = [regex]::Match($content, $section.pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        
+        if ($sectionMatch.Success) {
+            # Get content from section start to next ## header or end of file
+            $sectionStart = $sectionMatch.Index + $sectionMatch.Length
+            $nextSectionMatch = [regex]::Match($content.Substring($sectionStart), '^##\s', [System.Text.RegularExpressions.RegexOptions]::Multiline)
+            
+            if ($nextSectionMatch.Success) {
+                $sectionContent = $content.Substring($sectionStart, $nextSectionMatch.Index)
+            }
+            else {
+                $sectionContent = $content.Substring($sectionStart)
+            }
+            
+            # Extract code blocks (```bash, ```sh, or ```)
+            $codeBlockPattern = '```(?:bash|sh|powershell|pwsh)?\s*\r?\n([\s\S]*?)```'
+            $codeBlocks = [regex]::Matches($sectionContent, $codeBlockPattern)
+            
+            foreach ($block in $codeBlocks) {
+                $blockContent = $block.Groups[1].Value
+                
+                # Parse individual commands from the code block
+                $lines = $blockContent -split '\r?\n'
+                
+                foreach ($line in $lines) {
+                    $trimmedLine = $line.Trim()
+                    
+                    # Skip empty lines, comments, and placeholder lines
+                    if (-not $trimmedLine -or 
+                        $trimmedLine.StartsWith('#') -or 
+                        $trimmedLine -match '^TODO:' -or
+                        $trimmedLine -match '^\s*#') {
+                        continue
+                    }
+                    
+                    # Skip lines that are clearly not commands (e.g., "Runs on http://...")
+                    if ($trimmedLine -match '^(Runs\s+on|API\s+docs|Example)') {
+                        continue
+                    }
+                    
+                    # Add the command
+                    $commands += @{
+                        command     = $trimmedLine
+                        type        = $section.type
+                        description = "$($section.name): $trimmedLine"
+                    }
+                }
+            }
+        }
+    }
+    
+    Write-Host "[BACKPRESSURE] Found $($commands.Count) commands from AGENTS.md"
+    foreach ($cmd in $commands) {
+        Write-Host "  [$($cmd.type)] $($cmd.command)"
+    }
+    
+    return $commands
+}
+
 # Key paths
 $SpecsDir = Join-Path $ProjectPath "specs"
 $FelixDir = Join-Path $ProjectPath "felix"
