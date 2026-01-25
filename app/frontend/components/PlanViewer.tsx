@@ -33,18 +33,23 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   // Check if content has been modified
   const hasChanges = planContent !== originalContent;
 
-  // Fetch plan content on mount or when projectId changes
+  // Fetch README content on mount or when projectId changes
   useEffect(() => {
-    const fetchPlan = async () => {
+    const fetchReadme = async () => {
       setLoading(true);
       setError(null);
       try {
-        const result = await felixApi.getPlan(projectId);
-        setPlanContent(result.content);
-        setOriginalContent(result.content);
+        // Try to fetch README.md from the project root
+        const response = await fetch(`http://localhost:8080/api/projects/${projectId}/files/README.md`);
+        if (!response.ok) {
+          throw new Error('README.md not found');
+        }
+        const data = await response.json();
+        setPlanContent(data.content || '');
+        setOriginalContent(data.content || '');
       } catch (err) {
-        console.error('Failed to fetch plan:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load implementation plan');
+        console.error('Failed to fetch README:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load README.md');
         setPlanContent('');
         setOriginalContent('');
       } finally {
@@ -52,7 +57,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
       }
     };
 
-    fetchPlan();
+    fetchReadme();
   }, [projectId]);
 
   // Parse markdown for preview
@@ -152,10 +157,10 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           <div className="w-12 h-12 bg-slate-700/50 rounded-xl flex items-center justify-center mx-auto mb-4">
             <IconFileText className="w-6 h-6 text-slate-500" />
           </div>
-          <h3 className="text-sm font-bold text-slate-300 mb-2">No Implementation Plan</h3>
+          <h3 className="text-sm font-bold text-slate-300 mb-2">No Readme</h3>
           <p className="text-xs text-slate-500 mb-4">{error}</p>
           <p className="text-[10px] text-slate-600">
-            Create an IMPLEMENTATION_PLAN.md file in the project root to get started.
+            README.md file not found in the project root.
           </p>
         </div>
       </div>
@@ -415,7 +420,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />
             )}
             <span className="text-[10px] font-mono text-slate-500 uppercase">
-              IMPLEMENTATION_PLAN.md
+              README.md
             </span>
           </div>
         </div>

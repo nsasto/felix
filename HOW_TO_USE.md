@@ -48,7 +48,6 @@ A Felix enabled repository typically looks like this:
 │   └── ...
 │
 ├── AGENTS.md
-├── IMPLEMENTATION_PLAN.md
 │
 ├── felix/
 │   ├── requirements.json
@@ -193,26 +192,11 @@ Keep this boring and stable. JSON grows painful when it tries to express nuance.
 
 ---
 
-## Plans – two-tier system
+## Plans – per-requirement focus
 
-### `IMPLEMENTATION_PLAN.md` (root) – optional human reference
+### `runs/<run-id>/plan-<req-id>.md` – agent's working plan
 
-This is a **comprehensive master plan** at the project root, useful for human understanding:
-
-- Shows the overall project approach
-- References all requirements and their relationships
-- Updated when major architectural decisions are made
-- **Not read by the agent during execution**
-
-Rules:
-
-- Optional (can be absent)
-- Human-readable, comprehensive scope
-- Updated manually or during initial planning
-
-### `runs/<run-id>/plan-<req-id>.md` – agent execution plan
-
-This is the **narrow, disposable plan** the agent actually uses:
+This is the **narrow, disposable plan** the agent creates and uses:
 
 - Scoped to a single requirement only
 - Created fresh for each requirement during planning mode
@@ -375,7 +359,7 @@ Run Felix in planning mode.
 
 Expected outcome:
 
-- `IMPLEMENTATION_PLAN.md` created or refreshed
+- Per-requirement plan created in runs/<run-id>/plan-<req-id>.md
 - requirement statuses updated
 - no code changes
 

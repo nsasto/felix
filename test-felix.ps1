@@ -13,11 +13,13 @@ try {
     $response = Invoke-WebRequest -Uri "http://localhost:8080/health" -UseBasicParsing -TimeoutSec 5
     if ($response.StatusCode -eq 200) {
         Write-Host "  ✅ Backend is healthy (port 8080)" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  ❌ Backend returned status $($response.StatusCode)" -ForegroundColor Red
         $allPassed = $false
     }
-} catch {
+}
+catch {
     Write-Host "  ❌ Backend not reachable: $_" -ForegroundColor Red
     Write-Host "     Make sure backend is running: cd app/backend && python main.py" -ForegroundColor Yellow
     $allPassed = $false
@@ -29,11 +31,13 @@ try {
     $response = Invoke-WebRequest -Uri "http://localhost:3000" -UseBasicParsing -TimeoutSec 5
     if ($response.StatusCode -eq 200) {
         Write-Host "  ✅ Frontend is running (port 3000)" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  ❌ Frontend returned status $($response.StatusCode)" -ForegroundColor Red
         $allPassed = $false
     }
-} catch {
+}
+catch {
     Write-Host "  ❌ Frontend not reachable: $_" -ForegroundColor Red
     Write-Host "     Make sure frontend is running: cd app/frontend && npm run dev" -ForegroundColor Yellow
     $allPassed = $false
@@ -45,11 +49,13 @@ try {
     $response = Invoke-WebRequest -Uri "http://localhost:8080/api/projects" -UseBasicParsing -TimeoutSec 5
     if ($response.StatusCode -eq 200) {
         Write-Host "  ✅ Projects API working" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  ❌ Projects API returned status $($response.StatusCode)" -ForegroundColor Red
         $allPassed = $false
     }
-} catch {
+}
+catch {
     Write-Host "  ❌ Projects API failed: $_" -ForegroundColor Red
     $allPassed = $false
 }
@@ -64,10 +70,12 @@ try {
     $corsHeader = $response.Headers["Access-Control-Allow-Origin"]
     if ($corsHeader -eq "http://localhost:3000") {
         Write-Host "  ✅ CORS configured correctly" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  ⚠️  CORS header: $corsHeader" -ForegroundColor Yellow
     }
-} catch {
+}
+catch {
     Write-Host "  ⚠️  Could not verify CORS: $_" -ForegroundColor Yellow
 }
 
@@ -81,7 +89,8 @@ if ($allPassed) {
     Write-Host "  → Open http://localhost:3000 in your browser" -ForegroundColor Yellow
     Write-Host ""
     exit 0
-} else {
+}
+else {
     Write-Host "=====================================" -ForegroundColor Red
     Write-Host "Some tests failed ❌" -ForegroundColor Red
     Write-Host "=====================================" -ForegroundColor Red

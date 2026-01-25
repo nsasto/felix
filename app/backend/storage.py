@@ -121,7 +121,6 @@ def get_project_details(project_id: str) -> Optional[ProjectDetails]:
     
     # Check for Felix artifacts
     specs_dir = project_path / "specs"
-    plan_file = project_path / "IMPLEMENTATION_PLAN.md"
     req_file = project_path / "felix" / "requirements.json"
     state_file = project_path / "felix" / "state.json"
     
@@ -144,7 +143,6 @@ def get_project_details(project_id: str) -> Optional[ProjectDetails]:
         name=project.name,
         registered_at=project.registered_at,
         has_specs=specs_dir.exists(),
-        has_plan=plan_file.exists(),
         has_requirements=req_file.exists(),
         spec_count=spec_count,
         status=status

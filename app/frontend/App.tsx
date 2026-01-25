@@ -457,18 +457,18 @@ export const executeTask = (taskId: string) => {
                       </div>
                       <div>
                         <h3 className="text-sm font-bold text-slate-200">
-                          {selectedProject.has_plan ? 'Active' : 'None'}
+                          Project README
                         </h3>
                         <p className="text-[10px] font-mono text-slate-600 uppercase">
-                          Implementation Plan
+                          Documentation
                         </p>
                       </div>
                     </div>
                     <button 
-                      onClick={() => setUiState('kanban')}
+                      onClick={() => setUiState('plan')}
                       className="w-full py-2 text-xs text-felix-400 hover:text-felix-300 transition-colors"
                     >
-                      View Plan →
+                      View README →
                     </button>
                   </div>
 
@@ -527,7 +527,7 @@ export const executeTask = (taskId: string) => {
                       className="py-3 px-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl text-sm text-slate-300 hover:text-slate-100 transition-all flex items-center justify-center gap-2"
                     >
                       <IconFileCode className="w-4 h-4" />
-                      View Plan
+                      View README
                     </button>
                     <button
                       onClick={() => setUiState('config')}
@@ -664,7 +664,7 @@ export const executeTask = (taskId: string) => {
                 {uiState === 'assets' && <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/20"></div>}
                 {uiState === 'config' && <div className="w-2 h-2 rounded-full bg-slate-400 shadow-lg shadow-slate-400/20"></div>}
                 {uiState === 'plan' && <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/20"></div>}
-                {uiState === 'projects' ? 'Projects' : uiState === 'kanban' ? 'System Board' : uiState === 'canvas' ? 'Orchestration Canvas' : uiState === 'assets' ? 'Specifications' : uiState === 'config' ? 'Configuration' : uiState === 'plan' ? 'Implementation Plan' : 'Workspace Assets'}
+                {uiState === 'projects' ? 'Projects' : uiState === 'kanban' ? 'System Board' : uiState === 'canvas' ? 'Orchestration Canvas' : uiState === 'assets' ? 'Specifications' : uiState === 'config' ? 'Configuration' : uiState === 'plan' ? 'Project README' : 'Workspace Assets'}
               </h2>
               <div className="h-4 w-[1px] bg-slate-800 mx-2"></div>
               <span className="text-[10px] font-mono text-slate-500 truncate max-w-[300px] hover:text-slate-300 transition-colors cursor-default">
@@ -746,7 +746,7 @@ export const executeTask = (taskId: string) => {
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#050608]">
-              <span className="text-sm text-slate-500">Select a project to view implementation plan</span>
+              <span className="text-sm text-slate-500">Select a project to view README</span>
               <button 
                 onClick={() => setUiState('projects')}
                 className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"

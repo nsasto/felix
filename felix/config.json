@@ -14,7 +14,6 @@
   },
   "paths": {
     "specs": "specs",
-    "plan": "IMPLEMENTATION_PLAN.md",
     "agents": "AGENTS.md",
     "runs": "runs"
   },

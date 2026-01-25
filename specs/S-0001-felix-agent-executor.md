@@ -9,14 +9,14 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 ### Agent Core
 
 - [x] Standalone PowerShell script (`felix-agent.ps1`) executable without backend
-- [x] Loads Felix artifacts on startup: specs/, AGENTS.md, IMPLEMENTATION_PLAN.md, felix/requirements.json, felix/config.json
+- [x] Loads Felix artifacts on startup: specs/, AGENTS.md, felix/requirements.json, felix/config.json
 - [x] Validates project structure before execution
 - [x] Runs autonomous loop to completion (configurable max iterations)
 - [x] Exits with clear status codes (success, blocked, error)
 
 ### Mode System
 
-- [x] Implements planning mode: reads specs, generates/updates IMPLEMENTATION_PLAN.md, cannot modify code
+- [x] Implements planning mode: reads specs, generates/updates per-requirement plans in runs/<run-id>/plan-<req-id>.md, cannot modify code
 - [x] Implements building mode: picks one task, investigates code, implements, validates, commits
 - [x] Auto-transition: automatically switches from planning to building when `auto_transition: true` in felix/config.json
 - [x] Mode guardrails enforced at runtime (planning cannot commit code)
@@ -66,7 +66,7 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 
 **Naive persistence:** Each iteration starts fresh. No accumulated context or memory beyond what's in files. This keeps the agent in its "smart zone."
 
-**Disposable plans:** IMPLEMENTATION_PLAN.md regenerated whenever stale. Not treated as sacred.
+**Disposable plans:** Per-requirement plans in runs/<run-id>/plan-<req-id>.md are regenerated whenever stale. Not treated as sacred. Agent searches for the most recent plan for the current requirement across all run directories.
 
 **"Don't assume not implemented":** Agent must search codebase before implementing to avoid duplication.
 

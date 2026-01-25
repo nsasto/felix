@@ -28,11 +28,10 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 - [ ] `GET /api/projects/:id/specs/:filename` - Read spec content
 - [ ] `PUT /api/projects/:id/specs/:filename` - Update spec content
 - [ ] `POST /api/projects/:id/specs` - Create new spec
-- [ ] `GET /api/projects/:id/plan` - Read IMPLEMENTATION_PLAN.md
-- [ ] `PUT /api/projects/:id/plan` - Update plan
 - [ ] `GET /api/projects/:id/requirements` - Read felix/requirements.json
 - [ ] `PUT /api/projects/:id/requirements` - Update requirements
 - [ ] `GET /api/projects/:id/agents-md` - Read AGENTS.md
+- [ ] `GET /api/projects/:id/runs/:runId/plan` - Read per-requirement plan from runs/<run-id>/plan-<req-id>.md
 - [ ] Path validation against felix/policies/allowlist.json and denylist.json
 
 ### Agent Spawning & Monitoring

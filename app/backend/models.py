@@ -31,7 +31,6 @@ class Project(ProjectBase):
 class ProjectDetails(Project):
     """Project with additional runtime details"""
     has_specs: bool = False
-    has_plan: bool = False
     has_requirements: bool = False
     spec_count: int = 0
     status: Optional[str] = None

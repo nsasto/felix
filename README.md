@@ -137,8 +137,6 @@ The Playbook centers on a small set of files as the stable context. ([Clayton Fa
   Product and system context: tech stack, design standards, UX rules, and architectural invariants.
 - `felix/requirements.json`
   Structured registry of requirements with stable IDs, status tracking, and dependencies. Provides machine-readable structure while Markdown specs hold the meaning.
-- `IMPLEMENTATION_PLAN.md` (root, optional)
-  Comprehensive master plan for human reference showing overall project approach. Not read by agent during execution. ([Clayton Farr][1])
 - `runs/<run-id>/plan-<req-id>.md`
   Narrow, disposable plans scoped to single requirements. Agent reads and updates these during execution. Created fresh during planning mode with iterative self-review. ([Clayton Farr][1])
 - `AGENTS.md`
@@ -164,7 +162,7 @@ Many teams run Ralph as “just rerun the agent” and rely on the model to reme
 Felix differs mainly in emphasis:
 
 - Felix treats the Ralph Playbook funnel (requirements, planning, building) as explicit modes with explicit contracts. ([GitHub][2])
-- Felix biases toward Playbook canonical artifacts (`AGENTS.md`, `IMPLEMENTATION_PLAN.md`, `specs/*`) as the durable interface, keeping operational learnings concise and separated from progress notes. ([Clayton Farr][1])
+- Felix biases toward Playbook canonical artifacts (`AGENTS.md`, per-requirement plans in `runs/`, `specs/*`) as the durable interface, keeping operational learnings concise and separated from progress notes. ([Clayton Farr][1])
 - Felix aims to be a reusable executor substrate, not a single repo centric loop script.
 
 ### Versus ralph-orchestrator
