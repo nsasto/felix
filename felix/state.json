@@ -2,8 +2,8 @@
     "current_requirement_id":  "S-0001",
     "last_run_id":  null,
     "last_mode":  "building",
-    "last_iteration_outcome":  "success",
-    "updated_at":  "2026-01-25T16:29:41.9960246+00:00",
+    "last_iteration_outcome":  "complete",
+    "updated_at":  "2026-01-25T16:36:33.6300461+00:00",
     "current_iteration":  4,
-    "status":  "running"
+    "status":  "complete"
 }
