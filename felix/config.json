@@ -6,6 +6,12 @@
     "default_mode": "building",
     "auto_transition": true
   },
+  "agent": {
+    "executable": "C:\\Users\\nsast\\AppData\\Roaming\\npm\\codex.cmd",
+    "args": ["exec", "--model", "gpt-5-codex", "-"],
+    "working_directory": ".",
+    "environment": {}
+  },
   "paths": {
     "specs": "specs",
     "plan": "IMPLEMENTATION_PLAN.md",

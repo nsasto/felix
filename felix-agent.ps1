@@ -40,6 +40,22 @@ $maxIterations = $config.executor.max_iterations
 $autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
 
+# Load agent config with defaults
+$agentExecutable = if ($config.PSObject.Properties.Match('agent') -and $config.agent.PSObject.Properties.Match('executable')) { $config.agent.executable } else { "droid.ps1" }
+$agentArgs = if ($config.PSObject.Properties.Match('agent') -and $config.agent.PSObject.Properties.Match('args')) { $config.agent.args } else { @("exec", "--skip-permissions-unsafe") }
+$agentWorkingDir = if ($config.PSObject.Properties.Match('agent') -and $config.agent.PSObject.Properties.Match('working_directory')) { $config.agent.working_directory } else { "." }
+$agentEnv = if ($config.PSObject.Properties.Match('agent') -and $config.agent.PSObject.Properties.Match('environment')) { $config.agent.environment } else { @{} }
+
+# Resolve paths
+$agentWorkingDir = Join-Path $ProjectPath $agentWorkingDir
+
+# Validate agent executable
+if (-not (Test-Path $agentExecutable)) {
+    Write-Host "ERROR: Configured agent executable not found: $agentExecutable"
+    exit 1
+}
+
+Write-Host "Using agent: $agentExecutable"
 Write-Host "Max iterations: $maxIterations"
 Write-Host ""
 
@@ -172,11 +188,33 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Write requirement ID
     Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id
     
-    # Call droid exec
-    Write-Host "Calling droid exec...`n"
+    # Call configured agent
+    Write-Host "Calling configured agent...`n"
     
     try {
-        $output = $fullPrompt | droid exec --skip-permissions-unsafe 2>&1
+        # Set working directory and environment
+        Push-Location $agentWorkingDir
+        foreach ($key in $agentEnv.Keys) {
+            Set-Item "env:$key" $agentEnv[$key]
+        }
+        
+        # Use Start-Process to handle piping to external command
+        $tempIn = [System.IO.Path]::GetTempFileName()
+        $tempOut = [System.IO.Path]::GetTempFileName()
+        $tempErr = [System.IO.Path]::GetTempFileName()
+        Set-Content $tempIn $fullPrompt
+        Start-Process -FilePath $agentExecutable -ArgumentList $agentArgs -RedirectStandardInput $tempIn -RedirectStandardOutput $tempOut -RedirectStandardError $tempErr -Wait -NoNewWindow
+        $output = Get-Content $tempOut -Raw
+        $errorOut = Get-Content $tempErr -Raw
+        if ($errorOut) { $output += "`nSTDERR:`n$errorOut" }
+        Remove-Item $tempIn, $tempOut, $tempErr -ErrorAction SilentlyContinue
+        
+        # Restore environment and location
+        foreach ($key in $agentEnv.Keys) {
+            Remove-Item "env:$key" -ErrorAction SilentlyContinue
+        }
+        Pop-Location
+        
         Write-Host $output
         
         # Write output log

@@ -1,7 +1,5 @@
-# Felix
-
 <div align="center">
-    <img src="img/Felix.png" alt="Felix" />
+    <img src="img/github-header-image.png" alt="Felix" />
 </div>
 <br><br>
 
