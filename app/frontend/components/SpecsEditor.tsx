@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { felixApi, SpecFile } from '../services/felixApi';
 import { marked } from 'marked';
 import { IconFileText, IconPlus } from './Icons';
+import SpecEditWarningModal, { WarningAction } from './SpecEditWarningModal';
+import { useRequirementStatus } from '../hooks/useRequirementStatus';
 
 interface SpecsEditorProps {
   projectId: string;
@@ -180,7 +182,19 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Warning modal state (for S-0006: Spec Edit Safety)
+  const [pendingSpecFilename, setPendingSpecFilename] = useState<string | null>(null);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isBlockingRequirement, setIsBlockingRequirement] = useState(false);
+
   const editorRef = useRef<HTMLTextAreaElement>(null);
+
+  // Hook to check requirement status for warning modal (S-0006)
+  const { 
+    status: pendingSpecStatus, 
+    isInProgress: pendingSpecIsInProgress,
+    requirementId: pendingRequirementId,
+  } = useRequirementStatus(projectId, pendingSpecFilename);
 
   // Check if content has been modified
   const hasChanges = specContent !== originalContent;
@@ -257,15 +271,99 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     };
   }, [specContent]);
 
-  // Handle spec selection
-  const handleSelectSpec = (filename: string) => {
+  // Handle spec selection - initiates the selection process
+  // If requirement is in_progress, shows warning modal first
+  const handleSelectSpec = async (filename: string) => {
     // Warn if unsaved changes
     if (hasChanges) {
       const confirm = window.confirm('You have unsaved changes. Discard them?');
       if (!confirm) return;
     }
+
+    // Extract requirement ID from filename to check status
+    const match = filename.match(/^(S-\d+)/);
+    const reqId = match ? match[1] : null;
+
+    if (reqId) {
+      try {
+        // Check requirement status before opening
+        const status = await felixApi.getRequirementStatus(projectId, reqId);
+        if (status.status === 'in_progress') {
+          // Show warning modal - store pending spec for later
+          setPendingSpecFilename(filename);
+          setIsWarningModalOpen(true);
+          return;
+        }
+      } catch (err) {
+        // If status check fails, proceed anyway (graceful degradation)
+        console.error('Failed to check requirement status:', err);
+      }
+    }
+
+    // No warning needed - proceed with selection
     setSelectedFilename(filename);
     onSelectSpec?.(filename);
+  };
+
+  // Handle warning modal actions (S-0006: Spec Edit Safety)
+  const handleWarningAction = async (action: WarningAction) => {
+    if (action === 'cancel') {
+      // User cancelled - close modal and clear pending spec
+      setIsWarningModalOpen(false);
+      setPendingSpecFilename(null);
+      return;
+    }
+
+    if (action === 'continue') {
+      // User chose to continue editing despite warning
+      if (pendingSpecFilename) {
+        setSelectedFilename(pendingSpecFilename);
+        onSelectSpec?.(pendingSpecFilename);
+      }
+      setIsWarningModalOpen(false);
+      setPendingSpecFilename(null);
+      return;
+    }
+
+    if (action === 'block') {
+      // User wants to block the requirement before editing
+      if (!pendingRequirementId) {
+        setIsWarningModalOpen(false);
+        setPendingSpecFilename(null);
+        return;
+      }
+
+      setIsBlockingRequirement(true);
+      try {
+        // Update requirement status to "blocked"
+        await felixApi.updateRequirementStatus(projectId, pendingRequirementId, 'blocked');
+        
+        // Try to stop the agent if running
+        try {
+          await felixApi.stopRun(projectId);
+        } catch (stopErr) {
+          // Agent might not be running - that's okay
+          console.log('Agent stop attempted (may not have been running):', stopErr);
+        }
+
+        // Now proceed with editing
+        if (pendingSpecFilename) {
+          setSelectedFilename(pendingSpecFilename);
+          onSelectSpec?.(pendingSpecFilename);
+        }
+      } catch (err) {
+        console.error('Failed to block requirement:', err);
+        // Still allow editing even if blocking failed
+        if (pendingSpecFilename) {
+          setSelectedFilename(pendingSpecFilename);
+          onSelectSpec?.(pendingSpecFilename);
+        }
+      } finally {
+        setIsBlockingRequirement(false);
+        setIsWarningModalOpen(false);
+        setPendingSpecFilename(null);
+      }
+    }
   };
 
   // Handle save
@@ -869,6 +967,15 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
         </div>
       )}
+
+      {/* Warning modal for editing in_progress requirements (S-0006) */}
+      <SpecEditWarningModal
+        requirementId={pendingRequirementId || ''}
+        requirementTitle={pendingSpecStatus?.title || parseSpecFilename(pendingSpecFilename || '').title}
+        isOpen={isWarningModalOpen}
+        isLoading={isBlockingRequirement}
+        onAction={handleWarningAction}
+      />
     </div>
   );
 };
