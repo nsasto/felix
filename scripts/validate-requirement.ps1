@@ -502,10 +502,14 @@ function Get-LabelBasedCommands {
     if ($Labels -contains "backend") {
         $backendPath = Join-Path $ProjectRoot "app/backend"
         if (Test-Path $backendPath) {
-            $commands += @{
-                Name = "backend pytest"
-                Command = "python -m pytest"
-                WorkingDir = $backendPath
+            # Check if pytest is available
+            $testPath = Join-Path $backendPath "tests"
+            if (Test-Path $testPath) {
+                $commands += @{
+                    Name = "backend pytest"
+                    Command = "python -m pytest"
+                    WorkingDir = $backendPath
+                }
             }
         }
     }
