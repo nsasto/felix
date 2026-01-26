@@ -81,7 +81,7 @@
       "id": "S-0006",
       "title": "Spec Edit Safety and Plan Invalidation",
       "spec_path": "specs/S-0006-spec-edit-safety.md",
-      "status": "planned",
+      "status": "complete",
       "priority": "high",
       "labels": [
         "frontend",
