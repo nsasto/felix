@@ -24,11 +24,11 @@
       "id": "S-0002",
       "title": "Felix Backend API Server",
       "spec_path": "specs/S-0002-backend-api-server.md",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "labels": ["backend", "api"],
       "depends_on": ["S-0001", "S-0005"],
-      "updated_at": "2026-01-25"
+      "updated_at": "2026-01-26"
     },
     {
       "id": "S-0003",
