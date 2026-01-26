@@ -109,6 +109,23 @@
         "S-0002"
       ],
       "updated_at": "2026-01-26"
+    },
+    {
+      "id": "S-0008",
+      "title": "Projects Settings Screen",
+      "spec_path": "specs/S-0008-projects-settings-screen.md",
+      "status": "draft",
+      "priority": "medium",
+      "labels": [
+        "frontend",
+        "settings",
+        "projects"
+      ],
+      "depends_on": [
+        "S-0002",
+        "S-0007"
+      ],
+      "updated_at": "2026-01-26"
     }
   ]
 }
