@@ -131,7 +131,7 @@
       "id": "S-0009",
       "title": "Light Theme",
       "spec_path": "specs/S-0009-light-theme.md",
-      "status": "planned",
+      "status": "blocked",
       "priority": "medium",
       "labels": [
         "frontend",
@@ -149,7 +149,7 @@
       "id": "S-0010",
       "title": "Kanban Card Detail Slide-Out",
       "spec_path": "specs/S-0010-kanban-card-detail.md",
-      "status": "planned",
+      "status": "in_progress",
       "priority": "high",
       "labels": [
         "frontend",

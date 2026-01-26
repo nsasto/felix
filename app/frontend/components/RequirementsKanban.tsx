@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { felixApi, Requirement, RequirementsData, RequirementStatusResponse } from '../services/felixApi';
 import { IconPlus, IconFileText } from './Icons';
+import RequirementDetailSlideOut from './RequirementDetailSlideOut';
 
 // Requirement status columns matching the felix/requirements.json schema
 type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked';
@@ -47,6 +48,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   // Requirement status info for each requirement (maps requirement id -> status info)
   // This includes plan info and spec modification timestamps for drift detection
   const [requirementStatusMap, setRequirementStatusMap] = useState<Record<string, RequirementStatusResponse>>({});
+
+  // Selected requirement for slide-out detail view
+  const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
 
   // Fetch requirement status for all requirements that might have plans
   // This includes both plan info and spec modification times for drift detection
@@ -368,7 +372,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                       draggable
                       onDragStart={(e) => handleDragStart(e, requirement)}
                       onDragEnd={handleDragEnd}
-                      onClick={() => onSelectRequirement?.(requirement)}
+                      onClick={() => {
+                        setSelectedRequirement(requirement);
+                        onSelectRequirement?.(requirement);
+                      }}
                       className={`
                         bg-[#0d1117] border border-slate-800/60 p-4 rounded-xl 
                         hover:border-felix-600/40 transition-all cursor-grab group 
@@ -457,7 +464,11 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                           Updated: {requirement.updated_at}
                         </span>
                         <button 
-                          onClick={(e) => { e.stopPropagation(); onSelectRequirement?.(requirement); }}
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setSelectedRequirement(requirement);
+                            onSelectRequirement?.(requirement); 
+                          }}
                           className="text-[9px] font-bold text-slate-500 hover:text-felix-400 transition-colors flex items-center gap-1"
                         >
                           <IconFileText className="w-3 h-3" />
@@ -485,6 +496,22 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
           );
         })}
       </div>
+
+      {/* Requirement Detail Slide-Out */}
+      <RequirementDetailSlideOut
+        projectId={projectId}
+        requirement={selectedRequirement}
+        onClose={() => setSelectedRequirement(null)}
+        onEditSpec={(filename) => {
+          // Navigate to spec editor - the parent App.tsx handles this
+          // For now, we'll just log and let the parent handle via onSelectRequirement
+          console.log('Edit spec requested:', filename);
+        }}
+        onViewPlan={(planPath) => {
+          // Navigate to plan viewer
+          console.log('View plan requested:', planPath);
+        }}
+      />
     </div>
   );
 };
