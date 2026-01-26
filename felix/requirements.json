@@ -66,7 +66,7 @@
       "id": "S-0004",
       "title": "Artifact Templates and Scaffolding",
       "spec_path": "specs/S-0004-artifact-templates.md",
-      "status": "planned",
+      "status": "complete",
       "priority": "medium",
       "labels": [
         "tooling",
