@@ -215,6 +215,32 @@ Those live in Markdown.
 
 Keep this boring and stable. JSON grows painful when it tries to express nuance.
 
+### Requirement status values
+
+- **draft** - Initial state, not ready for work
+- **planned** - Ready to be worked on
+- **in_progress** - Currently being worked on
+- **complete** - Finished and validated
+- **blocked** - Cannot proceed due to validation or backpressure failures
+
+### Handling blocked requirements
+
+When a requirement becomes blocked (either from repeated validation failures or backpressure test failures), Felix automatically marks it as "blocked" in `requirements.json` and moves to the next requirement.
+
+**Why requirements get blocked:**
+
+- **Validation failures**: After retrying validation (default: 2 attempts), the requirement is blocked if validation criteria still fail
+- **Backpressure failures**: After max retries (default: 3 attempts), the requirement is blocked if tests/lint/build continue to fail
+
+**Unblocking a requirement:**
+
+1. **Diagnose the issue**: Check the run logs in `runs/<run-id>/` and look for validation or backpressure failure messages
+2. **Fix the root cause**: Correct the code, tests, or validation criteria as needed
+3. **Manually reset status**: Edit `felix/requirements.json` and change the requirement's status from `"blocked"` to `"planned"`
+4. **Restart Felix**: The agent will pick up the unblocked requirement on the next run
+
+Blocked requirements are intentionally manual - this prevents the agent from repeatedly attempting impossible tasks and allows independent requirements to proceed.
+
 ---
 
 ## Plans – per-requirement focus

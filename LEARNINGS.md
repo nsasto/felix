@@ -656,6 +656,26 @@ When something hangs or fails mysteriously:
 | "python: command not found" on Windows                             | py.exe not in PATH                   | Install Python from python.org (includes launcher) |
 | Garbled unicode characters                                         | Console codepage mismatch            | Add UTF-8 reconfiguration to Python script         |
 
+### Exit Codes
+
+Felix uses distinct exit codes to indicate different completion states:
+
+| Exit Code | Meaning                | What Happened                                             |
+| --------- | ---------------------- | --------------------------------------------------------- |
+| 0         | Success                | Requirement complete and validated                        |
+| 1         | Error                  | General execution failure (droid errors, file I/O issues) |
+| 2         | Blocked (backpressure) | Backpressure failures exceeded max retries (default: 3)   |
+| 3         | Blocked (validation)   | Validation failures exceeded max retries (default: 2)     |
+
+**Blocked Requirements**: When exit code 2 or 3 occurs, the requirement is automatically marked as "blocked" in `felix/requirements.json`. The agent will skip blocked requirements and proceed with other planned work. To unblock, fix the underlying issues then manually change the status back to "planned" in `felix/requirements.json`.
+
+**Retry Configuration** (in `felix/config.json`):
+
+- Backpressure retries: `backpressure.max_retries` (default: 3)
+- Validation retries: `validation.max_validation_retries` (default: 1, allows 2 total attempts)
+- Blocking behavior: `validation.mark_blocked_on_failure` (default: true)
+- Exit on block: `validation.exit_on_blocked` (default: true)
+
 ### Best Practices Summary
 
 **PowerShell**:

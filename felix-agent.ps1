@@ -698,6 +698,18 @@ if ($null -eq $state.blocked_task) {
     $state | Add-Member -MemberType NoteProperty -Name blocked_task -Value $null -Force
 }
 
+# Initialize validation retry counter if it doesn't exist
+if ($null -eq $state.validation_retry_count) {
+    $state | Add-Member -MemberType NoteProperty -Name validation_retry_count -Value 0 -Force
+}
+
+# Reset validation retry counter if we're starting a new requirement
+if ($state.current_requirement_id -ne $currentReq.id) {
+    $state.validation_retry_count = 0
+    $state.current_requirement_id = $currentReq.id
+    Write-Host "[STATE] Starting new requirement, reset validation retry counter" -ForegroundColor Cyan
+}
+
 # Main iteration loop
 for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host ""
@@ -1019,7 +1031,12 @@ Review the validation failures and fix the underlying issues before restarting.
 "@
                 Set-Content (Join-Path $runDir "max-retries-exceeded.md") $maxRetriesReport -Encoding UTF8
                 
-                Write-Host "Exiting due to max retries exceeded..."
+                # Mark requirement as blocked in requirements.json
+                Write-Host "[BLOCKED] Marking requirement $($currentReq.id) as blocked due to backpressure failures" -ForegroundColor Red
+                Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "blocked"
+                Write-Host "[BLOCKED] To unblock: Fix validation issues, then manually change status to 'planned' in requirements.json" -ForegroundColor Yellow
+                
+                Write-Host "Exiting due to max retries exceeded (exit code 2)..."
                 exit 2
             }
             
@@ -1194,6 +1211,7 @@ Fix the validation issues to unblock progress.
                     # Validation passed - mark requirement complete
                     $state.status = "complete"
                     $state.last_iteration_outcome = "complete"
+                    $state.validation_retry_count = 0
                     $state.updated_at = Get-Date -Format "o"
                     $state | ConvertTo-Json | Set-Content $StateFile
                     
@@ -1209,6 +1227,47 @@ Fix the validation issues to unblock progress.
                     Write-Host ""
                     Write-Host "[STUCK] Tasks complete but validation failed!"
                     Write-Host "<promise>STUCK</promise>"
+                    
+                    # Track validation retry count
+                    if (-not $state.validation_retry_count) {
+                        $state.validation_retry_count = 0
+                    }
+                    $state.validation_retry_count++
+                    
+                    # Get validation config (with defaults)
+                    $validationConfig = $config.validation
+                    $markBlockedOnFailure = if ($null -ne $validationConfig.mark_blocked_on_failure) { $validationConfig.mark_blocked_on_failure } else { $true }
+                    $exitOnBlocked = if ($null -ne $validationConfig.exit_on_blocked) { $validationConfig.exit_on_blocked } else { $true }
+                    $maxValidationRetries = if ($null -ne $validationConfig.max_validation_retries) { $validationConfig.max_validation_retries } else { 1 }
+                    
+                    # Log retry attempt
+                    $totalAttempts = $maxValidationRetries + 1
+                    Write-Host "[VALIDATION RETRY] Attempt $($state.validation_retry_count) of $totalAttempts" -ForegroundColor Yellow
+                    
+                    # Check if max retries exceeded
+                    if ($state.validation_retry_count -gt $maxValidationRetries) {
+                        Write-Host ""
+                        Write-Host "[BLOCKED] Maximum validation retries ($totalAttempts attempts) exceeded" -ForegroundColor Red
+                        
+                        # Mark requirement as blocked if configured
+                        if ($markBlockedOnFailure) {
+                            Write-Host "[BLOCKED] Marking requirement $($currentReq.id) as blocked in requirements.json" -ForegroundColor Red
+                            Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "blocked"
+                            Write-Host "[BLOCKED] Requirement blocked due to repeated validation failures." -ForegroundColor Red
+                            Write-Host "[BLOCKED] To unblock: Fix validation issues, then manually change status to 'planned' in requirements.json" -ForegroundColor Yellow
+                        }
+                        
+                        $state.last_iteration_outcome = "validation_blocked"
+                        $state.status = "blocked"
+                        $state.updated_at = Get-Date -Format "o"
+                        $state | ConvertTo-Json | Set-Content $StateFile
+                        
+                        # Exit if configured
+                        if ($exitOnBlocked) {
+                            Write-Host "[EXIT] Exiting to allow other requirements to proceed (exit code 3)" -ForegroundColor Yellow
+                            exit 3
+                        }
+                    }
                     
                     $state.last_iteration_outcome = "validation_failed"
                     $state.updated_at = Get-Date -Format "o"
