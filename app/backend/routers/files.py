@@ -610,3 +610,297 @@ async def update_config(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write config: {str(e)}")
+
+
+# --- Requirement Status Endpoints (for S-0006: Spec Edit Safety) ---
+
+class RequirementStatusResponse(BaseModel):
+    """Response for requirement status check"""
+    id: str
+    status: str
+    title: str
+    has_plan: bool
+    plan_path: Optional[str] = None
+    plan_modified_at: Optional[str] = None
+    spec_modified_at: Optional[str] = None
+
+
+class RequirementStatusUpdate(BaseModel):
+    """Request body for updating requirement status"""
+    status: str = Field(..., description="New status: draft, planned, in_progress, complete, blocked")
+
+
+class PlanInfo(BaseModel):
+    """Information about a requirement's plan"""
+    requirement_id: str
+    exists: bool
+    plan_path: Optional[str] = None
+    run_id: Optional[str] = None
+    modified_at: Optional[str] = None
+    content_preview: Optional[str] = None
+
+
+class PlanDeleteResponse(BaseModel):
+    """Response for plan deletion"""
+    message: str
+    requirement_id: str
+    deleted_path: Optional[str] = None
+
+
+def find_plan_for_requirement(project_path: Path, requirement_id: str) -> Optional[tuple[Path, str]]:
+    """
+    Find the most recent plan file for a requirement.
+    
+    Plans are stored in runs/<run-id>/plan-<requirement-id>.md
+    Returns (plan_path, run_id) or None if not found.
+    """
+    runs_dir = project_path / "runs"
+    if not runs_dir.exists():
+        return None
+    
+    # Find all plan files for this requirement across all runs
+    plan_files: list[tuple[Path, str]] = []
+    for run_dir in runs_dir.iterdir():
+        if run_dir.is_dir():
+            plan_file = run_dir / f"plan-{requirement_id}.md"
+            if plan_file.exists():
+                plan_files.append((plan_file, run_dir.name))
+    
+    if not plan_files:
+        return None
+    
+    # Sort by run_id (which is a timestamp) and return the most recent
+    plan_files.sort(key=lambda x: x[1], reverse=True)
+    return plan_files[0]
+
+
+@router.get("/{project_id}/requirements/{requirement_id}/status", response_model=RequirementStatusResponse)
+async def get_requirement_status(
+    project_id: str = PathParam(..., description="Project ID"),
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+):
+    """
+    Get the status of a specific requirement, including whether it has a plan.
+    
+    Used by the frontend to determine if warnings should be shown when editing specs.
+    """
+    project_path = get_project_path(project_id)
+    req_path = project_path / "felix" / "requirements.json"
+    
+    if not req_path.exists():
+        raise HTTPException(status_code=404, detail="felix/requirements.json not found")
+    
+    try:
+        data = json.loads(req_path.read_text(encoding='utf-8'))
+        requirements = data.get("requirements", [])
+        
+        # Find the specific requirement
+        requirement = None
+        for req in requirements:
+            if req.get("id") == requirement_id:
+                requirement = req
+                break
+        
+        if not requirement:
+            raise HTTPException(status_code=404, detail=f"Requirement not found: {requirement_id}")
+        
+        # Check if a plan exists for this requirement
+        plan_info = find_plan_for_requirement(project_path, requirement_id)
+        has_plan = plan_info is not None
+        plan_path = None
+        plan_modified_at = None
+        
+        if plan_info:
+            plan_file, run_id = plan_info
+            plan_path = str(plan_file.relative_to(project_path))
+            plan_modified_at = str(plan_file.stat().st_mtime)
+        
+        # Get spec modification time
+        spec_path_str = requirement.get("spec_path")
+        spec_modified_at = None
+        if spec_path_str:
+            spec_path = project_path / spec_path_str
+            if spec_path.exists():
+                spec_modified_at = str(spec_path.stat().st_mtime)
+        
+        return RequirementStatusResponse(
+            id=requirement_id,
+            status=requirement.get("status", "draft"),
+            title=requirement.get("title", ""),
+            has_plan=has_plan,
+            plan_path=plan_path,
+            plan_modified_at=plan_modified_at,
+            spec_modified_at=spec_modified_at
+        )
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get requirement status: {str(e)}")
+
+
+@router.put("/{project_id}/requirements/{requirement_id}/status", response_model=RequirementStatusResponse)
+async def update_requirement_status(
+    request: RequirementStatusUpdate,
+    project_id: str = PathParam(..., description="Project ID"),
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+):
+    """
+    Update the status of a specific requirement.
+    
+    Used to set requirement to 'blocked' status when user chooses to block and edit.
+    Valid status values: draft, planned, in_progress, complete, blocked
+    """
+    valid_statuses = {"draft", "planned", "in_progress", "complete", "blocked"}
+    if request.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+        )
+    
+    project_path = get_project_path(project_id)
+    req_path = project_path / "felix" / "requirements.json"
+    
+    if not req_path.exists():
+        raise HTTPException(status_code=404, detail="felix/requirements.json not found")
+    
+    try:
+        data = json.loads(req_path.read_text(encoding='utf-8'))
+        requirements = data.get("requirements", [])
+        
+        # Find and update the specific requirement
+        updated = False
+        requirement = None
+        for req in requirements:
+            if req.get("id") == requirement_id:
+                req["status"] = request.status
+                req["updated_at"] = str(__import__('datetime').date.today())
+                requirement = req
+                updated = True
+                break
+        
+        if not updated:
+            raise HTTPException(status_code=404, detail=f"Requirement not found: {requirement_id}")
+        
+        # Write back the updated requirements
+        req_path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        
+        # Get plan info for response
+        plan_info = find_plan_for_requirement(project_path, requirement_id)
+        has_plan = plan_info is not None
+        plan_path = None
+        plan_modified_at = None
+        
+        if plan_info:
+            plan_file, run_id = plan_info
+            plan_path = str(plan_file.relative_to(project_path))
+            plan_modified_at = str(plan_file.stat().st_mtime)
+        
+        # Get spec modification time
+        spec_path_str = requirement.get("spec_path")
+        spec_modified_at = None
+        if spec_path_str:
+            spec_path = project_path / spec_path_str
+            if spec_path.exists():
+                spec_modified_at = str(spec_path.stat().st_mtime)
+        
+        return RequirementStatusResponse(
+            id=requirement_id,
+            status=request.status,
+            title=requirement.get("title", ""),
+            has_plan=has_plan,
+            plan_path=plan_path,
+            plan_modified_at=plan_modified_at,
+            spec_modified_at=spec_modified_at
+        )
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update requirement status: {str(e)}")
+
+
+@router.get("/{project_id}/plans/{requirement_id}", response_model=PlanInfo)
+async def get_plan_info(
+    project_id: str = PathParam(..., description="Project ID"),
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+):
+    """
+    Get information about a requirement's plan, including whether it exists
+    and its metadata.
+    """
+    project_path = get_project_path(project_id)
+    
+    plan_info = find_plan_for_requirement(project_path, requirement_id)
+    
+    if not plan_info:
+        return PlanInfo(
+            requirement_id=requirement_id,
+            exists=False
+        )
+    
+    plan_file, run_id = plan_info
+    
+    # Read first 500 chars of content as preview
+    content_preview = None
+    try:
+        content = plan_file.read_text(encoding='utf-8')
+        content_preview = content[:500] + ("..." if len(content) > 500 else "")
+    except Exception:
+        pass
+    
+    return PlanInfo(
+        requirement_id=requirement_id,
+        exists=True,
+        plan_path=str(plan_file.relative_to(project_path)),
+        run_id=run_id,
+        modified_at=str(plan_file.stat().st_mtime),
+        content_preview=content_preview
+    )
+
+
+@router.delete("/{project_id}/plans/{requirement_id}", response_model=PlanDeleteResponse)
+async def delete_plan(
+    project_id: str = PathParam(..., description="Project ID"),
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+):
+    """
+    Delete all plan files for a specific requirement.
+    
+    This is used when acceptance criteria change to invalidate stale plans,
+    or when user manually requests a plan reset.
+    
+    Deletes plan-<requirement-id>.md from all run directories.
+    """
+    project_path = get_project_path(project_id)
+    runs_dir = project_path / "runs"
+    
+    if not runs_dir.exists():
+        return PlanDeleteResponse(
+            message="No plans found (runs directory does not exist)",
+            requirement_id=requirement_id
+        )
+    
+    deleted_paths = []
+    for run_dir in runs_dir.iterdir():
+        if run_dir.is_dir():
+            plan_file = run_dir / f"plan-{requirement_id}.md"
+            if plan_file.exists():
+                try:
+                    plan_file.unlink()
+                    deleted_paths.append(str(plan_file.relative_to(project_path)))
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=500, 
+                        detail=f"Failed to delete plan file {plan_file}: {str(e)}"
+                    )
+    
+    if not deleted_paths:
+        return PlanDeleteResponse(
+            message="No plan files found for this requirement",
+            requirement_id=requirement_id
+        )
+    
+    return PlanDeleteResponse(
+        message=f"Deleted {len(deleted_paths)} plan file(s)",
+        requirement_id=requirement_id,
+        deleted_path=deleted_paths[0] if deleted_paths else None
+    )

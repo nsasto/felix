@@ -88,6 +88,33 @@ export interface AgentStatus {
   current_run_id: string | null;
 }
 
+// --- Requirement Status Types (for S-0006: Spec Edit Safety) ---
+
+export interface RequirementStatusResponse {
+  id: string;
+  status: string;
+  title: string;
+  has_plan: boolean;
+  plan_path: string | null;
+  plan_modified_at: string | null;
+  spec_modified_at: string | null;
+}
+
+export interface PlanInfo {
+  requirement_id: string;
+  exists: boolean;
+  plan_path: string | null;
+  run_id: string | null;
+  modified_at: string | null;
+  content_preview: string | null;
+}
+
+export interface PlanDeleteResponse {
+  message: string;
+  requirement_id: string;
+  deleted_path: string | null;
+}
+
 // --- Config Types ---
 
 export interface ExecutorConfig {
@@ -268,6 +295,29 @@ class FelixApiService {
     return this.request<ConfigContent>(`/projects/${projectId}/config`, {
       method: 'PUT',
       body: JSON.stringify({ config }),
+    });
+  }
+
+  // --- Requirement Status Endpoints (for S-0006: Spec Edit Safety) ---
+
+  async getRequirementStatus(projectId: string, requirementId: string): Promise<RequirementStatusResponse> {
+    return this.request<RequirementStatusResponse>(`/projects/${projectId}/requirements/${requirementId}/status`);
+  }
+
+  async updateRequirementStatus(projectId: string, requirementId: string, status: string): Promise<RequirementStatusResponse> {
+    return this.request<RequirementStatusResponse>(`/projects/${projectId}/requirements/${requirementId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async getPlanInfo(projectId: string, requirementId: string): Promise<PlanInfo> {
+    return this.request<PlanInfo>(`/projects/${projectId}/plans/${requirementId}`);
+  }
+
+  async deletePlan(projectId: string, requirementId: string): Promise<PlanDeleteResponse> {
+    return this.request<PlanDeleteResponse>(`/projects/${projectId}/plans/${requirementId}`, {
+      method: 'DELETE',
     });
   }
 
