@@ -245,6 +245,11 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [isBlockingRequirement, setIsBlockingRequirement] = useState(false);
 
+  // Reset Plan modal state (for S-0006: Manual Reset Plan Controls)
+  const [isResetPlanModalOpen, setIsResetPlanModalOpen] = useState(false);
+  const [isResettingPlan, setIsResettingPlan] = useState(false);
+  const [resetPlanMessage, setResetPlanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   // Hook to check requirement status for warning modal (S-0006)
@@ -253,6 +258,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     isInProgress: pendingSpecIsInProgress,
     requirementId: pendingRequirementId,
   } = useRequirementStatus(projectId, pendingSpecFilename);
+
+  // Hook to check requirement status for currently selected spec (S-0006: Manual Reset Plan Controls)
+  const {
+    status: selectedSpecStatus,
+    hasPlan: selectedSpecHasPlan,
+    requirementId: selectedRequirementId,
+    refreshStatus: refreshSelectedSpecStatus,
+  } = useRequirementStatus(projectId, selectedFilename);
 
   // Check if content has been modified
   const hasChanges = specContent !== originalContent;
@@ -431,6 +444,46 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         setPendingSpecFilename(null);
       }
     }
+  };
+
+  // Handle Reset Plan button click (S-0006: Manual Reset Plan Controls)
+  const handleResetPlanClick = () => {
+    if (!selectedRequirementId || !selectedSpecHasPlan) return;
+    setIsResetPlanModalOpen(true);
+    setResetPlanMessage(null);
+  };
+
+  // Handle Reset Plan confirmation (S-0006: Manual Reset Plan Controls)
+  const handleResetPlanConfirm = async () => {
+    if (!selectedRequirementId) return;
+
+    setIsResettingPlan(true);
+    setResetPlanMessage(null);
+    try {
+      await felixApi.deletePlan(projectId, selectedRequirementId);
+      // Refresh the requirement status to update the hasPlan flag
+      await refreshSelectedSpecStatus();
+      setResetPlanMessage({ type: 'success', text: 'Plan reset successfully' });
+      // Close modal after short delay to show success message
+      setTimeout(() => {
+        setIsResetPlanModalOpen(false);
+        setResetPlanMessage(null);
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to reset plan:', err);
+      setResetPlanMessage({ 
+        type: 'error', 
+        text: err instanceof Error ? err.message : 'Failed to reset plan' 
+      });
+    } finally {
+      setIsResettingPlan(false);
+    }
+  };
+
+  // Handle Reset Plan cancel
+  const handleResetPlanCancel = () => {
+    setIsResetPlanModalOpen(false);
+    setResetPlanMessage(null);
   };
 
   // Handle save
@@ -835,6 +888,28 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               </span>
             )}
 
+            {/* Reset Plan button - S-0006: Manual Reset Plan Controls */}
+            {selectedSpecHasPlan && (selectedSpecStatus?.status === 'planned' || selectedSpecStatus?.status === 'in_progress') && (
+              <>
+                <div className="h-4 w-px bg-slate-800"></div>
+                <button
+                  onClick={handleResetPlanClick}
+                  className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30 hover:border-amber-500/50"
+                  title="Delete the current plan for this requirement"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      d="M4 4l16 16M4 20L20 4"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Reset Plan
+                </button>
+              </>
+            )}
+
             {/* Copy button */}
             <button
               onClick={copyToClipboard}
@@ -1060,6 +1135,110 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   <>
                     <IconPlus className="w-3 h-3" />
                     Create Spec
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Plan Confirmation Modal (S-0006: Manual Reset Plan Controls) */}
+      {isResetPlanModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[400px] overflow-hidden">
+            {/* Modal header */}
+            <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span className="text-xs font-bold text-slate-300">
+                  Reset Plan
+                </span>
+              </div>
+              <button
+                onClick={handleResetPlanCancel}
+                disabled={isResettingPlan}
+                className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300 disabled:opacity-50"
+              >
+                <IconX className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="p-5">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200 mb-1">
+                    Delete plan for {selectedRequirementId}?
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    This will permanently delete the implementation plan for this requirement. 
+                    The agent will need to regenerate the plan on the next run.
+                  </p>
+                </div>
+              </div>
+
+              {/* Show current plan info if available */}
+              {selectedSpecStatus?.plan_modified_at && (
+                <div className="bg-slate-800/40 rounded-lg p-3 mb-4">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Current Plan</div>
+                  <div className="text-xs text-slate-400">
+                    Generated: {new Date(selectedSpecStatus.plan_modified_at).toLocaleString()}
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback message */}
+              {resetPlanMessage && (
+                <div className={`p-2 rounded-lg text-xs mb-4 ${
+                  resetPlanMessage.type === 'success' 
+                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
+                    : 'bg-red-500/10 border border-red-500/20 text-red-400'
+                }`}>
+                  {resetPlanMessage.text}
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="h-14 border-t border-slate-800/60 flex items-center justify-end gap-3 px-4">
+              <button
+                onClick={handleResetPlanCancel}
+                disabled={isResettingPlan}
+                className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetPlanConfirm}
+                disabled={isResettingPlan || resetPlanMessage?.type === 'success'}
+                className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isResettingPlan ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : resetPlanMessage?.type === 'success' ? (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Done
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Plan
                   </>
                 )}
               </button>
