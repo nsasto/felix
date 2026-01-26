@@ -1,9 +1,66 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { felixApi, SpecFile } from '../services/felixApi';
 import { marked } from 'marked';
 import { IconFileText, IconPlus } from './Icons';
 import SpecEditWarningModal, { WarningAction } from './SpecEditWarningModal';
 import { useRequirementStatus } from '../hooks/useRequirementStatus';
+
+/**
+ * Extract acceptance criteria and validation criteria sections from markdown content.
+ * Returns the combined criteria sections for change detection.
+ * 
+ * Looks for sections starting with "## Acceptance Criteria" or "## Validation Criteria"
+ * and captures content until the next heading of same or higher level.
+ */
+function extractCriteriaSections(content: string): string {
+  if (!content) return '';
+  
+  const sections: string[] = [];
+  const lines = content.split('\n');
+  
+  let inCriteriaSection = false;
+  let currentSection: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+    
+    // Check if this is a criteria heading (## Acceptance Criteria or ## Validation Criteria)
+    const isCriteriaHeading = /^##\s+(acceptance|validation)\s+criteria/i.test(trimmedLine);
+    
+    // Check if this is a new section (any ## heading)
+    const isHeading = /^##\s+/.test(trimmedLine);
+    
+    if (isCriteriaHeading) {
+      // Start capturing this criteria section
+      if (inCriteriaSection && currentSection.length > 0) {
+        // Save previous section before starting new one
+        sections.push(currentSection.join('\n'));
+      }
+      inCriteriaSection = true;
+      currentSection = [line];
+    } else if (inCriteriaSection) {
+      if (isHeading) {
+        // End of criteria section - reached a new ## heading
+        sections.push(currentSection.join('\n'));
+        currentSection = [];
+        inCriteriaSection = false;
+      } else {
+        // Continue capturing current criteria section
+        currentSection.push(line);
+      }
+    }
+  }
+  
+  // Don't forget the last section if we ended while in one
+  if (inCriteriaSection && currentSection.length > 0) {
+    sections.push(currentSection.join('\n'));
+  }
+  
+  // Return combined sections, normalized for comparison
+  // Trim each section and join with a delimiter for comparison
+  return sections.map(s => s.trim()).join('\n---SECTION---\n');
+}
 
 interface SpecsEditorProps {
   projectId: string;
@@ -165,6 +222,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const [selectedFilename, setSelectedFilename] = useState<string | null>(initialSpecFilename || null);
   const [specContent, setSpecContent] = useState<string>('');
   const [originalContent, setOriginalContent] = useState<string>('');
+  const [originalCriteria, setOriginalCriteria] = useState<string>(''); // For S-0006: Track original acceptance/validation criteria
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -198,6 +256,11 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
   // Check if content has been modified
   const hasChanges = specContent !== originalContent;
+  
+  // S-0006: Check if acceptance/validation criteria have changed
+  // This is used for plan invalidation detection on save
+  const currentCriteria = useMemo(() => extractCriteriaSections(specContent), [specContent]);
+  const hasCriteriaChanged = originalCriteria !== currentCriteria;
 
   // Fetch specs list on mount or when projectId changes
   useEffect(() => {
@@ -228,6 +291,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     if (!selectedFilename) {
       setSpecContent('');
       setOriginalContent('');
+      setOriginalCriteria('');
       return;
     }
 
@@ -238,11 +302,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         const result = await felixApi.getSpec(projectId, selectedFilename);
         setSpecContent(result.content);
         setOriginalContent(result.content);
+        // S-0006: Extract and store original acceptance/validation criteria for change detection
+        setOriginalCriteria(extractCriteriaSections(result.content));
       } catch (err) {
         console.error('Failed to fetch spec content:', err);
         setContentError(err instanceof Error ? err.message : 'Failed to load spec');
         setSpecContent('');
         setOriginalContent('');
+        setOriginalCriteria('');
       } finally {
         setContentLoading(false);
       }
