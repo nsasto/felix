@@ -34,11 +34,11 @@
       "id": "S-0003",
       "title": "Felix Frontend Observer UI",
       "spec_path": "specs/S-0003-frontend-observer-ui.md",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high",
       "labels": ["frontend", "ui"],
       "depends_on": ["S-0002", "S-0001", "S-0005"],
-      "updated_at": "2026-01-25"
+      "updated_at": "2026-01-26"
     },
     {
       "id": "S-0004",
