@@ -4,7 +4,7 @@
       "id": "S-0005",
       "title": "Validation-Driven Completion",
       "spec_path": "specs/S-0005-validation-driven-completion.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "critical",
       "labels": [
         "foundation",
@@ -33,7 +33,7 @@
       "id": "S-0002",
       "title": "Felix Backend API Server",
       "spec_path": "specs/S-0002-backend-api-server.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "high",
       "labels": [
         "backend",
@@ -49,7 +49,7 @@
       "id": "S-0003",
       "title": "Felix Frontend Observer UI",
       "spec_path": "specs/S-0003-frontend-observer-ui.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "high",
       "labels": [
         "frontend",
@@ -66,7 +66,7 @@
       "id": "S-0004",
       "title": "Artifact Templates and Scaffolding",
       "spec_path": "specs/S-0004-artifact-templates.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "medium",
       "labels": [
         "tooling",
@@ -81,7 +81,7 @@
       "id": "S-0006",
       "title": "Spec Edit Safety and Plan Invalidation",
       "spec_path": "specs/S-0006-spec-edit-safety.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "high",
       "labels": [
         "frontend",
@@ -114,7 +114,7 @@
       "id": "S-0008",
       "title": "Projects Settings Screen",
       "spec_path": "specs/S-0008-projects-settings-screen.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "medium",
       "labels": [
         "frontend",
@@ -131,7 +131,7 @@
       "id": "S-0009",
       "title": "Light Theme",
       "spec_path": "specs/S-0009-light-theme.md",
-      "status": "blocked",
+      "status": "planned",
       "priority": "medium",
       "labels": [
         "frontend",
@@ -149,7 +149,7 @@
       "id": "S-0010",
       "title": "Kanban Card Detail Slide-Out",
       "spec_path": "specs/S-0010-kanban-card-detail.md",
-      "status": "in_progress",
+      "status": "blocked",
       "priority": "high",
       "labels": [
         "frontend",

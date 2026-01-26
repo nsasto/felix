@@ -4,41 +4,31 @@ This file tells Felix **how to run the system**.
 
 ## Install Dependencies
 
-### Backend
-
-```bash
-cd app/backend
-python -m pip install -r requirements.txt
-```
-
-### Frontend
-
-```bash
-cd app/frontend
-npm install
-```
+Dependencies are managed automatically by the test scripts. If you need to set up manually, see HOW_TO_USE.md. The user should set this up prior to engaging you.
 
 ## Run Tests
 
-### Backend
+### Backend Tests
 
-```bash
-cd app/backend
-python -m pytest tests/ -v
+```powershell
+.\scripts\test-backend.ps1
 ```
 
-### Frontend
+Auto-creates venv, installs dependencies, creates tests/ directory if needed.
+Exit code 5 means "no tests found" (not a failure).
 
-```bash
-cd app/frontend
-npm test
+### Frontend Tests
+
+```powershell
+.\scripts\test-frontend.ps1
 ```
 
-### Test Structure
+Auto-installs npm dependencies if needed.
 
-- Backend tests: `app/backend/tests/` (pytest)
-- Frontend tests: `app/frontend/src/__tests__/` (Jest/Vitest)
-- Run individual test files: `python -m pytest tests/test_filename.py`
+### Test File Locations
+
+- Backend tests: `app/backend/tests/test_*.py`
+- Frontend tests: `app/frontend/src/__tests__/*.test.tsx`
 
 ## Build the Project
 
