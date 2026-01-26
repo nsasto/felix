@@ -114,7 +114,7 @@
       "id": "S-0008",
       "title": "Projects Settings Screen",
       "spec_path": "specs/S-0008-projects-settings-screen.md",
-      "status": "draft",
+      "status": "planned",
       "priority": "medium",
       "labels": [
         "frontend",
@@ -124,6 +124,24 @@
       "depends_on": [
         "S-0002",
         "S-0007"
+      ],
+      "updated_at": "2026-01-26"
+    },
+    {
+      "id": "S-0009",
+      "title": "Light Theme",
+      "spec_path": "specs/S-0009-light-theme.md",
+      "status": "planned",
+      "priority": "medium",
+      "labels": [
+        "frontend",
+        "ui",
+        "theme",
+        "accessibility"
+      ],
+      "depends_on": [
+        "S-0007",
+        "S-0003"
       ],
       "updated_at": "2026-01-26"
     }

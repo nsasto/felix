@@ -214,6 +214,99 @@ Felix is complementary: it is an application level executor and system architect
 
 ---
 
+## Agent Execution Flow
+
+The Felix agent follows a deterministic loop with explicit mode transitions and validation gates:
+
+```mermaid
+graph TD
+    Start([Start Agent]) --> Init[Resolve Project Path & Load Config]
+    Init --> ResolvePython[Resolve Python Command]
+    ResolvePython --> SelectReq[Select Current Requirement<br/><i>in_progress</i> or <i>planned</i>]
+
+    SelectReq --> LoopStart{Iteration < Max?}
+
+    subgraph ModeSelection [Mode Determination]
+        LoopStart -- Yes --> CheckPlan{Plan exists for ID?}
+        CheckPlan -- No --> ModePlan[Mode: PLANNING]
+        CheckPlan -- Yes --> ModeBuild[Mode: BUILDING]
+    end
+
+    ModePlan --> ExecDroid[Construct Context & Call Droid Exec]
+    ModeBuild --> ExecDroid
+
+    ExecDroid --> PostExec{Mode?}
+
+    %% Planning Branch
+    PostExec -- Planning --> Guardrails{Unauthorized Changes?}
+    Guardrails -- Yes --> Revert[Undo Changes & Log Violation]
+    Revert --> LoopStart
+    Guardrails -- No --> PlanSignals{LLM Signal?}
+    PlanSignals -- PLAN_COMPLETE --> SetBuild[Set Mode to Building]
+    PlanSignals -- DRAFT/REFINING --> LoopStart
+    SetBuild --> LoopStart
+
+    %% Building Branch
+    PostExec -- Building --> CompletionSignal{LLM Signal?}
+
+    CompletionSignal -- TASK_COMPLETE --> Backpressure[Run Backpressure Validation<br/>Tests/Build/Lint]
+    Backpressure -- Fail --> RetryLimit{Max Retries Hit?}
+    RetryLimit -- Yes --> FailExit([Exit: Max Retries Exceeded])
+    RetryLimit -- No --> LoopStart
+
+    Backpressure -- Pass --> GitCommit[Capture Diff & Git Commit]
+    GitCommit --> LoopStart
+
+    CompletionSignal -- ALL_COMPLETE --> InternalVerify{Unchecked Tasks in Plan?}
+    InternalVerify -- Yes --> LoopStart
+    InternalVerify -- No --> ReqValidation[Run validate-requirement.ps1]
+
+    ReqValidation -- Pass --> MarkDone[Update requirements.json to Complete]
+    MarkDone --> SuccessExit([Exit: Success])
+
+    ReqValidation -- Fail --> Stuck[Signal STUCK]
+    Stuck --> LoopStart
+
+    LoopStart -- No --> MaxIter([Exit: Max Iterations Reached])
+```
+
+_If the diagram doesn't render, see [Felix-flow.png](img/Felix-flow.png)_
+
+### Phase Descriptions
+
+#### 1. Initialization & Context Gathering
+
+The agent identifies the next available requirement from `requirements.json`. It then assembles a "Context" for the LLM, which includes:
+
+- **Project Context**: `CONTEXT.md` and `AGENTS.md`
+- **Requirement Specs**: The specific `.md` file for the current task
+- **Status**: The current state of all requirements and the existing implementation plan (if in building mode)
+
+#### 2. Planning Mode & Guardrails
+
+During the planning phase, the agent is strictly prohibited from modifying the codebase.
+
+- **Git State Snapshot**: It captures the git hash and modified files before calling the LLM
+- **Enforcement**: If the LLM attempts to change source files (outside of the `runs/` or `felix/` directories), the agent reverts the changes and logs a violation
+- **Transition**: Once the LLM signals `<promise>PLAN_COMPLETE</promise>`, the agent shifts to Building mode
+
+#### 3. Building Mode & Backpressure
+
+In building mode, the agent executes tasks sequentially.
+
+- **Backpressure**: Before a commit is allowed, the agent parses `AGENTS.md` for test, build, and lint commands
+- **Commit Logic**: Only if all validation commands pass will the agent capture a `diff.patch` and perform a git commit
+- **Retry Logic**: If validation fails, the agent stays on that task and retries (up to a configurable limit) to allow the LLM to fix its own errors
+
+#### 4. Final Validation
+
+Even after the LLM signals `<promise>ALL_COMPLETE</promise>`, the agent performs a final check:
+
+- **Plan Verification**: It scans the plan markdown file for any remaining unchecked checkboxes (`- [ ]`)
+- **Requirement Script**: It runs a dedicated PowerShell validation script (`validate-requirement.ps1`) to ensure the feature meets the technical specifications
+
+---
+
 ## Design principles
 
 ### Deterministic setup
