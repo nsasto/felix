@@ -279,18 +279,25 @@ function Invoke-RequirementValidation {
         [string]$RequirementId
     )
     
-    $args = @()
+    # Build flat argument array - pass directly, not splatted
+    $params = @()
     if ($PythonInfo.args) {
-        $args += @($PythonInfo.args)
+        $params += $PythonInfo.args
     }
-    $args += @($ValidationScript, $RequirementId)
+    $params += @($ValidationScript, $RequirementId)
     
-    $cmdParts = @($PythonInfo.cmd) + $args
-    $quoted = $cmdParts | ForEach-Object { '"' + ($_ -replace '"', '\\"') + '"' }
-    $commandLine = $quoted -join ' '
+    # Use call operator with direct array passing
+    # This avoids the py.exe deadlock that occurs with Start-Process -Wait
+    try {
+        $output = & $PythonInfo.cmd $params 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        $output = $_.Exception.Message
+        $exitCode = 1
+    }
     
-    $output = & cmd /c $commandLine 2>&1
-    return @{ output = $output; exitCode = $LASTEXITCODE }
+    return @{ output = $output; exitCode = $exitCode }
 }
 
 function Get-BackpressureCommands {
@@ -299,9 +306,9 @@ function Get-BackpressureCommands {
     Parses test/build/lint commands from AGENTS.md
     
     .DESCRIPTION
-    Extracts executable commands from specific sections in AGENTS.md:
+    Looks for these sections in AGENTS.md:
     - "## Run Tests" - test commands
-    - "## Build the Project" or "## Build" - build commands
+    - "## Build the Project" - build commands
     - "## Lint" - lint commands
     
     Commands are extracted from bash/sh code blocks within these sections.
