@@ -4,7 +4,7 @@
       "id": "S-0005",
       "title": "Validation-Driven Completion",
       "spec_path": "specs/S-0005-validation-driven-completion.md",
-      "status": "planned",
+      "status": "blocked",
       "priority": "critical",
       "labels": [
         "foundation",
@@ -33,7 +33,7 @@
       "id": "S-0002",
       "title": "Felix Backend API Server",
       "spec_path": "specs/S-0002-backend-api-server.md",
-      "status": "planned",
+      "status": "complete",
       "priority": "high",
       "labels": [
         "backend",
