@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { felixApi, Requirement, SpecContent, RunHistoryResponse, RunHistoryEntry } from '../services/felixApi';
+import { felixApi, Requirement, RunHistoryResponse, RunHistoryEntry } from '../services/felixApi';
 import { marked } from 'marked';
 
 // Status badge styles matching RequirementsKanban
