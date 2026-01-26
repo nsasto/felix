@@ -3,7 +3,8 @@
   "executor": {
     "mode": "local",
     "max_iterations": 100,
-    "default_mode": "building",
+    "default_mode": "planning",
+    "_comment_default_mode": "Options: planning, building",
     "auto_transition": true
   },
   "agent": {
@@ -24,12 +25,18 @@
   },
   "backpressure": {
     "enabled": true,
+    "_comment_enabled": "Options: true, false - Enable backpressure command execution and retry logic",
     "commands": [],
-    "max_retries": 3
+    "_comment_commands": "List of PowerShell commands to run for backpressure validation",
+    "max_retries": 3,
+    "_comment_max_retries": "Number of retry attempts before marking requirement as blocked"
   },
   "validation": {
     "mark_blocked_on_failure": true,
+    "_comment_mark_blocked": "Options: true, false - Mark requirement as blocked when validation fails",
     "exit_on_blocked": true,
-    "max_validation_retries": 1
+    "_comment_exit_on_blocked": "Options: true, false - Exit agent when requirement is marked blocked",
+    "max_validation_retries": 1,
+    "_comment_max_validation_retries": "Number of validation retry attempts before marking requirement as blocked"
   }
 }
