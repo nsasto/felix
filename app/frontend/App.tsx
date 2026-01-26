@@ -24,6 +24,7 @@ import SpecsEditor from './components/SpecsEditor';
 import RunMonitor from './components/RunMonitor';
 import ConfigPanel from './components/ConfigPanel';
 import PlanViewer from './components/PlanViewer';
+import SettingsScreen from './components/SettingsScreen';
 import { marked } from 'marked';
 
 const INITIAL_TASKS: Task[] = [
@@ -39,8 +40,8 @@ const INITIAL_ASSETS: MarkdownAsset[] = [
   { id: 'a3', name: 'ARCH.md', content: '# Architecture Overview\n\n| Component | Responsibility | Tech |\n| :--- | :--- | :--- |\n| UI Layer | React / Tailwind | Frontend |\n| Reasoning | Gemini 3 Pro | Intelligence |\n| Storage | Cloud Sync | Data |\n\n> "Felix is not just a tool, it is a collaborator in the engineering process."', lastEdited: Date.now() },
 ];
 
-// Extended UI state to include projects, config, and plan views
-type ExtendedUIState = UIState | 'projects' | 'config' | 'plan';
+// Extended UI state to include projects, config, plan, and settings views
+type ExtendedUIState = UIState | 'projects' | 'config' | 'plan' | 'settings';
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
@@ -640,6 +641,18 @@ export const executeTask = (taskId: string) => {
           </button>
         </div>
         <div className="mt-auto flex flex-col items-center gap-4">
+          {/* Settings button */}
+          <button 
+            onClick={() => setUiState('settings')}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === 'settings' ? 'bg-slate-800 text-felix-400 shadow-md border border-slate-700/50' : 'text-slate-600 hover:text-slate-300 hover:bg-slate-800/30'}`}
+            title="Settings"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {uiState === 'settings' && <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>}
+          </button>
           {/* Backend status indicator */}
           <div 
             className={`w-2 h-2 rounded-full ${
@@ -664,7 +677,8 @@ export const executeTask = (taskId: string) => {
                 {uiState === 'assets' && <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/20"></div>}
                 {uiState === 'config' && <div className="w-2 h-2 rounded-full bg-slate-400 shadow-lg shadow-slate-400/20"></div>}
                 {uiState === 'plan' && <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/20"></div>}
-                {uiState === 'projects' ? 'Projects' : uiState === 'kanban' ? 'System Board' : uiState === 'canvas' ? 'Orchestration Canvas' : uiState === 'assets' ? 'Specifications' : uiState === 'config' ? 'Configuration' : uiState === 'plan' ? 'Project README' : 'Workspace Assets'}
+                {uiState === 'settings' && <div className="w-2 h-2 rounded-full bg-purple-400 shadow-lg shadow-purple-400/20"></div>}
+                {uiState === 'projects' ? 'Projects' : uiState === 'kanban' ? 'System Board' : uiState === 'canvas' ? 'Orchestration Canvas' : uiState === 'assets' ? 'Specifications' : uiState === 'config' ? 'Configuration' : uiState === 'plan' ? 'Project README' : uiState === 'settings' ? 'Settings' : 'Workspace Assets'}
               </h2>
               <div className="h-4 w-[1px] bg-slate-800 mx-2"></div>
               <span className="text-[10px] font-mono text-slate-500 truncate max-w-[300px] hover:text-slate-300 transition-colors cursor-default">
@@ -747,6 +761,23 @@ export const executeTask = (taskId: string) => {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#050608]">
               <span className="text-sm text-slate-500">Select a project to view README</span>
+              <button 
+                onClick={() => setUiState('projects')}
+                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+              >
+                Go to Projects
+              </button>
+            </div>
+          )
+        ) : uiState === 'settings' ? (
+          selectedProjectId ? (
+            <SettingsScreen 
+              projectId={selectedProjectId}
+              onBack={() => setUiState('projects')}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#050608]">
+              <span className="text-sm text-slate-500">Select a project to view settings</span>
               <button 
                 onClick={() => setUiState('projects')}
                 className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"

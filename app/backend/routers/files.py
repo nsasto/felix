@@ -435,7 +435,7 @@ async def update_requirements(
             "requirements": [r.model_dump() for r in request.requirements]
         }
         
-        req_path.write_text(json.dumps(requirements_data, indent=2), encoding='utf-8')
+        req_path.write_text(json.dumps(requirements_data, indent=2), encoding='utf-8-sig')
         
         return RequirementsContent(
             requirements=request.requirements,
@@ -453,7 +453,7 @@ async def create_spec(
     project_id: str = PathParam(..., description="Project ID")
 ):
     """
-    Create a new spec file.
+    Create a new spec file and add it to requirements.json.
     
     Returns 409 Conflict if the file already exists.
     Validates path against project policies (allowlist/denylist).
@@ -481,7 +481,49 @@ async def create_spec(
         raise HTTPException(status_code=409, detail=f"Spec file already exists: {request.filename}")
     
     try:
+        # Write the spec file
         spec_path.write_text(request.content, encoding='utf-8')
+        
+        # Extract spec ID and title from filename (e.g., "S-0007-settings-page.md")
+        import re
+        from datetime import datetime
+        
+        match = re.match(r'^(S-\d{4})-(.+)\.md$', request.filename)
+        if match:
+            spec_id = match.group(1)
+            title_slug = match.group(2)
+            # Convert slug to title (e.g., "settings-page" -> "Settings Page")
+            title = ' '.join(word.capitalize() for word in title_slug.split('-'))
+            
+            # Update requirements.json
+            req_path = project_path / "felix" / "requirements.json"
+            if req_path.exists():
+                try:
+                    data = json.loads(req_path.read_text(encoding='utf-8-sig'))
+                    requirements = data.get("requirements", [])
+                    
+                    # Check if this requirement already exists
+                    if not any(r.get("id") == spec_id for r in requirements):
+                        # Add new requirement
+                        new_requirement = {
+                            "id": spec_id,
+                            "title": title,
+                            "spec_path": f"specs/{request.filename}",
+                            "status": "draft",
+                            "priority": "medium",
+                            "labels": [],
+                            "depends_on": [],
+                            "updated_at": datetime.now().strftime("%Y-%m-%d")
+                        }
+                        requirements.append(new_requirement)
+                        
+                        # Write updated requirements
+                        data["requirements"] = requirements
+                        req_path.write_text(json.dumps(data, indent=4), encoding='utf-8-sig')
+                except Exception as req_err:
+                    # Log error but don't fail the spec creation
+                    print(f"Warning: Failed to update requirements.json: {req_err}")
+        
         return SpecContent(filename=request.filename, content=request.content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create spec: {str(e)}")
@@ -782,7 +824,7 @@ async def update_requirement_status(
             raise HTTPException(status_code=404, detail=f"Requirement not found: {requirement_id}")
         
         # Write back the updated requirements
-        req_path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        req_path.write_text(json.dumps(data, indent=2), encoding='utf-8-sig')
         
         # Get plan info for response
         plan_info = find_plan_for_requirement(project_path, requirement_id)
