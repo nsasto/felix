@@ -2,9 +2,19 @@
     "current_requirement_id":  "S-0001",
     "last_run_id":  null,
     "last_mode":  "building",
-    "last_iteration_outcome":  "error",
-    "updated_at":  "2026-01-26T13:12:32.2847194+00:00",
-    "current_iteration":  1,
+    "last_iteration_outcome":  "blocked",
+    "updated_at":  "2026-01-26T13:15:16.3718127+00:00",
+    "current_iteration":  2,
     "status":  "running",
-    "blocked_task":  null
+    "blocked_task":  {
+                         "iteration":  1,
+                         "description":  "Unknown task",
+                         "retry_count":  1,
+                         "max_retries":  3,
+                         "blocked_at":  "2026-01-26T13:15:16.0782202+00:00",
+                         "reason":  "validation_failed",
+                         "failed_commands":  [
+                                                 "[build] npm run build (exit: -1)"
+                                             ]
+                     }
 }
