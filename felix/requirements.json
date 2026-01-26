@@ -44,11 +44,11 @@
       "id": "S-0004",
       "title": "Artifact Templates and Scaffolding",
       "spec_path": "specs/S-0004-artifact-templates.md",
-      "status": "in_progress",
+      "status": "done",
       "priority": "medium",
       "labels": ["tooling", "dx"],
       "depends_on": ["S-0005"],
-      "updated_at": "2026-01-25"
+      "updated_at": "2026-01-26"
     },
     {
       "id": "S-0006",
