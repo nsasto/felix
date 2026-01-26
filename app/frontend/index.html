@@ -42,10 +42,144 @@
   </script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* ============================================
+       Theme System: CSS Custom Properties
+       ============================================ */
+    
+    /* Dark Theme (default) */
+    :root, .dark {
+      /* Background colors */
+      --bg-deepest: #050608;
+      --bg-deep: #0a0c10;
+      --bg-base: #0d1117;
+      --bg-elevated: #161b22;
+      --bg-surface: #21262d;
+      
+      /* Text colors */
+      --text-primary: #f1f5f9;
+      --text-secondary: #c9d1d9;
+      --text-tertiary: #8b949e;
+      --text-muted: #6e7781;
+      --text-faint: #484f58;
+      
+      /* Border colors */
+      --border-default: rgba(48, 54, 61, 0.6);
+      --border-muted: rgba(48, 54, 61, 0.4);
+      --border-subtle: rgba(48, 54, 61, 0.2);
+      
+      /* Interactive colors */
+      --hover-bg: rgba(31, 41, 55, 0.5);
+      --active-bg: rgba(31, 41, 55, 0.8);
+      --selected-bg: rgba(115, 142, 241, 0.1);
+      
+      /* Accent colors (felix purple - same in both themes) */
+      --accent-primary: #738ef1;
+      --accent-secondary: #5268e8;
+      --accent-tertiary: #9db4f7;
+      
+      /* Status colors */
+      --status-success: #3fb950;
+      --status-warning: #d29922;
+      --status-error: #f85149;
+      --status-info: #58a6ff;
+      
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+      
+      /* Scrollbar */
+      --scrollbar-thumb: #1f2937;
+      --scrollbar-thumb-hover: #374151;
+      
+      /* Code/Markdown specific */
+      --code-bg: #1e293b;
+      --code-text: #738ef1;
+      --pre-bg: #0a0c10;
+      --pre-border: #1e293b;
+      --blockquote-bg: rgba(82, 104, 232, 0.05);
+      --table-header-bg: #1e293b;
+    }
+    
+    /* Light Theme */
+    .light {
+      /* Background colors */
+      --bg-deepest: #f0f2f5;
+      --bg-deep: #f6f8fa;
+      --bg-base: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-surface: #f6f8fa;
+      
+      /* Text colors */
+      --text-primary: #24292f;
+      --text-secondary: #57606a;
+      --text-tertiary: #6e7781;
+      --text-muted: #8b949e;
+      --text-faint: #afb8c1;
+      
+      /* Border colors */
+      --border-default: rgba(208, 215, 222, 0.8);
+      --border-muted: rgba(208, 215, 222, 0.6);
+      --border-subtle: rgba(208, 215, 222, 0.4);
+      
+      /* Interactive colors */
+      --hover-bg: rgba(208, 215, 222, 0.4);
+      --active-bg: rgba(208, 215, 222, 0.6);
+      --selected-bg: rgba(82, 104, 232, 0.08);
+      
+      /* Accent colors (darker for light theme contrast) */
+      --accent-primary: #5268e8;
+      --accent-secondary: #4152d6;
+      --accent-tertiary: #738ef1;
+      
+      /* Status colors (slightly adjusted for light bg) */
+      --status-success: #1a7f37;
+      --status-warning: #9a6700;
+      --status-error: #cf222e;
+      --status-info: #0969da;
+      
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+      
+      /* Scrollbar */
+      --scrollbar-thumb: #d0d7de;
+      --scrollbar-thumb-hover: #afb8c1;
+      
+      /* Code/Markdown specific */
+      --code-bg: #f6f8fa;
+      --code-text: #5268e8;
+      --pre-bg: #f6f8fa;
+      --pre-border: #d0d7de;
+      --blockquote-bg: rgba(82, 104, 232, 0.05);
+      --table-header-bg: #f6f8fa;
+    }
+    
+    /* Theme transition for smooth switching */
+    html {
+      transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    }
+    
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.2s ease-in-out, 
+                  border-color 0.2s ease-in-out, 
+                  color 0.2s ease-in-out,
+                  box-shadow 0.2s ease-in-out !important;
+    }
+    
+    /* ============================================
+       Base Styles
+       ============================================ */
+    
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #050608;
-      color: #f1f5f9;
+      background-color: var(--bg-deepest);
+      color: var(--text-primary);
       margin: 0;
       overflow: hidden;
     }
@@ -60,11 +194,11 @@
       background: transparent;
     }
     .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #1f2937;
+      background: var(--scrollbar-thumb);
       border-radius: 10px;
     }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: #374151;
+      background: var(--scrollbar-thumb-hover);
     }
     
     .animate-in {
@@ -72,21 +206,38 @@
     }
 
     /* Markdown Preview Styling */
-    .markdown-preview h1 { font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; color: #ffffff; border-bottom: 2px solid #1e293b; padding-bottom: 0.75rem; letter-spacing: -0.025em; }
-    .markdown-preview h2 { font-size: 1.75rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1rem; color: #f8fafc; border-bottom: 1px solid #1e293b/50; padding-bottom: 0.25rem; }
-    .markdown-preview h3 { font-size: 1.35rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #e2e8f0; }
-    .markdown-preview p { margin-bottom: 1.25rem; line-height: 1.75; color: #94a3b8; font-size: 0.95rem; }
-    .markdown-preview ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; color: #94a3b8; }
+    .markdown-preview h1 { font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border-default); padding-bottom: 0.75rem; letter-spacing: -0.025em; }
+    .markdown-preview h2 { font-size: 1.75rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1rem; color: var(--text-primary); border-bottom: 1px solid var(--border-muted); padding-bottom: 0.25rem; }
+    .markdown-preview h3 { font-size: 1.35rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem; color: var(--text-secondary); }
+    .markdown-preview p { margin-bottom: 1.25rem; line-height: 1.75; color: var(--text-tertiary); font-size: 0.95rem; }
+    .markdown-preview ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-tertiary); }
     .markdown-preview li { margin-bottom: 0.5rem; }
     .markdown-preview li input[type="checkbox"] { margin-right: 0.5rem; pointer-events: none; }
-    .markdown-preview code { font-family: 'Fira Code', monospace; background-color: #1e293b; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.875em; color: #738ef1; }
-    .markdown-preview pre { background: #0a0c10 !important; border: 1px solid #1e293b !important; border-radius: 12px !important; padding: 1.25rem !important; margin: 1.5rem 0 !important; overflow-x: auto; }
-    .markdown-preview blockquote { border-left: 4px solid #5268e8; padding: 0.75rem 0 0.75rem 1.5rem; font-style: italic; color: #64748b; background: rgba(82, 104, 232, 0.05); border-radius: 0 8px 8px 0; margin-bottom: 1.5rem; }
-    .markdown-preview a { color: #738ef1; text-decoration: none; font-weight: 500; }
-    .markdown-preview a:hover { color: #9db4f7; text-decoration: underline; }
-    .markdown-preview table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1px solid #1e293b; border-radius: 8px; overflow: hidden; }
-    .markdown-preview th { background: #1e293b; color: #f8fafc; text-align: left; padding: 0.75rem 1rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .markdown-preview td { padding: 0.75rem 1rem; border-bottom: 1px solid #1e293b; color: #94a3b8; font-size: 0.9rem; }
+    .markdown-preview code { font-family: 'Fira Code', monospace; background-color: var(--code-bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.875em; color: var(--code-text); }
+    .markdown-preview pre { background: var(--pre-bg) !important; border: 1px solid var(--pre-border) !important; border-radius: 12px !important; padding: 1.25rem !important; margin: 1.5rem 0 !important; overflow-x: auto; }
+    .markdown-preview blockquote { border-left: 4px solid var(--accent-secondary); padding: 0.75rem 0 0.75rem 1.5rem; font-style: italic; color: var(--text-muted); background: var(--blockquote-bg); border-radius: 0 8px 8px 0; margin-bottom: 1.5rem; }
+    .markdown-preview a { color: var(--accent-primary); text-decoration: none; font-weight: 500; }
+    .markdown-preview a:hover { color: var(--accent-tertiary); text-decoration: underline; }
+    .markdown-preview table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1px solid var(--border-default); border-radius: 8px; overflow: hidden; }
+    .markdown-preview th { background: var(--table-header-bg); color: var(--text-primary); text-align: left; padding: 0.75rem 1rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .markdown-preview td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-default); color: var(--text-tertiary); font-size: 0.9rem; }
+    
+    /* ============================================
+       Theme-aware utility classes for components
+       ============================================ */
+    .theme-bg-deepest { background-color: var(--bg-deepest); }
+    .theme-bg-deep { background-color: var(--bg-deep); }
+    .theme-bg-base { background-color: var(--bg-base); }
+    .theme-bg-elevated { background-color: var(--bg-elevated); }
+    .theme-bg-surface { background-color: var(--bg-surface); }
+    
+    .theme-text-primary { color: var(--text-primary); }
+    .theme-text-secondary { color: var(--text-secondary); }
+    .theme-text-tertiary { color: var(--text-tertiary); }
+    .theme-text-muted { color: var(--text-muted); }
+    
+    .theme-border { border-color: var(--border-default); }
+    .theme-border-muted { border-color: var(--border-muted); }
   </style>
 <script type="importmap">
 {
