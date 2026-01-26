@@ -268,6 +268,31 @@ function Resolve-PythonCommand {
     throw "Python executable not found. Set felix/config.json -> python.executable (and optional python.args) or install Python."
 }
 
+function Invoke-RequirementValidation {
+    <#
+    .SYNOPSIS
+    Runs scripts/validate-requirement.py with a resolved Python command
+    #>
+    param(
+        [hashtable]$PythonInfo,
+        [string]$ValidationScript,
+        [string]$RequirementId
+    )
+    
+    $args = @()
+    if ($PythonInfo.args) {
+        $args += @($PythonInfo.args)
+    }
+    $args += @($ValidationScript, $RequirementId)
+    
+    $cmdParts = @($PythonInfo.cmd) + $args
+    $quoted = $cmdParts | ForEach-Object { '"' + ($_ -replace '"', '\\"') + '"' }
+    $commandLine = $quoted -join ' '
+    
+    $output = & cmd /c $commandLine 2>&1
+    return @{ output = $output; exitCode = $LASTEXITCODE }
+}
+
 function Get-BackpressureCommands {
     <#
     .SYNOPSIS
@@ -1029,8 +1054,9 @@ Fix the validation issues to unblock progress.
                     }
                     
                     try {
-                        $validationOutput = & $pythonInfo.cmd @($pythonInfo.args) $validationScript $currentReq.id 2>&1
-                        $validationExitCode = $LASTEXITCODE
+                        $validationResult = Invoke-RequirementValidation -PythonInfo $pythonInfo -ValidationScript $validationScript -RequirementId $currentReq.id
+                        $validationOutput = $validationResult.output
+                        $validationExitCode = $validationResult.exitCode
                         
                         Write-Host $validationOutput
                         
@@ -1091,8 +1117,9 @@ Fix the validation issues to unblock progress.
                 }
                 
                 try {
-                    $validationOutput = & $pythonInfo.cmd @($pythonInfo.args) $validationScript $currentReq.id 2>&1
-                    $validationExitCode = $LASTEXITCODE
+                    $validationResult = Invoke-RequirementValidation -PythonInfo $pythonInfo -ValidationScript $validationScript -RequirementId $currentReq.id
+                    $validationOutput = $validationResult.output
+                    $validationExitCode = $validationResult.exitCode
                     
                     Write-Host $validationOutput
                     

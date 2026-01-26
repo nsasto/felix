@@ -281,7 +281,7 @@ Felix maintains its state in a `felix/` directory and execution evidence in `run
 
 ## References
 
-[1]: https://docs.google.com/document/d/1UB9ei9sJhf5yWe3Ry86P8R6P2lBJhLPY6LlhO8CZDNI/edit "The Ralph Playbook by Clayton Farr"
+[1]: https://github.com/ClaytonFarr/ralph-playbook "The Ralph Playbook by Clayton Farr"
 [2]: https://github.com/snarktank/ralph "snarktank/ralph - Ralph Playbook reference implementation"
 [3]: https://github.com/snarktank/ralph "snarktank/ralph - Autonomous PRD-driven loop implementation"
 [4]: https://github.com/mikeyobrien/ralph-orchestrator "mikeyobrien/ralph-orchestrator - Orchestration framework variant"
