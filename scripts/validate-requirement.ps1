@@ -513,10 +513,17 @@ function Get-LabelBasedCommands {
     if ($Labels -contains "frontend") {
         $frontendPath = Join-Path $ProjectRoot "app/frontend"
         if (Test-Path $frontendPath) {
-            $commands += @{
-                Name = "frontend tests"
-                Command = "npm test"
-                WorkingDir = $frontendPath
+            # Check if package.json has a test script
+            $packageJsonPath = Join-Path $frontendPath "package.json"
+            if (Test-Path $packageJsonPath) {
+                $packageJson = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
+                if ($packageJson.scripts.test) {
+                    $commands += @{
+                        Name = "frontend tests"
+                        Command = "npm test"
+                        WorkingDir = $frontendPath
+                    }
+                }
             }
         }
     }
