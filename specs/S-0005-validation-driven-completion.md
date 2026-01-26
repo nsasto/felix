@@ -65,7 +65,7 @@ Specs should use markdown checklist format. Use "## Validation Criteria" for tes
 ### Validation Script Behavior
 
 ```python
-# scripts/validate-requirement.py S-0002
+# py -3 scripts/validate-requirement.py S-0002
 # 1. Parse specs/S-0002-*.md for acceptance criteria
 # 2. Execute each criterion's command
 # 3. Verify expected outcomes

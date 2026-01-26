@@ -215,6 +215,59 @@ function Update-RequirementStatus {
     }
 }
 
+function Resolve-PythonCommand {
+    <#
+    .SYNOPSIS
+    Resolves a usable Python command (application only) with optional args
+    #>
+    param(
+        [object]$Config
+    )
+    
+    $pythonCmd = $null
+    $pythonArgs = @()
+    
+    if ($Config -and $Config.python -and $Config.python.executable) {
+        $candidate = $Config.python.executable
+        if ($Config.python.args) {
+            $pythonArgs = @($Config.python.args)
+        }
+        
+        if (Test-Path $candidate) {
+            $pythonCmd = (Resolve-Path $candidate).Path
+        }
+        else {
+            $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+            if ($cmd -and $cmd.CommandType -eq "Application") {
+                $pythonCmd = $cmd.Source
+            }
+        }
+        
+        if (-not $pythonCmd) {
+            throw "Python executable not found or not an application: $candidate"
+        }
+        
+        return @{ cmd = $pythonCmd; args = $pythonArgs }
+    }
+    
+    $cmd = Get-Command py -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.CommandType -eq "Application") {
+        return @{ cmd = $cmd.Source; args = @("-3") }
+    }
+    
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.CommandType -eq "Application") {
+        return @{ cmd = $cmd.Source; args = @() }
+    }
+    
+    $cmd = Get-Command python3 -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.CommandType -eq "Application") {
+        return @{ cmd = $cmd.Source; args = @() }
+    }
+    
+    throw "Python executable not found. Set felix/config.json -> python.executable (and optional python.args) or install Python."
+}
+
 function Get-BackpressureCommands {
     <#
     .SYNOPSIS
@@ -500,6 +553,16 @@ $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
 $maxIterations = $config.executor.max_iterations
 $autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
+
+# Resolve python upfront (hard stop if unavailable)
+$pythonInfo = $null
+try {
+    $pythonInfo = Resolve-PythonCommand -Config $config
+}
+catch {
+    Write-Host "[VALIDATION] ❌ Python resolution failed: $_"
+    exit 1
+}
 
 Write-Host "Max iterations: $maxIterations"
 Write-Host ""
@@ -960,31 +1023,30 @@ Fix the validation issues to unblock progress.
                     $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
                     $validationPassed = $false
                     
-                    if (Test-Path $validationScript) {
-                        try {
-                            $validationOutput = python "$validationScript" $currentReq.id 2>&1
-                            $validationExitCode = $LASTEXITCODE
-                            
-                            Write-Host $validationOutput
-                            
-                            if ($validationExitCode -eq 0) {
-                                Write-Host ""
-                                Write-Host "[VALIDATION] ✅ Validation PASSED!"
-                                $validationPassed = $true
-                            }
-                            else {
-                                Write-Host ""
-                                Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
-                            }
+                    if (-not (Test-Path $validationScript)) {
+                        Write-Host "[VALIDATION] ❌ Validation script not found at $validationScript"
+                        exit 1
+                    }
+                    
+                    try {
+                        $validationOutput = & $pythonInfo.cmd @($pythonInfo.args) $validationScript $currentReq.id 2>&1
+                        $validationExitCode = $LASTEXITCODE
+                        
+                        Write-Host $validationOutput
+                        
+                        if ($validationExitCode -eq 0) {
+                            Write-Host ""
+                            Write-Host "[VALIDATION] ✅ Validation PASSED!"
+                            $validationPassed = $true
                         }
-                        catch {
-                            Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                        else {
+                            Write-Host ""
+                            Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
                         }
                     }
-                    else {
-                        Write-Host "[VALIDATION] Warning: Validation script not found at $validationScript"
-                        Write-Host "[VALIDATION] Skipping validation - marking complete anyway"
-                        $validationPassed = $true
+                    catch {
+                        Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                        exit 1
                     }
                     
                     if ($validationPassed) {
@@ -1023,31 +1085,30 @@ Fix the validation issues to unblock progress.
                 $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
                 $validationPassed = $false
                 
-                if (Test-Path $validationScript) {
-                    try {
-                        $validationOutput = python "$validationScript" $currentReq.id 2>&1
-                        $validationExitCode = $LASTEXITCODE
-                        
-                        Write-Host $validationOutput
-                        
-                        if ($validationExitCode -eq 0) {
-                            Write-Host ""
-                            Write-Host "[VALIDATION] ✅ Validation PASSED!"
-                            $validationPassed = $true
-                        }
-                        else {
-                            Write-Host ""
-                            Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
-                        }
+                if (-not (Test-Path $validationScript)) {
+                    Write-Host "[VALIDATION] ❌ Validation script not found at $validationScript"
+                    exit 1
+                }
+                
+                try {
+                    $validationOutput = & $pythonInfo.cmd @($pythonInfo.args) $validationScript $currentReq.id 2>&1
+                    $validationExitCode = $LASTEXITCODE
+                    
+                    Write-Host $validationOutput
+                    
+                    if ($validationExitCode -eq 0) {
+                        Write-Host ""
+                        Write-Host "[VALIDATION] ✅ Validation PASSED!"
+                        $validationPassed = $true
                     }
-                    catch {
-                        Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                    else {
+                        Write-Host ""
+                        Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
                     }
                 }
-                else {
-                    Write-Host "[VALIDATION] Warning: Validation script not found at $validationScript"
-                    Write-Host "[VALIDATION] Skipping validation - marking complete anyway"
-                    $validationPassed = $true
+                catch {
+                    Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                    exit 1
                 }
                 
                 if ($validationPassed) {
