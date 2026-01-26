@@ -33,7 +33,7 @@
       "id": "S-0002",
       "title": "Felix Backend API Server",
       "spec_path": "specs/S-0002-backend-api-server.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "high",
       "labels": [
         "backend",
@@ -49,7 +49,7 @@
       "id": "S-0003",
       "title": "Felix Frontend Observer UI",
       "spec_path": "specs/S-0003-frontend-observer-ui.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "high",
       "labels": [
         "frontend",
@@ -66,7 +66,7 @@
       "id": "S-0004",
       "title": "Artifact Templates and Scaffolding",
       "spec_path": "specs/S-0004-artifact-templates.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "medium",
       "labels": [
         "tooling",
@@ -81,7 +81,7 @@
       "id": "S-0006",
       "title": "Spec Edit Safety and Plan Invalidation",
       "spec_path": "specs/S-0006-spec-edit-safety.md",
-      "status": "complete",
+      "status": "planned",
       "priority": "high",
       "labels": [
         "frontend",
