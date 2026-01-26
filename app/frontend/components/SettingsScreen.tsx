@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { felixApi, FelixConfig } from '../services/felixApi';
+import { felixApi, FelixConfig, Project } from '../services/felixApi';
 import { IconFelix } from './Icons';
 
 interface SettingsScreenProps {
@@ -7,7 +7,7 @@ interface SettingsScreenProps {
   onBack: () => void;
 }
 
-type SettingsCategory = 'general' | 'agent' | 'paths' | 'advanced';
+type SettingsCategory = 'general' | 'agent' | 'paths' | 'advanced' | 'projects';
 
 interface CategoryInfo {
   id: SettingsCategory;
@@ -58,6 +58,16 @@ const CATEGORIES: CategoryInfo[] = [
       </svg>
     ),
   },
+  {
+    id: 'projects',
+    label: 'Projects',
+    description: 'Manage registered projects',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+      </svg>
+    ),
+  },
 ];
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) => {
@@ -69,6 +79,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // Projects state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [registerPath, setRegisterPath] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [unregisteringId, setUnregisteringId] = useState<string | null>(null);
+  const [showUnregisterConfirm, setShowUnregisterConfirm] = useState<string | null>(null);
 
   // Fetch config on mount
   useEffect(() => {
@@ -90,6 +112,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
 
     fetchConfig();
   }, [projectId]);
+
+  // Fetch projects when Projects category is selected
+  const fetchProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const projectsList = await felixApi.listProjects();
+      setProjects(projectsList);
+    } catch (err) {
+      console.error('Failed to fetch projects:', err);
+      setProjectsError(err instanceof Error ? err.message : 'Failed to load projects');
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeCategory === 'projects') {
+      fetchProjects();
+    }
+  }, [activeCategory, fetchProjects]);
 
   // Clear success message after 3 seconds
   useEffect(() => {
@@ -571,6 +614,302 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     );
   };
 
+  // Render Projects settings
+  const renderProjectsSettings = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-200">Projects</h3>
+            <p className="text-xs text-slate-500 mt-1">Manage registered Felix projects</p>
+          </div>
+          <button
+            onClick={() => setShowRegisterForm(true)}
+            className="px-4 py-2 text-xs font-bold bg-felix-600 text-white rounded-lg hover:bg-felix-500 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Register New Project
+          </button>
+        </div>
+
+        {/* Search/Filter */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search projects by name or path..."
+            value={projectSearchQuery}
+            onChange={(e) => setProjectSearchQuery(e.target.value)}
+            className="w-full bg-[#161b22] border border-slate-800/60 rounded-xl px-4 py-3 pl-10 text-sm text-slate-300 outline-none focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20 transition-all"
+          />
+          <svg className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+
+        {/* Register Form Modal */}
+        {showRegisterForm && (
+          <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-bold text-slate-300">Register New Project</h4>
+              <button
+                onClick={() => {
+                  setShowRegisterForm(false);
+                  setRegisterPath('');
+                  setRegisterName('');
+                }}
+                className="text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-2">Project Path *</label>
+                <input
+                  type="text"
+                  placeholder="C:\path\to\your\project"
+                  value={registerPath}
+                  onChange={(e) => setRegisterPath(e.target.value)}
+                  className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none focus:border-felix-500/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] text-slate-600">
+                  Full path to the project directory (must contain specs/ and felix/ directories)
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-2">Project Name (optional)</label>
+                <input
+                  type="text"
+                  placeholder="My Project"
+                  value={registerName}
+                  onChange={(e) => setRegisterName(e.target.value)}
+                  className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-felix-500/50 transition-all"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowRegisterForm(false);
+                    setRegisterPath('');
+                    setRegisterName('');
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!registerPath.trim()) return;
+                    setIsRegistering(true);
+                    try {
+                      await felixApi.registerProject({
+                        path: registerPath.trim(),
+                        name: registerName.trim() || undefined,
+                      });
+                      setShowRegisterForm(false);
+                      setRegisterPath('');
+                      setRegisterName('');
+                      setSuccessMessage('Project registered successfully');
+                      fetchProjects();
+                    } catch (err) {
+                      setProjectsError(err instanceof Error ? err.message : 'Failed to register project');
+                    } finally {
+                      setIsRegistering(false);
+                    }
+                  }}
+                  disabled={!registerPath.trim() || isRegistering}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                    registerPath.trim() && !isRegistering
+                      ? 'bg-felix-600 text-white hover:bg-felix-500'
+                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isRegistering ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Registering...
+                    </>
+                  ) : (
+                    'Register Project'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {projectsLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
+            <span className="text-xs font-mono text-slate-600 uppercase">Loading projects...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {projectsError && !projectsLoading && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <p className="text-xs text-red-400">{projectsError}</p>
+                <button
+                  onClick={fetchProjects}
+                  className="text-[10px] text-red-400/70 hover:text-red-400 mt-2 underline"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!projectsLoading && !projectsError && projects.length === 0 && (
+          <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-8 text-center">
+            <div className="w-12 h-12 bg-slate-800/50 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <h4 className="text-sm font-bold text-slate-400 mb-2">No Projects Registered</h4>
+            <p className="text-xs text-slate-600 max-w-sm mx-auto">
+              Register a Felix project to get started. Projects must have specs/ and felix/ directories.
+            </p>
+          </div>
+        )}
+
+        {/* Projects List */}
+        {!projectsLoading && !projectsError && projects.length > 0 && (
+          <div className="space-y-3">
+            {projects
+              .filter((project) => {
+                if (!projectSearchQuery.trim()) return true;
+                const query = projectSearchQuery.toLowerCase();
+                return (
+                  (project.name?.toLowerCase().includes(query) || false) ||
+                  project.path.toLowerCase().includes(query) ||
+                  project.id.toLowerCase().includes(query)
+                );
+              })
+              .sort((a, b) => new Date(b.registered_at).getTime() - new Date(a.registered_at).getTime())
+              .map((project) => (
+                <div
+                  key={project.id}
+                  className={`bg-[#161b22] border rounded-xl p-5 transition-all ${
+                    project.id === projectId
+                      ? 'border-felix-500/40 bg-felix-500/5'
+                      : 'border-slate-800/60 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-sm font-bold text-slate-200 truncate">
+                          {project.name || project.id}
+                        </h4>
+                        {project.id === projectId && (
+                          <span className="px-2 py-0.5 text-[9px] font-bold bg-felix-500/20 text-felix-400 rounded-full uppercase">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="text-[11px] font-mono text-slate-500 truncate block">
+                          {project.path}
+                        </code>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(project.path)}
+                          className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition-colors"
+                          title="Copy path"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-600 mt-2">
+                        Registered {new Date(project.registered_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => {
+                          // TODO: Open project action - requires callback from parent
+                        }}
+                        className="px-3 py-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-lg hover:bg-slate-800/50 transition-all"
+                      >
+                        Open
+                      </button>
+                      {project.id !== projectId && (
+                        <button
+                          onClick={() => setShowUnregisterConfirm(project.id)}
+                          className="px-3 py-1.5 text-[10px] font-bold text-red-400/70 hover:text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-all"
+                        >
+                          Unregister
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Unregister Confirmation */}
+                  {showUnregisterConfirm === project.id && (
+                    <div className="mt-4 pt-4 border-t border-slate-800/60">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-amber-400">
+                          Remove this project from Felix? Files will remain on disk.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowUnregisterConfirm(null)}
+                            className="px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setUnregisteringId(project.id);
+                              try {
+                                await felixApi.unregisterProject(project.id);
+                                setSuccessMessage('Project unregistered successfully');
+                                setShowUnregisterConfirm(null);
+                                fetchProjects();
+                              } catch (err) {
+                                setProjectsError(err instanceof Error ? err.message : 'Failed to unregister project');
+                              } finally {
+                                setUnregisteringId(null);
+                              }
+                            }}
+                            disabled={unregisteringId === project.id}
+                            className="px-3 py-1.5 text-[10px] font-bold bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all flex items-center gap-2"
+                          >
+                            {unregisteringId === project.id ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                                Removing...
+                              </>
+                            ) : (
+                              'Confirm Unregister'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Render the active category's settings
   const renderActiveSettings = () => {
     switch (activeCategory) {
@@ -582,6 +921,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         return renderPathsSettings();
       case 'advanced':
         return renderAdvancedSettings();
+      case 'projects':
+        return renderProjectsSettings();
       default:
         return null;
     }

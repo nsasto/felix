@@ -800,7 +800,91 @@ def run_command(command: str, cwd: Path, timeout: int = 120) -> Tuple[bool, str,
 
 ---
 
-**Document Version**: 1.0  
+## Spec Writing Best Practices
+
+### Issue 6: Validation Criteria with Backticks Misinterpreted as Commands
+
+**Symptom**: Validation script tries to execute file paths or non-command text as shell commands, causing errors like `'felix' is not recognized as an internal or external command`.
+
+**Root Cause**: The validation script (`validate-requirement.ps1`) extracts text in backticks from acceptance criteria and attempts to execute it as a command. This is designed for criteria like:
+
+- `curl http://localhost:8080/health` (status 200)
+- `pytest tests/` (exit code 0)
+
+But fails when backticks are used for markdown formatting of file paths or technical terms:
+
+- Settings save successfully: Modify setting, save, verify `felix/config.json` updated ❌
+
+**Anti-Pattern**:
+
+```markdown
+## Validation Criteria
+
+- [ ] Settings save successfully: Modify setting, save, verify `felix/config.json` updated
+- [ ] Config loads from file: Check that `config.json` is read correctly
+```
+
+**Pattern**:
+
+```markdown
+## Validation Criteria
+
+<!-- For automated validation with executable commands -->
+
+- [ ] Backend starts: `python app/backend/main.py` (exit code 0)
+- [ ] Health check responds: `curl http://localhost:8080/health` (status 200)
+
+<!-- For manual/UI validation without executable commands -->
+
+- [x] Settings save successfully: Manual verification - modify setting, save, verify config.json updated
+- [x] Config loads from file: Manual verification - check that config.json is read correctly
+```
+
+**Rules for Validation Criteria**:
+
+1. **Backticks = Executable Command**: Only use backticks for shell commands that can be executed
+2. **Manual Checks**: Prefix with "Manual verification -" and mark as [X] to skip automation
+3. **UI/Interaction Tests**: These should always be manual verification (cannot be scripted easily)
+4. **File References**: Don't use backticks for file paths in descriptions
+5. **Exit Code/Status**: Include expected outcome in parentheses for automated checks
+
+**Why This Matters**:
+
+- Validation script parses criteria looking for executable commands in backticks
+- Non-executable text in backticks causes validation failures
+- This breaks the agent loop when all tasks are complete but validation fails
+- Manual verification items prevent this brittleness
+
+**Pattern Examples**:
+
+```markdown
+✅ GOOD - Executable command
+
+- [ ] Tests pass: `cd app/backend && pytest` (exit code 0)
+
+✅ GOOD - Manual verification
+
+- [x] UI displays correctly: Manual verification - open browser, verify layout
+
+❌ BAD - File path in backticks
+
+- [ ] Config persists: Check `felix/config.json` contains new settings
+
+❌ BAD - Non-command in backticks
+
+- [ ] Uses `ConfigPanel.tsx` patterns for consistency
+```
+
+**Migration Strategy**: If you have existing specs with non-command backticks:
+
+1. Remove backticks from file paths and technical terms
+2. Convert UI/interaction tests to manual verification
+3. Keep backticks only for actual executable commands
+4. Mark manual items as [X] to prevent validation attempts
+
+---
+
+**Document Version**: 1.1  
 **Last Updated**: January 26, 2026  
 **Maintainer**: Felix Development Team  
 **Applies To**: Felix Agent v0.1.0+, Windows 10/11, PowerShell 7+, Python 3.8+
