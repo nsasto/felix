@@ -136,6 +136,31 @@ This is **not** operational. Operational details go in `AGENTS.md`.
 
 Felix treats `specs/` as the source of truth for _what should exist_.
 
+### The "Forever" Checkbox
+
+When defining criteria in specs, **leave the checkboxes empty**.
+
+**✅ Do this:**
+
+```markdown
+- [ ] Backend is healthy: `curl localhost:8080/health` (status 200)
+```
+
+_Felix interprets this as:_ "Every time I do work, I will run this curl command. If it passes, the requirement is healthy."
+
+**❌ Do NOT do this:**
+
+```markdown
+- [x] Backend is healthy: `curl localhost:8080/health` (status 200)
+```
+
+_Felix interprets this as:_ "This was verified by a human ages ago. Ignored."
+
+**How do I know it's done?**
+Look at the **Requirement Status** (in the Kanban or CLI), not the checkboxes in the file.
+
+- **Status: Complete** means "All the unchecked boxes in the spec ran successfully."
+
 ---
 
 ## `felix/requirements.json` – structured registry and status

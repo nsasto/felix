@@ -20,9 +20,25 @@ npm install
 
 ## Run Tests
 
+### Backend
+
 ```bash
-# To be added when tests are implemented
+cd app/backend
+pytest tests/ -v
 ```
+
+### Frontend
+
+```bash
+cd app/frontend
+npm test
+```
+
+### Test Structure
+
+- Backend tests: `app/backend/tests/` (pytest)
+- Frontend tests: `app/frontend/src/__tests__/` (Jest/Vitest)
+- Run individual test files: `pytest tests/test_filename.py`
 
 ## Build the Project
 

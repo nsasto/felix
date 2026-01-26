@@ -87,6 +87,21 @@ Felix is built for:
 - audit trails of decisions and changes
 - predictable iteration boundaries
 
+### 5) The Golden Rule of Specs
+
+One of the most unique parts of Felix is how it handles Spec files (`specs/*.md`).
+
+- **Specs are Test Suites, not To-Do Lists.**
+- In a Spec file, `[ ]` means **"Run this test every time."**
+- In a Spec file, `[x]` means **"Skip this test (it's done manually)."**
+
+If the Agent marked your spec items with `[x]` after finishing them, it would be effectively **deleting the test**. We want those tests to run forever to ensure new code doesn't break old features (Regression Testing).
+
+**TL;DR:**
+
+- **Plan Files** (`runs/.../plan.md`) = The To-Do List (Check these off! ✅)
+- **Spec Files** (`specs/...md`) = The Dashboard (Leave these open! 🟢)
+
 ---
 
 ## How Felix works

@@ -435,3 +435,31 @@ For the exact commands to run the backend and frontend, use:
 - `AGENTS.md`
 
 That file is intentionally short so Felix can read it every iteration without getting distracted.
+
+---
+
+## 14) The "Unchecked Box" Philosophy
+
+You might notice that even when a Requirement is marked **COMPLETE**, the checkboxes in the `.md` file are still empty `[ ]`.
+
+**Why doesn't Felix check them off?**
+
+Imagine a Pilot's Pre-flight Checklist:
+
+1.  [ ] Check Fuel
+2.  [ ] Check Flaps
+3.  [ ] Check Radio
+
+If the pilot checks those boxes with a permanent marker on Day 1, **they can never check them again on Day 2.**
+
+**Felix works the same way:**
+
+1.  **The Spec (`specs/S-001.md`) is the Pre-flight Checklist.** We run these checks _every single iteration_ to make sure the "plane" (your app) is still flying correctly.
+2.  **The Plan (`runs/.../plan.md`) is the Flight Log.** The Agent _does_ check these boxes `[x]` as it builds things, so it knows what it built today.
+
+### Summary
+
+| File Type | Purpose              | Checkboxes work like...                                           |
+| :-------- | :------------------- | :---------------------------------------------------------------- |
+| **Spec**  | Validation & Testing | **Use `[ ]`** (Active Test) <br> Use `[x]` (Disabled/Manual Test) |
+| **Plan**  | Construction Steps   | **Use `[x]`** (Task Done)                                         |

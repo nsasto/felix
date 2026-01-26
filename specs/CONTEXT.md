@@ -54,3 +54,12 @@ This file documents product and system context for Felix.
 - Building mode requires a plan
 - One iteration equals one task outcome
 - Backpressure is non-negotiable
+
+## Testing Standards
+
+- All new features require tests
+- Backend: pytest (unit + integration tests)
+- Frontend: Jest/Vitest (component + integration tests)
+- Minimum coverage: Happy path + one error case
+- Tests must pass before marking requirements complete
+- Test files mirror source structure (e.g., `src/foo.py` → `tests/test_foo.py`)
