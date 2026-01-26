@@ -10,7 +10,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models import ProjectRegister, Project, ProjectDetails
+from models import ProjectRegister, ProjectUpdate, Project, ProjectDetails
 import storage
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -51,6 +51,17 @@ async def get_project(project_id: str):
     if not details:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
     return details
+
+
+@router.put("/{project_id}", response_model=Project)
+async def update_project(project_id: str, request: ProjectUpdate):
+    """
+    Update project metadata (name, etc.).
+    """
+    project = storage.update_project(project_id, name=request.name)
+    if project:
+        return project
+    raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
 
 
 @router.delete("/{project_id}")

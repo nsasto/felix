@@ -159,3 +159,23 @@ def unregister_project(project_id: str) -> bool:
         save_projects(store)
         return True
     return False
+
+
+def update_project(project_id: str, name: Optional[str] = None) -> Optional[Project]:
+    """Update a project's metadata"""
+    store = load_projects()
+    
+    for i, project in enumerate(store.projects):
+        if project.id == project_id:
+            # Only update name if provided and non-empty
+            if name is not None:
+                store.projects[i] = Project(
+                    id=project.id,
+                    path=project.path,
+                    name=name if name.strip() else None,
+                    registered_at=project.registered_at
+                )
+            save_projects(store)
+            return store.projects[i]
+    
+    return None

@@ -27,6 +27,10 @@ export interface ProjectRegisterRequest {
   name?: string;
 }
 
+export interface ProjectUpdateRequest {
+  name?: string;
+}
+
 export interface SpecFile {
   filename: string;
   path: string;
@@ -207,6 +211,13 @@ class FelixApiService {
   async unregisterProject(projectId: string): Promise<void> {
     await this.request<{ message: string }>(`/projects/${projectId}`, {
       method: 'DELETE',
+    });
+  }
+
+  async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<Project> {
+    return this.request<Project>(`/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
     });
   }
 
