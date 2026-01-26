@@ -230,8 +230,9 @@ function Update-RequirementStatus {
         $today = Get-Date -Format "yyyy-MM-dd"
         $updatedContent = $updatedContent -replace $datePattern, "`${1}$today`$3"
         
-        # Write back with same encoding (no BOM for JSON compatibility)
-        $updatedContent | Set-Content $RequirementsFilePath -Encoding utf8NoBOM -NoNewline
+        # Write back using .NET method for consistent UTF-8 without BOM across PowerShell versions
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($RequirementsFilePath, $updatedContent, $utf8NoBom)
         
         Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
         Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
