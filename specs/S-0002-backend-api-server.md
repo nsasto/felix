@@ -36,7 +36,7 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 
 ### Agent Spawning & Monitoring
 
-- [x] `POST /api/projects/:id/runs/start` - Spawn PowerShell agent process (felix-agent.ps1) for project
+- [ ] `POST /api/projects/:id/runs/start` - Spawn PowerShell agent process (felix-agent.ps1) for project
 - [x] `POST /api/projects/:id/runs/stop` - Terminate running agent
 - [ ] `GET /api/projects/:id/runs` - List run history
 - [ ] `GET /api/projects/:id/runs/:runId` - Get run details and artifacts
@@ -76,7 +76,7 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 
 ## Validation Criteria
 
-- [ ] Backend starts: `cd app/backend && python main.py` (exit code 0 within 5 seconds, then Ctrl+C)
+- [ ] Backend starts: `cd app/backend && python main.py` (startup within 5 seconds; validator will stop the server)
 - [ ] Health endpoint responds: `curl http://localhost:8080/health` (status 200)
 - [ ] Dependencies installed: `cd app/backend && python -c "import fastapi, uvicorn, websockets, aiofiles, watchfiles, pydantic"` (exit code 0)
 - [ ] CORS configured for frontend: `curl -I -X OPTIONS http://localhost:8080/health -H "Origin: http://localhost:3000"` (includes Access-Control-Allow-Origin)

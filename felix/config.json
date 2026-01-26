@@ -17,6 +17,7 @@
     "args": ["-3"]
   },
   "paths": {
+    "felix_root": ".",
     "specs": "specs",
     "agents": "AGENTS.md",
     "runs": "runs"

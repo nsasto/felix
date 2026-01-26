@@ -290,22 +290,32 @@ function Invoke-RequirementValidation {
         [string]$RequirementId
     )
     
-    # Build flat argument array - pass directly, not splatted
-    $params = @()
-    if ($PythonInfo.args) {
-        $params += $PythonInfo.args
-    }
-    $params += @($ValidationScript, $RequirementId)
+    $pythonExe = $PythonInfo.cmd
+    [array]$pythonArgs = $PythonInfo.args
     
-    # Use call operator with direct array passing
-    # This avoids the py.exe deadlock that occurs with Start-Process -Wait
+    Write-Host "[VALIDATION] Python: $pythonExe"
+    Write-Host "[VALIDATION] Script: $ValidationScript"
+    
+    $prevErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue" # Ensure stderr doesn't crash the loop
+    
     try {
-        $output = & $PythonInfo.cmd $params 2>&1
+        # Fix: Flatten into a single array for clean parameter binding
+        [array]$allArguments = @()
+        if ($pythonArgs) { $allArguments += $pythonArgs }
+        $allArguments += $ValidationScript
+        $allArguments += $RequirementId
+        
+        # Use '@' to splat the array as individual arguments
+        $output = & $pythonExe @allArguments 2>&1
         $exitCode = $LASTEXITCODE
     }
     catch {
         $output = $_.Exception.Message
         $exitCode = 1
+    }
+    finally {
+        $ErrorActionPreference = $prevErrorAction
     }
     
     return @{ output = $output; exitCode = $exitCode }
@@ -642,12 +652,17 @@ if (-not (Test-Path $StateFile)) {
         updated_at             = Get-Date -Format "o"
         current_iteration      = 0
         status                 = "ready"
+        blocked_task           = $null
     }
     $initialState | ConvertTo-Json | Set-Content $StateFile
 }
 
 # Load state
 $state = Get-Content $StateFile -Raw | ConvertFrom-Json
+
+if ($null -eq $state.blocked_task) {
+    $state | Add-Member -MemberType NoteProperty -Name blocked_task -Value $null -Force
+}
 
 # Main iteration loop
 for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
@@ -774,29 +789,64 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Call droid exec (like ralph.ps1)
     Write-Host "Calling droid exec...`n"
     
+    $droidSuccess = $false
+    $droidError = $null
     try {
         $output = $fullPrompt | droid exec --skip-permissions-unsafe 2>&1
-        Write-Host $output
+        $droidSuccess = $true
+    }
+    catch {
+        $droidError = $_
+        Write-Host "ERROR during droid execution: $_"
         
-        # Write output log
-        Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8
+        # Write error report
+        $report = @"
+# Run Report
+
+**Mode:** $mode
+**Iteration:** $iteration
+**Success:** false
+**Timestamp:** $(Get-Date -Format "o")
+
+## Error
+
+``````
+$_
+``````
+
+"@
+        Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
         
-        # ====================================================================
-        # Planning Mode Guardrail Enforcement
-        # ====================================================================
-        $guardrailViolations = $null
-        if ($mode -eq "planning" -and $gitStateBefore) {
+        $state.last_iteration_outcome = "error"
+        $state.status = "error"
+        $state.updated_at = Get-Date -Format "o"
+        $state | ConvertTo-Json | Set-Content $StateFile
+        
+        exit 1
+    }
+    
+    # === Post-droid processing (outside try/catch) ===
+    Write-Host $output
+    
+    # Write output log
+    Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8
+    
+    # ====================================================================
+    # Planning Mode Guardrail Enforcement
+    # ====================================================================
+    $guardrailViolations = $null
+    if ($mode -eq "planning" -and $gitStateBefore) {
+        Write-Host ""
+        Write-Host "[GUARDRAIL] Checking planning mode guardrails..."
+        $guardrailViolations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $gitStateBefore -RunId $runId
+        
+        if ($guardrailViolations.HasViolations) {
             Write-Host ""
-            Write-Host "[GUARDRAIL] Checking planning mode guardrails..."
-            $guardrailViolations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $gitStateBefore -RunId $runId
+            Write-Host "[GUARDRAIL] VIOLATIONS DETECTED - Reverting unauthorized changes..."
+            Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $gitStateBefore -Violations $guardrailViolations
             
-            if ($guardrailViolations.HasViolations) {
-                Write-Host ""
-                Write-Host "[GUARDRAIL] VIOLATIONS DETECTED - Reverting unauthorized changes..."
-                Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $gitStateBefore -Violations $guardrailViolations
-                
-                # Log the violation in the run directory
-                $violationLog = @"
+            # Log the violation in the run directory
+            $violationLog = @"
 # Guardrail Violation Report
 
 **Mode:** planning
@@ -814,25 +864,25 @@ $(($guardrailViolations.UnauthorizedFiles | ForEach-Object { "- $_" }) -join "`n
 
 All unauthorized changes have been reverted.
 "@
-                Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog -Encoding UTF8
-                
-                # Update state with guardrail violation
-                $state.last_iteration_outcome = "guardrail_violation"
-                $state.updated_at = Get-Date -Format "o"
-                $state | ConvertTo-Json | Set-Content $StateFile
-                
-                Write-Host "[GUARDRAIL] Continuing to next iteration after violation cleanup..."
-                Write-Host ""
-                continue  # Skip the rest of this iteration and continue to next
-            }
-            else {
-                Write-Host "[GUARDRAIL] No violations detected - planning mode guardrails passed."
-            }
+            Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog -Encoding UTF8
+            
+            # Update state with guardrail violation
+            $state.last_iteration_outcome = "guardrail_violation"
+            $state.updated_at = Get-Date -Format "o"
+            $state | ConvertTo-Json | Set-Content $StateFile
+            
+            Write-Host "[GUARDRAIL] Continuing to next iteration after violation cleanup..."
+            Write-Host ""
+            continue  # Skip the rest of this iteration and continue to next
         }
-        
-        # Create report
-        $success = $LASTEXITCODE -eq 0
-        $report = @"
+        else {
+            Write-Host "[GUARDRAIL] No violations detected - planning mode guardrails passed."
+        }
+    }
+    
+    # Create report
+    $success = $LASTEXITCODE -eq 0
+    $report = @"
 # Run Report
 
 **Mode:** $mode
@@ -847,67 +897,67 @@ $output
 ``````
 
 "@
-        Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
+    Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
+    
+    # Check for task completion signal (building mode)
+    if ($mode -eq "building" -and $output -match '<promise>TASK_COMPLETE</promise>') {
+        Write-Host ""
+        Write-Host "[TASK DONE] Task completed"
         
-        # Check for task completion signal (building mode)
-        if ($mode -eq "building" -and $output -match '<promise>TASK_COMPLETE</promise>') {
+        # Run backpressure validation BEFORE committing
+        $backpressureResult = Invoke-BackpressureValidation `
+            -WorkingDir $ProjectPath `
+            -AgentsFilePath $AgentsFile `
+            -Config $config `
+            -RunDir $runDir
+        
+        if (-not $backpressureResult.skipped -and -not $backpressureResult.success) {
+            # Backpressure failed - do NOT commit, mark task as blocked
             Write-Host ""
-            Write-Host "[TASK DONE] Task completed"
+            Write-Host "[BACKPRESSURE] ❌ Validation failed - changes will NOT be committed"
+            Write-Host "[BACKPRESSURE] Task marked as BLOCKED pending validation fixes"
             
-            # Run backpressure validation BEFORE committing
-            $backpressureResult = Invoke-BackpressureValidation `
-                -WorkingDir $ProjectPath `
-                -AgentsFilePath $AgentsFile `
-                -Config $config `
-                -RunDir $runDir
+            # Extract task description from output for tracking
+            $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
+            $blockedTaskDesc = if ($matches) { $matches[1].Trim() } else { "Unknown task" }
             
-            if (-not $backpressureResult.skipped -and -not $backpressureResult.success) {
-                # Backpressure failed - do NOT commit, mark task as blocked
+            # Build failed commands summary
+            $failedCmdSummary = @()
+            foreach ($failed in $backpressureResult.failed_commands) {
+                $failedCmdSummary += "[$($failed.type)] $($failed.command) (exit: $($failed.exit_code))"
+            }
+            
+            # Determine retry count - check if this is the same blocked task being retried
+            $retryCount = 1
+            if ($state.blocked_task -and $state.blocked_task.description -eq $blockedTaskDesc) {
+                $retryCount = $state.blocked_task.retry_count + 1
+            }
+            
+            # Get max retries from config (default to 3)
+            $maxRetries = if ($config.backpressure.max_retries) { $config.backpressure.max_retries } else { 3 }
+            
+            # Check if max retries exceeded
+            if ($retryCount -gt $maxRetries) {
                 Write-Host ""
-                Write-Host "[BACKPRESSURE] ❌ Validation failed - changes will NOT be committed"
-                Write-Host "[BACKPRESSURE] Task marked as BLOCKED pending validation fixes"
+                Write-Host "[MAX RETRIES] Task has failed validation $retryCount times (max: $maxRetries)"
+                Write-Host "[MAX RETRIES] Marking task as PERMANENTLY BLOCKED - requires manual intervention"
                 
-                # Extract task description from output for tracking
-                $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
-                $blockedTaskDesc = if ($matches) { $matches[1].Trim() } else { "Unknown task" }
-                
-                # Build failed commands summary
-                $failedCmdSummary = @()
-                foreach ($failed in $backpressureResult.failed_commands) {
-                    $failedCmdSummary += "[$($failed.type)] $($failed.command) (exit: $($failed.exit_code))"
+                $state.last_iteration_outcome = "max_retries_exceeded"
+                $state.status = "max_retries_exceeded"
+                $state.blocked_task = @{
+                    description     = $blockedTaskDesc
+                    blocked_at      = Get-Date -Format "o"
+                    reason          = "max_retries_exceeded"
+                    failed_commands = $failedCmdSummary
+                    iteration       = $iteration
+                    retry_count     = $retryCount
+                    max_retries     = $maxRetries
                 }
+                $state.updated_at = Get-Date -Format "o"
+                $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
                 
-                # Determine retry count - check if this is the same blocked task being retried
-                $retryCount = 1
-                if ($state.blocked_task -and $state.blocked_task.description -eq $blockedTaskDesc) {
-                    $retryCount = $state.blocked_task.retry_count + 1
-                }
-                
-                # Get max retries from config (default to 3)
-                $maxRetries = if ($config.backpressure.max_retries) { $config.backpressure.max_retries } else { 3 }
-                
-                # Check if max retries exceeded
-                if ($retryCount -gt $maxRetries) {
-                    Write-Host ""
-                    Write-Host "[MAX RETRIES] Task has failed validation $retryCount times (max: $maxRetries)"
-                    Write-Host "[MAX RETRIES] Marking task as PERMANENTLY BLOCKED - requires manual intervention"
-                    
-                    $state.last_iteration_outcome = "max_retries_exceeded"
-                    $state.status = "max_retries_exceeded"
-                    $state.blocked_task = @{
-                        description     = $blockedTaskDesc
-                        blocked_at      = Get-Date -Format "o"
-                        reason          = "max_retries_exceeded"
-                        failed_commands = $failedCmdSummary
-                        iteration       = $iteration
-                        retry_count     = $retryCount
-                        max_retries     = $maxRetries
-                    }
-                    $state.updated_at = Get-Date -Format "o"
-                    $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
-                    
-                    # Write max retries report
-                    $maxRetriesReport = @"
+                # Write max retries report
+                $maxRetriesReport = @"
 # Max Retries Exceeded Report
 
 **Task:** $blockedTaskDesc
@@ -925,31 +975,31 @@ $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
 This task requires manual intervention. The agent will not retry automatically.
 Review the validation failures and fix the underlying issues before restarting.
 "@
-                    Set-Content (Join-Path $runDir "max-retries-exceeded.md") $maxRetriesReport -Encoding UTF8
-                    
-                    Write-Host "Exiting due to max retries exceeded..."
-                    exit 2
-                }
+                Set-Content (Join-Path $runDir "max-retries-exceeded.md") $maxRetriesReport -Encoding UTF8
                 
-                Write-Host "[RETRY] Retry attempt $retryCount of $maxRetries"
-                
-                # Update state to indicate blocked task with details
-                $state.last_iteration_outcome = "blocked"
-                $state.status = "blocked"
-                $state.blocked_task = @{
-                    description     = $blockedTaskDesc
-                    blocked_at      = Get-Date -Format "o"
-                    reason          = "validation_failed"
-                    failed_commands = $failedCmdSummary
-                    iteration       = $iteration
-                    retry_count     = $retryCount
-                    max_retries     = $maxRetries
-                }
-                $state.updated_at = Get-Date -Format "o"
-                $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
-                
-                # Write blocked task report to run directory
-                $blockedReport = @"
+                Write-Host "Exiting due to max retries exceeded..."
+                exit 2
+            }
+            
+            Write-Host "[RETRY] Retry attempt $retryCount of $maxRetries"
+            
+            # Update state to indicate blocked task with details
+            $state.last_iteration_outcome = "blocked"
+            $state.status = "blocked"
+            $state.blocked_task = @{
+                description     = $blockedTaskDesc
+                blocked_at      = Get-Date -Format "o"
+                reason          = "validation_failed"
+                failed_commands = $failedCmdSummary
+                iteration       = $iteration
+                retry_count     = $retryCount
+                max_retries     = $maxRetries
+            }
+            $state.updated_at = Get-Date -Format "o"
+            $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
+            
+            # Write blocked task report to run directory
+            $blockedReport = @"
 # Blocked Task Report
 
 **Task:** $blockedTaskDesc
@@ -972,160 +1022,97 @@ $($backpressureResult.output)
 The agent will retry this task in the next iteration ($($maxRetries - $retryCount) attempts remaining).
 Fix the validation issues to unblock progress.
 "@
-                Set-Content (Join-Path $runDir "blocked-task.md") $blockedReport -Encoding UTF8
-                Write-Host "[BLOCKED] Details written to: $(Join-Path $runDir 'blocked-task.md')"
-                
-                # Continue to next iteration - LLM should fix the issues
-                Write-Host "Continuing to next iteration to fix validation issues..."
-                continue
-            }
+            Set-Content (Join-Path $runDir "blocked-task.md") $blockedReport -Encoding UTF8
+            Write-Host "[BLOCKED] Details written to: $(Join-Path $runDir 'blocked-task.md')"
             
-            # Backpressure passed (or was skipped) - clear blocked state and proceed with commit
-            if ($state.blocked_task) {
-                Write-Host "[UNBLOCKED] Previous blocked task is now passing validation"
-                $state.blocked_task = $null
-                $state.status = "running"
-            }
-            
-            $gitStatus = git status --porcelain 2>&1
-            if ($gitStatus -and $LASTEXITCODE -eq 0) {
-                Write-Host "[COMMIT] Uncommitted changes detected, committing..."
-                
-                # Capture git diff before committing for observability
-                Write-Host "[DIFF] Capturing git diff to diff.patch..."
-                Push-Location $ProjectPath
-                try {
-                    # Capture both staged and unstaged changes
-                    $diffOutput = git diff HEAD 2>&1
-                    if ($diffOutput) {
-                        $diffPath = Join-Path $runDir "diff.patch"
-                        Set-Content $diffPath $diffOutput -Encoding UTF8
-                        Write-Host "[DIFF] Git diff captured: $diffPath"
-                    }
-                    else {
-                        Write-Host "[DIFF] No diff content to capture"
-                    }
-                }
-                catch {
-                    Write-Host "[DIFF] Warning: Failed to capture git diff: $_"
-                }
-                finally {
-                    Pop-Location
-                }
-                
-                # Extract task description from output for commit message
-                $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
-                $taskDesc = if ($matches) { $matches[1].Trim() } else { "Task completion" }
-                
-                git add -A 2>&1 | Out-Null
-                $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
-                $commitOutput = git commit -m $commitMsg 2>&1
-                
-                if ($LASTEXITCODE -eq 0) {
-                    $commitHash = git rev-parse --short HEAD 2>&1
-                    Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
-                }
-                else {
-                    Write-Host "[COMMIT] ⚠️ Git commit failed: $commitOutput"
-                }
-            }
-            else {
-                Write-Host "[COMMIT] No changes to commit (task may have been read-only)"
-            }
-            
-            Write-Host "Continuing to next iteration..."
-            # Continue loop to next iteration
+            # Continue to next iteration - LLM should fix the issues
+            Write-Host "Continuing to next iteration to fix validation issues..."
+            continue
         }
         
-        # Check for all tasks completion signal (building mode)
-        if ($mode -eq "building" -and $output -match '<promise>ALL_COMPLETE</promise>') {
-            Write-Host ""
-            Write-Host "[ALL COMPLETE] All tasks done for requirement!"
+        # Backpressure passed (or was skipped) - clear blocked state and proceed with commit
+        if ($state.blocked_task) {
+            Write-Host "[UNBLOCKED] Previous blocked task is now passing validation"
+            $state.blocked_task = $null
+            $state.status = "running"
+        }
+        
+        $gitStatus = git status --porcelain 2>&1
+        if ($gitStatus -and $LASTEXITCODE -eq 0) {
+            Write-Host "[COMMIT] Uncommitted changes detected, committing..."
             
-            # Verify plan actually has no remaining tasks
-            $planPattern = "plan-$($currentReq.id).md"
-            $existingPlans = Get-ChildItem $RunsDir -Recurse -Filter $planPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
-            
-            if ($existingPlans -and $existingPlans.Count -gt 0) {
-                $latestPlanPath = $existingPlans[0].FullName
-                $planContent = Get-Content $latestPlanPath -Raw
-                
-                # Check for unchecked tasks (- [ ])
-                $uncheckedTasks = ($planContent | Select-String '- \[ \]' -AllMatches).Matches.Count
-                
-                if ($uncheckedTasks -gt 0) {
-                    Write-Host "[WARNING] LLM signaled ALL_COMPLETE but $uncheckedTasks unchecked tasks remain in plan"
-                    Write-Host "Ignoring signal and continuing to next iteration..."
+            # Capture git diff before committing for observability
+            Write-Host "[DIFF] Capturing git diff to diff.patch..."
+            Push-Location $ProjectPath
+            try {
+                # Capture both staged and unstaged changes
+                $diffOutput = git diff HEAD 2>&1
+                if ($diffOutput) {
+                    $diffPath = Join-Path $runDir "diff.patch"
+                    Set-Content $diffPath $diffOutput -Encoding UTF8
+                    Write-Host "[DIFF] Git diff captured: $diffPath"
                 }
                 else {
-                    # All tasks truly complete - run validation before marking complete
-                    Write-Host ""
-                    Write-Host "[VALIDATION] All plan tasks complete. Running validation..."
-                    
-                    # Run validation script
-                    $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
-                    $validationPassed = $false
-                    
-                    if (-not (Test-Path $validationScript)) {
-                        Write-Host "[VALIDATION] ❌ Validation script not found at $validationScript"
-                        exit 1
-                    }
-                    
-                    try {
-                        $validationResult = Invoke-RequirementValidation -PythonInfo $pythonInfo -ValidationScript $validationScript -RequirementId $currentReq.id
-                        $validationOutput = $validationResult.output
-                        $validationExitCode = $validationResult.exitCode
-                        
-                        Write-Host $validationOutput
-                        
-                        if ($validationExitCode -eq 0) {
-                            Write-Host ""
-                            Write-Host "[VALIDATION] ✅ Validation PASSED!"
-                            $validationPassed = $true
-                        }
-                        else {
-                            Write-Host ""
-                            Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
-                        }
-                    }
-                    catch {
-                        Write-Host "[VALIDATION] ❌ Error running validation: $_"
-                        exit 1
-                    }
-                    
-                    if ($validationPassed) {
-                        # Validation passed - mark requirement complete
-                        $state.status = "complete"
-                        $state.last_iteration_outcome = "complete"
-                        $state.updated_at = Get-Date -Format "o"
-                        $state | ConvertTo-Json | Set-Content $StateFile
-                        
-                        # Update requirements.json to mark requirement as complete
-                        Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
-                        
-                        Write-Host ""
-                        Write-Host "Felix Agent complete - all tasks done and validated!"
-                        exit 0
-                    }
-                    else {
-                        # Validation failed - emit STUCK signal
-                        Write-Host ""
-                        Write-Host "[STUCK] Tasks complete but validation failed!"
-                        Write-Host "<promise>STUCK</promise>"
-                        
-                        $state.last_iteration_outcome = "validation_failed"
-                        $state.updated_at = Get-Date -Format "o"
-                        $state | ConvertTo-Json | Set-Content $StateFile
-                        
-                        # Continue to next iteration to allow LLM to fix issues
-                    }
+                    Write-Host "[DIFF] No diff content to capture"
                 }
             }
+            catch {
+                Write-Host "[DIFF] Warning: Failed to capture git diff: $_"
+            }
+            finally {
+                Pop-Location
+            }
+            
+            # Extract task description from output for commit message
+            $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
+            $taskDesc = if ($matches) { $matches[1].Trim() } else { "Task completion" }
+            
+            git add -A 2>&1 | Out-Null
+            $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
+            $commitOutput = git commit -m $commitMsg 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                $commitHash = git rev-parse --short HEAD 2>&1
+                Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
+            }
             else {
-                # No plan found - run validation anyway
+                Write-Host "[COMMIT] ⚠️ Git commit failed: $commitOutput"
+            }
+        }
+        else {
+            Write-Host "[COMMIT] No changes to commit (task may have been read-only)"
+        }
+        
+        Write-Host "Continuing to next iteration..."
+        # Continue loop to next iteration
+    }
+    
+    # Check for all tasks completion signal (building mode)
+    if ($mode -eq "building" -and $output -match '<promise>ALL_COMPLETE</promise>') {
+        Write-Host ""
+        Write-Host "[ALL COMPLETE] All tasks done for requirement!"
+        
+        # Verify plan actually has no remaining tasks
+        $planPattern = "plan-$($currentReq.id).md"
+        $existingPlans = Get-ChildItem $RunsDir -Recurse -Filter $planPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+        
+        if ($existingPlans -and $existingPlans.Count -gt 0) {
+            $latestPlanPath = $existingPlans[0].FullName
+            $planContent = Get-Content $latestPlanPath -Raw
+            
+            # Check for unchecked tasks (- [ ])
+            $uncheckedTasks = ($planContent | Select-String '- \[ \]' -AllMatches).Matches.Count
+            
+            if ($uncheckedTasks -gt 0) {
+                Write-Host "[WARNING] LLM signaled ALL_COMPLETE but $uncheckedTasks unchecked tasks remain in plan"
+                Write-Host "Ignoring signal and continuing to next iteration..."
+            }
+            else {
+                # All tasks truly complete - run validation before marking complete
                 Write-Host ""
-                Write-Host "[VALIDATION] No plan found. Running validation..."
+                Write-Host "[VALIDATION] All plan tasks complete. Running validation..."
                 
+                # Run validation script
                 $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
                 $validationPassed = $false
                 
@@ -1157,83 +1144,116 @@ Fix the validation issues to unblock progress.
                 }
                 
                 if ($validationPassed) {
+                    # Validation passed - mark requirement complete
                     $state.status = "complete"
                     $state.last_iteration_outcome = "complete"
                     $state.updated_at = Get-Date -Format "o"
                     $state | ConvertTo-Json | Set-Content $StateFile
                     
-                    # Update requirements.json to mark requirement as done
-                    Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "done"
+                    # Update requirements.json to mark requirement as complete
+                    Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
                     
                     Write-Host ""
                     Write-Host "Felix Agent complete - all tasks done and validated!"
                     exit 0
                 }
                 else {
+                    # Validation failed - emit STUCK signal
                     Write-Host ""
-                    Write-Host "[STUCK] Validation failed!"
+                    Write-Host "[STUCK] Tasks complete but validation failed!"
                     Write-Host "<promise>STUCK</promise>"
                     
                     $state.last_iteration_outcome = "validation_failed"
                     $state.updated_at = Get-Date -Format "o"
                     $state | ConvertTo-Json | Set-Content $StateFile
+                    
+                    # Continue to next iteration to allow LLM to fix issues
                 }
             }
         }
-        
-        # Check for planning mode signals
-        if ($mode -eq "planning" -and $output -match '<promise>PLAN_DRAFT</promise>') {
+        else {
+            # No plan found - run validation anyway
             Write-Host ""
-            Write-Host "[PLAN DRAFT] Initial plan created, will review next iteration"
-            # Continue loop for review iteration
+            Write-Host "[VALIDATION] No plan found. Running validation..."
+            
+            $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
+            $validationPassed = $false
+            
+            if (-not (Test-Path $validationScript)) {
+                Write-Host "[VALIDATION] ❌ Validation script not found at $validationScript"
+                exit 1
+            }
+            
+            try {
+                $validationResult = Invoke-RequirementValidation -PythonInfo $pythonInfo -ValidationScript $validationScript -RequirementId $currentReq.id
+                $validationOutput = $validationResult.output
+                $validationExitCode = $validationResult.exitCode
+                
+                Write-Host $validationOutput
+                
+                if ($validationExitCode -eq 0) {
+                    Write-Host ""
+                    Write-Host "[VALIDATION] ✅ Validation PASSED!"
+                    $validationPassed = $true
+                }
+                else {
+                    Write-Host ""
+                    Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
+                }
+            }
+            catch {
+                Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                exit 1
+            }
+            
+            if ($validationPassed) {
+                $state.status = "complete"
+                $state.last_iteration_outcome = "complete"
+                $state.updated_at = Get-Date -Format "o"
+                $state | ConvertTo-Json | Set-Content $StateFile
+                
+                # Update requirements.json to mark requirement as complete
+                Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
+                
+                Write-Host ""
+                Write-Host "Felix Agent complete - all tasks done and validated!"
+                exit 0
+            }
+            else {
+                Write-Host ""
+                Write-Host "[STUCK] Validation failed!"
+                Write-Host "<promise>STUCK</promise>"
+                
+                $state.last_iteration_outcome = "validation_failed"
+                $state.updated_at = Get-Date -Format "o"
+                $state | ConvertTo-Json | Set-Content $StateFile
+            }
         }
-        
-        if ($mode -eq "planning" -and $output -match '<promise>PLAN_REFINING</promise>') {
-            Write-Host ""
-            Write-Host "[REFINING] Plan needs refinement, continuing iterations..."
-            # Continue loop
-        }
-        
-        if ($mode -eq "planning" -and $output -match '<promise>PLAN_COMPLETE</promise>') {
-            Write-Host ""
-            Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"
-            $state.last_mode = "building"
-        }
-        
-        # Update state
-        $state.last_iteration_outcome = "success"
-        $state.updated_at = Get-Date -Format "o"
-        $state | ConvertTo-Json | Set-Content $StateFile
-        
     }
-    catch {
-        Write-Host "ERROR during droid execution: $_"
-        
-        # Write error report
-        $report = @"
-# Run Report
-
-**Mode:** $mode
-**Iteration:** $iteration
-**Success:** false
-**Timestamp:** $(Get-Date -Format "o")
-
-## Error
-
-``````
-$_
-``````
-
-"@
-        Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
-        
-        $state.last_iteration_outcome = "error"
-        $state.status = "error"
-        $state.updated_at = Get-Date -Format "o"
-        $state | ConvertTo-Json | Set-Content $StateFile
-        
-        exit 1
+    
+    # Check for planning mode signals
+    if ($mode -eq "planning" -and $output -match '<promise>PLAN_DRAFT</promise>') {
+        Write-Host ""
+        Write-Host "[PLAN DRAFT] Initial plan created, will review next iteration"
+        # Continue loop for review iteration
     }
+    
+    if ($mode -eq "planning" -and $output -match '<promise>PLAN_REFINING</promise>') {
+        Write-Host ""
+        Write-Host "[REFINING] Plan needs refinement, continuing iterations..."
+        # Continue loop
+    }
+    
+    if ($mode -eq "planning" -and $output -match '<promise>PLAN_COMPLETE</promise>') {
+        Write-Host ""
+        Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"
+        $state.last_mode = "building"
+    }
+    
+    # Update state
+    $state.last_iteration_outcome = "success"
+    $state.updated_at = Get-Date -Format "o"
+    $state | ConvertTo-Json | Set-Content $StateFile
     
     Write-Host ""
     Write-Host "Iteration $iteration complete. Continuing..."
