@@ -95,9 +95,24 @@ py -3 scripts/validate-requirement.py S-0002
 
 ### Exit Codes
 
+**Validation Script (validate-requirement.py):**
+
 - `0` - All acceptance criteria passed
 - `1` - One or more acceptance criteria failed
 - `2` - Invalid arguments or requirement not found
+
+**Felix Agent (felix-agent.ps1):**
+
+- `0` - Success: requirement complete and validated
+- `1` - Error: general execution failure (droid errors, file I/O issues)
+- `2` - Blocked: backpressure failures exceeded max retries (default: 3 attempts)
+- `3` - Blocked: validation failures exceeded max retries (default: 2 attempts)
+
+When the agent exits with code 2 or 3, the requirement is automatically marked as "blocked" in `felix/requirements.json`. To unblock:
+
+1. Fix the underlying issues (tests, validation criteria, or code)
+2. Manually edit `felix/requirements.json` and change status from `"blocked"` to `"planned"`
+3. Restart the agent - it will pick up the unblocked requirement
 
 ### Validation Criteria Format
 

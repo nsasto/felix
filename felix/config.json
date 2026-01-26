@@ -26,5 +26,10 @@
     "enabled": true,
     "commands": [],
     "max_retries": 3
+  },
+  "validation": {
+    "mark_blocked_on_failure": true,
+    "exit_on_blocked": true,
+    "max_validation_retries": 1
   }
 }

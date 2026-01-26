@@ -296,14 +296,25 @@ In building mode, the agent executes tasks sequentially.
 
 - **Backpressure**: Before a commit is allowed, the agent parses `AGENTS.md` for test, build, and lint commands
 - **Commit Logic**: Only if all validation commands pass will the agent capture a `diff.patch` and perform a git commit
-- **Retry Logic**: If validation fails, the agent stays on that task and retries (up to a configurable limit) to allow the LLM to fix its own errors
+- **Retry Logic**: If backpressure fails, the agent retries (default: up to 3 attempts) to allow the LLM to fix its own errors
+- **Blocking**: After max backpressure retries, the requirement is marked as "blocked" and the agent exits (code 2) to proceed with other requirements
 
-#### 4. Final Validation
+#### 4. Final Validation & Blocking
 
 Even after the LLM signals `<promise>ALL_COMPLETE</promise>`, the agent performs a final check:
 
 - **Plan Verification**: It scans the plan markdown file for any remaining unchecked checkboxes (`- [ ]`)
-- **Requirement Script**: It runs a dedicated PowerShell validation script (`validate-requirement.ps1`) to ensure the feature meets the technical specifications
+- **Requirement Validation**: It runs a dedicated validation script (`validate-requirement.py`) to ensure the feature meets the technical specifications
+- **Retry Logic**: If validation fails, the agent retries (default: up to 2 attempts total) to allow the LLM to fix issues
+- **Blocking**: After max validation retries, the requirement is marked as "blocked" and the agent exits (code 3) to proceed with other requirements
+- **Manual Unblocking**: Blocked requirements must be manually reset to "planned" status in `felix/requirements.json` after fixing the underlying issues
+
+#### Exit Codes
+
+- **0** - Success: requirement complete and validated
+- **1** - Error: general execution failure (droid errors, file I/O issues)
+- **2** - Blocked: backpressure failures exceeded max retries
+- **3** - Blocked: validation failures exceeded max retries
 
 ---
 
