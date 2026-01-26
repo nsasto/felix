@@ -198,6 +198,7 @@ function Update-RequirementStatus {
     
     .DESCRIPTION
     Valid status values: draft, planned, in_progress, complete, blocked
+    Uses regex replacement to preserve original JSON formatting.
     #>
     param(
         [string]$RequirementsFilePath,
@@ -207,32 +208,34 @@ function Update-RequirementStatus {
     )
     
     try {
-        # Read current requirements
-        $reqData = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
+        # Read the raw file content
+        $content = Get-Content $RequirementsFilePath -Raw
         
-        # Find and update the requirement
-        $found = $false
-        foreach ($req in $reqData.requirements) {
-            if ($req.id -eq $RequirementId) {
-                $req.status = $NewStatus
-                $req.updated_at = Get-Date -Format "yyyy-MM-dd"
-                $found = $true
-                break
-            }
-        }
+        # Create pattern to find this requirement's status field
+        # Pattern: "id": "REQID"...anywhere..."status": "oldvalue"
+        $pattern = '("id"\s*:\s*"' + [regex]::Escape($RequirementId) + '"[\s\S]*?"status"\s*:\s*")([^"]+)(")'
         
-        if ($found) {
-            # Write back to file with proper formatting
-            $reqData | ConvertTo-Json -Depth 10 | Set-Content $RequirementsFilePath -Encoding UTF8
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
-            return $true
-        }
-        else {
+        # Check if requirement exists
+        if ($content -notmatch $pattern) {
             Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
             Write-Host "Warning: Requirement $RequirementId not found in requirements.json" -ForegroundColor Yellow
             return $false
         }
+        
+        # Replace only the status value, preserving all formatting
+        $updatedContent = $content -replace $pattern, "`${1}$NewStatus`$3"
+        
+        # Also update the updated_at date for this requirement
+        $datePattern = '("id"\s*:\s*"' + [regex]::Escape($RequirementId) + '"[\s\S]*?"updated_at"\s*:\s*")([^"]+)(")'
+        $today = Get-Date -Format "yyyy-MM-dd"
+        $updatedContent = $updatedContent -replace $datePattern, "`${1}$today`$3"
+        
+        # Write back with same encoding (no BOM for JSON compatibility)
+        $updatedContent | Set-Content $RequirementsFilePath -Encoding utf8NoBOM -NoNewline
+        
+        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
+        return $true
     }
     catch {
         Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan

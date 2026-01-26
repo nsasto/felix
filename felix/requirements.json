@@ -49,7 +49,7 @@
       "id": "S-0003",
       "title": "Felix Frontend Observer UI",
       "spec_path": "specs/S-0003-frontend-observer-ui.md",
-      "status": "planned",
+      "status": "complete",
       "priority": "high",
       "labels": [
         "frontend",
