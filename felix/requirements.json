@@ -97,7 +97,7 @@
       "id": "S-0007",
       "title": "Settings Screen",
       "spec_path": "specs/S-0007-settings-screen.md.md",
-      "status": "planned",
+      "status": "complete",
       "priority": "medium",
       "labels": [
         "frontend",
