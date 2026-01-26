@@ -38,6 +38,16 @@
 9. **Search Before Planning** - Don't assume features aren't implemented; verify first
 10. **Clear Checkboxes** - Use `- [ ]` for pending items
 
+## Test Requirements
+
+When planning features, include test tasks:
+
+- Unit tests for new business logic
+- Integration tests for API endpoints
+- Component tests for UI changes
+- Tests are first-class work items, not afterthoughts
+- Follow testing standards defined in CONTEXT.md
+
 ## Workflow
 
 **First Iteration:**

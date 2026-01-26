@@ -18,6 +18,16 @@ You are operating in **building mode**.
 4. **Update requirements status** - if completing a requirement, set status to `complete`
 5. **Exit cleanly** - output a run report summarizing what was done
 
+## Test Implementation
+
+When implementing features:
+
+- Check if `tests/` directory exists for the module
+- Follow existing test patterns in the codebase
+- Write tests as separate task or alongside implementation (per plan)
+- Verify tests pass before marking task complete
+- Refer to CONTEXT.md for testing standards
+
 ## Workflow
 
 1. **FIRST: Activate virtual environment if working with Python backend**
