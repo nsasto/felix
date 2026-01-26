@@ -321,20 +321,28 @@ function Invoke-RequirementValidation {
     $ErrorActionPreference = "Continue"
     
     try {
+        $validationTimeoutSeconds = 300
         $proc = Start-Process `
             -FilePath $resolvedPythonExe `
             -ArgumentList $argumentString `
             -NoNewWindow `
-            -Wait `
             -PassThru `
             -RedirectStandardOutput $stdoutPath `
             -RedirectStandardError $stderrPath
         
-        $exitCode = $proc.ExitCode
-        $stdout = Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue
-        $stderr = Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue
-        $output = (($stdout + "`n" + $stderr).Trim())
-        if (-not $output) { $output = "Output captured to temp logs." }
+        $waitResult = Wait-Process -Id $proc.Id -Timeout $validationTimeoutSeconds -ErrorAction SilentlyContinue
+        if (-not $waitResult) {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            $exitCode = 124
+            $output = "Validation timed out after $validationTimeoutSeconds seconds."
+        }
+        else {
+            $exitCode = $proc.ExitCode
+            $stdout = Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue
+            $stderr = Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue
+            $output = (($stdout + "`n" + $stderr).Trim())
+            if (-not $output) { $output = "Output captured to temp logs." }
+        }
     }
     catch {
         $output = $_.Exception.Message
@@ -1153,7 +1161,7 @@ Fix the validation issues to unblock progress.
                 Write-Host "[VALIDATION] All plan tasks complete. Running validation..."
                 
                 # Run validation script
-                $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
+                $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.py"
                 $validationPassed = $false
                 
                 if (-not (Test-Path $validationScript)) {
@@ -1216,7 +1224,7 @@ Fix the validation issues to unblock progress.
             Write-Host ""
             Write-Host "[VALIDATION] No plan found. Running validation..."
             
-            $validationScript = Join-Path $ProjectPath "scripts" "validate-requirement.py"
+            $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.py"
             $validationPassed = $false
             
             if (-not (Test-Path $validationScript)) {
