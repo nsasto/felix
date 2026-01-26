@@ -91,6 +91,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [unregisteringId, setUnregisteringId] = useState<string | null>(null);
   const [showUnregisterConfirm, setShowUnregisterConfirm] = useState<string | null>(null);
+  const [configuringProjectId, setConfiguringProjectId] = useState<string | null>(null);
+  const [configProjectName, setConfigProjectName] = useState('');
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
 
   // Fetch config on mount
   useEffect(() => {
@@ -847,6 +850,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                       >
                         Open
                       </button>
+                      <button
+                        onClick={() => {
+                          setConfiguringProjectId(project.id);
+                          setConfigProjectName(project.name || '');
+                        }}
+                        className="px-3 py-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-lg hover:bg-slate-800/50 transition-all"
+                      >
+                        Configure
+                      </button>
                       {project.id !== projectId && (
                         <button
                           onClick={() => setShowUnregisterConfirm(project.id)}
@@ -857,6 +869,73 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                       )}
                     </div>
                   </div>
+
+                  {/* Configuration Panel */}
+                  {configuringProjectId === project.id && (
+                    <div className="mt-4 pt-4 border-t border-slate-800/60">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 mb-2">
+                            Project Name
+                          </label>
+                          <input
+                            type="text"
+                            value={configProjectName}
+                            onChange={(e) => setConfigProjectName(e.target.value)}
+                            placeholder={project.path.split(/[/\\]/).pop() || 'Project name'}
+                            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-felix-500/50 transition-all"
+                          />
+                          <p className="mt-1.5 text-[10px] text-slate-600">
+                            Display name for this project (leave empty to use directory name)
+                          </p>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => {
+                              setConfiguringProjectId(null);
+                              setConfigProjectName('');
+                            }}
+                            className="px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setIsSavingConfig(true);
+                              try {
+                                await felixApi.updateProject(project.id, {
+                                  name: configProjectName.trim() || undefined,
+                                });
+                                setSuccessMessage('Project configuration saved');
+                                setConfiguringProjectId(null);
+                                setConfigProjectName('');
+                                fetchProjects();
+                              } catch (err) {
+                                setProjectsError(err instanceof Error ? err.message : 'Failed to save project configuration');
+                              } finally {
+                                setIsSavingConfig(false);
+                              }
+                            }}
+                            disabled={isSavingConfig}
+                            className={`px-4 py-2 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
+                              !isSavingConfig
+                                ? 'bg-felix-600 text-white hover:bg-felix-500'
+                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {isSavingConfig ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              'Save'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Unregister Confirmation */}
                   {showUnregisterConfirm === project.id && (
