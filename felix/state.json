@@ -3,15 +3,15 @@
     "last_run_id":  null,
     "last_mode":  "building",
     "last_iteration_outcome":  "blocked",
-    "updated_at":  "2026-01-26T13:15:16.3718127+00:00",
-    "current_iteration":  2,
+    "updated_at":  "2026-01-26T13:17:16.7089590+00:00",
+    "current_iteration":  3,
     "status":  "running",
     "blocked_task":  {
-                         "iteration":  1,
+                         "iteration":  2,
                          "description":  "Unknown task",
-                         "retry_count":  1,
+                         "retry_count":  2,
                          "max_retries":  3,
-                         "blocked_at":  "2026-01-26T13:15:16.0782202+00:00",
+                         "blocked_at":  "2026-01-26T13:17:16.5974565+00:00",
                          "reason":  "validation_failed",
                          "failed_commands":  [
                                                  "[build] npm run build (exit: -1)"
