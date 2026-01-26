@@ -15,7 +15,7 @@ You are operating in **building mode**.
 1. **One task per iteration** - implement ONLY one item, then exit
 2. **Investigate before implementing** - search codebase for existing implementations
 3. **Update plan after implementing** - change `- [ ]` to `- [x]` for completed items
-4. **Update requirements status** - if completing a requirement, set status to `done`
+4. **Update requirements status** - if completing a requirement, set status to `complete`
 5. **Exit cleanly** - output a run report summarizing what was done
 
 ## Workflow
@@ -36,7 +36,7 @@ You are operating in **building mode**.
    - Run: `git commit -m "Felix (REQ-ID): Brief task description"`
    - Include commit confirmation in your run report
 9. If this completes the requirement, update `felix/requirements.json`:
-   - Set `status: "done"` for the requirement
+   - Set `status: "complete"` for the requirement
    - Update `updated_at` to today's date
 10. Output a run report
 

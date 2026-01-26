@@ -116,7 +116,7 @@ install commands, dev server commands, build commands. No diaries.
 
 Machine-readable registry of requirements:
 
-- IDs, titles, statuses (`planned`, `in_progress`, `done`, `blocked`, ...)
+- IDs, titles, statuses (`draft`, `planned`, `in_progress`, `complete`, `blocked`)
 - dependencies (`depends_on`)
 
 This is what a UI can safely rely on without parsing prose.

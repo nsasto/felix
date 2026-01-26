@@ -155,7 +155,7 @@ It does **not** replace Markdown specs.
 
 - requirement id and title
 - path to spec file
-- status (draft, planned, in_progress, done, blocked)
+- status (draft, planned, in_progress, complete, blocked)
 - priority or labels
 - optional dependencies
 - timestamps
