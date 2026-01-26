@@ -159,14 +159,14 @@ def load_policies(project_path: Path) -> tuple[Dict[str, Any], Dict[str, Any]]:
     allowlist_path = policies_dir / "allowlist.json"
     if allowlist_path.exists():
         try:
-            allowlist = json.loads(allowlist_path.read_text(encoding='utf-8'))
+            allowlist = json.loads(allowlist_path.read_text(encoding='utf-8-sig'))
         except (json.JSONDecodeError, IOError):
             pass
     
     denylist_path = policies_dir / "denylist.json"
     if denylist_path.exists():
         try:
-            denylist = json.loads(denylist_path.read_text(encoding='utf-8'))
+            denylist = json.loads(denylist_path.read_text(encoding='utf-8-sig'))
         except (json.JSONDecodeError, IOError):
             pass
     
@@ -364,7 +364,7 @@ async def read_requirements(project_id: str = PathParam(..., description="Projec
     
     try:
         import json
-        data = json.loads(req_path.read_text(encoding='utf-8'))
+        data = json.loads(req_path.read_text(encoding='utf-8-sig'))
         
         requirements = [
             Requirement(**r) for r in data.get("requirements", [])
@@ -531,7 +531,7 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
         )
     
     try:
-        data = json.loads(config_path.read_text(encoding='utf-8'))
+        data = json.loads(config_path.read_text(encoding='utf-8-sig'))
         
         # Parse nested configuration objects
         executor_data = data.get("executor", {})
@@ -691,7 +691,7 @@ async def get_requirement_status(
         raise HTTPException(status_code=404, detail="felix/requirements.json not found")
     
     try:
-        data = json.loads(req_path.read_text(encoding='utf-8'))
+        data = json.loads(req_path.read_text(encoding='utf-8-sig'))
         requirements = data.get("requirements", [])
         
         # Find the specific requirement
@@ -764,7 +764,7 @@ async def update_requirement_status(
         raise HTTPException(status_code=404, detail="felix/requirements.json not found")
     
     try:
-        data = json.loads(req_path.read_text(encoding='utf-8'))
+        data = json.loads(req_path.read_text(encoding='utf-8-sig'))
         requirements = data.get("requirements", [])
         
         # Find and update the specific requirement
