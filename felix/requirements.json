@@ -114,7 +114,7 @@
       "id": "S-0008",
       "title": "Projects Settings Screen",
       "spec_path": "specs/S-0008-projects-settings-screen.md",
-      "status": "planned",
+      "status": "complete",
       "priority": "medium",
       "labels": [
         "frontend",
