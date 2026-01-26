@@ -59,7 +59,7 @@ Specs should use markdown checklist format. Use "## Validation Criteria" for tes
 
 - [ ] Backend starts: `python app/backend/main.py` (exit code 0)
 - [ ] Health endpoint responds: `curl http://localhost:8080/health` (status 200)
-- [ ] Tests pass: `cd app/backend && pytest` (exit code 0)
+- [ ] Tests pass: `cd app/backend && python -m pytest` (exit code 0)
 ```
 
 ### Validation Script Behavior
