@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 # Felix Agent - Ralph Loop Executor (PowerShell)
-# Usage: .\felix-agent.ps1 <ProjectPath>
+# Usage: .\felix-agent.ps1 <ProjectPath> [-RequirementId <ID>]
 #
 # VALID REQUIREMENT STATUS VALUES:
 #   - draft: Initial state, not ready for work
@@ -11,7 +11,10 @@
 
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ProjectPath
+    [string]$ProjectPath,
+    
+    [Parameter(Mandatory = $false)]
+    [string]$RequirementId = $null
 )
 
 $ErrorActionPreference = "Stop"
@@ -659,21 +662,38 @@ Write-Host ""
 # Load requirements
 $requirements = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
 
-# Find current requirement (first in_progress or planned)
-$currentReq = $requirements.requirements | Where-Object { 
-    $_.status -eq "in_progress" 
-} | Select-Object -First 1
-
-if (-not $currentReq) {
-    $currentReq = $requirements.requirements | Where-Object { 
-        $_.status -eq "planned" 
-    } | Select-Object -First 1
+# Select requirement (specific ID if provided, otherwise first available)
+if ($RequirementId) {
+    # Find specific requirement
+    $currentReq = $requirements.requirements | Where-Object { $_.id -eq $RequirementId } | Select-Object -First 1
+    
+    if (-not $currentReq) {
+        Write-Host "Requirement $RequirementId not found" -ForegroundColor Red
+        exit 1
+    }
+    
+    if ($currentReq.status -notin @("planned", "in_progress")) {
+        Write-Host "Requirement $RequirementId has status '$($currentReq.status)' - cannot work on it" -ForegroundColor Yellow
+        exit 1
+    }
 }
+else {
+    # Find first in_progress or planned
+    $currentReq = $requirements.requirements | Where-Object { 
+        $_.status -eq "in_progress" 
+    } | Select-Object -First 1
 
-if (-not $currentReq) {
-    Write-Host "No requirements to work on " -NoNewline
-    Write-Host "(all complete or blocked)" -ForegroundColor Yellow
-    exit 0
+    if (-not $currentReq) {
+        $currentReq = $requirements.requirements | Where-Object { 
+            $_.status -eq "planned" 
+        } | Select-Object -First 1
+    }
+
+    if (-not $currentReq) {
+        Write-Host "No requirements to work on " -NoNewline
+        Write-Host "(all complete or blocked)" -ForegroundColor Yellow
+        exit 0
+    }
 }
 
 Write-Host "Working on: " -NoNewline
