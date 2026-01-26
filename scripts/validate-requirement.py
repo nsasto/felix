@@ -242,19 +242,19 @@ def run_command(command: str, cwd: Path, timeout: int = 120) -> Tuple[bool, str,
                 # Just a cd command - skip
                 return True, "", 0
         
+        # Stream output to console to avoid pipe deadlock
         process = subprocess.run(
             actual_cmd,
             shell=True,
             cwd=actual_cwd,
-            capture_output=True,
+            capture_output=False,
             text=True,
             timeout=timeout,
         )
         
-        output = process.stdout + process.stderr
         success = process.returncode == 0
         
-        return success, output, process.returncode
+        return success, "Output streamed to console", process.returncode
         
     except subprocess.TimeoutExpired:
         return False, f"Command timed out after {timeout}s", 1
@@ -286,7 +286,7 @@ def validate_criterion(criterion: Dict[str, Any], project_root: Path) -> Tuple[b
         # Check for exit code expectations
         if "exit code 0" in expected_lower:
             if return_code != 0:
-                return False, f"❌ Expected exit code 0, got {return_code}: {text}\n   Output: {output[:200]}"
+                return False, f"❌ Expected exit code 0, got {return_code}: {text}"
         elif "exit code" in expected_lower:
             # Extract expected exit code
             code_match = re.search(r"exit code (\d+)", expected_lower)
@@ -307,7 +307,7 @@ def validate_criterion(criterion: Dict[str, Any], project_root: Path) -> Tuple[b
     if success:
         return True, f"✅ {text}"
     else:
-        return False, f"❌ Command failed: {text}\n   Output: {output[:200]}"
+        return False, f"❌ Command failed: {text}"
 
 
 def validate_requirement(requirement_id: str) -> int:
@@ -390,18 +390,19 @@ def validate_requirement(requirement_id: str) -> int:
             print(f"  Running: {desc} ({cmd})")
             
             try:
+                # Stream output to console to avoid pipe deadlock
                 process = subprocess.run(
                     cmd,
                     shell=True,
                     cwd=cwd,
-                    capture_output=True,
+                    capture_output=False,
                     text=True,
                     timeout=120,
                 )
                 
-                output = process.stdout + process.stderr
                 success = process.returncode == 0
                 return_code = process.returncode
+                output = "Output streamed to console"
                 
             except subprocess.TimeoutExpired:
                 success = False
@@ -417,7 +418,8 @@ def validate_requirement(requirement_id: str) -> int:
             else:
                 print(f"❌ {desc}")
                 print(f"   Exit code: {return_code}")
-                print(f"   Output: {output[:300]}")
+                if "Error" in output or "timed out" in output:
+                    print(f"   {output}")
                 all_passed = False
     
     # Summary
