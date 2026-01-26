@@ -282,66 +282,27 @@ function Resolve-PythonCommand {
 function Invoke-RequirementValidation {
     <#
     .SYNOPSIS
-    Runs scripts/validate-requirement.py with a resolved Python command
+    Runs scripts/validate-requirement.ps1 (PowerShell validation script)
     #>
     param(
-        [hashtable]$PythonInfo,
         [string]$ValidationScript,
         [string]$RequirementId
     )
     
-    $pythonExe = $PythonInfo.cmd
-    [array]$pythonArgs = $PythonInfo.args
-    
-    $resolvedPythonExe = $pythonExe
-    try {
-        $resolvedPythonExe = (Resolve-Path $pythonExe -ErrorAction Stop).Path
-    }
-    catch {
-        $resolvedPythonExe = $pythonExe
-    }
-    
-    Write-Host "[VALIDATION] Python: $resolvedPythonExe"
     Write-Host "[VALIDATION] Script: $ValidationScript"
+    Write-Host "[VALIDATION] Requirement: $RequirementId"
     
-    # Build arguments
-    [array]$allArguments = @()
-    if ($pythonArgs) { $allArguments += $pythonArgs }
-    $allArguments += $ValidationScript
-    $allArguments += $RequirementId
-    
-    $argumentString = ($allArguments | ForEach-Object {
-        if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
-    }) -join ' '
-    
-    $stdoutPath = [System.IO.Path]::GetTempFileName()
-    $stderrPath = [System.IO.Path]::GetTempFileName()
-    
+    # Call PowerShell validation script directly
     $prevErrorAction = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     
     try {
-        $validationTimeoutSeconds = 300
-        $proc = Start-Process `
-            -FilePath $resolvedPythonExe `
-            -ArgumentList $argumentString `
-            -NoNewWindow `
-            -PassThru `
-            -RedirectStandardOutput $stdoutPath `
-            -RedirectStandardError $stderrPath
+        # Execute the PowerShell validation script
+        $output = & $ValidationScript $RequirementId 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
         
-        $waitResult = Wait-Process -Id $proc.Id -Timeout $validationTimeoutSeconds -ErrorAction SilentlyContinue
-        if (-not $waitResult) {
-            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-            $exitCode = 124
-            $output = "Validation timed out after $validationTimeoutSeconds seconds."
-        }
-        else {
-            $exitCode = $proc.ExitCode
-            $stdout = Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue
-            $stderr = Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue
-            $output = (($stdout + "`n" + $stderr).Trim())
-            if (-not $output) { $output = "Output captured to temp logs." }
+        if ($null -eq $exitCode) {
+            $exitCode = 0
         }
     }
     catch {
@@ -350,7 +311,6 @@ function Invoke-RequirementValidation {
     }
     finally {
         $ErrorActionPreference = $prevErrorAction
-        Remove-Item $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
     }
     
     return @{ output = $output; exitCode = $exitCode }
@@ -1161,7 +1121,7 @@ Fix the validation issues to unblock progress.
                 Write-Host "[VALIDATION] All plan tasks complete. Running validation..."
                 
                 # Run validation script
-                $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.py"
+                $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.ps1"
                 $validationPassed = $false
                 
                 if (-not (Test-Path $validationScript)) {
@@ -1170,7 +1130,7 @@ Fix the validation issues to unblock progress.
                 }
                 
                 try {
-                    $validationResult = Invoke-RequirementValidation -PythonInfo $pythonInfo -ValidationScript $validationScript -RequirementId $currentReq.id
+                    $validationResult = Invoke-RequirementValidation -ValidationScript $validationScript -RequirementId $currentReq.id
                     $validationOutput = $validationResult.output
                     $validationExitCode = $validationResult.exitCode
                     
@@ -1224,7 +1184,7 @@ Fix the validation issues to unblock progress.
             Write-Host ""
             Write-Host "[VALIDATION] No plan found. Running validation..."
             
-            $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.py"
+            $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.ps1"
             $validationPassed = $false
             
             if (-not (Test-Path $validationScript)) {
@@ -1233,7 +1193,7 @@ Fix the validation issues to unblock progress.
             }
             
             try {
-                $validationResult = Invoke-RequirementValidation -PythonInfo $pythonInfo -ValidationScript $validationScript -RequirementId $currentReq.id
+                $validationResult = Invoke-RequirementValidation -ValidationScript $validationScript -RequirementId $currentReq.id
                 $validationOutput = $validationResult.output
                 $validationExitCode = $validationResult.exitCode
                 
