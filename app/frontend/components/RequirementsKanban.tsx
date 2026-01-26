@@ -291,11 +291,20 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                         ${hasBlockedDeps && requirement.status !== 'blocked' ? 'border-l-2 border-l-amber-500/50' : ''}
                       `}
                     >
-                      {/* Header row: ID + Priority */}
+                      {/* Header row: ID + Priority + In-Progress Indicator */}
                       <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-mono font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded border border-felix-500/20">
-                          {requirement.id}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded border border-felix-500/20">
+                            {requirement.id}
+                          </span>
+                          {/* In-progress indicator for actively worked on requirements */}
+                          {requirement.status === 'in_progress' && (
+                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-lg shadow-amber-500/50" />
+                              <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wide">Active</span>
+                            </div>
+                          )}
+                        </div>
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border}`}>
                           {requirement.priority}
                         </span>

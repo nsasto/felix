@@ -513,14 +513,22 @@ function Invoke-BackpressureValidation {
             
             try {
                 # Execute the command
+                $prevErrorAction = $ErrorActionPreference
+                $ErrorActionPreference = "Continue"
                 $cmdOutput = Invoke-Expression $cmd.command 2>&1
                 $exitCode = $LASTEXITCODE
+                $ErrorActionPreference = $prevErrorAction
                 
                 # Convert output to string
                 $outputStr = ($cmdOutput | Out-String).Trim()
+                $isNoisyTool = $cmd.command -match '\b(npm|vite|pnpm|yarn)\b'
+                $hasRemoteException = $outputStr -match 'RemoteException'
                 $allOutput += "=== $($cmd.type): $($cmd.command) ==="
                 $allOutput += $outputStr
                 $allOutput += "Exit code: $exitCode"
+                if ($hasRemoteException -and $exitCode -eq 0) {
+                    $allOutput += "Warning: stderr output detected (non-fatal)"
+                }
                 $allOutput += ""
                 
                 if ($exitCode -ne 0) {
@@ -534,7 +542,12 @@ function Invoke-BackpressureValidation {
                     }
                 }
                 else {
-                    Write-Host "    ✅ PASSED"
+                    if ($hasRemoteException -and $isNoisyTool) {
+                        Write-Host "    ⚠️  PASSED (stderr output ignored)"
+                    }
+                    else {
+                        Write-Host "    ✅ PASSED"
+                    }
                 }
             }
             catch {
