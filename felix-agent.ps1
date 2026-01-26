@@ -1,6 +1,13 @@
 #!/usr/bin/env pwsh
 # Felix Agent - Ralph Loop Executor (PowerShell)
 # Usage: .\felix-agent.ps1 <ProjectPath>
+#
+# VALID REQUIREMENT STATUS VALUES:
+#   - draft: Initial state, not ready for work
+#   - planned: Ready to be worked on
+#   - in_progress: Currently being worked on
+#   - complete: Finished and validated
+#   - blocked: Cannot proceed (dependencies or validation failures)
 
 param(
     [Parameter(Mandatory = $true)]
@@ -176,10 +183,14 @@ function Update-RequirementStatus {
     <#
     .SYNOPSIS
     Updates the status of a requirement in felix/requirements.json
+    
+    .DESCRIPTION
+    Valid status values: draft, planned, in_progress, complete, blocked
     #>
     param(
         [string]$RequirementsFilePath,
         [string]$RequirementId,
+        [ValidateSet('draft', 'planned', 'in_progress', 'complete', 'blocked')]
         [string]$NewStatus
     )
     
@@ -614,7 +625,7 @@ if (-not $currentReq) {
 }
 
 if (-not $currentReq) {
-    Write-Host "No requirements to work on (all done or blocked)"
+    Write-Host "No requirements to work on (all complete or blocked)"
     exit 0
 }
 
@@ -1089,8 +1100,8 @@ Fix the validation issues to unblock progress.
                         $state.updated_at = Get-Date -Format "o"
                         $state | ConvertTo-Json | Set-Content $StateFile
                         
-                        # Update requirements.json to mark requirement as done
-                        Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "done"
+                        # Update requirements.json to mark requirement as complete
+                        Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
                         
                         Write-Host ""
                         Write-Host "Felix Agent complete - all tasks done and validated!"

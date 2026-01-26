@@ -19,7 +19,7 @@ As a developer, I need a lightweight React UI that allows me to register project
 - [ ] Click spec to open editor (Markdown with syntax highlighting)
 - [ ] Save changes via PUT /api/projects/:id/specs/:filename
 - [ ] Create new spec via template
-- [ ] Status indicators: draft, planned, in_progress, done, blocked
+- [ ] Status indicators: draft, planned, in_progress, complete, blocked
 
 ### Implementation Plan View
 
