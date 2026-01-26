@@ -132,7 +132,7 @@ def get_project_details(project_id: str) -> Optional[ProjectDetails]:
     status = None
     if state_file.exists():
         try:
-            state_data = json.loads(state_file.read_text())
+            state_data = json.loads(state_file.read_text(encoding='utf-8-sig'))
             status = state_data.get("status")
         except (json.JSONDecodeError, ValueError):
             pass

@@ -262,24 +262,8 @@ async def start_agent_run(project_id: str):
             status_code=400, detail=f"Project directory does not exist: {project.path}"
         )
 
-    # Locate the agent script from config
-    config_path = Path(project.path) / "felix" / "config.json"
-    
-    if config_path.exists():
-        try:
-            with open(config_path) as f:
-                config = json.load(f)
-            felix_root_relative = config.get("paths", {}).get("felix_root", ".")
-            felix_root = Path(project.path) / felix_root_relative
-        except (json.JSONDecodeError, OSError) as e:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to read felix config: {e}"
-            )
-    else:
-        # Fallback to project path if no config
-        felix_root = Path(project.path)
-    
-    agent_script = felix_root / "felix-agent.ps1"
+    # Agent script is always at the project root
+    agent_script = project_path / "felix-agent.ps1"
 
     if not agent_script.exists():
         raise HTTPException(

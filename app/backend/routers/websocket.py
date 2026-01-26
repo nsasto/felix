@@ -296,7 +296,7 @@ class ConnectionManager:
         """Create event for requirements.json changes"""
         try:
             if path.exists():
-                content = json.loads(path.read_text())
+                content = json.loads(path.read_text(encoding='utf-8-sig'))
                 return {
                     "type": "requirements_update",
                     "timestamp": timestamp,
@@ -456,7 +456,7 @@ async def _send_initial_state(websocket: WebSocket, project_id: str):
     req_file = project_path / "felix" / "requirements.json"
     if req_file.exists():
         try:
-            content = json.loads(req_file.read_text())
+            content = json.loads(req_file.read_text(encoding='utf-8-sig'))
             await websocket.send_json({
                 "type": "initial_requirements",
                 "timestamp": datetime.now().isoformat(),
