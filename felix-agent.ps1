@@ -293,7 +293,15 @@ function Invoke-RequirementValidation {
     $pythonExe = $PythonInfo.cmd
     [array]$pythonArgs = $PythonInfo.args
     
-    Write-Host "[VALIDATION] Python: $pythonExe"
+    $resolvedPythonExe = $pythonExe
+    try {
+        $resolvedPythonExe = (Resolve-Path $pythonExe -ErrorAction Stop).Path
+    }
+    catch {
+        $resolvedPythonExe = $pythonExe
+    }
+    
+    Write-Host "[VALIDATION] Python: $resolvedPythonExe"
     Write-Host "[VALIDATION] Script: $ValidationScript"
     
     # Build arguments
@@ -301,6 +309,10 @@ function Invoke-RequirementValidation {
     if ($pythonArgs) { $allArguments += $pythonArgs }
     $allArguments += $ValidationScript
     $allArguments += $RequirementId
+    
+    $argumentString = ($allArguments | ForEach-Object {
+        if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
+    }) -join ' '
     
     $stdoutPath = [System.IO.Path]::GetTempFileName()
     $stderrPath = [System.IO.Path]::GetTempFileName()
@@ -310,8 +322,8 @@ function Invoke-RequirementValidation {
     
     try {
         $proc = Start-Process `
-            -FilePath $pythonExe `
-            -ArgumentList $allArguments `
+            -FilePath $resolvedPythonExe `
+            -ArgumentList $argumentString `
             -NoNewWindow `
             -Wait `
             -PassThru `
