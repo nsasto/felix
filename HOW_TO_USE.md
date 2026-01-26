@@ -89,6 +89,26 @@ Each has one job.
 
 ---
 
+## First-time setup
+
+Before running Felix, set up the development environment:
+
+```powershell
+.\scripts\setup-dev-environment.ps1
+```
+
+This will:
+
+- Create Python virtual environment in `app/backend/.venv`
+- Install all Python dependencies including pytest
+- Create `tests/` directory if missing
+- Install frontend npm dependencies
+- Verify toolchain (Python, Node.js, npm)
+
+You only need to run this once. The test scripts will auto-setup if you skip this step.
+
+---
+
 ## `specs/` – requirements content
 
 This directory contains **requirements**, not plans.
