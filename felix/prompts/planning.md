@@ -28,15 +28,16 @@
 ## Rules
 
 1. **Narrow Scope** - Plan ONLY for the current requirement (ID provided in context)
-2. **Gap Analysis** - Search codebase to see what's already implemented
-3. **Narrow Tasks** - Each task should be completable in ONE building iteration
-4. **Simplicity First** - Always choose the simplest approach that works
-5. **Avoid Overengineering** - No premature abstractions, no unnecessary complexity
-6. **Tech Stack Alignment** - Use PowerShell for agent, Python/FastAPI for backend, React for frontend
-7. **Ralph Alignment** - File-based state, naive persistence, disposable plans, backpressure validation
-8. **Dependency Order** - Check `depends_on` field in requirements.json
-9. **Search Before Planning** - Don't assume features aren't implemented; verify first
-10. **Clear Checkboxes** - Use `- [ ]` for pending items
+2. **Complete Coverage** - The plan MUST address every item in the spec. Review the spec systematically, section by section, ensuring each aspect is covered by a concrete task.
+3. **Gap Analysis** - Search codebase to see what's already implemented
+4. **Narrow Tasks** - Each task should be completable in ONE building iteration
+5. **Simplicity First** - Always choose the simplest approach that works
+6. **Avoid Overengineering** - No premature abstractions, no unnecessary complexity
+7. **Tech Stack Alignment** - Use PowerShell for agent, Python/FastAPI for backend, React for frontend
+8. **Ralph Alignment** - File-based state, naive persistence, disposable plans, backpressure validation
+9. **Dependency Order** - Check `depends_on` field in requirements.json
+10. **Search Before Planning** - Don't assume features aren't implemented; verify first
+11. **Clear Checkboxes** - Use `- [ ]` for pending items
 
 ## Test Requirements
 
@@ -56,19 +57,26 @@ When planning features, include test tasks:
 2. Read `CONTEXT.md` for tech stack and architectural constraints
 3. Read `AGENTS.md` to understand how to run tests/builds
 4. Search codebase to verify what's actually implemented
-5. Generate initial implementation plan with concrete, prioritized tasks
-6. Save plan to path specified in context (e.g., `runs/2026-01-25T10-30-00/plan-S-0001.md`)
-7. If starting work on a new requirement, update its `status` to `"in_progress"` in `felix/requirements.json`
+5. **CRITICAL: Review the spec systematically** - Go through each section, each acceptance criterion, each validation rule one by one. Your plan MUST address every item in the spec.
+6. Generate initial implementation plan with concrete, prioritized tasks
+7. **Verify completeness** - Map each task in your plan back to specific items in the spec. Ensure nothing is missing.
+8. Save plan to path specified in context (e.g., `runs/2026-01-25T10-30-00/plan-S-0001.md`)
+9. If starting work on a new requirement, update its `status` to `"in_progress"` in `felix/requirements.json`
 
-**Self-Review (every iteration):** 8. Review the plan against these criteria:
+**Self-Review (every iteration):**
 
+10. Review the plan against these criteria:
+
+- ✅ **Completeness:** Does the plan address EVERY item in the spec? Go through the spec one by one and verify.
 - ✅ **Philosophy:** Does it follow Ralph principles? (naive persistence, file-based, backpressure)
 - ✅ **Tech Stack:** Using correct tools? (PowerShell agent, FastAPI, React)
 - ✅ **Simplicity:** Is this the simplest approach? Can we remove complexity?
 - ✅ **Maintainability:** Will this be easy to understand and modify later?
 - ✅ **Scope:** Are tasks narrow enough (completable in one iteration)?
 
-**Refinement Iterations:** 9. If self-review reveals issues:
+**Refinement Iterations:**
+
+11. If self-review reveals issues:
 
 - Simplify the approach
 - Remove unnecessary abstractions
@@ -77,7 +85,7 @@ When planning features, include test tasks:
 - Output what was changed and why
 - Continue to next iteration (do NOT signal completion)
 
-10. If self-review passes all criteria:
+12. If self-review passes all criteria:
     - Output `<promise>PLAN_COMPLETE</promise>` to signal readiness
     - Agent will transition to building mode next iteration
 
@@ -139,6 +147,7 @@ Any other file modifications will be automatically reverted.
 - Changed approach from A to B because [reason]
 
 **Self-Review:**
+- Completeness: ✅ / ❌ [list any spec items not covered]
 - Philosophy: ✅ / ❌ [brief note]
 - Tech Stack: ✅ / ❌ [brief note]
 - Simplicity: ✅ / ❌ [brief note]
