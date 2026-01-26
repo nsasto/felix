@@ -3,7 +3,8 @@
     "last_run_id":  null,
     "last_mode":  "building",
     "last_iteration_outcome":  "error",
-    "updated_at":  "2026-01-26T11:03:03.8057034+00:00",
+    "updated_at":  "2026-01-26T13:12:32.2847194+00:00",
     "current_iteration":  1,
-    "status":  "error"
+    "status":  "running",
+    "blocked_task":  null
 }

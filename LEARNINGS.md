@@ -350,6 +350,63 @@ Get-Command python | Select-Object CommandType, Source
 # CommandType should be 'Application', not 'Function' or 'Alias'
 ```
 
+### 3. The ErrorActionPreference Stderr Trap
+
+**Symptom**: PowerShell throws `NativeCommandError` or terminates when running external commands that write to stderr, even when the command succeeds.
+
+**Root Cause**: When `$ErrorActionPreference = "Stop"` (common in scripts), PowerShell treats **any stderr output from native commands as terminating errors**.
+
+**Example** - uvicorn startup logs go to stderr:
+
+```powershell
+$ErrorActionPreference = "Stop"
+
+# This FAILS even though the command is working:
+& python -m uvicorn main:app 2>&1
+# ERROR: py.exe : INFO:     Uvicorn running on http://0.0.0.0:8080
+#        + CategoryInfo          : NotSpecified: (...):String) [], RemoteException
+#        + FullyQualifiedErrorId : NativeCommandError
+```
+
+**Anti-Pattern**:
+
+```powershell
+# ❌ WRONG - stderr becomes terminating error
+$ErrorActionPreference = "Stop"
+$output = & $pythonExe $args 2>&1
+```
+
+**Pattern**:
+
+```powershell
+# ✅ CORRECT - Temporarily allow stderr
+$prevErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"  # Allow stderr without termination
+
+try {
+    $output = & $pythonExe $args 2>&1
+    $exitCode = $LASTEXITCODE
+}
+finally {
+    $ErrorActionPreference = $prevErrorAction  # Restore original
+}
+```
+
+**Why This Matters**:
+
+- Many tools (pytest, npm, uvicorn, pip) write INFO/WARNING to stderr
+- `2>&1` merges stderr to stdout stream - but PowerShell still tracks the source
+- With `$ErrorActionPreference = "Stop"`, stderr lines become terminating exceptions
+- The error message is misleading - it shows the actual stderr content as if it were an error
+
+**Detection**:
+
+```powershell
+# Check if your tool writes to stderr:
+& your-command 2>stderr.txt
+if (Test-Path stderr.txt) { Get-Content stderr.txt }
+```
+
 **Prevention**: Always verify CommandType (see Issue 3).
 
 ### 3. The Quote Escape Spiral

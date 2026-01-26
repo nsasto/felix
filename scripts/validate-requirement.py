@@ -17,6 +17,7 @@ import sys
 import os
 import re
 import subprocess
+import time
 import json
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
@@ -211,7 +212,32 @@ def get_label_based_commands(labels: List[str], project_root: Path) -> List[Dict
     return commands
 
 
-def run_command(command: str, cwd: Path, timeout: int = 120) -> Tuple[bool, str, int]:
+def is_server_command(command: str, cwd: Path) -> bool:
+    """Heuristic to detect commands that start long-running servers."""
+    cmd = command.lower()
+    server_keywords = ["uvicorn", "flask", "fastapi", "gunicorn", "hypercorn"]
+    if any(keyword in cmd for keyword in server_keywords):
+        return True
+
+    if "python" in cmd and "main.py" in cmd:
+        return True
+
+    if "python" in cmd and "app/backend" in cmd:
+        return True
+
+    if cwd and Path(cwd).name.lower() == "backend" and "python" in cmd:
+        return True
+
+    return False
+
+
+def run_command(
+    command: str,
+    cwd: Path,
+    timeout: int = 120,
+    capture_output: bool = False,
+    server_processes: Optional[List[subprocess.Popen]] = None,
+) -> Tuple[bool, str, int]:
     """
     Run a validation command.
     
@@ -242,18 +268,48 @@ def run_command(command: str, cwd: Path, timeout: int = 120) -> Tuple[bool, str,
                 # Just a cd command - skip
                 return True, "", 0
         
-        # Stream output to console to avoid pipe deadlock
+        # Detect server commands and run them in background
+        if is_server_command(actual_cmd, Path(actual_cwd)):
+            startup_timeout = min(5, timeout)
+            process = subprocess.Popen(
+                actual_cmd,
+                shell=True,
+                cwd=actual_cwd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+
+            start_time = time.time()
+            while time.time() - start_time < startup_timeout:
+                if process.poll() is not None:
+                    return_code = process.returncode
+                    if return_code == 0:
+                        return True, "Server command exited immediately with code 0", 0
+                    return False, f"Server exited early with code {return_code}", return_code
+                time.sleep(0.1)
+
+            if server_processes is not None:
+                server_processes.append(process)
+
+            return True, "Server started in background", 0
+
+        # Non-server commands
         process = subprocess.run(
             actual_cmd,
             shell=True,
             cwd=actual_cwd,
-            capture_output=False,
+            capture_output=capture_output,
             text=True,
             timeout=timeout,
         )
-        
+
         success = process.returncode == 0
-        
+
+        if capture_output:
+            output = (process.stdout or "") + (process.stderr or "")
+            return success, output, process.returncode
+
         return success, "Output streamed to console", process.returncode
         
     except subprocess.TimeoutExpired:
@@ -262,7 +318,11 @@ def run_command(command: str, cwd: Path, timeout: int = 120) -> Tuple[bool, str,
         return False, f"Error running command: {e}", 1
 
 
-def validate_criterion(criterion: Dict[str, Any], project_root: Path) -> Tuple[bool, str]:
+def validate_criterion(
+    criterion: Dict[str, Any],
+    project_root: Path,
+    server_processes: Optional[List[subprocess.Popen]] = None,
+) -> Tuple[bool, str]:
     """
     Validate a single acceptance criterion.
     
@@ -277,7 +337,16 @@ def validate_criterion(criterion: Dict[str, Any], project_root: Path) -> Tuple[b
         return True, f"⚠️  Manual verification required: {text}"
     
     # Run the command
-    success, output, return_code = run_command(command, project_root)
+    capture_output = False
+    if expected and "status" in expected.lower():
+        capture_output = True
+
+    success, output, return_code = run_command(
+        command,
+        project_root,
+        capture_output=capture_output,
+        server_processes=server_processes,
+    )
     
     # Check expected outcome if specified
     if expected:
@@ -355,21 +424,35 @@ def validate_requirement(requirement_id: str) -> int:
     # Validate each criterion
     all_passed = True
     results = []
+    server_processes: List[subprocess.Popen] = []
     
     print("Checking acceptance criteria:")
     print("-" * 40)
     
-    for criterion in criteria:
-        if criterion["checked"]:
-            # Already marked complete - skip validation
-            results.append((True, f"✅ [Already checked] {criterion['text']}"))
-            continue
-        
-        passed, message = validate_criterion(criterion, project_root)
-        results.append((passed, message))
-        
-        if not passed:
-            all_passed = False
+    try:
+        for criterion in criteria:
+            if criterion["checked"]:
+                # Already marked complete - skip validation
+                results.append((True, f"✅ [Already checked] {criterion['text']}"))
+                continue
+            
+            passed, message = validate_criterion(criterion, project_root, server_processes)
+            results.append((passed, message))
+            
+            if not passed:
+                all_passed = False
+    finally:
+        # Clean up any background servers started during validation
+        for process in server_processes:
+            try:
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=5)
+            except Exception:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
     
     # Print results
     for passed, message in results:
