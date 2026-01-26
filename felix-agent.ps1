@@ -25,7 +25,8 @@ $env:PYTHONIOENCODING = "utf-8"
 
 # Resolve project path
 $ProjectPath = Resolve-Path $ProjectPath
-Write-Host "Felix Agent starting for: $ProjectPath"
+Write-Host "Felix Agent starting for: " -NoNewline
+Write-Host $ProjectPath -ForegroundColor Cyan
 
 # ============================================================================
 # Mode Guardrails Functions
@@ -100,7 +101,8 @@ function Test-PlanningModeGuardrails {
         if ($afterState.CommitHash -ne $BeforeState.CommitHash) {
             $violations.CommitMade = $true
             $violations.HasViolations = $true
-            Write-Host "[GUARDRAIL VIOLATION] New commit detected during planning mode!"
+            Write-Host "[GUARDRAIL VIOLATION] " -NoNewline -ForegroundColor Red
+            Write-Host "New commit detected during planning mode!" -ForegroundColor Yellow
         }
         
         # Check for unauthorized file modifications
@@ -131,7 +133,8 @@ function Test-PlanningModeGuardrails {
         }
         
         if ($violations.UnauthorizedFiles.Count -gt 0) {
-            Write-Host "[GUARDRAIL VIOLATION] Unauthorized files modified in planning mode:"
+            Write-Host "[GUARDRAIL VIOLATION] " -NoNewline -ForegroundColor Red
+            Write-Host "Unauthorized files modified in planning mode:" -ForegroundColor Yellow
             foreach ($file in $violations.UnauthorizedFiles) {
                 Write-Host "  - $file"
             }
@@ -159,7 +162,8 @@ function Undo-PlanningViolations {
     try {
         # Revert commit if one was made
         if ($Violations.CommitMade) {
-            Write-Host "[GUARDRAIL] Reverting unauthorized commit..."
+            Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
+            Write-Host "Reverting unauthorized commit..." -ForegroundColor Yellow
             git reset --soft $BeforeState.CommitHash 2>$null
         }
         
@@ -179,7 +183,8 @@ function Undo-PlanningViolations {
             }
         }
         
-        Write-Host "[GUARDRAIL] Violations reverted."
+        Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Green
+        Write-Host "Violations reverted." -ForegroundColor Green
     }
     finally {
         Pop-Location
@@ -219,16 +224,19 @@ function Update-RequirementStatus {
         if ($found) {
             # Write back to file with proper formatting
             $reqData | ConvertTo-Json -Depth 10 | Set-Content $RequirementsFilePath -Encoding UTF8
-            Write-Host "[REQUIREMENTS] Updated $RequirementId status to '$NewStatus'"
+            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+            Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
             return $true
         }
         else {
-            Write-Host "[REQUIREMENTS] Warning: Requirement $RequirementId not found in requirements.json"
+            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+            Write-Host "Warning: Requirement $RequirementId not found in requirements.json" -ForegroundColor Yellow
             return $false
         }
     }
     catch {
-        Write-Host "[REQUIREMENTS] Error updating requirements.json: $_"
+        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Error updating requirements.json: $_" -ForegroundColor Red
         return $false
     }
 }
@@ -355,7 +363,8 @@ function Get-BackpressureCommands {
     
     # If config commands are explicitly provided, use those
     if ($ConfigCommands -and $ConfigCommands.Count -gt 0) {
-        Write-Host "[BACKPRESSURE] Using commands from config.json"
+        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+        Write-Host "Using commands from config.json"
         foreach ($cmd in $ConfigCommands) {
             $commands += @{
                 command     = $cmd
@@ -368,11 +377,13 @@ function Get-BackpressureCommands {
     
     # Parse commands from AGENTS.md
     if (-not (Test-Path $AgentsFilePath)) {
-        Write-Host "[BACKPRESSURE] Warning: AGENTS.md not found at $AgentsFilePath"
+        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+        Write-Host "Warning: AGENTS.md not found at $AgentsFilePath" -ForegroundColor Yellow
         return $commands
     }
     
-    Write-Host "[BACKPRESSURE] Parsing commands from AGENTS.md"
+    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+    Write-Host "Parsing commands from AGENTS.md"
     $content = Get-Content $AgentsFilePath -Raw
     
     # Define sections to parse and their types
@@ -435,7 +446,8 @@ function Get-BackpressureCommands {
         }
     }
     
-    Write-Host "[BACKPRESSURE] Found $($commands.Count) commands from AGENTS.md"
+    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+    Write-Host "Found $($commands.Count) commands from AGENTS.md"
     foreach ($cmd in $commands) {
         Write-Host "  [$($cmd.type)] $($cmd.command)"
     }
@@ -497,7 +509,8 @@ function Invoke-BackpressureValidation {
     $commands = Get-BackpressureCommands -AgentsFilePath $AgentsFilePath -ConfigCommands $configCommands
     
     if ($commands.Count -eq 0) {
-        Write-Host "[BACKPRESSURE] No validation commands found - skipping backpressure"
+        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+        Write-Host "No validation commands found - skipping backpressure" -ForegroundColor Yellow
         $result.skipped = $true
         return $result
     }
@@ -534,7 +547,7 @@ function Invoke-BackpressureValidation {
                 $allOutput += ""
                 
                 if ($exitCode -ne 0) {
-                    Write-Host "    ❌ FAILED (exit code: $exitCode)"
+                    Write-Host "    ❌ FAILED (exit code: $exitCode)" -ForegroundColor Red
                     $result.success = $false
                     $result.failed_commands += @{
                         command   = $cmd.command
@@ -545,15 +558,15 @@ function Invoke-BackpressureValidation {
                 }
                 else {
                     if ($hasRemoteException -and $isNoisyTool) {
-                        Write-Host "    ⚠️  PASSED (stderr output ignored)"
+                        Write-Host "    ⚠️  PASSED (stderr output ignored)" -ForegroundColor Yellow
                     }
                     else {
-                        Write-Host "    ✅ PASSED"
+                        Write-Host "    ✅ PASSED" -ForegroundColor Green
                     }
                 }
             }
             catch {
-                Write-Host "    ❌ ERROR: $_"
+                Write-Host "    ❌ ERROR: $_" -ForegroundColor Red
                 $result.success = $false
                 $result.failed_commands += @{
                     command   = $cmd.command
@@ -584,10 +597,12 @@ function Invoke-BackpressureValidation {
     # Summary
     Write-Host ""
     if ($result.success) {
-        Write-Host "[BACKPRESSURE] ✅ All validation commands passed!"
+        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+        Write-Host "✅ All validation commands passed!" -ForegroundColor Green
     }
     else {
-        Write-Host "[BACKPRESSURE] ❌ Validation FAILED - $($result.failed_commands.Count) command(s) failed"
+        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+        Write-Host "❌ Validation FAILED - $($result.failed_commands.Count) command(s) failed" -ForegroundColor Red
         foreach ($failed in $result.failed_commands) {
             Write-Host "  - [$($failed.type)] $($failed.command)"
         }
@@ -610,8 +625,9 @@ $PromptsDir = Join-Path $FelixDir "prompts"
 $requiredPaths = @($SpecsDir, $FelixDir, $ConfigFile, $RequirementsFile)
 foreach ($path in $requiredPaths) {
     if (-not (Test-Path $path)) {
-        Write-Host "ERROR: Required path not found: $path"
-        Write-Host "This doesn't appear to be a valid Felix project."
+        Write-Host "ERROR: " -NoNewline -ForegroundColor Red
+        Write-Host "Required path not found: $path" -ForegroundColor Red
+        Write-Host "This doesn't appear to be a valid Felix project." -ForegroundColor Yellow
         exit 1
     }
 }
@@ -628,7 +644,8 @@ try {
     $pythonInfo = Resolve-PythonCommand -Config $config
 }
 catch {
-    Write-Host "[VALIDATION] ❌ Python resolution failed: $_"
+    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+    Write-Host "❌ Python resolution failed: $_" -ForegroundColor Red
     exit 1
 }
 
@@ -650,11 +667,13 @@ if (-not $currentReq) {
 }
 
 if (-not $currentReq) {
-    Write-Host "No requirements to work on (all complete or blocked)"
+    Write-Host "No requirements to work on " -NoNewline
+    Write-Host "(all complete or blocked)" -ForegroundColor Yellow
     exit 0
 }
 
-Write-Host "Working on: $($currentReq.id) - $($currentReq.title)"
+Write-Host "Working on: " -NoNewline
+Write-Host "$($currentReq.id) - $($currentReq.title)" -ForegroundColor Green
 Write-Host ""
 
 # Initialize state if needed
@@ -682,8 +701,8 @@ if ($null -eq $state.blocked_task) {
 # Main iteration loop
 for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host ""
-    Write-Host "============================================================="
-    Write-Host "  Felix Agent - Iteration $iteration/$maxIterations"
+    Write-Host "=============================================================" -ForegroundColor Cyan
+    Write-Host "  Felix Agent - Iteration $iteration/$maxIterations" -ForegroundColor Cyan
     
     # Determine mode
     $mode = "building"  # Default
@@ -713,8 +732,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $mode = $state.last_mode
     }
     
-    Write-Host "  Mode: $($mode.ToUpper())"
-    Write-Host "============================================================="
+    Write-Host "  Mode: " -NoNewline -ForegroundColor Cyan
+    Write-Host $mode.ToUpper() -ForegroundColor $(if ($mode -eq "planning") { "Magenta" } else { "Blue" })
+    Write-Host "=============================================================" -ForegroundColor Cyan
     Write-Host ""
     
     # Update state
@@ -732,7 +752,8 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Load prompt template
     $promptFile = Join-Path $PromptsDir "$mode.md"
     if (-not (Test-Path $promptFile)) {
-        Write-Host "ERROR: Prompt template not found: $promptFile"
+        Write-Host "ERROR: " -NoNewline -ForegroundColor Red
+        Write-Host "Prompt template not found: $promptFile" -ForegroundColor Red
         exit 1
     }
     
@@ -797,7 +818,8 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Capture git state before execution (for planning mode guardrails)
     $gitStateBefore = $null
     if ($mode -eq "planning") {
-        Write-Host "[GUARDRAIL] Capturing git state before planning iteration..."
+        Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
+        Write-Host "Capturing git state before planning iteration..." -ForegroundColor Yellow
         $gitStateBefore = Get-GitState -WorkingDir $ProjectPath
     }
     
@@ -852,12 +874,14 @@ $_
     $guardrailViolations = $null
     if ($mode -eq "planning" -and $gitStateBefore) {
         Write-Host ""
-        Write-Host "[GUARDRAIL] Checking planning mode guardrails..."
+        Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
+        Write-Host "Checking planning mode guardrails..." -ForegroundColor Yellow
         $guardrailViolations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $gitStateBefore -RunId $runId
         
         if ($guardrailViolations.HasViolations) {
             Write-Host ""
-            Write-Host "[GUARDRAIL] VIOLATIONS DETECTED - Reverting unauthorized changes..."
+            Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Red
+            Write-Host "VIOLATIONS DETECTED - Reverting unauthorized changes..." -ForegroundColor Red
             Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $gitStateBefore -Violations $guardrailViolations
             
             # Log the violation in the run directory
@@ -886,7 +910,8 @@ All unauthorized changes have been reverted.
             $state.updated_at = Get-Date -Format "o"
             $state | ConvertTo-Json | Set-Content $StateFile
             
-            Write-Host "[GUARDRAIL] Continuing to next iteration after violation cleanup..."
+            Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
+            Write-Host "Continuing to next iteration after violation cleanup..." -ForegroundColor Yellow
             Write-Host ""
             continue  # Skip the rest of this iteration and continue to next
         }
@@ -929,8 +954,10 @@ $output
         if (-not $backpressureResult.skipped -and -not $backpressureResult.success) {
             # Backpressure failed - do NOT commit, mark task as blocked
             Write-Host ""
-            Write-Host "[BACKPRESSURE] ❌ Validation failed - changes will NOT be committed"
-            Write-Host "[BACKPRESSURE] Task marked as BLOCKED pending validation fixes"
+            Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+            Write-Host "❌ Validation failed - changes will NOT be committed" -ForegroundColor Red
+            Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+            Write-Host "Task marked as BLOCKED pending validation fixes" -ForegroundColor Yellow
             
             # Extract task description from output for tracking
             $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
@@ -1125,14 +1152,16 @@ Fix the validation issues to unblock progress.
             else {
                 # All tasks truly complete - run validation before marking complete
                 Write-Host ""
-                Write-Host "[VALIDATION] All plan tasks complete. Running validation..."
+                Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                Write-Host "All plan tasks complete. Running validation..." -ForegroundColor Magenta
                 
                 # Run validation script
                 $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.ps1"
                 $validationPassed = $false
                 
                 if (-not (Test-Path $validationScript)) {
-                    Write-Host "[VALIDATION] ❌ Validation script not found at $validationScript"
+                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                    Write-Host "❌ Validation script not found at $validationScript" -ForegroundColor Red
                     exit 1
                 }
                 
@@ -1145,16 +1174,19 @@ Fix the validation issues to unblock progress.
                     
                     if ($validationExitCode -eq 0) {
                         Write-Host ""
-                        Write-Host "[VALIDATION] ✅ Validation PASSED!"
+                        Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                        Write-Host "✅ Validation PASSED!" -ForegroundColor Green
                         $validationPassed = $true
                     }
                     else {
                         Write-Host ""
-                        Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
+                        Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                        Write-Host "❌ Validation FAILED (exit code: $validationExitCode)" -ForegroundColor Red
                     }
                 }
                 catch {
-                    Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                    Write-Host "❌ Error running validation: $_" -ForegroundColor Red
                     exit 1
                 }
                 
@@ -1189,17 +1221,15 @@ Fix the validation issues to unblock progress.
         else {
             # No plan found - run validation anyway
             Write-Host ""
-            Write-Host "[VALIDATION] No plan found. Running validation..."
+            Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+            Write-Host "No plan found. Running validation..." -ForegroundColor Magenta
             
             $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.ps1"
             $validationPassed = $false
             
             if (-not (Test-Path $validationScript)) {
-                Write-Host "[VALIDATION] ❌ Validation script not found at $validationScript"
-                exit 1
-            }
-            
-            try {
+                Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                Write-Host "❌ Validation script not found at $validationScript" -ForegroundColor Red
                 $validationResult = Invoke-RequirementValidation -ValidationScript $validationScript -RequirementId $currentReq.id
                 $validationOutput = $validationResult.output
                 $validationExitCode = $validationResult.exitCode
@@ -1208,12 +1238,14 @@ Fix the validation issues to unblock progress.
                 
                 if ($validationExitCode -eq 0) {
                     Write-Host ""
-                    Write-Host "[VALIDATION] ✅ Validation PASSED!"
+                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                    Write-Host "✅ Validation PASSED!" -ForegroundColor Green
                     $validationPassed = $true
                 }
                 else {
                     Write-Host ""
-                    Write-Host "[VALIDATION] ❌ Validation FAILED (exit code: $validationExitCode)"
+                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                    Write-Host "❌ Validation FAILED (exit code: $validationExitCode)" -ForegroundColor Red
                 }
             }
             catch {
