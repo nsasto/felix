@@ -16,6 +16,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Configure UTF-8 encoding for console output
+# Must be done in this specific order for Windows PowerShell compatibility
+chcp 65001 | Out-Null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$env:PYTHONIOENCODING = "utf-8"
+
 # Resolve project path
 $ProjectPath = Resolve-Path $ProjectPath
 Write-Host "Felix Agent starting for: $ProjectPath"
@@ -675,7 +682,7 @@ if ($null -eq $state.blocked_task) {
 # Main iteration loop
 for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host ""
-    Write-Host "═════════════════════════════════════════════════════════════"
+    Write-Host "============================================================="
     Write-Host "  Felix Agent - Iteration $iteration/$maxIterations"
     
     # Determine mode
@@ -707,7 +714,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     }
     
     Write-Host "  Mode: $($mode.ToUpper())"
-    Write-Host "═════════════════════════════════════════════════════════════"
+    Write-Host "============================================================="
     Write-Host ""
     
     # Update state
