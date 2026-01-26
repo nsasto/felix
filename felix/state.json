@@ -2,9 +2,22 @@
     "current_requirement_id":  "S-0001",
     "last_run_id":  null,
     "last_mode":  "building",
-    "last_iteration_outcome":  "complete",
-    "updated_at":  "2026-01-26T20:43:01.3555484+00:00",
-    "current_iteration":  1,
+    "last_iteration_outcome":  "blocked",
+    "updated_at":  "2026-01-26T20:47:05.1986531+00:00",
+    "current_iteration":  2,
     "status":  "running",
-    "blocked_task":  null
+    "blocked_task":  {
+                         "iteration":  1,
+                         "description":  "Unknown task",
+                         "retry_count":  1,
+                         "max_retries":  3,
+                         "blocked_at":  "2026-01-26T20:47:05.0762213+00:00",
+                         "reason":  "validation_failed",
+                         "failed_commands":  [
+                                                 "[test] pytest tests/ -v (exit: -1)",
+                                                 "[test] npm test (exit: -4058)",
+                                                 "[build] cd app/frontend (exit: -4058)",
+                                                 "[build] npm run build (exit: -4058)"
+                                             ]
+                     }
 }

@@ -141,6 +141,7 @@ export interface PathsConfig {
 export interface BackpressureConfig {
   enabled: boolean;
   commands: string[];
+  max_retries?: number;
 }
 
 export interface FelixConfig {
