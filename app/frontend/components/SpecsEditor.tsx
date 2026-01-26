@@ -439,11 +439,44 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
     setSaving(true);
     setSaveMessage(null);
+    
+    // S-0006: Check if acceptance/validation criteria changed before saving
+    // This is used to detect plan invalidation
+    const criteriaChanged = hasCriteriaChanged;
+    
     try {
       await felixApi.updateSpec(projectId, selectedFilename, specContent);
       setOriginalContent(specContent);
-      setSaveMessage({ type: 'success', text: 'Saved successfully' });
       
+      // S-0006: If criteria changed, invalidate (delete) the plan
+      if (criteriaChanged) {
+        // Extract requirement ID from filename
+        const match = selectedFilename.match(/^(S-\d+)/);
+        const reqId = match ? match[1] : null;
+        
+        if (reqId) {
+          try {
+            // Check if a plan exists before attempting to delete
+            const planInfo = await felixApi.getPlanInfo(projectId, reqId);
+            if (planInfo.exists) {
+              await felixApi.deletePlan(projectId, reqId);
+              setSaveMessage({ type: 'success', text: 'Saved. Plan invalidated due to criteria changes.' });
+              // Update original criteria to match the new saved content
+              setOriginalCriteria(extractCriteriaSections(specContent));
+              // Clear success message after 5 seconds (longer for the important message)
+              setTimeout(() => setSaveMessage(null), 5000);
+              return;
+            }
+          } catch (planErr) {
+            // Plan deletion failed or plan doesn't exist - log but don't fail the save
+            console.log('Plan invalidation skipped:', planErr);
+          }
+        }
+        // Update original criteria even if no plan was deleted
+        setOriginalCriteria(extractCriteriaSections(specContent));
+      }
+      
+      setSaveMessage({ type: 'success', text: 'Saved successfully' });
       // Clear success message after 3 seconds
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
