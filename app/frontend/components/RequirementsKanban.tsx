@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { felixApi, Requirement, RequirementsData } from '../services/felixApi';
+import { felixApi, Requirement, RequirementsData, PlanInfo } from '../services/felixApi';
 import { IconPlus, IconFileText } from './Icons';
 
 // Requirement status columns matching the felix/requirements.json schema
@@ -43,6 +43,41 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
+
+  // Plan info for each requirement (maps requirement id -> plan info)
+  const [planInfoMap, setPlanInfoMap] = useState<Record<string, PlanInfo>>({});
+
+  // Fetch plan info for all requirements that are planned or in_progress
+  useEffect(() => {
+    const fetchPlanInfo = async () => {
+      if (!projectId || requirements.length === 0) return;
+      
+      // Only fetch for requirements that might have plans
+      const relevantReqs = requirements.filter(
+        req => req.status === 'planned' || req.status === 'in_progress' || req.status === 'complete'
+      );
+      
+      const infoMap: Record<string, PlanInfo> = {};
+      
+      // Fetch plan info for each relevant requirement
+      await Promise.all(
+        relevantReqs.map(async (req) => {
+          try {
+            const planInfo = await felixApi.getPlanInfo(projectId, req.id);
+            if (planInfo.exists) {
+              infoMap[req.id] = planInfo;
+            }
+          } catch (err) {
+            console.warn(`Failed to fetch plan info for ${req.id}:`, err);
+          }
+        })
+      );
+      
+      setPlanInfoMap(infoMap);
+    };
+
+    fetchPlanInfo();
+  }, [projectId, requirements]);
 
   // Fetch requirements on mount and when projectId changes
   useEffect(() => {
@@ -162,6 +197,48 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
     });
   };
 
+  // Format a Unix timestamp (seconds since epoch) to a readable date string
+  const formatTimestamp = (timestamp: string | null): string | null => {
+    if (!timestamp) return null;
+    try {
+      // The backend returns file modification time as a float string (Unix timestamp)
+      const unixTime = parseFloat(timestamp);
+      if (isNaN(unixTime)) return null;
+      const date = new Date(unixTime * 1000);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  // Get plan info for a requirement and check if spec was modified after plan
+  const getPlanTimestampInfo = (requirementId: string): { 
+    planTime: string | null; 
+    specModifiedAfterPlan: boolean;
+    hasPlan: boolean;
+  } => {
+    const planInfo = planInfoMap[requirementId];
+    if (!planInfo || !planInfo.exists) {
+      return { planTime: null, specModifiedAfterPlan: false, hasPlan: false };
+    }
+    
+    const planTime = formatTimestamp(planInfo.modified_at);
+    
+    // To check if spec was modified after plan, we need the spec modification time
+    // This would require additional data from the status endpoint
+    // For now, we return the plan time info
+    return { 
+      planTime, 
+      specModifiedAfterPlan: false, // Will be enhanced in next task
+      hasPlan: true 
+    };
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#050608]">
@@ -275,6 +352,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                   const priorityStyle = PRIORITY_STYLES[requirement.priority] || PRIORITY_STYLES.medium;
                   const hasBlockedDeps = isBlockedByDependency(requirement);
                   const isDragging = draggedItem?.id === requirement.id;
+                  const planTimestampInfo = getPlanTimestampInfo(requirement.id);
 
                   return (
                     <div
@@ -336,6 +414,20 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                               #{label}
                             </span>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Plan timestamp indicator */}
+                      {planTimestampInfo.hasPlan && (
+                        <div className="flex items-center gap-2 mb-2 text-[9px]">
+                          <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                            <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="text-blue-400 font-mono">
+                              Plan: {planTimestampInfo.planTime || 'Available'}
+                            </span>
+                          </div>
                         </div>
                       )}
 
