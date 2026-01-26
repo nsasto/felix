@@ -66,7 +66,9 @@ Run validation checks for a specific requirement. The validation script reads ac
 
 ```bash
 # Validate a specific requirement
-python scripts/validate-requirement.py S-0002
+py -3 scripts/validate-requirement.py S-0002
+
+# If py is not available, set python.executable in felix/config.json or use python directly
 
 # Example output:
 # Validating Requirement: S-0002

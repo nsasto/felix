@@ -12,6 +12,10 @@
     "working_directory": ".",
     "environment": {}
   },
+  "python": {
+    "executable": "py",
+    "args": ["-3"]
+  },
   "paths": {
     "specs": "specs",
     "agents": "AGENTS.md",
