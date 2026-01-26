@@ -7,6 +7,7 @@
 2. **Acceptance & Validation Criteria**
    - Include `## Acceptance Criteria` with Markdown checkboxes detailing expected behavior.
    - When applicable, add `## Validation Criteria` (or equivalent) listing concrete commands/observables required for verification.
+   - **IMPORTANT**: Only use backticks for executable commands (e.g., `python -m pytest`, `curl http://localhost:8080/health`). Do NOT use backticks for file paths or manual test descriptions (e.g., "verify felix/config.json updated" not "verify `felix/config.json` updated").
 
 3. **Technical Guidance**
    - Provide sections such as `## Technical Notes`, `## Solution`, or `## Technical Details` to capture implementation direction, architecture constraints, or workflow expectations. Do NOT Instruct the developers how to implement.

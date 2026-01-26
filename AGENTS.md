@@ -24,7 +24,7 @@ npm install
 
 ```bash
 cd app/backend
-pytest tests/ -v
+python -m pytest tests/ -v
 ```
 
 ### Frontend
@@ -38,7 +38,7 @@ npm test
 
 - Backend tests: `app/backend/tests/` (pytest)
 - Frontend tests: `app/frontend/src/__tests__/` (Jest/Vitest)
-- Run individual test files: `pytest tests/test_filename.py`
+- Run individual test files: `python -m pytest tests/test_filename.py`
 
 ## Build the Project
 
