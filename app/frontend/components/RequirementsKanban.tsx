@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { felixApi, Requirement, RequirementsData, PlanInfo } from '../services/felixApi';
+import { felixApi, Requirement, RequirementsData, RequirementStatusResponse } from '../services/felixApi';
 import { IconPlus, IconFileText } from './Icons';
 
 // Requirement status columns matching the felix/requirements.json schema
@@ -44,12 +44,14 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
 
-  // Plan info for each requirement (maps requirement id -> plan info)
-  const [planInfoMap, setPlanInfoMap] = useState<Record<string, PlanInfo>>({});
+  // Requirement status info for each requirement (maps requirement id -> status info)
+  // This includes plan info and spec modification timestamps for drift detection
+  const [requirementStatusMap, setRequirementStatusMap] = useState<Record<string, RequirementStatusResponse>>({});
 
-  // Fetch plan info for all requirements that are planned or in_progress
+  // Fetch requirement status for all requirements that might have plans
+  // This includes both plan info and spec modification times for drift detection
   useEffect(() => {
-    const fetchPlanInfo = async () => {
+    const fetchRequirementStatus = async () => {
       if (!projectId || requirements.length === 0) return;
       
       // Only fetch for requirements that might have plans
@@ -57,26 +59,26 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
         req => req.status === 'planned' || req.status === 'in_progress' || req.status === 'complete'
       );
       
-      const infoMap: Record<string, PlanInfo> = {};
+      const statusMap: Record<string, RequirementStatusResponse> = {};
       
-      // Fetch plan info for each relevant requirement
+      // Fetch status info for each relevant requirement
       await Promise.all(
         relevantReqs.map(async (req) => {
           try {
-            const planInfo = await felixApi.getPlanInfo(projectId, req.id);
-            if (planInfo.exists) {
-              infoMap[req.id] = planInfo;
+            const statusInfo = await felixApi.getRequirementStatus(projectId, req.id);
+            if (statusInfo.has_plan) {
+              statusMap[req.id] = statusInfo;
             }
           } catch (err) {
-            console.warn(`Failed to fetch plan info for ${req.id}:`, err);
+            console.warn(`Failed to fetch requirement status for ${req.id}:`, err);
           }
         })
       );
       
-      setPlanInfoMap(infoMap);
+      setRequirementStatusMap(statusMap);
     };
 
-    fetchPlanInfo();
+    fetchRequirementStatus();
   }, [projectId, requirements]);
 
   // Fetch requirements on mount and when projectId changes
@@ -222,19 +224,25 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
     specModifiedAfterPlan: boolean;
     hasPlan: boolean;
   } => {
-    const planInfo = planInfoMap[requirementId];
-    if (!planInfo || !planInfo.exists) {
+    const statusInfo = requirementStatusMap[requirementId];
+    if (!statusInfo || !statusInfo.has_plan) {
       return { planTime: null, specModifiedAfterPlan: false, hasPlan: false };
     }
     
-    const planTime = formatTimestamp(planInfo.modified_at);
+    const planTime = formatTimestamp(statusInfo.plan_modified_at);
     
-    // To check if spec was modified after plan, we need the spec modification time
-    // This would require additional data from the status endpoint
-    // For now, we return the plan time info
+    // Check if spec was modified after plan was generated
+    let specModifiedAfterPlan = false;
+    if (statusInfo.plan_modified_at && statusInfo.spec_modified_at) {
+      const planModTime = parseFloat(statusInfo.plan_modified_at);
+      const specModTime = parseFloat(statusInfo.spec_modified_at);
+      // If spec was modified after plan, there's drift
+      specModifiedAfterPlan = !isNaN(planModTime) && !isNaN(specModTime) && specModTime > planModTime;
+    }
+    
     return { 
       planTime, 
-      specModifiedAfterPlan: false, // Will be enhanced in next task
+      specModifiedAfterPlan,
       hasPlan: true 
     };
   };
@@ -417,17 +425,29 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                         </div>
                       )}
 
-                      {/* Plan timestamp indicator */}
+                      {/* Plan timestamp indicator with drift detection */}
                       {planTimestampInfo.hasPlan && (
                         <div className="flex items-center gap-2 mb-2 text-[9px]">
-                          <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
-                            <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span className="text-blue-400 font-mono">
-                              Plan: {planTimestampInfo.planTime || 'Available'}
-                            </span>
-                          </div>
+                          {/* Drift warning indicator - spec modified after plan */}
+                          {planTimestampInfo.specModifiedAfterPlan ? (
+                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/30">
+                              <svg className="w-3 h-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              <span className="text-orange-400 font-mono">
+                                Spec changed • Plan stale
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                              <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className="text-blue-400 font-mono">
+                                Plan: {planTimestampInfo.planTime || 'Available'}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
 
