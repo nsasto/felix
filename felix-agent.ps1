@@ -296,19 +296,33 @@ function Invoke-RequirementValidation {
     Write-Host "[VALIDATION] Python: $pythonExe"
     Write-Host "[VALIDATION] Script: $ValidationScript"
     
+    # Build arguments
+    [array]$allArguments = @()
+    if ($pythonArgs) { $allArguments += $pythonArgs }
+    $allArguments += $ValidationScript
+    $allArguments += $RequirementId
+    
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    
     $prevErrorAction = $ErrorActionPreference
-    $ErrorActionPreference = "Continue" # Ensure stderr doesn't crash the loop
+    $ErrorActionPreference = "Continue"
     
     try {
-        # Fix: Flatten into a single array for clean parameter binding
-        [array]$allArguments = @()
-        if ($pythonArgs) { $allArguments += $pythonArgs }
-        $allArguments += $ValidationScript
-        $allArguments += $RequirementId
+        $proc = Start-Process `
+            -FilePath $pythonExe `
+            -ArgumentList $allArguments `
+            -NoNewWindow `
+            -Wait `
+            -PassThru `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
         
-        # Use '@' to splat the array as individual arguments
-        $output = & $pythonExe @allArguments 2>&1
-        $exitCode = $LASTEXITCODE
+        $exitCode = $proc.ExitCode
+        $stdout = Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue
+        $stderr = Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue
+        $output = (($stdout + "`n" + $stderr).Trim())
+        if (-not $output) { $output = "Output captured to temp logs." }
     }
     catch {
         $output = $_.Exception.Message
@@ -316,6 +330,7 @@ function Invoke-RequirementValidation {
     }
     finally {
         $ErrorActionPreference = $prevErrorAction
+        Remove-Item $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
     }
     
     return @{ output = $output; exitCode = $exitCode }
