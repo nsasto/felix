@@ -180,16 +180,19 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between">
+      <div className="h-12 border-b flex items-center px-4 justify-between" style={{ borderColor: 'var(--border-default)' }}>
         <div className="flex items-center gap-2">
-          <IconFelix className="w-4 h-4 text-felix-400" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <IconFelix className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
             Projects
           </span>
         </div>
         <button
           onClick={() => setIsRegisterOpen(true)}
-          className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-felix-400"
+          className="p-1.5 rounded-lg transition-all"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--hover-bg)'; e.currentTarget.style.color = 'var(--accent-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
           title="Register Project"
         >
           <IconPlus className="w-4 h-4" />
@@ -198,11 +201,12 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
 
       {/* Error display */}
       {error && (
-        <div className="mx-3 mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+        <div className="mx-3 mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs" style={{ color: 'var(--status-error)' }}>
           {error}
           <button
             onClick={() => setError(null)}
-            className="ml-2 text-red-300 hover:text-red-200"
+            className="ml-2 opacity-80 hover:opacity-100"
+            style={{ color: 'var(--status-error)' }}
           >
             ×
           </button>
@@ -212,12 +216,12 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       {/* Project list */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8 text-slate-600 text-xs">
+          <div className="flex items-center justify-center py-8 text-xs" style={{ color: 'var(--text-muted)' }}>
             <IconFelix className="w-5 h-5 animate-spin mr-2" />
             Loading projects...
           </div>
         ) : projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-slate-600 text-center">
+          <div className="flex flex-col items-center justify-center py-8 text-center" style={{ color: 'var(--text-muted)' }}>
             <IconFolder className="w-8 h-8 mb-3 opacity-50" />
             <p className="text-xs mb-1">No projects registered</p>
             <p className="text-[10px] opacity-60">
@@ -233,11 +237,26 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               <div key={project.id} className="relative group">
                 <button
                   onClick={() => handleProjectClick(project)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${
-                    isSelected
-                      ? 'bg-felix-600/10 text-felix-400 border-felix-500/20 shadow-lg shadow-felix-900/10'
-                      : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50'
-                  }`}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border"
+                  style={{
+                    backgroundColor: isSelected ? 'var(--selected-bg)' : 'transparent',
+                    color: isSelected ? 'var(--accent-primary)' : 'var(--text-muted)',
+                    borderColor: isSelected ? 'var(--accent-primary)' : 'transparent',
+                    borderOpacity: isSelected ? 0.2 : 0,
+                    boxShadow: isSelected ? 'var(--shadow-md)' : 'none',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = 'var(--text-muted)';
+                    }
+                  }}
                 >
                   <div className="relative">
                     <IconFolder className="w-4 h-4" />
@@ -269,7 +288,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                     e.stopPropagation();
                     setConfirmUnregister(project.id);
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 rounded-lg transition-all text-slate-600 hover:text-red-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 rounded-lg transition-all"
+                  style={{ color: 'var(--text-muted)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--status-error)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
                   title="Unregister project"
                 >
                   <IconTrash className="w-3.5 h-3.5" />
@@ -281,11 +303,14 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       </div>
 
       {/* Refresh button */}
-      <div className="p-3 border-t border-slate-800/60">
+      <div className="p-3 border-t" style={{ borderColor: 'var(--border-default)' }}>
         <button
           onClick={loadProjects}
           disabled={isLoading}
-          className="w-full py-2 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors uppercase tracking-wider disabled:opacity-50"
+          className="w-full py-2 text-[10px] font-mono transition-colors uppercase tracking-wider disabled:opacity-50"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
         >
           {isLoading ? 'Loading...' : 'Refresh Projects'}
         </button>
@@ -294,18 +319,21 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       {/* Register Project Dialog */}
       {isRegisterOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[420px] overflow-hidden">
+          <div className="rounded-2xl shadow-2xl w-[420px] overflow-hidden" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-default)' }}>
             {/* Dialog header */}
-            <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4">
+            <div className="h-12 border-b flex items-center justify-between px-4" style={{ borderColor: 'var(--border-default)' }}>
               <div className="flex items-center gap-2">
-                <IconFolder className="w-4 h-4 text-felix-400" />
-                <span className="text-xs font-bold text-slate-300">
+                <IconFolder className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
                   Register Project
                 </span>
               </div>
               <button
                 onClick={() => setIsRegisterOpen(false)}
-                className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+                className="p-1.5 rounded-lg transition-all"
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--hover-bg)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
               >
                 <IconX className="w-4 h-4" />
               </button>
@@ -314,7 +342,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             {/* Dialog body */}
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
                   Project Path *
                 </label>
                 <input
@@ -322,15 +350,20 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   value={registerPath}
                   onChange={(e) => setRegisterPath(e.target.value)}
                   placeholder="C:\path\to\your\project"
-                  className="w-full bg-[#161b22] border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-300 placeholder:text-slate-700 focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none"
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-felix-500 transition-all outline-none"
+                  style={{ 
+                    backgroundColor: 'var(--bg-elevated)', 
+                    border: '1px solid var(--border-muted)',
+                    color: 'var(--text-secondary)'
+                  }}
                 />
-                <p className="mt-1.5 text-[9px] text-slate-600">
+                <p className="mt-1.5 text-[9px]" style={{ color: 'var(--text-muted)' }}>
                   Enter the absolute path to your Felix project directory
                 </p>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
                   Display Name (optional)
                 </label>
                 <input
@@ -338,22 +371,30 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
                   placeholder="My Project"
-                  className="w-full bg-[#161b22] border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-300 placeholder:text-slate-700 focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none"
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-felix-500 transition-all outline-none"
+                  style={{ 
+                    backgroundColor: 'var(--bg-elevated)', 
+                    border: '1px solid var(--border-muted)',
+                    color: 'var(--text-secondary)'
+                  }}
                 />
               </div>
 
               {error && (
-                <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+                <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs" style={{ color: 'var(--status-error)' }}>
                   {error}
                 </div>
               )}
             </div>
 
             {/* Dialog footer */}
-            <div className="h-14 border-t border-slate-800/60 flex items-center justify-end gap-3 px-4">
+            <div className="h-14 border-t flex items-center justify-end gap-3 px-4" style={{ borderColor: 'var(--border-default)' }}>
               <button
                 onClick={() => setIsRegisterOpen(false)}
-                className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors"
+                className="px-4 py-2 text-xs font-medium transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
               >
                 Cancel
               </button>
@@ -372,22 +413,25 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       {/* Confirm Unregister Dialog */}
       {confirmUnregister && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[380px] overflow-hidden">
+          <div className="rounded-2xl shadow-2xl w-[380px] overflow-hidden" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-default)' }}>
             <div className="p-6 text-center">
               <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <IconTrash className="w-6 h-6 text-red-400" />
+                <IconTrash className="w-6 h-6" style={{ color: 'var(--status-error)' }} />
               </div>
-              <h3 className="text-sm font-bold text-slate-200 mb-2">
+              <h3 className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
                 Unregister Project?
               </h3>
-              <p className="text-xs text-slate-500 mb-6">
+              <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
                 This will remove the project from Felix. Your files will not be
                 deleted.
               </p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => setConfirmUnregister(null)}
-                  className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors"
+                  className="px-4 py-2 text-xs font-medium transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
                 >
                   Cancel
                 </button>
