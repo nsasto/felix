@@ -295,7 +295,7 @@
                              "id":  "S-0019",
                              "title":  "Settings Not Project Dependent",
                              "spec_path":  "specs/S-0019-settings-not-project-dependent.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
 
@@ -304,7 +304,7 @@
 
                                             ],
                              "updated_at":  "2026-01-27",
-                             "last_run_id":  "2026-01-27T21-27-27"
+                             "last_run_id":  "2026-01-27T21-42-21"
                          },
                          {
                              "id":  "S-0020",
