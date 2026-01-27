@@ -752,7 +752,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   return (
     <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Specs List Sidebar */}
-      <div className="w-64 border-r theme-border flex flex-col theme-bg-deep/40 flex-shrink-0">
+      <div className="w-80 border-r theme-border flex flex-col theme-bg-deep/40 flex-shrink-0">
         <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
             Specifications

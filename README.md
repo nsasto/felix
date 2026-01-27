@@ -113,7 +113,7 @@ Felix consists of three independent components:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  Frontend (React)                                    │
+│  Frontend (React)                                   │
 │  • Observes project state                           │
 │  • Edits artifacts                                  │
 │  • Spawns agents                                    │
@@ -121,7 +121,7 @@ Felix consists of three independent components:
 └──────────────────┬──────────────────────────────────┘
                    │ HTTP/WebSocket
 ┌──────────────────▼──────────────────────────────────┐
-│  Backend (FastAPI)                                   │
+│  Backend (FastAPI)                                  │
 │  • Spawns agent processes                           │
 │  • Monitors via filesystem watchers                 │
 │  • Provides API for UI                              │
@@ -129,7 +129,7 @@ Felix consists of three independent components:
 └──────────────────┬──────────────────────────────────┘
                    │ subprocess + filesystem
 ┌──────────────────▼──────────────────────────────────┐
-│  Agent (PowerShell)                                  │
+│  Agent (PowerShell)                                 │
 │  • Runs Ralph loop                                  │
 │  • Reads/writes artifacts                           │
 │  • Calls LLM APIs                                   │
