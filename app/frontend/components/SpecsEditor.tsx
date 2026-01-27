@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { felixApi, SpecFile, Requirement } from '../services/felixApi';
+import { felixApi, SpecFile, Requirement, RequirementStatusResponse } from '../services/felixApi';
 import { marked } from 'marked';
 import { IconFileText, IconPlus } from './Icons';
 import SpecEditWarningModal, { WarningAction } from './SpecEditWarningModal';
@@ -256,6 +256,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   // Search state (for S-0015: Spec Screen Enhancements)
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Requirement status cache for safety indicators (S-0015: Drift detection)
+  const [requirementStatuses, setRequirementStatuses] = useState<Map<string, RequirementStatusResponse>>(new Map());
+
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   // Hook to check requirement status for warning modal (S-0006)
@@ -320,6 +323,33 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
     fetchRequirements();
   }, [projectId]);
+
+  // Fetch requirement statuses for drift detection (S-0015: Safety Indicators)
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      if (requirements.length === 0) return;
+      
+      const statusMap = new Map<string, RequirementStatusResponse>();
+      
+      // Fetch status for each requirement (limit to first 20 to avoid too many API calls)
+      const reqsToFetch = requirements.slice(0, 20);
+      await Promise.all(
+        reqsToFetch.map(async (req) => {
+          try {
+            const status = await felixApi.getRequirementStatus(projectId, req.id);
+            statusMap.set(req.id, status);
+          } catch (err) {
+            // Silently fail for individual status fetches
+            console.debug(`Failed to fetch status for ${req.id}:`, err);
+          }
+        })
+      );
+      
+      setRequirementStatuses(statusMap);
+    };
+
+    fetchStatuses();
+  }, [projectId, requirements]);
 
   // Filter specs based on search query (S-0015: Spec Screen Enhancements)
   const filteredSpecs = useMemo(() => {
@@ -814,17 +844,46 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 }
               };
 
+              // Check for drift - spec modified after plan generated (S-0015: Drift Detection)
+              const reqStatus = req ? requirementStatuses.get(req.id) : null;
+              const hasDrift = reqStatus && reqStatus.has_plan && reqStatus.spec_modified_at && reqStatus.plan_modified_at
+                ? new Date(reqStatus.spec_modified_at) > new Date(reqStatus.plan_modified_at)
+                : false;
+
+              // Check if agent is actively running on this requirement (S-0015: Active Agent Indicator)
+              const isAgentActive = req?.status === 'in_progress';
+
               return (
                 <button
                   key={spec.filename}
                   onClick={() => handleSelectSpec(spec.filename)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border group ${
                     selectedFilename === spec.filename
                       ? 'bg-felix-600/10 text-felix-400 border-felix-500/20 shadow-lg shadow-felix-900/10'
                       : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50'
                   }`}
                 >
-                  <IconFileText className="w-4 h-4 flex-shrink-0" />
+                  <div className="relative flex-shrink-0">
+                    <IconFileText className="w-4 h-4" />
+                    {/* Drift Indicator - S-0015 */}
+                    {hasDrift && !isAgentActive && (
+                      <span 
+                        className="absolute -top-1 -right-1 text-[8px]"
+                        title="Spec modified after plan generated"
+                      >
+                        ⚠️
+                      </span>
+                    )}
+                    {/* Active Agent Indicator - S-0015 */}
+                    {isAgentActive && (
+                      <span 
+                        className="absolute -top-1 -right-1 text-[8px] animate-pulse"
+                        title="Agent is currently running on this requirement"
+                      >
+                        🤖
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-col items-start min-w-0 flex-1">
                     <div className="flex items-center gap-2 w-full">
                       <span className="truncate font-medium text-left flex-1">{title}</span>

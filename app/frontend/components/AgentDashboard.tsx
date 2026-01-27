@@ -654,7 +654,7 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
           Agents
         </h2>
       </div>
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4 pt-4">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pl-3 pr-4 py-3 space-y-4">
         {/* Active Agents */}
         {activeAgents.length > 0 && (
           <div>
@@ -1571,9 +1571,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       />
 
       {/* Resizable Panel Layout */}
-      <PanelGroup direction="horizontal" className="flex-1 mt-2">
+      <PanelGroup direction="horizontal" className="flex-1">
         {/* Agent List Panel - 20% */}
-        <Panel defaultSize={20} minSize={15} maxSize={30}>
+        <Panel defaultSize={20} minSize={15} maxSize={30} style={{ minWidth: '250px' }}>
           <AgentListPanel
             agents={agents}
             selectedAgent={selectedAgent}
