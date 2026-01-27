@@ -211,32 +211,22 @@ function Update-RequirementStatus {
     )
     
     try {
-        # Read the raw file content
-        $content = Get-Content $RequirementsFilePath -Raw
-        
-        # Create pattern to find this requirement's status field
-        # Pattern: "id": "REQID"...anywhere..."status": "oldvalue"
-        $pattern = '("id"\s*:\s*"' + [regex]::Escape($RequirementId) + '"[\s\S]*?"status"\s*:\s*")([^"]+)(")'
-        
-        # Check if requirement exists
-        if ($content -notmatch $pattern) {
+        $json = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
+        $found = $false
+        foreach ($req in $json) {
+            if ($req.id -eq $RequirementId) {
+                $req.status = $NewStatus
+                $req.updated_at = (Get-Date -Format "yyyy-MM-dd")
+                $found = $true
+                break
+            }
+        }
+        if (-not $found) {
             Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
             Write-Host "Warning: Requirement $RequirementId not found in requirements.json" -ForegroundColor Yellow
             return $false
         }
-        
-        # Replace only the status value, preserving all formatting
-        $updatedContent = $content -replace $pattern, "`${1}$NewStatus`$3"
-        
-        # Also update the updated_at date for this requirement
-        $datePattern = '("id"\s*:\s*"' + [regex]::Escape($RequirementId) + '"[\s\S]*?"updated_at"\s*:\s*")([^"]+)(")'
-        $today = Get-Date -Format "yyyy-MM-dd"
-        $updatedContent = $updatedContent -replace $datePattern, "`${1}$today`$3"
-        
-        # Write back using .NET method for consistent UTF-8 without BOM across PowerShell versions
-        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-        [System.IO.File]::WriteAllText($RequirementsFilePath, $updatedContent, $utf8NoBom)
-        
+        $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
         Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
         Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
         return $true
@@ -270,47 +260,24 @@ function Update-RequirementRunId {
             Write-Host "Requirements file not found: $RequirementsFilePath" -ForegroundColor Red
             return $false
         }
-        
-        $content = Get-Content $RequirementsFilePath -Raw -Encoding UTF8
-        
-        # Find the requirement block and add/update last_run_id
-        # Pattern matches the requirement with this ID and captures the fields up to the closing brace
-        $pattern = '(?s)(\{\s*"id"\s*:\s*"' + [regex]::Escape($RequirementId) + '".*?)("updated_at"\s*:\s*"[^"]+")(.*?\})'
-        
-        if ($content -match $pattern) {
-            $beforeUpdated = $matches[1]
-            $updatedField = $matches[2]
-            $afterUpdated = $matches[3]
-            
-            # Check if last_run_id already exists in this requirement
-            if ($afterUpdated -match ',\s*"last_run_id"\s*:\s*"[^"]*"') {
-                # Update existing last_run_id
-                $afterUpdated = $afterUpdated -replace '("last_run_id"\s*:\s*")[^"]*"', "`${1}$RunId`""
-                $newContent = $content -replace [regex]::Escape($matches[0]), "$beforeUpdated$updatedField$afterUpdated"
+        $json = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
+        $found = $false
+        foreach ($req in $json) {
+            if ($req.id -eq $RequirementId) {
+                $req.last_run_id = $RunId
+                $found = $true
+                break
             }
-            else {
-                # Add new last_run_id field after updated_at
-                # Use CRLF line ending for Windows
-                $newLastRunField = ",`r`n      `"last_run_id`": `"$RunId`""
-                $newContent = $content -replace [regex]::Escape($matches[0]), "$beforeUpdated$updatedField$newLastRunField$afterUpdated"
-            }
-            
-            # Ensure CRLF line endings for Windows
-            $newContent = $newContent -replace "`r?`n", "`r`n"
-            
-            # Write back using .NET method for consistent UTF-8 without BOM
-            $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-            [System.IO.File]::WriteAllText($RequirementsFilePath, $newContent, $utf8NoBom)
-            
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Updated $RequirementId with last_run_id: $RunId" -ForegroundColor Green
-            return $true
         }
-        else {
+        if (-not $found) {
             Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
             Write-Host "Could not find requirement $RequirementId in requirements.json" -ForegroundColor Yellow
             return $false
         }
+        $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
+        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Updated $RequirementId with last_run_id: $RunId" -ForegroundColor Green
+        return $true
     }
     catch {
         Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan

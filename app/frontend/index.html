@@ -407,6 +407,99 @@
     .theme-border-subtle {
       border-color: var(--border-subtle);
     }
+
+    /* ============================================
+       ANSI Console Color Classes
+       These map to ansi-to-react's useClasses output
+       ============================================ */
+    
+    /* Console container styling */
+    .ansi-console {
+      background-color: var(--bg-deepest);
+      color: var(--text-secondary);
+    }
+
+    /* ANSI Foreground Colors (Standard) */
+    .ansi-black { color: #282c34; }
+    .ansi-red { color: #e06c75; }
+    .ansi-green { color: #98c379; }
+    .ansi-yellow { color: #e5c07b; }
+    .ansi-blue { color: #61afef; }
+    .ansi-magenta { color: #c678dd; }
+    .ansi-cyan { color: #56b6c2; }
+    .ansi-white { color: #abb2bf; }
+
+    /* ANSI Foreground Colors (Bright/Bold) */
+    .ansi-bright-black { color: #5c6370; }
+    .ansi-bright-red { color: #e06c75; }
+    .ansi-bright-green { color: #98c379; }
+    .ansi-bright-yellow { color: #d19a66; }
+    .ansi-bright-blue { color: #61afef; }
+    .ansi-bright-magenta { color: #c678dd; }
+    .ansi-bright-cyan { color: #56b6c2; }
+    .ansi-bright-white { color: #ffffff; }
+
+    /* ANSI Background Colors (Standard) */
+    .ansi-bg-black { background-color: #282c34; }
+    .ansi-bg-red { background-color: #e06c75; }
+    .ansi-bg-green { background-color: #98c379; }
+    .ansi-bg-yellow { background-color: #e5c07b; }
+    .ansi-bg-blue { background-color: #61afef; }
+    .ansi-bg-magenta { background-color: #c678dd; }
+    .ansi-bg-cyan { background-color: #56b6c2; }
+    .ansi-bg-white { background-color: #abb2bf; }
+
+    /* ANSI Background Colors (Bright) */
+    .ansi-bright-bg-black { background-color: #5c6370; }
+    .ansi-bright-bg-red { background-color: #e06c75; }
+    .ansi-bright-bg-green { background-color: #98c379; }
+    .ansi-bright-bg-yellow { background-color: #d19a66; }
+    .ansi-bright-bg-blue { background-color: #61afef; }
+    .ansi-bright-bg-magenta { background-color: #c678dd; }
+    .ansi-bright-bg-cyan { background-color: #56b6c2; }
+    .ansi-bright-bg-white { background-color: #ffffff; }
+
+    /* ANSI Text Styles */
+    .ansi-bold { font-weight: bold; }
+    .ansi-dim { opacity: 0.7; }
+    .ansi-italic { font-style: italic; }
+    .ansi-underline { text-decoration: underline; }
+    .ansi-blink { animation: blink 1s step-end infinite; }
+    .ansi-reverse { filter: invert(1); }
+    .ansi-hidden { visibility: hidden; }
+    .ansi-strikethrough { text-decoration: line-through; }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* Light theme ANSI colors (adjusted for visibility) */
+    .light .ansi-black { color: #24292f; }
+    .light .ansi-red { color: #cf222e; }
+    .light .ansi-green { color: #1a7f37; }
+    .light .ansi-yellow { color: #9a6700; }
+    .light .ansi-blue { color: #0969da; }
+    .light .ansi-magenta { color: #8250df; }
+    .light .ansi-cyan { color: #1b7c83; }
+    .light .ansi-white { color: #57606a; }
+
+    .light .ansi-bright-black { color: #6e7781; }
+    .light .ansi-bright-red { color: #a40e26; }
+    .light .ansi-bright-green { color: #116329; }
+    .light .ansi-bright-yellow { color: #7d5400; }
+    .light .ansi-bright-blue { color: #0550ae; }
+    .light .ansi-bright-magenta { color: #6639ba; }
+    .light .ansi-bright-cyan { color: #136166; }
+    .light .ansi-bright-white { color: #24292f; }
+
+    .light .ansi-bg-black { background-color: #24292f; color: #ffffff; }
+    .light .ansi-bg-red { background-color: #cf222e; color: #ffffff; }
+    .light .ansi-bg-green { background-color: #1a7f37; color: #ffffff; }
+    .light .ansi-bg-yellow { background-color: #9a6700; color: #ffffff; }
+    .light .ansi-bg-blue { background-color: #0969da; color: #ffffff; }
+    .light .ansi-bg-magenta { background-color: #8250df; color: #ffffff; }
+    .light .ansi-bg-cyan { background-color: #1b7c83; color: #ffffff; }
+    .light .ansi-bg-white { background-color: #f6f8fa; color: #24292f; }
   </style>
   <script type="importmap">
 {

@@ -3,6 +3,7 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import { felixApi, AgentEntry, AgentRegistryResponse, RunHistoryEntry, Requirement } from '../services/felixApi';
 import { IconFelix, IconCpu, IconTerminal } from './Icons';
 import { marked } from 'marked';
+import Ansi from 'ansi-to-react';
 
 // --- Types ---
 
@@ -686,11 +687,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       {/* Console output */}
       <div
         ref={consoleRef}
-        className="flex-1 overflow-y-auto custom-scrollbar p-4 font-mono text-xs leading-relaxed"
+        className="flex-1 overflow-y-auto custom-scrollbar p-4 font-mono text-xs leading-relaxed ansi-console"
         style={{ backgroundColor: 'var(--bg-deepest)', color: 'var(--text-secondary)' }}
       >
         {consoleOutput ? (
-          <pre className="whitespace-pre-wrap">{consoleOutput}</pre>
+          <pre className="whitespace-pre-wrap">
+            <Ansi useClasses>{consoleOutput}</Ansi>
+          </pre>
         ) : (
           <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
             <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
