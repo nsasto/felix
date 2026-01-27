@@ -9,7 +9,7 @@ interface RunArtifactViewerProps {
   onClose: () => void;
 }
 
-type ArtifactTab = 'report' | 'log' | 'plan';
+type ArtifactTab = 'report' | 'log' | 'plan' | 'spec';
 
 const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({ 
   projectId, 
@@ -22,20 +22,35 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [parsedHtml, setParsedHtml] = useState<string>('');
   const [requirementId, setRequirementId] = useState<string | null>(null);
+  const [specPath, setSpecPath] = useState<string | null>(null);
 
-  // Fetch requirement ID from requirement_id.txt
+  // Fetch requirement ID and spec path from requirement_id.txt
   useEffect(() => {
-    const fetchRequirementId = async () => {
+    const fetchRequirementInfo = async () => {
       try {
         const result = await felixApi.getRunArtifact(projectId, runId, 'requirement_id.txt');
-        setRequirementId(result.content.trim());
+        const reqId = result.content.trim();
+        setRequirementId(reqId);
+        
+        // Fetch requirements to get spec_path for this requirement
+        if (reqId) {
+          try {
+            const requirements = await felixApi.getRequirements(projectId);
+            const req = requirements.requirements.find(r => r.id === reqId);
+            if (req) {
+              setSpecPath(req.spec_path);
+            }
+          } catch (err) {
+            console.error('Failed to fetch requirements:', err);
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch requirement ID:', err);
-        // Not critical - plan tab just won't work
+        // Not critical - plan and spec tabs just won't work
       }
     };
 
-    fetchRequirementId();
+    fetchRequirementInfo();
   }, [projectId, runId]);
 
   // Map tab to filename
@@ -44,6 +59,7 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
       case 'report': return 'report.md';
       case 'log': return 'output.log';
       case 'plan': return requirementId ? `plan-${requirementId}.md` : 'plan.snapshot.md';
+      case 'spec': return 'spec.md'; // Placeholder, will fetch separately
     }
   };
 
@@ -55,9 +71,17 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
       setContent('');
       
       try {
-        const filename = getFilename(activeTab);
-        const result = await felixApi.getRunArtifact(projectId, runId, filename);
-        setContent(result.content);
+        if (activeTab === 'spec' && specPath) {
+          // Fetch spec directly from specs directory
+          const filename = specPath.split('/').pop() || specPath;
+          const result = await felixApi.getSpec(projectId, filename);
+          setContent(result.content);
+        } else {
+          // Fetch from run artifacts
+          const filename = getFilename(activeTab);
+          const result = await felixApi.getRunArtifact(projectId, runId, filename);
+          setContent(result.content);
+        }
       } catch (err) {
         console.error('Failed to fetch artifact:', err);
         setError(err instanceof Error ? err.message : 'Failed to load artifact');
@@ -67,9 +91,9 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
     };
 
     fetchArtifact();
-  }, [projectId, runId, activeTab, requirementId]);
+  }, [projectId, runId, activeTab, requirementId, specPath]);
 
-  // Parse markdown content for report and plan tabs
+  // Parse markdown content for report, plan, and spec tabs
   useEffect(() => {
     if (activeTab === 'log') {
       setParsedHtml('');
@@ -98,6 +122,7 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
     { id: 'report', label: 'Report', icon: '📋' },
     { id: 'log', label: 'Output Log', icon: '📜' },
     { id: 'plan', label: 'Plan Snapshot', icon: '📝' },
+    { id: 'spec', label: 'Specification', icon: '📄' },
   ];
 
   return (

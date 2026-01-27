@@ -503,15 +503,6 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
         projectId={projectId}
         requirement={selectedRequirement}
         onClose={() => setSelectedRequirement(null)}
-        onEditSpec={(filename) => {
-          // Navigate to spec editor - the parent App.tsx handles this
-          // For now, we'll just log and let the parent handle via onSelectRequirement
-          console.log('Edit spec requested:', filename);
-        }}
-        onViewPlan={(planPath) => {
-          // Navigate to plan viewer
-          console.log('View plan requested:', planPath);
-        }}
       />
     </div>
   );

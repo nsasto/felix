@@ -46,6 +46,7 @@ export interface Requirement {
   labels: string[];
   depends_on: string[];
   updated_at: string;
+  last_run_id?: string;
 }
 
 export interface RequirementsData {
