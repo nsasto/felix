@@ -1,14 +1,21 @@
 """
 Felix Backend - Agent Registry API
-Handles agent registration, heartbeat, and status tracking.
+Handles agent registration, heartbeat, status tracking, and console streaming.
 """
+import asyncio
 import json
+import os
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, AsyncGenerator
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
+
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import storage
 
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -348,3 +355,215 @@ async def stop_agent(agent_name: str):
         agent_name=agent_name,
         status="stopped"
     )
+
+
+# --- Console Streaming WebSocket ---
+
+def _get_project_path_for_agent() -> Optional[Path]:
+    """
+    Get the project path from registered projects.
+    For now, we assume the first registered project is the active one.
+    In the future, this could be extended to track which project each agent is working on.
+    """
+    projects = storage.list_projects()
+    if projects:
+        return Path(projects[0].path)
+    return None
+
+
+def _find_current_run_dir(project_path: Path, agent_name: str) -> Optional[Path]:
+    """
+    Find the current run directory for an agent.
+    
+    Looks for the most recent run directory in the project's runs/ folder.
+    In the future, this could use agent.current_run_id to find the exact run.
+    """
+    runs_dir = project_path / "runs"
+    if not runs_dir.exists():
+        return None
+    
+    # Get most recent run directory by name (ISO timestamp format)
+    run_dirs = sorted(
+        [d for d in runs_dir.iterdir() if d.is_dir()],
+        key=lambda d: d.name,
+        reverse=True
+    )
+    
+    if run_dirs:
+        return run_dirs[0]
+    return None
+
+
+async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]:
+    """
+    Read new content from a file starting from last_position.
+    
+    Returns:
+        tuple: (new_content, new_position)
+    """
+    try:
+        if not file_path.exists():
+            return "", last_position
+        
+        file_size = file_path.stat().st_size
+        
+        # If file was truncated, start from beginning
+        if file_size < last_position:
+            last_position = 0
+        
+        # Read new content
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            f.seek(last_position)
+            new_content = f.read()
+            new_position = f.tell()
+        
+        return new_content, new_position
+    except (IOError, OSError) as e:
+        return f"[Error reading file: {e}]", last_position
+
+
+@router.websocket("/{agent_name}/console")
+async def agent_console_stream(websocket: WebSocket, agent_name: str):
+    """
+    WebSocket endpoint for streaming agent console output.
+    
+    Tails the current run's output.log and streams new lines in real-time.
+    
+    Messages sent to client:
+    - {"type": "connected", "agent_name": "...", "message": "..."}
+    - {"type": "output", "content": "...", "run_id": "..."}
+    - {"type": "run_changed", "run_id": "...", "message": "..."}
+    - {"type": "idle", "message": "..."}
+    - {"type": "error", "message": "..."}
+    
+    The client can send:
+    - {"type": "ping"} - keepalive
+    - Any message to keep connection alive
+    """
+    await websocket.accept()
+    
+    # Load agents and validate
+    agents = load_agents_registry()
+    agents = update_agent_statuses(agents)
+    
+    if agent_name not in agents:
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Agent not found: {agent_name}"
+        })
+        await websocket.close(code=4004, reason="Agent not found")
+        return
+    
+    agent = agents[agent_name]
+    
+    # Send connected message
+    await websocket.send_json({
+        "type": "connected",
+        "agent_name": agent_name,
+        "status": agent.status,
+        "message": f"Connected to console stream for agent: {agent_name}"
+    })
+    
+    # Get project path
+    project_path = _get_project_path_for_agent()
+    if not project_path:
+        await websocket.send_json({
+            "type": "error",
+            "message": "No project registered. Cannot stream console output."
+        })
+        await websocket.close(code=4004, reason="No project")
+        return
+    
+    # State for tailing
+    last_run_id: Optional[str] = None
+    last_file_position: int = 0
+    current_output_log: Optional[Path] = None
+    
+    try:
+        while True:
+            # Refresh agent status
+            agents = load_agents_registry()
+            agents = update_agent_statuses(agents)
+            
+            if agent_name not in agents:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Agent no longer registered: {agent_name}"
+                })
+                break
+            
+            agent = agents[agent_name]
+            
+            # Check if agent is active and has a current run
+            if agent.status != "active":
+                # Agent is idle
+                await websocket.send_json({
+                    "type": "idle",
+                    "status": agent.status,
+                    "message": f"Agent is {agent.status} - waiting for activity"
+                })
+                await asyncio.sleep(2)  # Longer sleep when idle
+                continue
+            
+            # Find current run directory
+            run_dir = _find_current_run_dir(project_path, agent_name)
+            
+            if run_dir:
+                current_run_id = run_dir.name
+                output_log = run_dir / "output.log"
+                
+                # Check if run changed
+                if current_run_id != last_run_id:
+                    last_run_id = current_run_id
+                    last_file_position = 0  # Reset position for new run
+                    current_output_log = output_log
+                    
+                    await websocket.send_json({
+                        "type": "run_changed",
+                        "run_id": current_run_id,
+                        "message": f"Now streaming from run: {current_run_id}"
+                    })
+                
+                # Read new output
+                if output_log.exists():
+                    new_content, last_file_position = await _tail_file(output_log, last_file_position)
+                    
+                    if new_content:
+                        await websocket.send_json({
+                            "type": "output",
+                            "content": new_content,
+                            "run_id": current_run_id
+                        })
+            else:
+                # No run directory found
+                if last_run_id is not None:
+                    # Previously had a run, now gone
+                    await websocket.send_json({
+                        "type": "idle",
+                        "message": "No active run found"
+                    })
+                    last_run_id = None
+                    last_file_position = 0
+            
+            # Poll interval
+            await asyncio.sleep(0.5)  # 500ms for responsive streaming
+            
+    except WebSocketDisconnect:
+        # Client disconnected normally
+        pass
+    except asyncio.CancelledError:
+        # Task was cancelled
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Stream error: {str(e)}"
+            })
+        except Exception:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
