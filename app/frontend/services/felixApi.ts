@@ -191,6 +191,45 @@ export interface UIConfig {
   theme: 'dark' | 'light' | 'system';
 }
 
+// --- Copilot Config Types (for S-0016: Felix Copilot Settings) ---
+
+export interface CopilotContextSources {
+  agents_md: boolean;
+  learnings_md: boolean;
+  prompt_md: boolean;
+  requirements: boolean;
+  other_specs: boolean;
+}
+
+export interface CopilotFeatures {
+  streaming: boolean;
+  auto_suggest: boolean;
+  context_aware: boolean;
+}
+
+export interface CopilotConfig {
+  enabled: boolean;
+  provider: 'openai' | 'anthropic' | 'custom';
+  model: string;
+  context_sources: CopilotContextSources;
+  features: CopilotFeatures;
+}
+
+export interface CopilotTestResult {
+  success: boolean;
+  error?: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface CopilotStatus {
+  enabled: boolean;
+  configured: boolean;
+  api_key_present: boolean;
+  provider: string | null;
+  model: string | null;
+}
+
 export interface FelixConfig {
   version: string;
   executor: ExecutorConfig;
@@ -198,6 +237,7 @@ export interface FelixConfig {
   paths: PathsConfig;
   backpressure: BackpressureConfig;
   ui: UIConfig;
+  copilot?: CopilotConfig;
 }
 
 export interface ConfigContent {
@@ -447,6 +487,18 @@ class FelixApiService {
       method: 'PUT',
       body: JSON.stringify({ config }),
     });
+  }
+
+  // --- Copilot Endpoints (for S-0016: Felix Copilot Settings) ---
+
+  async testCopilotConnection(): Promise<CopilotTestResult> {
+    return this.request<CopilotTestResult>('/copilot/test', {
+      method: 'POST',
+    });
+  }
+
+  async getCopilotStatus(): Promise<CopilotStatus> {
+    return this.request<CopilotStatus>('/copilot/status');
   }
 
   // --- Health Check ---
