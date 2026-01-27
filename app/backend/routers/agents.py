@@ -71,6 +71,25 @@ class AgentStopResponse(BaseModel):
     status: str
 
 
+class AgentStartRequest(BaseModel):
+    """Request body for starting an agent with a specific requirement"""
+    requirement_id: str = Field(..., description="Requirement ID to work on (e.g., 'S-0012')")
+
+
+class AgentStartResponse(BaseModel):
+    """Response for starting an agent"""
+    message: str
+    agent_name: str
+    requirement_id: str
+    status: str
+
+
+class StopMode(str):
+    """Stop mode options"""
+    GRACEFUL = "graceful"
+    FORCE = "force"
+
+
 # --- Agent Registry File Operations ---
 
 def get_agents_file_path() -> Path:
@@ -327,19 +346,69 @@ async def get_agents():
 
 
 @router.post("/{agent_name}/stop", response_model=AgentStopResponse)
-async def stop_agent(agent_name: str):
+async def stop_agent(agent_name: str, mode: str = "graceful"):
     """
-    Mark an agent as stopped in the registry.
+    Stop an agent and mark it as stopped in the registry.
     
-    This doesn't actually terminate the process - it just updates the registry.
-    The agent should call this on graceful shutdown.
+    Args:
+        agent_name: The name of the agent to stop
+        mode: Stop mode - "graceful" (wait for current task) or "force" (terminate immediately)
+    
+    Graceful mode:
+    - Marks the agent as stopped in the registry
+    - The agent should check its status and stop after completing current task
+    
+    Force mode:
+    - Attempts to terminate the agent process immediately using SIGTERM/SIGKILL
+    - Marks the agent as stopped in the registry
     """
+    import signal
+    import os
+    
     agents = load_agents_registry()
     
     if agent_name not in agents:
         raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
     
     agent = agents[agent_name]
+    
+    # Validate mode
+    if mode not in ["graceful", "force"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid stop mode: {mode}. Must be 'graceful' or 'force'"
+        )
+    
+    # For force mode, attempt to kill the process
+    if mode == "force" and agent.status == "active":
+        try:
+            pid = agent.pid
+            if sys.platform == "win32":
+                # Windows: use taskkill for more reliable termination
+                import subprocess
+                subprocess.run(
+                    ["taskkill", "/F", "/PID", str(pid)],
+                    capture_output=True,
+                    timeout=10,
+                )
+            else:
+                # Unix: send SIGTERM first, then SIGKILL if needed
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    # Give it a moment
+                    import time
+                    time.sleep(1)
+                    # Check if still running
+                    try:
+                        os.kill(pid, 0)  # Check if process exists
+                        os.kill(pid, signal.SIGKILL)  # Force kill
+                    except (OSError, ProcessLookupError):
+                        pass  # Process already dead
+                except (OSError, ProcessLookupError):
+                    pass  # Process already dead
+        except Exception as e:
+            # Log but don't fail - still mark as stopped
+            print(f"Warning: Failed to force kill agent process: {e}")
     
     # Update status
     now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
@@ -350,10 +419,86 @@ async def stop_agent(agent_name: str):
     agents[agent_name] = agent
     save_agents_registry(agents)
     
+    stop_message = f"Agent '{agent_name}' stopped ({mode} mode)"
+    
     return AgentStopResponse(
-        message=f"Agent '{agent_name}' marked as stopped",
+        message=stop_message,
         agent_name=agent_name,
         status="stopped"
+    )
+
+
+@router.post("/{agent_name}/start", response_model=AgentStartResponse)
+async def start_agent(agent_name: str, request: AgentStartRequest):
+    """
+    Start an agent to work on a specific requirement.
+    
+    This endpoint:
+    1. Validates the agent exists and is registered
+    2. Updates the agent's current_run_id to the requested requirement
+    3. Signals the agent to start working (via file-based mechanism)
+    
+    Note: This doesn't spawn a new process - it assumes the agent is already running
+    or will be started externally. The agent polls for work assignments.
+    
+    For actually spawning agent processes, use the project runs API:
+    POST /api/projects/{project_id}/runs/start
+    
+    Args:
+        agent_name: The name of the agent to assign work to
+        request: Contains requirement_id to work on
+    
+    Returns:
+        AgentStartResponse with status information
+    
+    Raises:
+        404: Agent not found in registry
+        400: Requirement ID validation failed
+        409: Agent is already working on a task
+    """
+    agents = load_agents_registry()
+    
+    if agent_name not in agents:
+        raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+    
+    agent = agents[agent_name]
+    
+    # Validate requirement_id format (e.g., "S-0012")
+    import re
+    if not request.requirement_id or not re.match(r'^[A-Za-z0-9_-]+$', request.requirement_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid requirement_id format. Must be alphanumeric with hyphens/underscores (e.g., 'S-0012')"
+        )
+    
+    # Check if agent is already working on something
+    if agent.status == "active" and agent.current_run_id:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Agent '{agent_name}' is already working on requirement '{agent.current_run_id}'"
+        )
+    
+    # Update agent's current_run_id (this signals what the agent should work on)
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+    agent.current_run_id = request.requirement_id
+    agent.last_heartbeat = now
+    
+    # If agent was stopped or inactive, note that it needs to be started externally
+    was_active = agent.status == "active"
+    
+    agents[agent_name] = agent
+    save_agents_registry(agents)
+    
+    if was_active:
+        message = f"Agent '{agent_name}' assigned to work on requirement '{request.requirement_id}'"
+    else:
+        message = f"Agent '{agent_name}' assigned requirement '{request.requirement_id}'. Note: Agent is {agent.status}, start the agent process separately."
+    
+    return AgentStartResponse(
+        message=message,
+        agent_name=agent_name,
+        requirement_id=request.requirement_id,
+        status=agent.status
     )
 
 

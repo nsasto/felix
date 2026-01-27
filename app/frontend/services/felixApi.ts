@@ -397,9 +397,16 @@ class FelixApiService {
     });
   }
 
-  async stopAgent(agentName: string): Promise<{ message: string; agent_name: string; status: string }> {
-    return this.request<{ message: string; agent_name: string; status: string }>(`/agents/${agentName}/stop`, {
+  async stopAgent(agentName: string, mode: 'graceful' | 'force' = 'graceful'): Promise<{ message: string; agent_name: string; status: string }> {
+    return this.request<{ message: string; agent_name: string; status: string }>(`/agents/${agentName}/stop?mode=${mode}`, {
       method: 'POST',
+    });
+  }
+
+  async startAgentWithRequirement(agentName: string, requirementId: string): Promise<{ message: string; agent_name: string; requirement_id: string; status: string }> {
+    return this.request<{ message: string; agent_name: string; requirement_id: string; status: string }>(`/agents/${agentName}/start`, {
+      method: 'POST',
+      body: JSON.stringify({ requirement_id: requirementId }),
     });
   }
 

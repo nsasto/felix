@@ -1128,12 +1128,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     if (!selectedAgent) return;
     setActionInProgress('start');
     try {
-      // For now, start a run for the project (backend will need to be extended
-      // to support starting a specific agent with a specific requirement)
-      await felixApi.startRun(projectId);
+      // Start the agent with the specified requirement
+      await felixApi.startAgentWithRequirement(selectedAgent.name, requirementId);
       await fetchAgents();
     } catch (err) {
       console.error('Failed to start agent:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start agent');
     } finally {
       setActionInProgress(null);
     }
@@ -1144,11 +1144,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     if (!selectedAgent) return;
     setActionInProgress('stop');
     try {
-      // Stop the agent
-      await felixApi.stopAgent(selectedAgent.name);
+      // Stop the agent with the specified mode
+      await felixApi.stopAgent(selectedAgent.name, mode);
       await fetchAgents();
     } catch (err) {
       console.error('Failed to stop agent:', err);
+      setError(err instanceof Error ? err.message : 'Failed to stop agent');
     } finally {
       setActionInProgress(null);
     }

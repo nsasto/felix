@@ -210,8 +210,25 @@
       "priority": "medium",
       "labels": [],
       "depends_on": [],
+      "updated_at": "2026-01-27"{
+      "id": "S-0014",
+      "title": "Agent Orchestration Dashboard",
+      "spec_path": "specs/S-0014-agent-orchestration-dashboard.md",
+      "status": "planned",
+      "priority": "medium",
+      "labels": [],
+      "depends_on": [],
+      "updated_at": "2026-01-27"{
+      "id": "S-0014",
+      "title": "Agent Orchestration Dashboard",
+      "spec_path": "specs/S-0014-agent-orchestration-dashboard.md",
+      "status": "planned",
+      "priority": "medium",
+      "labels": [],
+      "depends_on": [],
       "updated_at": "2026-01-27",
-      "last_run_id": "2026-01-27T17-10-04"
+      "last_run_id": "2026-01-27T17-13-05"
+    }
     }
     },
     {
