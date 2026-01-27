@@ -8,7 +8,7 @@ interface SettingsScreenProps {
   onBack: () => void;
 }
 
-type SettingsCategory = 'general' | 'agent' | 'paths' | 'advanced' | 'projects' | 'agents';
+type SettingsCategory = 'general' | 'agent' | 'paths' | 'copilot' | 'advanced' | 'projects' | 'agents';
 
 interface CategoryInfo {
   id: SettingsCategory;
@@ -47,6 +47,14 @@ const CATEGORIES: CategoryInfo[] = [
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
       </svg>
+    ),
+  },
+  {
+    id: 'copilot',
+    label: 'Felix Copilot',
+    description: 'AI-powered spec writing assistant',
+    icon: (
+      <span className="text-lg">✨</span>
     ),
   },
   {
@@ -1442,6 +1450,30 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     );
   };
 
+  // Render Copilot settings - placeholder for now, will be implemented in Task 5
+  const renderCopilotSettings = () => {
+    if (!config) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold theme-text-secondary">Felix Copilot</h3>
+          <p className="text-xs theme-text-muted mt-1">AI-powered spec writing assistant</p>
+        </div>
+
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
+          <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">✨</span>
+          </div>
+          <h4 className="text-sm font-bold theme-text-tertiary mb-2">Coming Soon</h4>
+          <p className="text-xs theme-text-muted max-w-sm mx-auto">
+            Configure your LLM provider and API credentials to enable AI-powered spec writing assistance.
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   // Render the active category's settings
   const renderActiveSettings = () => {
     switch (activeCategory) {
@@ -1451,6 +1483,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         return renderAgentSettings();
       case 'paths':
         return renderPathsSettings();
+      case 'copilot':
+        return renderCopilotSettings();
       case 'advanced':
         return renderAdvancedSettings();
       case 'projects':
