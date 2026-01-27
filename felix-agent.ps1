@@ -266,12 +266,8 @@ function Update-RequirementRunId {
         $found = $false
         foreach ($req in $json.requirements) {
             if ($req.id -eq $RequirementId) {
-                if ($req.PSObject.Properties.Name -contains "last_run_id") {
-                    $req.last_run_id = $RunId
-                }
-                else {
-                    $req | Add-Member -NotePropertyName "last_run_id" -NotePropertyValue $RunId
-                }
+                # Always use Add-Member with -Force to handle both new and existing properties
+                $req | Add-Member -NotePropertyName "last_run_id" -NotePropertyValue $RunId -Force
                 $found = $true
                 break
             }
@@ -698,7 +694,12 @@ $autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
 
 # Agent name from config (default: felix-primary)
-$agentName = if ($config.agent -and $config.agent.name) { $config.agent.name } else { "felix-primary" }
+$agentName = if ($config.agent -and $config.agent.name) { 
+    $config.agent.name 
+}
+else { 
+    "felix-primary" 
+}
 $script:agentName = $agentName
 
 # ============================================================================

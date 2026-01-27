@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { felixApi } from '../services/felixApi';
-import { marked } from 'marked';
-import { IconFileText } from './Icons';
+import React, { useState, useEffect, useRef } from "react";
+import { felixApi } from "../services/felixApi";
+import { marked } from "marked";
+import { IconFileText } from "./Icons";
 
 interface PlanViewerProps {
   projectId: string;
@@ -9,7 +9,7 @@ interface PlanViewerProps {
   onBack?: () => void;
 }
 
-type ViewMode = 'view' | 'edit';
+type ViewMode = "view" | "edit";
 
 const PlanViewer: React.FC<PlanViewerProps> = ({
   projectId,
@@ -17,16 +17,19 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   onBack,
 }) => {
   // Plan content state
-  const [planContent, setPlanContent] = useState<string>('');
-  const [originalContent, setOriginalContent] = useState<string>('');
+  const [planContent, setPlanContent] = useState<string>("");
+  const [originalContent, setOriginalContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // View mode and parsed markdown
-  const [viewMode, setViewMode] = useState<ViewMode>('view');
-  const [parsedHtml, setParsedHtml] = useState<string>('');
+  const [viewMode, setViewMode] = useState<ViewMode>("view");
+  const [parsedHtml, setParsedHtml] = useState<string>("");
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -40,18 +43,22 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
       setError(null);
       try {
         // Try to fetch README.md from the project root
-        const response = await fetch(`http://localhost:8080/api/projects/${projectId}/files/README.md`);
+        const response = await fetch(
+          `http://localhost:8080/api/projects/${projectId}/files/README.md`,
+        );
         if (!response.ok) {
-          throw new Error('README.md not found');
+          throw new Error("README.md not found");
         }
         const data = await response.json();
-        setPlanContent(data.content || '');
-        setOriginalContent(data.content || '');
+        setPlanContent(data.content || "");
+        setOriginalContent(data.content || "");
       } catch (err) {
-        console.error('Failed to fetch README:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load README.md');
-        setPlanContent('');
-        setOriginalContent('');
+        console.error("Failed to fetch README:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load README.md",
+        );
+        setPlanContent("");
+        setOriginalContent("");
       } finally {
         setLoading(false);
       }
@@ -65,11 +72,14 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
     let isMounted = true;
     const parseMarkdown = async () => {
       try {
-        const result = await marked.parse(planContent || '');
+        const result = await marked.parse(planContent || "");
         if (isMounted) setParsedHtml(result);
       } catch (err) {
-        console.error('Markdown rendering error:', err);
-        if (isMounted) setParsedHtml(`<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`);
+        console.error("Markdown rendering error:", err);
+        if (isMounted)
+          setParsedHtml(
+            `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`,
+          );
       }
     };
 
@@ -89,14 +99,17 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
     try {
       await felixApi.updatePlan(projectId, planContent);
       setOriginalContent(planContent);
-      setSaveMessage({ type: 'success', text: 'Plan saved successfully' });
+      setSaveMessage({ type: "success", text: "Plan saved successfully" });
       onPlanUpdate?.();
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
-      console.error('Failed to save plan:', err);
-      setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save' });
+      console.error("Failed to save plan:", err);
+      setSaveMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to save",
+      });
     } finally {
       setSaving(false);
     }
@@ -105,22 +118,27 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   // Handle discard changes
   const handleDiscard = () => {
     if (hasChanges) {
-      const confirm = window.confirm('Discard all changes?');
+      const confirm = window.confirm("Discard all changes?");
       if (!confirm) return;
     }
     setPlanContent(originalContent);
-    setViewMode('view');
+    setViewMode("view");
   };
 
   // Insert formatting at cursor position (for edit mode)
-  const insertFormatting = (prefix: string, suffix: string = '') => {
+  const insertFormatting = (prefix: string, suffix: string = "") => {
     if (!editorRef.current) return;
     const textarea = editorRef.current;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
     const selectedText = text.substring(start, end);
-    const newContent = text.substring(0, start) + prefix + selectedText + suffix + text.substring(end);
+    const newContent =
+      text.substring(0, start) +
+      prefix +
+      selectedText +
+      suffix +
+      text.substring(end);
 
     setPlanContent(newContent);
 
@@ -133,7 +151,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   // Copy raw content to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(planContent);
-    setSaveMessage({ type: 'success', text: 'Copied to clipboard' });
+    setSaveMessage({ type: "success", text: "Copied to clipboard" });
     setTimeout(() => setSaveMessage(null), 2000);
   };
 
@@ -143,7 +161,9 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
       <div className="flex-1 flex items-center justify-center theme-bg-base">
         <div className="flex items-center gap-3 theme-text-muted">
           <div className="w-5 h-5 border-2 theme-border border-t-felix-500 rounded-full animate-spin" />
-          <span className="text-xs font-mono">Loading implementation plan...</span>
+          <span className="text-xs font-mono">
+            Loading implementation plan...
+          </span>
         </div>
       </div>
     );
@@ -157,7 +177,9 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           <div className="w-12 h-12 theme-bg-elevated rounded-xl flex items-center justify-center mx-auto mb-4">
             <IconFileText className="w-6 h-6 theme-text-muted" />
           </div>
-          <h3 className="text-sm font-bold theme-text-secondary mb-2">No Readme</h3>
+          <h3 className="text-sm font-bold theme-text-secondary mb-2">
+            No Readme
+          </h3>
           <p className="text-xs theme-text-muted mb-4">{error}</p>
           <p className="text-[10px] theme-text-muted">
             README.md file not found in the project root.
@@ -178,30 +200,40 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               onClick={onBack}
               className="p-2 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
           )}
-          
+
           {/* View mode toggle */}
           <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 shadow-inner">
             <button
-              onClick={() => setViewMode('view')}
+              onClick={() => setViewMode("view")}
               className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                viewMode === 'view'
-                  ? 'bg-slate-800 text-felix-400 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-400'
+                viewMode === "view"
+                  ? "bg-slate-800 text-felix-400 shadow-sm"
+                  : "text-slate-500 hover:text-slate-400"
               }`}
             >
               VIEW
             </button>
             <button
-              onClick={() => setViewMode('edit')}
+              onClick={() => setViewMode("edit")}
               className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                viewMode === 'edit'
-                  ? 'bg-slate-800 text-felix-400 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-400'
+                viewMode === "edit"
+                  ? "bg-slate-800 text-felix-400 shadow-sm"
+                  : "text-slate-500 hover:text-slate-400"
               }`}
             >
               EDIT
@@ -209,31 +241,31 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           </div>
 
           {/* Formatting buttons (only in edit mode) */}
-          {viewMode === 'edit' && (
+          {viewMode === "edit" && (
             <div className="flex items-center gap-0.5 border-l border-slate-800 pl-4">
               <button
-                onClick={() => insertFormatting('# ')}
+                onClick={() => insertFormatting("# ")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="H1"
               >
                 <span className="font-bold text-xs">H1</span>
               </button>
               <button
-                onClick={() => insertFormatting('## ')}
+                onClick={() => insertFormatting("## ")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="H2"
               >
                 <span className="font-bold text-xs">H2</span>
               </button>
               <button
-                onClick={() => insertFormatting('### ')}
+                onClick={() => insertFormatting("### ")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="H3"
               >
                 <span className="font-bold text-xs">H3</span>
               </button>
               <button
-                onClick={() => insertFormatting('- [ ] ')}
+                onClick={() => insertFormatting("- [ ] ")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Task Checkbox"
               >
@@ -260,7 +292,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                 </svg>
               </button>
               <button
-                onClick={() => insertFormatting('- [x] ')}
+                onClick={() => insertFormatting("- [x] ")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Completed Task"
               >
@@ -289,7 +321,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                 </svg>
               </button>
               <button
-                onClick={() => insertFormatting('- ')}
+                onClick={() => insertFormatting("- ")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="List"
               >
@@ -308,14 +340,14 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                 </svg>
               </button>
               <button
-                onClick={() => insertFormatting('**', '**')}
+                onClick={() => insertFormatting("**", "**")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Bold"
               >
                 <span className="font-bold text-xs uppercase">B</span>
               </button>
               <button
-                onClick={() => insertFormatting('`', '`')}
+                onClick={() => insertFormatting("`", "`")}
                 className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Code"
               >
@@ -339,7 +371,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
 
         <div className="flex items-center gap-4">
           {/* Save/Discard buttons (only in edit mode with changes) */}
-          {viewMode === 'edit' && (
+          {viewMode === "edit" && (
             <>
               {hasChanges && (
                 <button
@@ -354,8 +386,8 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                 disabled={!hasChanges || saving}
                 className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 ${
                   hasChanges
-                    ? 'bg-felix-600 text-white hover:bg-felix-500'
-                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    ? "bg-felix-600 text-white hover:bg-felix-500"
+                    : "bg-slate-800 text-slate-500 cursor-not-allowed"
                 }`}
               >
                 {saving ? (
@@ -365,7 +397,12 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                   </>
                 ) : (
                   <>
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path
                         d="M5 13l4 4L19 7"
                         strokeWidth="3"
@@ -384,7 +421,9 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           {saveMessage && (
             <span
               className={`text-[10px] font-medium ${
-                saveMessage.type === 'success' ? 'text-emerald-400' : 'text-red-400'
+                saveMessage.type === "success"
+                  ? "text-emerald-400"
+                  : "text-red-400"
               }`}
             >
               {saveMessage.text}
@@ -417,7 +456,10 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           {/* File indicator */}
           <div className="flex items-center gap-2">
             {hasChanges && (
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />
+              <div
+                className="w-1.5 h-1.5 rounded-full bg-amber-500"
+                title="Unsaved changes"
+              />
             )}
             <span className="text-[10px] font-mono text-slate-500 uppercase">
               README.md
@@ -428,7 +470,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden relative">
-        {viewMode === 'edit' ? (
+        {viewMode === "edit" ? (
           // Edit mode - textarea
           <div className="h-full flex flex-col">
             <textarea
@@ -436,7 +478,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               value={planContent}
               onChange={(e) => setPlanContent(e.target.value)}
               className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30"
-              style={{ backgroundColor: 'var(--bg-deepest)' }}
+              style={{ backgroundColor: "var(--bg-deepest)" }}
               placeholder="# Implementation Plan..."
             />
             <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">
