@@ -21,13 +21,29 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [parsedHtml, setParsedHtml] = useState<string>('');
+  const [requirementId, setRequirementId] = useState<string | null>(null);
+
+  // Fetch requirement ID from requirement_id.txt
+  useEffect(() => {
+    const fetchRequirementId = async () => {
+      try {
+        const result = await felixApi.getRunArtifact(projectId, runId, 'requirement_id.txt');
+        setRequirementId(result.content.trim());
+      } catch (err) {
+        console.error('Failed to fetch requirement ID:', err);
+        // Not critical - plan tab just won't work
+      }
+    };
+
+    fetchRequirementId();
+  }, [projectId, runId]);
 
   // Map tab to filename
   const getFilename = (tab: ArtifactTab): string => {
     switch (tab) {
       case 'report': return 'report.md';
       case 'log': return 'output.log';
-      case 'plan': return 'plan.snapshot.md';
+      case 'plan': return requirementId ? `plan-${requirementId}.md` : 'plan.snapshot.md';
     }
   };
 
@@ -51,7 +67,7 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
     };
 
     fetchArtifact();
-  }, [projectId, runId, activeTab]);
+  }, [projectId, runId, activeTab, requirementId]);
 
   // Parse markdown content for report and plan tabs
   useEffect(() => {
