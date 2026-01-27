@@ -200,6 +200,11 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
       background: var(--scrollbar-thumb-hover);
     }
+    /* Firefox scrollbar */
+    .custom-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
     
     .animate-in {
       animation: enter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -211,8 +216,12 @@
     .markdown-preview h3 { font-size: 1.35rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem; color: var(--text-secondary); }
     .markdown-preview p { margin-bottom: 1.25rem; line-height: 1.75; color: var(--text-tertiary); font-size: 0.95rem; }
     .markdown-preview ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-tertiary); }
+    .markdown-preview ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-tertiary); }
     .markdown-preview li { margin-bottom: 0.5rem; }
     .markdown-preview li input[type="checkbox"] { margin-right: 0.5rem; pointer-events: none; }
+    .markdown-preview strong { font-weight: 600; color: var(--text-primary); }
+    .markdown-preview em { font-style: italic; }
+    .markdown-preview hr { border: none; border-top: 1px solid var(--border-default); margin: 2rem 0; }
     .markdown-preview code { font-family: 'Fira Code', monospace; background-color: var(--code-bg); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.875em; color: var(--code-text); }
     .markdown-preview pre { background: var(--pre-bg) !important; border: 1px solid var(--pre-border) !important; border-radius: 12px !important; padding: 1.25rem !important; margin: 1.5rem 0 !important; overflow-x: auto; }
     .markdown-preview blockquote { border-left: 4px solid var(--accent-secondary); padding: 0.75rem 0 0.75rem 1.5rem; font-style: italic; color: var(--text-muted); background: var(--blockquote-bg); border-radius: 0 8px 8px 0; margin-bottom: 1.5rem; }
