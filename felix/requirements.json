@@ -187,7 +187,7 @@
       "id": "S-0013",
       "title": "Agent Settings Registry",
       "spec_path": "specs/S-0013-agent-settings-registry.md",
-      "status": "complete",
+      "status": "blocked",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
@@ -202,7 +202,8 @@
       "priority": "medium",
       "labels": [],
       "depends_on": [],
-      "updated_at": "2026-01-27"
+      "updated_at": "2026-01-27",
+      "last_run_id": "2026-01-27T16-59-53"
     },
     {
       "id": "S-0015",

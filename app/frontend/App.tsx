@@ -20,6 +20,7 @@ import RunMonitor from "./components/RunMonitor";
 import ConfigPanel from "./components/ConfigPanel";
 import PlanViewer from "./components/PlanViewer";
 import SettingsScreen from "./components/SettingsScreen";
+import AgentDashboard from "./components/AgentDashboard";
 import { marked } from "marked";
 
 const INITIAL_TASKS: Task[] = [
@@ -81,8 +82,8 @@ const INITIAL_ASSETS: MarkdownAsset[] = [
   },
 ];
 
-// Extended UI state to include projects, config, plan, and settings views
-type ExtendedUIState = UIState | "projects" | "config" | "plan" | "settings";
+// Extended UI state to include projects, config, plan, settings, and orchestration views
+type ExtendedUIState = UIState | "projects" | "config" | "plan" | "settings" | "orchestration";
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
@@ -1196,6 +1197,26 @@ export const executeTask = (taskId: string) => {
             )}
           </button>
           <button
+            onClick={() => setUiState("orchestration")}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "orchestration" ? "text-felix-400 shadow-md" : ""}`}
+            style={{
+              backgroundColor:
+                uiState === "orchestration" ? "var(--bg-surface)" : "transparent",
+              color:
+                uiState === "orchestration"
+                  ? "var(--accent-primary)"
+                  : "var(--text-muted)",
+              borderWidth: uiState === "orchestration" ? "1px" : "0",
+              borderColor: "var(--border-muted)",
+            }}
+            title="Agent Dashboard"
+          >
+            <IconCpu className="w-5 h-5" />
+            {uiState === "orchestration" && (
+              <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
+            )}
+          </button>
+          <button
             onClick={() => setUiState("canvas")}
             className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "canvas" ? "text-felix-400 shadow-md" : ""}`}
             style={{
@@ -1352,21 +1373,26 @@ export const executeTask = (taskId: string) => {
               {uiState === "settings" && (
                 <div className="w-2 h-2 rounded-full bg-purple-400 shadow-lg shadow-purple-400/20"></div>
               )}
+              {uiState === "orchestration" && (
+                <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-lg shadow-cyan-500/20"></div>
+              )}
               {uiState === "projects"
                 ? "Projects"
                 : uiState === "kanban"
                   ? "System Board"
-                  : uiState === "canvas"
-                    ? "Orchestration Canvas"
-                    : uiState === "assets"
-                      ? "Specifications"
-                      : uiState === "config"
-                        ? "Configuration"
-                        : uiState === "plan"
-                          ? "Project README"
-                          : uiState === "settings"
-                            ? "Settings"
-                            : "Workspace Assets"}
+                  : uiState === "orchestration"
+                    ? "Agent Dashboard"
+                    : uiState === "canvas"
+                      ? "Orchestration Canvas"
+                      : uiState === "assets"
+                        ? "Specifications"
+                        : uiState === "config"
+                          ? "Configuration"
+                          : uiState === "plan"
+                            ? "Project README"
+                            : uiState === "settings"
+                              ? "Settings"
+                              : "Workspace Assets"}
             </h2>
             <div
               className="h-4 w-[1px] mx-2"
@@ -1422,6 +1448,25 @@ export const executeTask = (taskId: string) => {
             >
               <span className="text-sm" style={{ color: "var(--text-muted)" }}>
                 Select a project to view requirements
+              </span>
+              <button
+                onClick={() => setUiState("projects")}
+                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+              >
+                Go to Projects
+              </button>
+            </div>
+          )
+        ) : uiState === "orchestration" ? (
+          selectedProjectId ? (
+            <AgentDashboard projectId={selectedProjectId} />
+          ) : (
+            <div
+              className="flex-1 flex flex-col items-center justify-center text-center"
+              style={{ backgroundColor: "var(--bg-deepest)" }}
+            >
+              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Select a project to view agent dashboard
               </span>
               <button
                 onClick={() => setUiState("projects")}
