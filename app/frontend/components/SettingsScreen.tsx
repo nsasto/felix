@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { felixApi, FelixConfig, Project } from '../services/felixApi';
+import { felixApi, FelixConfig, Project, AgentEntry, AgentRegistryResponse } from '../services/felixApi';
 import { IconFelix } from './Icons';
 import { useTheme, ThemeValue } from '../hooks/ThemeProvider';
 
@@ -8,7 +8,7 @@ interface SettingsScreenProps {
   onBack: () => void;
 }
 
-type SettingsCategory = 'general' | 'agent' | 'paths' | 'advanced' | 'projects';
+type SettingsCategory = 'general' | 'agent' | 'paths' | 'advanced' | 'projects' | 'agents';
 
 interface CategoryInfo {
   id: SettingsCategory;
@@ -69,6 +69,16 @@ const CATEGORIES: CategoryInfo[] = [
       </svg>
     ),
   },
+  {
+    id: 'agents',
+    label: 'Agents',
+    description: 'Agent registry and status',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+      </svg>
+    ),
+  },
 ];
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) => {
@@ -97,6 +107,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [configProjectName, setConfigProjectName] = useState('');
   const [configProjectPath, setConfigProjectPath] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  // Agents state
+  const [registeredAgents, setRegisteredAgents] = useState<Record<string, AgentEntry>>({});
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [agentNameInput, setAgentNameInput] = useState<string>('');
+  const [agentNameValidationError, setAgentNameValidationError] = useState<string | null>(null);
 
   // Fetch config on mount and sync theme
   useEffect(() => {
@@ -146,6 +163,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     }
   }, [activeCategory, fetchProjects]);
 
+  // Fetch agents when Agents category is selected
+  const fetchAgents = useCallback(async () => {
+    setAgentsLoading(true);
+    setAgentsError(null);
+    try {
+      const response = await felixApi.getAgents();
+      setRegisteredAgents(response.agents);
+    } catch (err) {
+      console.error('Failed to fetch agents:', err);
+      setAgentsError(err instanceof Error ? err.message : 'Failed to load agents');
+    } finally {
+      setAgentsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeCategory === 'agents') {
+      fetchAgents();
+      // Also initialize agent name input from config
+      if (config?.agent?.name) {
+        setAgentNameInput(config.agent.name);
+      }
+    }
+  }, [activeCategory, fetchAgents, config?.agent?.name]);
+
   // Clear success message after 3 seconds
   useEffect(() => {
     if (successMessage) {
@@ -176,6 +218,50 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     }
 
     return errors;
+  }, []);
+
+  // Validate agent name
+  const validateAgentName = useCallback((name: string): string | null => {
+    if (!name || !name.trim()) {
+      return 'Agent name cannot be empty';
+    }
+    // Agent name must be alphanumeric with hyphens and underscores only
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      return 'Agent name must be alphanumeric with hyphens and underscores only';
+    }
+    return null;
+  }, []);
+
+  // Handle agent name input change
+  const handleAgentNameInputChange = (value: string) => {
+    setAgentNameInput(value);
+    setAgentNameValidationError(validateAgentName(value));
+  };
+
+  // Get relative time string
+  const getRelativeTime = useCallback((timestamp: string | null | undefined): string => {
+    if (!timestamp) return 'Never';
+    
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      
+      if (diffSec < 5) return 'Just now';
+      if (diffSec < 60) return `${diffSec}s ago`;
+      
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      
+      const diffHour = Math.floor(diffMin / 60);
+      if (diffHour < 24) return `${diffHour}h ago`;
+      
+      const diffDay = Math.floor(diffHour / 24);
+      return `${diffDay}d ago`;
+    } catch {
+      return 'Unknown';
+    }
   }, []);
 
   // Handle config field changes
@@ -1058,6 +1144,293 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     );
   };
 
+  // Render Agents settings
+  const renderAgentsSettings = () => {
+    if (!config) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold theme-text-secondary">Agent Registry</h3>
+            <p className="text-xs theme-text-muted mt-1">Agent configuration and registry status</p>
+          </div>
+          <button
+            onClick={fetchAgents}
+            disabled={agentsLoading}
+            className="px-4 py-2 text-xs font-bold theme-text-tertiary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex items-center gap-2"
+          >
+            <svg className={`w-4 h-4 ${agentsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {agentsLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+
+        {/* Agent Configuration Card */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <h4 className="text-sm font-bold theme-text-secondary mb-4">Agent Configuration</h4>
+          <div className="space-y-4">
+            {/* Agent Name */}
+            <div>
+              <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                Agent Name
+              </label>
+              <input
+                type="text"
+                value={agentNameInput}
+                onChange={(e) => handleAgentNameInputChange(e.target.value)}
+                placeholder="felix-primary"
+                className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+                  agentNameValidationError
+                    ? 'border-[var(--status-error)]/50 focus:border-[var(--status-error)]'
+                    : 'border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20'
+                }`}
+              />
+              {agentNameValidationError && (
+                <p className="mt-1.5 text-[10px] text-[var(--status-error)]">{agentNameValidationError}</p>
+              )}
+              <p className="mt-2 text-[11px] theme-text-muted">
+                Unique identifier for this agent instance. Must be alphanumeric with hyphens and underscores only.
+              </p>
+            </div>
+
+            {/* Executable */}
+            <div>
+              <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                Executable
+              </label>
+              <input
+                type="text"
+                value={config.agent.executable}
+                onChange={(e) => handleAgentChange('executable', e.target.value)}
+                placeholder="droid"
+                className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+              />
+              <p className="mt-2 text-[11px] theme-text-muted">
+                Path to the agent executable (e.g., droid, python)
+              </p>
+            </div>
+
+            {/* Arguments */}
+            <div>
+              <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                Arguments
+              </label>
+              <input
+                type="text"
+                value={config.agent.args.join(' ')}
+                onChange={(e) => handleAgentChange('args', e.target.value.split(' ').filter(Boolean))}
+                placeholder="exec --skip-permissions-unsafe"
+                className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+              />
+              <p className="mt-2 text-[11px] theme-text-muted">
+                Command-line arguments passed to the agent executable (space-separated)
+              </p>
+            </div>
+
+            {/* Save Button */}
+            <div className="pt-2">
+              <button
+                onClick={async () => {
+                  // Validate agent name
+                  const nameError = validateAgentName(agentNameInput);
+                  if (nameError) {
+                    setAgentNameValidationError(nameError);
+                    return;
+                  }
+
+                  // Update config with new agent name
+                  const newConfig = {
+                    ...config,
+                    agent: {
+                      ...config.agent,
+                      name: agentNameInput,
+                    },
+                  };
+
+                  setSaving(true);
+                  setError(null);
+                  try {
+                    const result = await felixApi.updateConfig(projectId, newConfig);
+                    setConfig(result.config);
+                    setOriginalConfig(result.config);
+                    setSuccessMessage('Agent configuration saved successfully');
+                  } catch (err) {
+                    console.error('Failed to save agent config:', err);
+                    setError(err instanceof Error ? err.message : 'Failed to save agent configuration');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving || !!agentNameValidationError}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                  !saving && !agentNameValidationError
+                    ? 'bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]'
+                    : 'theme-bg-surface theme-text-muted cursor-not-allowed'
+                }`}
+              >
+                {saving ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Agent Configuration'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Registered Agents List */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <h4 className="text-sm font-bold theme-text-secondary mb-4">Registered Agents</h4>
+
+          {/* Error State */}
+          {agentsError && (
+            <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <p className="text-xs text-[var(--status-error)]">{agentsError}</p>
+                  <button
+                    onClick={fetchAgents}
+                    className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {agentsLoading && Object.keys(registeredAgents).length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-3" />
+              <span className="text-[10px] font-mono theme-text-muted uppercase">Loading agents...</span>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!agentsLoading && !agentsError && Object.keys(registeredAgents).length === 0 && (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 theme-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <h4 className="text-sm font-bold theme-text-tertiary mb-2">No Agents Registered</h4>
+              <p className="text-xs theme-text-muted max-w-sm mx-auto">
+                Agents will appear here once they register with the backend. Start an agent to see it in this list.
+              </p>
+            </div>
+          )}
+
+          {/* Agents List */}
+          {Object.keys(registeredAgents).length > 0 && (
+            <div className="space-y-3">
+              {Object.entries(registeredAgents)
+                .sort(([, a], [, b]) => {
+                  // Sort by status (active first), then by last_heartbeat
+                  const statusOrder = { active: 0, inactive: 1, stopped: 2 };
+                  const aOrder = statusOrder[a.status as keyof typeof statusOrder] ?? 3;
+                  const bOrder = statusOrder[b.status as keyof typeof statusOrder] ?? 3;
+                  if (aOrder !== bOrder) return aOrder - bOrder;
+                  
+                  // Sort by last_heartbeat descending
+                  const aTime = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
+                  const bTime = b.last_heartbeat ? new Date(b.last_heartbeat).getTime() : 0;
+                  return bTime - aTime;
+                })
+                .map(([agentName, agent]) => (
+                  <div
+                    key={agentName}
+                    className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          {/* Status Badge */}
+                          <span
+                            className="flex-shrink-0"
+                            title={`Status: ${agent.status}`}
+                          >
+                            {agent.status === 'active' && (
+                              <span className="text-base" title="Active">🟢</span>
+                            )}
+                            {agent.status === 'inactive' && (
+                              <span className="text-base" title="Inactive">⚪</span>
+                            )}
+                            {agent.status === 'stopped' && (
+                              <span className="text-base" title="Stopped">🔴</span>
+                            )}
+                          </span>
+                          <h5 className="text-sm font-bold theme-text-secondary truncate">
+                            {agentName}
+                          </h5>
+                          {agentName === config?.agent?.name && (
+                            <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full uppercase">
+                              This Agent
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <span className="theme-text-muted">Hostname:</span>
+                            <span className="theme-text-tertiary font-mono">{agent.hostname}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="theme-text-muted">PID:</span>
+                            <span className="theme-text-tertiary font-mono">{agent.pid}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="theme-text-muted">Last heartbeat:</span>
+                            <span className="theme-text-tertiary">{getRelativeTime(agent.last_heartbeat)}</span>
+                          </div>
+                          {agent.current_run_id && (
+                            <div className="flex items-center gap-2">
+                              <span className="theme-text-muted">Working on:</span>
+                              <span className="theme-text-secondary font-mono">{agent.current_run_id}</span>
+                            </div>
+                          )}
+                        </div>
+                        {agent.started_at && (
+                          <div className="mt-2 text-[10px] theme-text-muted">
+                            Started: {new Date(agent.started_at).toLocaleString()}
+                          </div>
+                        )}
+                        {agent.stopped_at && (
+                          <div className="mt-1 text-[10px] text-[var(--status-error)]/70">
+                            Stopped: {new Date(agent.stopped_at).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+
+        {/* Info Note */}
+        <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-xs text-[var(--status-info)]/80">
+              Agents send heartbeats every 5 seconds. An agent is marked inactive if no heartbeat is received for 10 seconds.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Render the active category's settings
   const renderActiveSettings = () => {
     switch (activeCategory) {
@@ -1071,6 +1444,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         return renderAdvancedSettings();
       case 'projects':
         return renderProjectsSettings();
+      case 'agents':
+        return renderAgentsSettings();
       default:
         return null;
     }

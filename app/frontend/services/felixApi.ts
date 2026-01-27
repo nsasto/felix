@@ -95,6 +95,40 @@ export interface AgentStatus {
   current_run_id: string | null;
 }
 
+// --- Agent Registry Types (for S-0013: Agent Settings Registry) ---
+
+export interface AgentEntry {
+  pid: number;
+  hostname: string;
+  status: 'active' | 'inactive' | 'stopped';
+  current_run_id: string | null;
+  started_at: string | null;
+  last_heartbeat: string | null;
+  stopped_at: string | null;
+}
+
+export interface AgentRegistryResponse {
+  agents: Record<string, AgentEntry>;
+}
+
+export interface AgentRegistration {
+  agent_name: string;
+  pid: number;
+  hostname: string;
+  started_at?: string;
+}
+
+export interface AgentStatusResponse {
+  agent_name: string;
+  status: string;
+  pid: number;
+  hostname: string;
+  current_run_id: string | null;
+  started_at: string | null;
+  last_heartbeat: string | null;
+  stopped_at: string | null;
+}
+
 // --- Requirement Status Types (for S-0006: Spec Edit Safety) ---
 
 export interface RequirementStatusResponse {
@@ -132,6 +166,7 @@ export interface ExecutorConfig {
 }
 
 export interface AgentConfig {
+  name?: string;  // Agent name identifier (added in S-0013)
   executable: string;
   args: string[];
   working_directory: string;
@@ -339,6 +374,32 @@ class FelixApiService {
   async deletePlan(projectId: string, requirementId: string): Promise<PlanDeleteResponse> {
     return this.request<PlanDeleteResponse>(`/projects/${projectId}/plans/${requirementId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // --- Agent Registry Endpoints (for S-0013: Agent Settings Registry) ---
+
+  async getAgents(): Promise<AgentRegistryResponse> {
+    return this.request<AgentRegistryResponse>('/agents');
+  }
+
+  async registerAgent(registration: AgentRegistration): Promise<AgentStatusResponse> {
+    return this.request<AgentStatusResponse>('/agents/register', {
+      method: 'POST',
+      body: JSON.stringify(registration),
+    });
+  }
+
+  async agentHeartbeat(agentName: string, currentRunId?: string): Promise<AgentStatusResponse> {
+    return this.request<AgentStatusResponse>(`/agents/${agentName}/heartbeat`, {
+      method: 'POST',
+      body: JSON.stringify({ current_run_id: currentRunId || null }),
+    });
+  }
+
+  async stopAgent(agentName: string): Promise<{ message: string; agent_name: string; status: string }> {
+    return this.request<{ message: string; agent_name: string; status: string }>(`/agents/${agentName}/stop`, {
+      method: 'POST',
     });
   }
 
