@@ -131,7 +131,7 @@
       "id": "S-0009",
       "title": "Light Theme",
       "spec_path": "specs/S-0009-light-theme.md",
-      "status": "in_progress",
+      "status": "complete",
       "priority": "medium",
       "labels": [
         "frontend",
