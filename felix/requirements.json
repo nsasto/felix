@@ -1,297 +1,324 @@
 ﻿{
-  "requirements": [
-    {
-      "id": "S-0005",
-      "title": "Validation-Driven Completion",
-      "spec_path": "specs/S-0005-validation-driven-completion.md",
-      "status": "done",
-      "priority": "critical",
-      "labels": [
-        "foundation",
-        "validation",
-        "agent"
-      ],
-      "depends_on": [],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0001",
-      "title": "Felix Agent Executor",
-      "spec_path": "specs/S-0001-felix-agent-executor.md",
-      "status": "done",
-      "priority": "critical",
-      "labels": [
-        "foundation",
-        "agent"
-      ],
-      "depends_on": [
-        "S-0005"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0002",
-      "title": "Felix Backend API Server",
-      "spec_path": "specs/S-0002-backend-api-server.md",
-      "status": "done",
-      "priority": "high",
-      "labels": [
-        "backend",
-        "api"
-      ],
-      "depends_on": [
-        "S-0001",
-        "S-0005"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0003",
-      "title": "Felix Frontend Observer UI",
-      "spec_path": "specs/S-0003-frontend-observer-ui.md",
-      "status": "done",
-      "priority": "high",
-      "labels": [
-        "frontend",
-        "ui"
-      ],
-      "depends_on": [
-        "S-0002",
-        "S-0001",
-        "S-0005"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0004",
-      "title": "Artifact Templates and Scaffolding",
-      "spec_path": "specs/S-0004-artifact-templates.md",
-      "status": "done",
-      "priority": "medium",
-      "labels": [
-        "tooling",
-        "dx"
-      ],
-      "depends_on": [
-        "S-0005"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0006",
-      "title": "Spec Edit Safety and Plan Invalidation",
-      "spec_path": "specs/S-0006-spec-edit-safety.md",
-      "status": "complete",
-      "priority": "high",
-      "labels": [
-        "frontend",
-        "ux",
-        "safety"
-      ],
-      "depends_on": [
-        "S-0003"
-      ],
-      "updated_at": "2026-01-26"
-    },
-    {
-      "id": "S-0007",
-      "title": "Settings Screen",
-      "spec_path": "specs/S-0007-settings-screen.md.md",
-      "status": "done",
-      "priority": "medium",
-      "labels": [
-        "frontend",
-        "ux",
-        "settings"
-      ],
-      "depends_on": [
-        "S-0003",
-        "S-0002"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0008",
-      "title": "Projects Settings Screen",
-      "spec_path": "specs/S-0008-projects-settings-screen.md",
-      "status": "done",
-      "priority": "medium",
-      "labels": [
-        "frontend",
-        "settings",
-        "projects"
-      ],
-      "depends_on": [
-        "S-0002",
-        "S-0007"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0009",
-      "title": "Light Theme",
-      "spec_path": "specs/S-0009-light-theme.md",
-      "status": "done",
-      "priority": "medium",
-      "labels": [
-        "frontend",
-        "ui",
-        "theme",
-        "accessibility"
-      ],
-      "depends_on": [
-        "S-0007",
-        "S-0003"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0010",
-      "title": "Kanban Card Detail Slide-Out",
-      "spec_path": "specs/S-0010-kanban-card-detail.md",
-      "status": "done",
-      "priority": "high",
-      "labels": [
-        "frontend",
-        "ux",
-        "kanban",
-        "details"
-      ],
-      "depends_on": [
-        "S-0003",
-        "S-0002"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0011",
-      "title": "Kanban Detail Run Artifacts Viewer",
-      "spec_path": "specs/S-0011-kanban-detail-artifact-viewer.md",
-      "status": "complete",
-      "priority": "medium",
-      "labels": [],
-      "depends_on": [],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0012",
-      "title": "Done Status",
-      "spec_path": "specs/S-0012-done-status.md",
-      "status": "done",
-      "priority": "medium",
-      "labels": [],
-      "depends_on": [],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0013",
-      "title": "Agent Settings Registry",
-      "spec_path": "specs/S-0013-agent-settings-registry.md",
-      "status": "complete",
-      "priority": "medium",
-      "labels": [],
-      "depends_on": [],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0014",
-      "title": "Agent Orchestration Dashboard",
-      "spec_path": "specs/S-0014-agent-orchestration-dashboard.md",
-      "status": "complete",
-      "priority": "medium",
-      "labels": [],
-      "depends_on": [],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0015",
-      "title": "Spec Screen Enhancements",
-      "spec_path": "specs/S-0015-spec-screen-enhancements.md",
-      "status": "complete",
-      "priority": "medium",
-      "labels": [
-        "frontend",
-        "ux",
-        "search"
-      ],
-      "depends_on": [
-        "S-0003",
-        "S-0006"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0016",
-      "title": "Felix Copilot Settings",
-      "spec_path": "specs/S-0016-copilot-settings.md",
-      "status": "planned",
-      "priority": "high",
-      "labels": [
-        "copilot",
-        "settings",
-        "ai",
-        "backend"
-      ],
-      "depends_on": [
-        "S-0007",
-        "S-0002"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0017",
-      "title": "Felix Copilot Chat Assistant",
-      "spec_path": "specs/S-0017-copilot-chat-assistant.md",
-      "status": "planned",
-      "priority": "high",
-      "labels": [
-        "copilot",
-        "ai",
-        "frontend",
-        "chat"
-      ],
-      "depends_on": [
-        "S-0016",
-        "S-0003",
-        "S-0002"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0018",
-      "title": "Dependency Status Validation",
-      "spec_path": "specs/S-0018-dependency-status-validation.md",
-      "status": "complete",
-      "priority": "medium",
-      "labels": [
-        "frontend",
-        "validation",
-        "ux"
-      ],
-      "depends_on": [
-        "S-0003"
-      ],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0019",
-      "title": "Settings Not Project Dependent",
-      "spec_path": "specs/S-0019-settings-not-project-dependent.md",
-      "status": "planned",
-      "priority": "medium",
-      "labels": [],
-      "depends_on": [],
-      "updated_at": "2026-01-27"
-    },
-    {
-      "id": "S-0020",
-      "title": "Consolidate Agent Settings",
-      "spec_path": "specs/S-0020-consolidate-agent-settings.md",
-      "status": "planned",
-      "priority": "medium",
-      "labels": [],
-      "depends_on": [],
-      "updated_at": "2026-01-27"
-    }
-  ]
+    "requirements":  [
+                         {
+                             "id":  "S-0005",
+                             "title":  "Validation-Driven Completion",
+                             "spec_path":  "specs/S-0005-validation-driven-completion.md",
+                             "status":  "done",
+                             "priority":  "critical",
+                             "labels":  [
+                                            "foundation",
+                                            "validation",
+                                            "agent"
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0001",
+                             "title":  "Felix Agent Executor",
+                             "spec_path":  "specs/S-0001-felix-agent-executor.md",
+                             "status":  "done",
+                             "priority":  "critical",
+                             "labels":  [
+                                            "foundation",
+                                            "agent"
+                                        ],
+                             "depends_on":  [
+                                                "S-0005"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0002",
+                             "title":  "Felix Backend API Server",
+                             "spec_path":  "specs/S-0002-backend-api-server.md",
+                             "status":  "done",
+                             "priority":  "high",
+                             "labels":  [
+                                            "backend",
+                                            "api"
+                                        ],
+                             "depends_on":  [
+                                                "S-0001",
+                                                "S-0005"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0003",
+                             "title":  "Felix Frontend Observer UI",
+                             "spec_path":  "specs/S-0003-frontend-observer-ui.md",
+                             "status":  "done",
+                             "priority":  "high",
+                             "labels":  [
+                                            "frontend",
+                                            "ui"
+                                        ],
+                             "depends_on":  [
+                                                "S-0002",
+                                                "S-0001",
+                                                "S-0005"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0004",
+                             "title":  "Artifact Templates and Scaffolding",
+                             "spec_path":  "specs/S-0004-artifact-templates.md",
+                             "status":  "done",
+                             "priority":  "medium",
+                             "labels":  [
+                                            "tooling",
+                                            "dx"
+                                        ],
+                             "depends_on":  [
+                                                "S-0005"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0006",
+                             "title":  "Spec Edit Safety and Plan Invalidation",
+                             "spec_path":  "specs/S-0006-spec-edit-safety.md",
+                             "status":  "complete",
+                             "priority":  "high",
+                             "labels":  [
+                                            "frontend",
+                                            "ux",
+                                            "safety"
+                                        ],
+                             "depends_on":  [
+                                                "S-0003"
+                                            ],
+                             "updated_at":  "2026-01-26"
+                         },
+                         {
+                             "id":  "S-0007",
+                             "title":  "Settings Screen",
+                             "spec_path":  "specs/S-0007-settings-screen.md.md",
+                             "status":  "done",
+                             "priority":  "medium",
+                             "labels":  [
+                                            "frontend",
+                                            "ux",
+                                            "settings"
+                                        ],
+                             "depends_on":  [
+                                                "S-0003",
+                                                "S-0002"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0008",
+                             "title":  "Projects Settings Screen",
+                             "spec_path":  "specs/S-0008-projects-settings-screen.md",
+                             "status":  "done",
+                             "priority":  "medium",
+                             "labels":  [
+                                            "frontend",
+                                            "settings",
+                                            "projects"
+                                        ],
+                             "depends_on":  [
+                                                "S-0002",
+                                                "S-0007"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0009",
+                             "title":  "Light Theme",
+                             "spec_path":  "specs/S-0009-light-theme.md",
+                             "status":  "done",
+                             "priority":  "medium",
+                             "labels":  [
+                                            "frontend",
+                                            "ui",
+                                            "theme",
+                                            "accessibility"
+                                        ],
+                             "depends_on":  [
+                                                "S-0007",
+                                                "S-0003"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0010",
+                             "title":  "Kanban Card Detail Slide-Out",
+                             "spec_path":  "specs/S-0010-kanban-card-detail.md",
+                             "status":  "done",
+                             "priority":  "high",
+                             "labels":  [
+                                            "frontend",
+                                            "ux",
+                                            "kanban",
+                                            "details"
+                                        ],
+                             "depends_on":  [
+                                                "S-0003",
+                                                "S-0002"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0011",
+                             "title":  "Kanban Detail Run Artifacts Viewer",
+                             "spec_path":  "specs/S-0011-kanban-detail-artifact-viewer.md",
+                             "status":  "complete",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0012",
+                             "title":  "Done Status",
+                             "spec_path":  "specs/S-0012-done-status.md",
+                             "status":  "done",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0013",
+                             "title":  "Agent Settings Registry",
+                             "spec_path":  "specs/S-0013-agent-settings-registry.md",
+                             "status":  "complete",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0014",
+                             "title":  "Agent Orchestration Dashboard",
+                             "spec_path":  "specs/S-0014-agent-orchestration-dashboard.md",
+                             "status":  "complete",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0015",
+                             "title":  "Spec Screen Enhancements",
+                             "spec_path":  "specs/S-0015-spec-screen-enhancements.md",
+                             "status":  "complete",
+                             "priority":  "medium",
+                             "labels":  [
+                                            "frontend",
+                                            "ux",
+                                            "search"
+                                        ],
+                             "depends_on":  [
+                                                "S-0003",
+                                                "S-0006"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0016",
+                             "title":  "Felix Copilot Settings",
+                             "spec_path":  "specs/S-0016-copilot-settings.md",
+                             "status":  "planned",
+                             "priority":  "high",
+                             "labels":  [
+                                            "copilot",
+                                            "settings",
+                                            "ai",
+                                            "backend"
+                                        ],
+                             "depends_on":  [
+                                                "S-0007",
+                                                "S-0002"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0017",
+                             "title":  "Felix Copilot Chat Assistant",
+                             "spec_path":  "specs/S-0017-copilot-chat-assistant.md",
+                             "status":  "planned",
+                             "priority":  "high",
+                             "labels":  [
+                                            "copilot",
+                                            "ai",
+                                            "frontend",
+                                            "chat"
+                                        ],
+                             "depends_on":  [
+                                                "S-0016",
+                                                "S-0003",
+                                                "S-0002"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0018",
+                             "title":  "Dependency Status Validation",
+                             "spec_path":  "specs/S-0018-dependency-status-validation.md",
+                             "status":  "complete",
+                             "priority":  "medium",
+                             "labels":  [
+                                            "frontend",
+                                            "validation",
+                                            "ux"
+                                        ],
+                             "depends_on":  [
+                                                "S-0003"
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0019",
+                             "title":  "Settings Not Project Dependent",
+                             "spec_path":  "specs/S-0019-settings-not-project-dependent.md",
+                             "status":  "planned",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27",
+                             "last_run_id":  "2026-01-27T21-27-27"
+                         },
+                         {
+                             "id":  "S-0020",
+                             "title":  "Consolidate Agent Settings",
+                             "spec_path":  "specs/S-0020-consolidate-agent-settings.md",
+                             "status":  "planned",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         }
+                     ]
 }
