@@ -1,4 +1,4 @@
-{
+﻿{
   "requirements": [
     {
       "id": "S-0005",
@@ -187,12 +187,11 @@
       "id": "S-0013",
       "title": "Agent Settings Registry",
       "spec_path": "specs/S-0013-agent-settings-registry.md",
-      "status": "blocked",
+      "status": "complete",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
-      "updated_at": "2026-01-27",
-      "last_run_id": "2026-01-27T16-58-17"
+      "updated_at": "2026-01-27"
     },
     {
       "id": "S-0014",
@@ -202,8 +201,7 @@
       "priority": "medium",
       "labels": [],
       "depends_on": [],
-      "updated_at": "2026-01-27",
-      "last_run_id": "2026-01-27T17-17-13"
+      "updated_at": "2026-01-27"
     },
     {
       "id": "S-0015",
