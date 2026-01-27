@@ -236,14 +236,13 @@
                                                 "S-0003",
                                                 "S-0006"
                                             ],
-                             "updated_at":  "2026-01-27",
-                             "last_run_id":  "2026-01-27T18-27-53"
+                             "updated_at":  "2026-01-27"
                          },
                          {
                              "id":  "S-0016",
                              "title":  "Felix Copilot Settings",
                              "spec_path":  "specs/S-0016-copilot-settings.md",
-                             "status":  "planned",
+                             "status":  "draft",
                              "priority":  "high",
                              "labels":  [
                                             "copilot",
@@ -261,7 +260,7 @@
                              "id":  "S-0017",
                              "title":  "Felix Copilot Chat Assistant",
                              "spec_path":  "specs/S-0017-copilot-chat-assistant.md",
-                             "status":  "planned",
+                             "status":  "draft",
                              "priority":  "high",
                              "labels":  [
                                             "copilot",
@@ -289,6 +288,35 @@
                                         ],
                              "depends_on":  [
                                                 "S-0003"
+                                            ],
+                             "updated_at":  "2026-01-27",
+                             "last_run_id":  "2026-01-27T21-10-04"
+                         },
+                         {
+                             "id":  "S-0019",
+                             "title":  "Settings Not Project Dependent",
+                             "spec_path":  "specs/S-0019-settings-not-project-dependent.md",
+                             "status":  "planned",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0020",
+                             "title":  "Consolidate Agent Settings",
+                             "spec_path":  "specs/S-0020-consolidate-agent-settings.md",
+                             "status":  "planned",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
                                             ],
                              "updated_at":  "2026-01-27"
                          }
