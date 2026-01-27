@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
+    "ansi-to-react": "^6.2.6",
     "marked": "12.0.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
