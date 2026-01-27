@@ -11,7 +11,7 @@ Dependencies are managed automatically by the test scripts. If you need to set u
 ### Backend Tests
 
 ```powershell
-.\scripts\test-backend.ps1
+powershell -File .\scripts\test-backend.ps1
 ```
 
 Auto-creates venv, installs dependencies, creates tests/ directory if needed.
@@ -20,7 +20,7 @@ Exit code 5 means "no tests found" (not a failure).
 ### Frontend Tests
 
 ```powershell
-.\scripts\test-frontend.ps1
+powershell -File .\scripts\test-frontend.ps1
 ```
 
 Auto-installs npm dependencies if needed.
@@ -32,11 +32,10 @@ Auto-installs npm dependencies if needed.
 
 ## Build the Project
 
-```bash
+```powershell
 # Backend builds are not needed (Python)
 # Frontend build:
-cd app/frontend
-npm run build
+cd app/frontend; npm run build; cd ../..
 ```
 
 ## Start the Application
