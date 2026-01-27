@@ -60,6 +60,7 @@ class RunHistoryEntry(BaseModel):
     project_path: str
     error_message: Optional[str] = None
     requirement_id: Optional[str] = None
+    agent_name: Optional[str] = None
 
 
 # In-memory store for running agent processes
@@ -497,7 +498,14 @@ async def stop_agent_run(project_id: str):
 
 
 @router.get("/{project_id}/runs", response_model=RunHistoryResponse)
-async def get_run_history(project_id: str, requirement_id: Optional[str] = None):
+async def get_run_history(
+    project_id: str,
+    requirement_id: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
     """
     Get the run history for a project.
 
@@ -507,6 +515,10 @@ async def get_run_history(project_id: str, requirement_id: Optional[str] = None)
     Args:
         project_id: The project ID
         requirement_id: Optional requirement ID to filter runs (e.g., "S-0011")
+        agent_name: Optional agent name to filter runs
+        status: Optional comma-separated list of statuses to filter (completed,failed,blocked,running,stopped)
+        start_date: Optional start date filter (ISO format YYYY-MM-DD)
+        end_date: Optional end date filter (ISO format YYYY-MM-DD)
     """
     # Clean up any dead agents first
     _cleanup_dead_agents()
@@ -587,6 +599,17 @@ async def get_run_history(project_id: str, requirement_id: Optional[str] = None)
                 except Exception:
                     pass
 
+            # Read agent_name.txt if it exists
+            run_agent_name = None
+            agent_name_file = run_dir / "agent_name.txt"
+            if agent_name_file.exists():
+                try:
+                    run_agent_name = agent_name_file.read_text(
+                        encoding="utf-8"
+                    ).strip()
+                except Exception:
+                    pass
+
             # Create historical entry
             history_entry = RunHistoryEntry(
                 run_id=run_id,
@@ -599,6 +622,7 @@ async def get_run_history(project_id: str, requirement_id: Optional[str] = None)
                 project_path=str(project_path),
                 error_message=error_message,
                 requirement_id=run_requirement_id,
+                agent_name=run_agent_name,
             )
             runs.append(history_entry)
 
@@ -608,6 +632,34 @@ async def get_run_history(project_id: str, requirement_id: Optional[str] = None)
     # Filter by requirement_id if provided
     if requirement_id:
         runs_sorted = [r for r in runs_sorted if r.requirement_id == requirement_id]
+
+    # Filter by agent_name if provided
+    if agent_name:
+        runs_sorted = [r for r in runs_sorted if r.agent_name == agent_name]
+
+    # Filter by status if provided (comma-separated list)
+    if status:
+        status_list = [s.strip().lower() for s in status.split(",")]
+        runs_sorted = [r for r in runs_sorted if r.status.value.lower() in status_list]
+
+    # Filter by date range if provided
+    if start_date:
+        try:
+            start_dt = datetime.fromisoformat(start_date)
+            # Include the whole start day
+            start_dt = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            runs_sorted = [r for r in runs_sorted if r.started_at >= start_dt]
+        except ValueError:
+            pass  # Ignore invalid date format
+
+    if end_date:
+        try:
+            end_dt = datetime.fromisoformat(end_date)
+            # Include the whole end day
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+            runs_sorted = [r for r in runs_sorted if r.started_at <= end_dt]
+        except ValueError:
+            pass  # Ignore invalid date format
 
     return RunHistoryResponse(
         project_id=project_id,
