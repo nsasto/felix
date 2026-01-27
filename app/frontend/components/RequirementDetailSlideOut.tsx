@@ -64,21 +64,24 @@ const PRIORITY_STYLES: Record<
   },
 };
 
-type TabId = "metadata" | "report" | "log" | "plan" | "spec" | "history";
+type TopLevelTabId = "overview" | "history";
+type ArtifactSubTabId = "report" | "log" | "plan";
 
-interface TabInfo {
-  id: TabId;
+interface TopLevelTabInfo {
+  id: TopLevelTabId;
   label: string;
   icon: string;
 }
 
-const TABS: TabInfo[] = [
-  { id: "metadata", label: "Metadata", icon: "📋" },
+const TOP_LEVEL_TABS: TopLevelTabInfo[] = [
+  { id: "overview", label: "Overview", icon: "📋" },
+  { id: "history", label: "Run History", icon: "🕐" },
+];
+
+const ARTIFACT_SUB_TABS: { id: ArtifactSubTabId; label: string; icon: string }[] = [
   { id: "report", label: "Report", icon: "📊" },
   { id: "log", label: "Output Log", icon: "📜" },
-  { id: "plan", label: "Plan Snapshot", icon: "📝" },
-  { id: "spec", label: "Specification", icon: "📄" },
-  { id: "history", label: "History", icon: "🕐" },
+  { id: "plan", label: "Plan", icon: "📝" },
 ];
 
 interface RequirementDetailSlideOutProps {
@@ -92,26 +95,26 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   requirement,
   onClose,
 }) => {
-  // Default tab: Metadata if no last_run_id, Report if last_run_id exists
-  const getDefaultTab = (): TabId => {
-    return requirement?.last_run_id ? "report" : "metadata";
-  };
-
-  const [activeTab, setActiveTab] = useState<TabId>(getDefaultTab());
+  // Top level tabs: Overview (default) or Run History
+  const [activeTab, setActiveTab] = useState<TopLevelTabId>("overview");
   
-  // Currently selected run for artifact viewing
+  // Currently selected run in Run History tab
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   
-  // Spec content for Specification tab
+  // Sub-tab for artifact detail panel
+  const [activeSubTab, setActiveSubTab] = useState<ArtifactSubTabId>("report");
+  
+  // Spec content for Overview tab
   const [specContent, setSpecContent] = useState<string>("");
   const [specLoading, setSpecLoading] = useState(false);
   const [specError, setSpecError] = useState<string | null>(null);
+  const [specHtml, setSpecHtml] = useState<string>("");
   
-  // Artifact content for Report, Log, Plan tabs
+  // Artifact content for Run History detail panel
   const [artifactContent, setArtifactContent] = useState<string>("");
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
-  const [parsedHtml, setParsedHtml] = useState<string>("");
+  const [artifactHtml, setArtifactHtml] = useState<string>("");
 
   // History state
   const [runHistory, setRunHistory] = useState<RunHistoryEntry[]>([]);
@@ -124,12 +127,14 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   // Reset state when requirement changes
   useEffect(() => {
     if (requirement) {
-      const defaultTab = requirement.last_run_id ? "report" : "metadata";
-      setActiveTab(defaultTab);
-      setSelectedRunId(requirement.last_run_id || null);
+      // Default tab is always Overview (consistent entry point)
+      setActiveTab("overview");
+      setSelectedRunId(null);
+      setActiveSubTab("report");
       setSpecContent("");
+      setSpecHtml("");
       setArtifactContent("");
-      setParsedHtml("");
+      setArtifactHtml("");
       setRunHistory([]);
     }
   }, [requirement?.id]);
@@ -163,16 +168,73 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
     fetchSpec();
   }, [projectId, requirement?.id, requirement?.spec_path]);
 
-  // Fetch artifact content when tab or selected run changes
+  // Parse spec markdown
   useEffect(() => {
-    if (!requirement || !selectedRunId) {
-      setArtifactContent("");
-      setParsedHtml("");
+    if (!specContent) {
+      setSpecHtml("");
       return;
     }
 
-    // Only fetch for artifact tabs
-    if (activeTab !== "report" && activeTab !== "log" && activeTab !== "plan") {
+    let isMounted = true;
+    const parseMarkdown = async () => {
+      try {
+        const result = await marked.parse(specContent);
+        if (isMounted) {
+          // Make checkboxes read-only
+          const readOnlyHtml = result.replace(
+            /(<input type="checkbox"[^>]*)/g,
+            '$1 disabled onclick="return false;"',
+          );
+          setSpecHtml(readOnlyHtml);
+        }
+      } catch (err) {
+        console.error("Markdown parsing error:", err);
+        if (isMounted) {
+          setSpecHtml(
+            `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`,
+          );
+        }
+      }
+    };
+
+    parseMarkdown();
+    return () => {
+      isMounted = false;
+    };
+  }, [specContent]);
+
+  // Fetch run history when Run History tab is selected
+  useEffect(() => {
+    if (!requirement || activeTab !== "history") {
+      return;
+    }
+
+    const fetchHistory = async () => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+
+      try {
+        // Filter runs by requirement ID
+        const result = await felixApi.listRuns(projectId, requirement.id);
+        setRunHistory(result.runs || []);
+      } catch (err) {
+        console.error("Failed to fetch run history:", err);
+        setHistoryError(
+          err instanceof Error ? err.message : "Failed to load history",
+        );
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [projectId, requirement?.id, activeTab]);
+
+  // Fetch artifact content when selected run or sub-tab changes
+  useEffect(() => {
+    if (!requirement || !selectedRunId) {
+      setArtifactContent("");
+      setArtifactHtml("");
       return;
     }
 
@@ -183,7 +245,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
       try {
         let filename: string;
-        switch (activeTab) {
+        switch (activeSubTab) {
           case "report":
             filename = "report.md";
             break;
@@ -214,38 +276,30 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
     };
 
     fetchArtifact();
-  }, [projectId, requirement?.id, selectedRunId, activeTab]);
+  }, [projectId, requirement?.id, selectedRunId, activeSubTab]);
 
-  // Parse markdown for Report, Plan, and Spec tabs
+  // Parse artifact markdown (for report and plan tabs)
   useEffect(() => {
-    const isMarkdownTab = activeTab === "report" || activeTab === "plan" || activeTab === "spec";
-    if (!isMarkdownTab) {
-      setParsedHtml("");
-      return;
-    }
-
-    const content = activeTab === "spec" ? specContent : artifactContent;
-    if (!content) {
-      setParsedHtml("");
+    if (activeSubTab === "log" || !artifactContent) {
+      setArtifactHtml("");
       return;
     }
 
     let isMounted = true;
     const parseMarkdown = async () => {
       try {
-        const result = await marked.parse(content);
+        const result = await marked.parse(artifactContent);
         if (isMounted) {
-          // Make checkboxes read-only
           const readOnlyHtml = result.replace(
             /(<input type="checkbox"[^>]*)/g,
             '$1 disabled onclick="return false;"',
           );
-          setParsedHtml(readOnlyHtml);
+          setArtifactHtml(readOnlyHtml);
         }
       } catch (err) {
         console.error("Markdown parsing error:", err);
         if (isMounted) {
-          setParsedHtml(
+          setArtifactHtml(
             `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`,
           );
         }
@@ -256,34 +310,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeTab, specContent, artifactContent]);
-
-  // Fetch run history when history tab is selected
-  useEffect(() => {
-    if (!requirement || activeTab !== "history") {
-      return;
-    }
-
-    const fetchHistory = async () => {
-      setHistoryLoading(true);
-      setHistoryError(null);
-
-      try {
-        // Filter runs by requirement ID
-        const result = await felixApi.listRuns(projectId, requirement.id);
-        setRunHistory(result.runs || []);
-      } catch (err) {
-        console.error("Failed to fetch run history:", err);
-        setHistoryError(
-          err instanceof Error ? err.message : "Failed to load history",
-        );
-      } finally {
-        setHistoryLoading(false);
-      }
-    };
-
-    fetchHistory();
-  }, [projectId, requirement?.id, activeTab]);
+  }, [activeSubTab, artifactContent]);
 
   // Keyboard handlers
   const handleKeyDown = useCallback(
@@ -301,9 +328,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             event.target === slideOutRef.current
           ) {
             event.preventDefault();
-            const currentIndex = TABS.findIndex((t) => t.id === activeTab);
+            const currentIndex = TOP_LEVEL_TABS.findIndex((t) => t.id === activeTab);
             if (currentIndex > 0) {
-              setActiveTab(TABS[currentIndex - 1].id);
+              setActiveTab(TOP_LEVEL_TABS[currentIndex - 1].id);
             }
           }
           break;
@@ -313,9 +340,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             event.target === slideOutRef.current
           ) {
             event.preventDefault();
-            const currentIndex = TABS.findIndex((t) => t.id === activeTab);
-            if (currentIndex < TABS.length - 1) {
-              setActiveTab(TABS[currentIndex + 1].id);
+            const currentIndex = TOP_LEVEL_TABS.findIndex((t) => t.id === activeTab);
+            if (currentIndex < TOP_LEVEL_TABS.length - 1) {
+              setActiveTab(TOP_LEVEL_TABS[currentIndex + 1].id);
             }
           }
           break;
@@ -360,8 +387,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
   const handleSelectRun = (runId: string) => {
     setSelectedRunId(runId);
-    // Switch to report tab to show the selected run's artifacts
-    setActiveTab("report");
+    setActiveSubTab("report"); // Default to report when selecting a run
   };
 
   // Don't render anything if no requirement selected
@@ -371,368 +397,305 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   const priorityStyle =
     PRIORITY_STYLES[requirement.priority] || PRIORITY_STYLES.medium;
 
-  // Render tab content
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "metadata":
-        return (
-          <div className="p-6">
-            {/* Metadata Section */}
-            <div className="space-y-4">
-              {/* Status and Priority Row */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <span
-                  className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase ${statusStyle.bg} ${statusStyle.text} border ${statusStyle.border}`}
-                >
-                  {getStatusLabel(requirement.status)}
-                </span>
-                <span
-                  className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border}`}
-                >
-                  {requirement.priority}
-                </span>
-                <span className="text-xs font-mono text-slate-600">
-                  Updated: {requirement.updated_at}
-                </span>
-              </div>
+  // Render Overview tab content
+  const renderOverviewTab = () => {
+    return (
+      <div className="h-full overflow-y-auto custom-scrollbar">
+        {/* Metadata Section */}
+        <div className="p-6 border-b theme-border">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Metadata</h3>
+          
+          <div className="space-y-4">
+            {/* Status and Priority Row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase ${statusStyle.bg} ${statusStyle.text} border ${statusStyle.border}`}
+              >
+                {getStatusLabel(requirement.status)}
+              </span>
+              <span
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border}`}
+              >
+                {requirement.priority}
+              </span>
+              <span className="text-xs font-mono text-slate-600">
+                Updated: {requirement.updated_at}
+              </span>
+            </div>
 
-              {/* Labels */}
-              {requirement.labels && requirement.labels.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {requirement.labels.map((label) => (
+            {/* Labels */}
+            {requirement.labels && requirement.labels.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {requirement.labels.map((label) => (
+                  <span
+                    key={label}
+                    className="text-xs font-mono text-slate-500 bg-slate-800/50 border border-slate-700/50 px-2 py-1 rounded-lg"
+                  >
+                    #{label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Dependencies */}
+            {requirement.depends_on && requirement.depends_on.length > 0 && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500">Dependencies:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {requirement.depends_on.map((depId) => (
                     <span
-                      key={label}
-                      className="text-xs font-mono text-slate-500 bg-slate-800/50 border border-slate-700/50 px-2 py-1 rounded-lg"
+                      key={depId}
+                      className="text-xs font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded"
                     >
-                      #{label}
+                      {depId}
                     </span>
                   ))}
                 </div>
-              )}
-
-              {/* Dependencies */}
-              {requirement.depends_on && requirement.depends_on.length > 0 && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-500">Dependencies:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {requirement.depends_on.map((depId) => (
-                      <span
-                        key={depId}
-                        className="text-xs font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded"
-                      >
-                        {depId}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Last Run Info */}
-              {requirement.last_run_id && (
-                <div className="mt-4 p-3 theme-bg-elevated border theme-border rounded-lg">
-                  <div className="text-xs text-slate-500 mb-1">Last Run</div>
-                  <div className="text-sm font-mono text-slate-300">
-                    {requirement.last_run_id}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-
-      case "report":
-      case "plan":
-        // Markdown content tabs
-        if (!selectedRunId) {
-          return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-                <span className="text-2xl">📭</span>
               </div>
-              <h3 className="text-sm font-bold text-slate-400 mb-2">No Run Selected</h3>
-              <p className="text-xs text-slate-600 max-w-md">
-                Run the Felix agent or select a run from the History tab to view artifacts.
-              </p>
-            </div>
-          );
-        }
+            )}
 
-        if (artifactLoading) {
-          return (
-            <div className="flex-1 flex flex-col items-center justify-center h-full">
-              <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
-              <span className="text-xs font-mono text-slate-600 uppercase">Loading artifact...</span>
-            </div>
-          );
-        }
-
-        if (artifactError) {
-          return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-                <span className="text-2xl">📄</span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-400 mb-2">Artifact Not Found</h3>
-              <p className="text-xs text-slate-600 max-w-md">{artifactError}</p>
-            </div>
-          );
-        }
-
-        return (
-          <div className="h-full overflow-y-auto custom-scrollbar p-8 markdown-preview">
-            {parsedHtml ? (
-              <div
-                className="max-w-4xl mx-auto prose prose-invert prose-sm
-                  prose-headings:text-slate-200 prose-headings:font-bold
-                  prose-p:text-slate-400 prose-p:leading-relaxed
-                  prose-a:text-felix-400 prose-a:no-underline hover:prose-a:underline
-                  prose-code:text-amber-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-                  prose-pre:theme-bg-elevated prose-pre:border prose-pre:theme-border
-                  prose-li:text-slate-400
-                  prose-strong:text-slate-200
-                  prose-blockquote:border-l-felix-500 prose-blockquote:text-slate-400"
-                dangerouslySetInnerHTML={{ __html: parsedHtml }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
-                <span className="text-4xl opacity-30">📋</span>
-                <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                  No content available
-                </span>
+            {/* Last Run Info */}
+            {requirement.last_run_id && (
+              <div className="mt-4 p-3 theme-bg-elevated border theme-border rounded-lg">
+                <div className="text-xs text-slate-500 mb-1">Last Run</div>
+                <div className="text-sm font-mono text-slate-300">
+                  {requirement.last_run_id}
+                </div>
               </div>
             )}
           </div>
-        );
+        </div>
 
-      case "log":
-        // Output log tab
-        if (!selectedRunId) {
-          return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-                <span className="text-2xl">📭</span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-400 mb-2">No Run Selected</h3>
-              <p className="text-xs text-slate-600 max-w-md">
-                Run the Felix agent or select a run from the History tab to view output logs.
-              </p>
-            </div>
-          );
-        }
-
-        if (artifactLoading) {
-          return (
-            <div className="flex-1 flex flex-col items-center justify-center h-full">
-              <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
-              <span className="text-xs font-mono text-slate-600 uppercase">Loading log...</span>
-            </div>
-          );
-        }
-
-        if (artifactError) {
-          return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-                <span className="text-2xl">📜</span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-400 mb-2">Log Not Found</h3>
-              <p className="text-xs text-slate-600 max-w-md">{artifactError}</p>
-            </div>
-          );
-        }
-
-        return (
-          <div className="h-full overflow-y-auto custom-scrollbar p-6 theme-bg-deepest">
-            <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
-              {artifactContent || "No log content available."}
-            </pre>
-          </div>
-        );
-
-      case "spec":
-        // Specification tab
-        if (specLoading) {
-          return (
-            <div className="flex-1 flex flex-col items-center justify-center h-full">
-              <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
-              <span className="text-xs font-mono text-slate-600 uppercase">Loading specification...</span>
-            </div>
-          );
-        }
-
-        if (specError) {
-          return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-                <span className="text-2xl">📄</span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-400 mb-2">Specification Not Found</h3>
-              <p className="text-xs text-slate-600 max-w-md">{specError}</p>
-            </div>
-          );
-        }
-
-        return (
-          <div className="h-full overflow-y-auto custom-scrollbar p-8 markdown-preview">
-            {parsedHtml ? (
-              <div
-                className="max-w-4xl mx-auto prose prose-invert prose-sm
-                  prose-headings:text-slate-200 prose-headings:font-bold
-                  prose-p:text-slate-400 prose-p:leading-relaxed
-                  prose-a:text-felix-400 prose-a:no-underline hover:prose-a:underline
-                  prose-code:text-amber-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-                  prose-pre:theme-bg-elevated prose-pre:border prose-pre:theme-border
-                  prose-li:text-slate-400
-                  prose-strong:text-slate-200
-                  prose-blockquote:border-l-felix-500 prose-blockquote:text-slate-400"
-                dangerouslySetInnerHTML={{ __html: parsedHtml }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
-                <span className="text-4xl opacity-30">📄</span>
-                <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                  No specification available
-                </span>
-              </div>
-            )}
-          </div>
-        );
-
-      case "history":
-        // History tab
-        if (historyLoading) {
-          return (
-            <div className="flex items-center justify-center h-full">
+        {/* Specification Section */}
+        <div className="p-6">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Specification</h3>
+          
+          {specLoading ? (
+            <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
             </div>
-          );
-        }
-
-        if (historyError) {
-          return (
-            <div className="p-6">
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
-                {historyError}
-              </div>
+          ) : specError ? (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
+              {specError}
             </div>
-          );
-        }
-
-        if (runHistory.length === 0) {
-          return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-                <span className="text-2xl">🕐</span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-400 mb-2">No Work History</h3>
-              <p className="text-xs text-slate-600 max-w-md">
-                No runs found for this requirement. Run the Felix agent to see work history here.
-              </p>
+          ) : specHtml ? (
+            <div
+              className="prose prose-invert prose-sm max-w-none
+                prose-headings:text-slate-200 prose-headings:font-bold
+                prose-p:text-slate-400 prose-p:leading-relaxed
+                prose-a:text-felix-400 prose-a:no-underline hover:prose-a:underline
+                prose-code:text-amber-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+                prose-pre:theme-bg-elevated prose-pre:border prose-pre:theme-border
+                prose-li:text-slate-400
+                prose-strong:text-slate-200
+                prose-blockquote:border-l-felix-500 prose-blockquote:text-slate-400"
+              dangerouslySetInnerHTML={{ __html: specHtml }}
+            />
+          ) : (
+            <div className="text-center py-12 text-slate-600">
+              <span className="text-2xl">📄</span>
+              <p className="mt-2 text-xs">No specification available</p>
             </div>
-          );
-        }
+          )}
+        </div>
+      </div>
+    );
+  };
 
-        return (
-          <div className="p-6">
-            <div className="space-y-3">
-              {runHistory.map((run) => {
-                const isSelected = run.run_id === selectedRunId;
-                const statusColor =
-                  run.status === "completed"
-                    ? "text-emerald-400"
-                    : run.status === "running"
-                      ? "text-amber-400"
-                      : run.status === "failed"
-                        ? "text-red-400"
-                        : "text-slate-400";
-                const statusBg =
-                  run.status === "completed"
-                    ? "bg-emerald-500/10 border-emerald-500/20"
-                    : run.status === "running"
-                      ? "bg-amber-500/10 border-amber-500/20"
-                      : run.status === "failed"
-                        ? "bg-red-500/10 border-red-500/20"
-                        : "bg-slate-500/10 border-slate-500/20";
+  // Render Run History tab content with master-detail layout
+  const renderHistoryTab = () => {
+    return (
+      <div className="h-full flex">
+        {/* Master List (left side, ~40% width) */}
+        <div className="w-[40%] border-r theme-border flex flex-col">
+          <div className="p-3 border-b theme-border">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Runs</h3>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
+              </div>
+            ) : historyError ? (
+              <div className="p-4">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
+                  {historyError}
+                </div>
+              </div>
+            ) : runHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                <span className="text-2xl mb-2">🕐</span>
+                <h4 className="text-sm font-bold text-slate-400 mb-1">No Runs</h4>
+                <p className="text-xs text-slate-600">
+                  No runs found for this requirement.
+                </p>
+              </div>
+            ) : (
+              <div className="p-2 space-y-1">
+                {runHistory.map((run) => {
+                  const isSelected = run.run_id === selectedRunId;
+                  const statusColor =
+                    run.status === "completed"
+                      ? "text-emerald-400"
+                      : run.status === "running"
+                        ? "text-amber-400"
+                        : run.status === "failed"
+                          ? "text-red-400"
+                          : "text-slate-400";
+                  const statusBg =
+                    run.status === "completed"
+                      ? "bg-emerald-500/10 border-emerald-500/20"
+                      : run.status === "running"
+                        ? "bg-amber-500/10 border-amber-500/20"
+                        : run.status === "failed"
+                          ? "bg-red-500/10 border-red-500/20"
+                          : "bg-slate-500/10 border-slate-500/20";
 
-                return (
-                  <button
-                    key={run.run_id}
-                    onClick={() => handleSelectRun(run.run_id)}
-                    className={`
-                      w-full text-left px-4 py-3 rounded-xl border transition-all
-                      ${isSelected
-                        ? "theme-bg-elevated border-felix-500/50 ring-1 ring-felix-500/30"
-                        : "theme-bg-elevated theme-border hover:border-slate-600"
-                      }
-                    `}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
+                  return (
+                    <button
+                      key={run.run_id}
+                      onClick={() => handleSelectRun(run.run_id)}
+                      className={`
+                        w-full text-left px-3 py-2.5 rounded-lg border transition-all
+                        ${isSelected
+                          ? "theme-bg-elevated border-felix-500/50 ring-1 ring-felix-500/30"
+                          : "theme-bg-elevated/50 theme-border hover:border-slate-600"
+                        }
+                      `}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
                         <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded border ${statusBg} ${statusColor} uppercase`}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusBg} ${statusColor} uppercase`}
                         >
                           {run.status}
                         </span>
-                        {isSelected && (
-                          <span className="text-xs font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded">
-                            SELECTED
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-slate-500 font-mono">
-                        PID: {run.pid}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Run ID:</span>
-                        <span className="text-slate-300 font-mono truncate ml-2 max-w-[200px]">
-                          {run.run_id}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Started:</span>
-                        <span className="text-slate-300">
-                          {formatDate(run.started_at)}
-                        </span>
-                      </div>
-                      {run.ended_at && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Ended:</span>
-                          <span className="text-slate-300">
-                            {formatDate(run.ended_at)}
-                          </span>
-                        </div>
-                      )}
-                      {run.exit_code !== null && run.exit_code !== undefined && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Exit Code:</span>
+                        {run.exit_code !== null && run.exit_code !== undefined && (
                           <span
-                            className={
+                            className={`text-[10px] font-mono ${
                               run.exit_code === 0
                                 ? "text-emerald-400"
                                 : "text-red-400"
-                            }
+                            }`}
                           >
-                            {run.exit_code}
+                            exit: {run.exit_code}
                           </span>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
 
-                    {run.error_message && (
-                      <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
-                        {run.error_message}
+                      <div className="text-[10px] font-mono text-slate-400 truncate mb-1">
+                        {run.run_id}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {formatDate(run.started_at)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Detail Panel (right side, ~60% width) */}
+        <div className="w-[60%] flex flex-col">
+          {!selectedRunId ? (
+            // Empty state when no run selected
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
+                <span className="text-2xl">📭</span>
+              </div>
+              <h3 className="text-sm font-bold text-slate-400 mb-2">Select a Run</h3>
+              <p className="text-xs text-slate-600 max-w-md">
+                Click on a run from the list to view its artifacts.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Sub-tab bar for artifacts */}
+              <div className="h-10 border-b theme-border flex items-center px-3 gap-1 flex-shrink-0 theme-bg-deep">
+                {ARTIFACT_SUB_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveSubTab(tab.id)}
+                    className={`
+                      px-3 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1.5
+                      ${
+                        activeSubTab === tab.id
+                          ? "bg-slate-800 text-felix-400 shadow-sm"
+                          : "text-slate-500 hover:text-slate-400"
+                      }
+                    `}
+                  >
+                    <span>{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Artifact content */}
+              <div className="flex-1 overflow-hidden">
+                {artifactLoading ? (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin mb-3" />
+                    <span className="text-xs text-slate-600">Loading artifact...</span>
+                  </div>
+                ) : artifactError ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                    <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
+                      <span className="text-2xl">📄</span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-400 mb-2">Artifact Not Found</h3>
+                    <p className="text-xs text-slate-600 max-w-md">{artifactError}</p>
+                  </div>
+                ) : activeSubTab === "log" ? (
+                  // Log view - monospace text
+                  <div className="h-full overflow-y-auto custom-scrollbar p-4 theme-bg-deepest">
+                    <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
+                      {artifactContent || "No log content available."}
+                    </pre>
+                  </div>
+                ) : (
+                  // Markdown view (report or plan)
+                  <div className="h-full overflow-y-auto custom-scrollbar p-6">
+                    {artifactHtml ? (
+                      <div
+                        className="prose prose-invert prose-sm max-w-none
+                          prose-headings:text-slate-200 prose-headings:font-bold
+                          prose-p:text-slate-400 prose-p:leading-relaxed
+                          prose-a:text-felix-400 prose-a:no-underline hover:prose-a:underline
+                          prose-code:text-amber-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+                          prose-pre:theme-bg-elevated prose-pre:border prose-pre:theme-border
+                          prose-li:text-slate-400
+                          prose-strong:text-slate-200
+                          prose-blockquote:border-l-felix-500 prose-blockquote:text-slate-400"
+                        dangerouslySetInnerHTML={{ __html: artifactHtml }}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                        <span className="text-4xl opacity-30">📋</span>
+                        <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                          No content available
+                        </span>
                       </div>
                     )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
+  // Render tab content based on active tab
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "overview":
+        return renderOverviewTab();
+      case "history":
+        return renderHistoryTab();
       default:
         return null;
     }
@@ -806,12 +769,12 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
         {/* Tab Navigation */}
         <div className="h-12 border-b theme-border flex items-center px-4 gap-1 flex-shrink-0 theme-bg-deep overflow-x-auto">
-          {TABS.map((tab) => (
+          {TOP_LEVEL_TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                px-3 py-1.5 text-[10px] font-bold rounded-md transition-all flex items-center gap-1.5 whitespace-nowrap
+                px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 whitespace-nowrap
                 ${
                   activeTab === tab.id
                     ? "bg-slate-800 text-felix-400 shadow-sm"
@@ -842,18 +805,13 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             to close
           </span>
           <div className="flex items-center gap-2">
-            {selectedRunId && (
-              <span className="text-[10px] text-slate-600 font-mono truncate max-w-[150px]">
-                Run: {selectedRunId}
-              </span>
-            )}
             <span className="text-[10px] text-slate-600">
               <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400 font-mono">
                 ←
               </kbd>
               <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400 font-mono ml-1">
                 →
-              </kbd>
+              </kbd>{" "}
               to switch tabs
             </span>
           </div>
