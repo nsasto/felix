@@ -1573,7 +1573,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       {/* Resizable Panel Layout */}
       <PanelGroup direction="horizontal" className="flex-1">
         {/* Agent List Panel - 20% */}
-        <Panel defaultSize={20} minSize={15} maxSize={30} style={{ minWidth: '250px' }}>
+        <Panel
+          defaultSize={20}
+          minSize={15}
+          maxSize={30}
+          style={{ minWidth: "250px" }}
+        >
           <AgentListPanel
             agents={agents}
             selectedAgent={selectedAgent}
