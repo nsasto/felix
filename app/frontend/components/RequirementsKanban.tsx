@@ -253,10 +253,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#050608]">
+      <div className="flex-1 flex items-center justify-center theme-bg-deepest">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
-          <span className="text-xs font-mono text-slate-500 uppercase tracking-widest">Loading requirements...</span>
+          <span className="text-xs font-mono theme-text-muted uppercase tracking-widest">Loading requirements...</span>
         </div>
       </div>
     );
@@ -264,7 +264,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
 
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#050608]">
+      <div className="flex-1 flex items-center justify-center theme-bg-deepest">
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-6 py-4 text-center max-w-md">
           <span className="text-xs font-bold text-red-400 uppercase">Error Loading Requirements</span>
           <p className="text-sm text-red-300 mt-2">{error}</p>
@@ -280,16 +280,16 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#050608] overflow-hidden">
+    <div className="flex-1 flex flex-col theme-bg-deepest overflow-hidden">
       {/* Filter bar */}
-      <div className="h-12 border-b border-slate-800/60 flex items-center px-6 gap-4 bg-[#0d1117]/50 flex-shrink-0">
-        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Filters:</span>
+      <div className="h-12 border-b theme-border flex items-center px-6 gap-4 theme-bg-base/50 flex-shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-base) 50%, transparent)' }}>
+        <span className="text-[10px] font-bold theme-text-muted uppercase tracking-widest">Filters:</span>
         
         {/* Priority filter */}
         <select
           value={priorityFilter || ''}
           onChange={(e) => setPriorityFilter(e.target.value || null)}
-          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-felix-500/50 cursor-pointer"
+          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-felix-500/50 cursor-pointer"
         >
           <option value="">All Priorities</option>
           {allPriorities.map(priority => (
@@ -303,7 +303,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
         <select
           value={labelFilter || ''}
           onChange={(e) => setLabelFilter(e.target.value || null)}
-          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-felix-500/50 cursor-pointer"
+          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-felix-500/50 cursor-pointer"
         >
           <option value="">All Labels</option>
           {allLabels.map(label => (
@@ -315,7 +315,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
         {(priorityFilter || labelFilter) && (
           <button
             onClick={() => { setPriorityFilter(null); setLabelFilter(null); }}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
           >
             Clear
           </button>
@@ -324,7 +324,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
         <div className="flex-1" />
         
         {/* Requirements count */}
-        <span className="text-[10px] font-mono text-slate-600">
+        <span className="text-[10px] font-mono theme-text-tertiary">
           {filteredRequirements.length} / {requirements.length} requirements
         </span>
       </div>
@@ -347,9 +347,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${column.color} ${column.status === 'in_progress' ? 'animate-pulse' : ''}`} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">{column.label}</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest theme-text-tertiary">{column.label}</h3>
                 </div>
-                <span className="text-[10px] font-mono text-slate-600 bg-slate-900 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-mono theme-text-tertiary theme-bg-elevated px-1.5 py-0.5 rounded">
                   {columnRequirements.length}
                 </span>
               </div>
@@ -357,8 +357,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
               {/* Cards container */}
               <div 
                 className={`flex-1 space-y-3 min-h-[200px] rounded-xl transition-colors ${
-                  isDropTarget ? 'bg-slate-800/30 border-2 border-dashed border-felix-500/30' : ''
+                  isDropTarget ? 'theme-bg-surface border-2 border-dashed border-felix-500/30' : ''
                 }`}
+                style={isDropTarget ? { backgroundColor: 'color-mix(in srgb, var(--bg-surface) 30%, transparent)' } : undefined}
               >
                 {columnRequirements.map(requirement => {
                   const priorityStyle = PRIORITY_STYLES[requirement.priority] || PRIORITY_STYLES.medium;
@@ -377,12 +378,12 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                         onSelectRequirement?.(requirement);
                       }}
                       className={`
-                        bg-[#0d1117] border border-slate-800/60 p-4 rounded-xl 
+                        theme-bg-base border theme-border p-4 rounded-xl 
                         hover:border-felix-600/40 transition-all cursor-grab group 
-                        shadow-lg shadow-black/20
                         ${isDragging ? 'opacity-50 scale-95' : ''}
                         ${hasBlockedDeps && requirement.status !== 'blocked' ? 'border-l-2 border-l-amber-500/50' : ''}
                       `}
+                      style={{ boxShadow: 'var(--shadow-lg)' }}
                     >
                       {/* Header row: ID + Priority + In-Progress Indicator */}
                       <div className="flex justify-between items-start mb-2">
@@ -404,7 +405,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                       </div>
 
                       {/* Title */}
-                      <h4 className="text-sm font-semibold text-slate-200 mb-2 group-hover:text-felix-400 transition-colors line-clamp-2">
+                      <h4 className="text-sm font-semibold theme-text-primary mb-2 group-hover:text-felix-400 transition-colors line-clamp-2">
                         {requirement.title}
                       </h4>
 
@@ -424,7 +425,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                           {requirement.labels.map(label => (
                             <span 
                               key={label} 
-                              className="text-[9px] font-mono text-slate-600 border border-slate-800 px-1.5 py-0.5 rounded hover:text-slate-400 transition-colors"
+                              className="text-[9px] font-mono theme-text-tertiary border theme-border-muted px-1.5 py-0.5 rounded hover:theme-text-secondary transition-colors"
                             >
                               #{label}
                             </span>
@@ -459,8 +460,8 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                       )}
 
                       {/* Footer: Updated date + view spec link */}
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
-                        <span className="text-[9px] font-mono text-slate-600">
+                      <div className="flex justify-between items-center pt-2 border-t theme-border-muted">
+                        <span className="text-[9px] font-mono theme-text-tertiary">
                           Updated: {requirement.updated_at}
                         </span>
                         <button 
@@ -469,7 +470,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                             setSelectedRequirement(requirement);
                             onSelectRequirement?.(requirement); 
                           }}
-                          className="text-[9px] font-bold text-slate-500 hover:text-felix-400 transition-colors flex items-center gap-1"
+                          className="text-[9px] font-bold theme-text-muted hover:text-felix-400 transition-colors flex items-center gap-1"
                         >
                           <IconFileText className="w-3 h-3" />
                           View Spec
@@ -484,9 +485,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                   <div className={`
                     flex flex-col items-center justify-center py-8 text-center
                     border border-dashed rounded-xl
-                    ${isDropTarget ? 'border-felix-500/50 bg-felix-500/5' : 'border-slate-800/50'}
+                    ${isDropTarget ? 'border-felix-500/50 bg-felix-500/5' : 'theme-border-muted'}
                   `}>
-                    <span className="text-[10px] font-mono text-slate-600 uppercase">
+                    <span className="text-[10px] font-mono theme-text-tertiary uppercase">
                       {isDropTarget ? 'Drop here' : 'No requirements'}
                     </span>
                   </div>
