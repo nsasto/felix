@@ -213,12 +213,14 @@ function Update-RequirementStatus {
     try {
         $json = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
         $found = $false
-        foreach ($req in $json) {
-            if ($req.id -eq $RequirementId) {
-                $req.status = $NewStatus
-                $req.updated_at = (Get-Date -Format "yyyy-MM-dd")
-                $found = $true
-                break
+        if ($json.requirements) {
+            foreach ($req in $json.requirements) {
+                if ($req.id -eq $RequirementId) {
+                    $req.status = $NewStatus
+                    $req.updated_at = (Get-Date -Format "yyyy-MM-dd")
+                    $found = $true
+                    break
+                }
             }
         }
         if (-not $found) {
@@ -262,9 +264,14 @@ function Update-RequirementRunId {
         }
         $json = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
         $found = $false
-        foreach ($req in $json) {
+        foreach ($req in $json.requirements) {
             if ($req.id -eq $RequirementId) {
-                $req.last_run_id = $RunId
+                if ($req.PSObject.Properties.Name -contains "last_run_id") {
+                    $req.last_run_id = $RunId
+                }
+                else {
+                    $req | Add-Member -NotePropertyName "last_run_id" -NotePropertyValue $RunId
+                }
                 $found = $true
                 break
             }
@@ -714,8 +721,8 @@ function Register-Agent {
     
     $registration = @{
         agent_name = $AgentName
-        pid = $ProcessId
-        hostname = $Hostname
+        pid        = $ProcessId
+        hostname   = $Hostname
         started_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     }
     
