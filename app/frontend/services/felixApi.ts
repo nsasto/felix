@@ -149,12 +149,17 @@ export interface BackpressureConfig {
   max_retries?: number;
 }
 
+export interface UIConfig {
+  theme: 'dark' | 'light' | 'system';
+}
+
 export interface FelixConfig {
   version: string;
   executor: ExecutorConfig;
   agent: AgentConfig;
   paths: PathsConfig;
   backpressure: BackpressureConfig;
+  ui: UIConfig;
 }
 
 export interface ConfigContent {

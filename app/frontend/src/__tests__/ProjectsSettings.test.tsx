@@ -45,6 +45,10 @@ const createMockConfig = (overrides: Partial<FelixConfig> = {}): FelixConfig => 
     max_retries: 3,
     ...overrides.backpressure,
   },
+  ui: {
+    theme: 'dark',
+    ...overrides.ui,
+  },
   ...overrides,
 });
 
