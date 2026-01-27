@@ -148,7 +148,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
     }
   };
 
-  // Get status badge styles
+  // Get status badge styles - using theme-aware colors where possible
   const getStatusStyles = (status: string): { bg: string; text: string; dot: string } => {
     switch (status) {
       case 'running':
@@ -160,22 +160,22 @@ const AgentControls: React.FC<AgentControlsProps> = ({
       case 'stopped':
         return { bg: 'bg-amber-500/10 border-amber-500/20', text: 'text-amber-400', dot: 'bg-amber-500' };
       default:
-        return { bg: 'bg-slate-800/50 border-slate-700/50', text: 'text-slate-400', dot: 'bg-slate-500' };
+        return { bg: 'theme-bg-surface border', text: 'theme-text-muted', dot: 'bg-gray-500' };
     }
   };
 
   if (loading) {
     return (
-      <div className={`flex items-center gap-3 ${compact ? '' : 'p-4 bg-[#161b22] border border-slate-800/60 rounded-2xl'}`}>
-        <div className="w-4 h-4 border-2 border-slate-600/30 border-t-slate-500 rounded-full animate-spin" />
-        <span className="text-[10px] font-mono text-slate-500 uppercase">Checking agent...</span>
+      <div className={`flex items-center gap-3 ${compact ? '' : 'p-4 theme-bg-elevated border rounded-2xl'}`} style={{ borderColor: 'var(--border-default)' }}>
+        <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border-muted)', borderTopColor: 'var(--text-muted)' }} />
+        <span className="text-[10px] font-mono theme-text-muted uppercase">Checking agent...</span>
       </div>
     );
   }
 
   if (error && !status) {
     return (
-      <div className={`${compact ? '' : 'p-4 bg-[#161b22] border border-slate-800/60 rounded-2xl'}`}>
+      <div className={`${compact ? '' : 'p-4 theme-bg-elevated border rounded-2xl'}`} style={{ borderColor: 'var(--border-default)' }}>
         <div className="flex items-center gap-2 text-red-400">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -184,7 +184,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         </div>
         <button
           onClick={fetchStatus}
-          className="mt-2 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+          className="mt-2 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
         >
           Retry
         </button>
@@ -200,8 +200,8 @@ const AgentControls: React.FC<AgentControlsProps> = ({
       <div className="flex items-center gap-3">
         {/* Status indicator */}
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-felix-500 animate-pulse' : 'bg-slate-600'}`} />
-          <span className={`text-[10px] font-bold uppercase ${isRunning ? 'text-felix-400' : 'text-slate-500'}`}>
+          <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-felix-500 animate-pulse' : ''}`} style={{ backgroundColor: isRunning ? undefined : 'var(--text-faint)' }} />
+          <span className={`text-[10px] font-bold uppercase ${isRunning ? 'text-felix-400' : 'theme-text-muted'}`}>
             {isRunning ? 'Running' : 'Idle'}
           </span>
         </div>
@@ -230,34 +230,34 @@ const AgentControls: React.FC<AgentControlsProps> = ({
 
   // Full mode - detailed card with status and controls
   return (
-    <div className="bg-[#161b22] border border-slate-800/60 rounded-2xl overflow-hidden">
+    <div className="theme-bg-elevated border rounded-2xl overflow-hidden" style={{ borderColor: 'var(--border-default)' }}>
       {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-800/60 flex items-center justify-between">
+      <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-default)' }}>
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-            isRunning ? 'bg-felix-500/20' : 'bg-slate-800'
+            isRunning ? 'bg-felix-500/20' : 'theme-bg-surface'
           }`}>
-            <IconFelix className={`w-5 h-5 ${isRunning ? 'text-felix-400 animate-pulse' : 'text-slate-500'}`} />
+            <IconFelix className={`w-5 h-5 ${isRunning ? 'text-felix-400 animate-pulse' : 'theme-text-muted'}`} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-200">Felix Agent</h3>
-            <p className="text-[10px] font-mono text-slate-600 uppercase">
+            <h3 className="text-sm font-bold theme-text-secondary">Felix Agent</h3>
+            <p className="text-[10px] font-mono theme-text-faint uppercase">
               {isRunning ? 'Agent Active' : 'Agent Idle'}
             </p>
           </div>
         </div>
 
         {/* Status badge */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
           isRunning 
-            ? 'bg-felix-500/10 border border-felix-500/20' 
-            : 'bg-slate-800/50 border border-slate-700/50'
-        }`}>
+            ? 'bg-felix-500/10 border-felix-500/20' 
+            : 'theme-bg-surface'
+        }`} style={{ borderColor: isRunning ? undefined : 'var(--border-muted)' }}>
           <div className={`w-2 h-2 rounded-full ${
-            isRunning ? 'bg-felix-500 animate-pulse shadow-lg shadow-felix-500/50' : 'bg-slate-600'
-          }`} />
+            isRunning ? 'bg-felix-500 animate-pulse shadow-lg shadow-felix-500/50' : ''
+          }`} style={{ backgroundColor: isRunning ? undefined : 'var(--text-faint)' }} />
           <span className={`text-[10px] font-bold uppercase ${
-            isRunning ? 'text-felix-400' : 'text-slate-500'
+            isRunning ? 'text-felix-400' : 'theme-text-muted'
           }`}>
             {isRunning ? 'Running' : 'Stopped'}
           </span>
@@ -266,24 +266,24 @@ const AgentControls: React.FC<AgentControlsProps> = ({
 
       {/* Body - Status details when running */}
       {isRunning && status && (
-        <div className="px-6 py-4 border-b border-slate-800/60 bg-[#0d1117]/50">
+        <div className="px-6 py-4 border-b" style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-default)' }}>
           <div className="grid grid-cols-2 gap-4">
             {status.pid && (
               <div>
-                <span className="text-[9px] font-mono text-slate-600 uppercase">Process ID</span>
-                <p className="text-sm font-mono text-slate-300">{status.pid}</p>
+                <span className="text-[9px] font-mono theme-text-faint uppercase">Process ID</span>
+                <p className="text-sm font-mono theme-text-secondary">{status.pid}</p>
               </div>
             )}
             {status.started_at && (
               <div>
-                <span className="text-[9px] font-mono text-slate-600 uppercase">Started</span>
-                <p className="text-sm font-mono text-slate-300">{formatTimestamp(status.started_at)}</p>
+                <span className="text-[9px] font-mono theme-text-faint uppercase">Started</span>
+                <p className="text-sm font-mono theme-text-secondary">{formatTimestamp(status.started_at)}</p>
               </div>
             )}
             {status.current_run_id && (
               <div className="col-span-2">
-                <span className="text-[9px] font-mono text-slate-600 uppercase">Run ID</span>
-                <p className="text-xs font-mono text-slate-400 truncate">{status.current_run_id}</p>
+                <span className="text-[9px] font-mono theme-text-faint uppercase">Run ID</span>
+                <p className="text-xs font-mono theme-text-tertiary truncate">{status.current_run_id}</p>
               </div>
             )}
           </div>
@@ -303,10 +303,10 @@ const AgentControls: React.FC<AgentControlsProps> = ({
       )}
 
       {/* Footer - Actions */}
-      <div className="px-6 py-4 flex items-center justify-between border-b border-slate-800/60">
+      <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--border-default)' }}>
         <button
           onClick={fetchStatus}
-          className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1.5"
+          className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors flex items-center gap-1.5"
         >
           <IconCpu className="w-3 h-3" />
           Refresh Status
@@ -367,24 +367,24 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         >
           <div className="flex items-center gap-2">
             <svg 
-              className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${showHistory ? 'rotate-90' : ''}`}
+              className={`w-4 h-4 theme-text-muted transition-transform duration-200 ${showHistory ? 'rotate-90' : ''}`}
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
             </svg>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors">
+            <span className="text-xs font-bold theme-text-tertiary uppercase tracking-wider group-hover:theme-text-secondary transition-colors">
               Run History
             </span>
             {runs.length > 0 && (
-              <span className="text-[9px] font-mono text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">
+              <span className="text-[9px] font-mono theme-text-faint theme-bg-surface px-1.5 py-0.5 rounded">
                 {runs.length}
               </span>
             )}
           </div>
           {runsLoading && (
-            <div className="w-3 h-3 border-2 border-slate-600/30 border-t-slate-500 rounded-full animate-spin" />
+            <div className="w-3 h-3 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border-muted)', borderTopColor: 'var(--text-muted)' }} />
           )}
         </button>
 
@@ -392,7 +392,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         {showHistory && (
           <div className="mt-4 space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
             {runs.length === 0 ? (
-              <div className="text-center py-6 text-slate-600">
+              <div className="text-center py-6 theme-text-faint">
                 <svg className="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -405,17 +405,18 @@ const AgentControls: React.FC<AgentControlsProps> = ({
                   <button
                     key={run.run_id}
                     onClick={() => onSelectRun?.(run.run_id)}
-                    className={`w-full flex items-center justify-between p-3 bg-[#0d1117]/50 border border-slate-800/60 rounded-xl hover:border-felix-600/40 transition-all text-left group ${
+                    className={`w-full flex items-center justify-between p-3 theme-bg-base border rounded-xl hover:border-felix-600/40 transition-all text-left group ${
                       onSelectRun ? 'cursor-pointer' : 'cursor-default'
                     }`}
+                    style={{ borderColor: 'var(--border-default)' }}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-mono text-slate-300 truncate">
+                        <span className="text-xs font-mono theme-text-secondary truncate">
                           {run.run_id}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] text-slate-600">
+                      <div className="flex items-center gap-3 text-[10px] theme-text-faint">
                         <span>{formatRunDateTime(run.started_at)}</span>
                         {run.ended_at && (
                           <>
