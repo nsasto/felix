@@ -10,6 +10,8 @@ vi.mock('../../services/felixApi', () => ({
   felixApi: {
     getConfig: vi.fn(),
     updateConfig: vi.fn(),
+    getGlobalConfig: vi.fn(),
+    updateGlobalConfig: vi.fn(),
   },
 }));
 
@@ -615,6 +617,253 @@ describe('SettingsScreen', () => {
       fireEvent.click(backButton);
 
       expect(mockOnBack).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // S-0019: Project-Independent Settings Tests
+  describe('Project-Independent Behavior (S-0019)', () => {
+    const mockOnBack = vi.fn();
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    describe('Loading Without ProjectId', () => {
+      it('loads settings using global config API when no projectId is provided', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(felixApi.getGlobalConfig).toHaveBeenCalled();
+        });
+
+        // Should NOT call the project-specific getConfig
+        expect(felixApi.getConfig).not.toHaveBeenCalled();
+      });
+
+      it('displays settings correctly without projectId', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfig({ executor: { max_iterations: 25 } as any }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('General Settings')).toBeInTheDocument();
+        });
+
+        // Verify config values are displayed
+        expect(screen.getByDisplayValue('25')).toBeInTheDocument();
+      });
+
+      it('shows loading state while fetching global config', async () => {
+        let resolveConfig: (value: ConfigContent) => void;
+        const configPromise = new Promise<ConfigContent>((resolve) => {
+          resolveConfig = resolve;
+        });
+        vi.mocked(felixApi.getGlobalConfig).mockReturnValue(configPromise);
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        // Verify loading state
+        expect(screen.getByText(/loading settings/i)).toBeInTheDocument();
+
+        // Resolve the promise to clean up
+        resolveConfig!(mockConfigResponse(createMockConfig()));
+        await waitFor(() => {
+          expect(screen.queryByText(/loading settings/i)).not.toBeInTheDocument();
+        });
+      });
+
+      it('handles error when global config fetch fails', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockRejectedValue(new Error('Failed to load global config'));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          const failedElements = screen.getAllByText(/failed to load/i);
+          expect(failedElements.length).toBeGreaterThan(0);
+        });
+      });
+    });
+
+    describe('Saving Without ProjectId', () => {
+      it('saves settings using global config API when no projectId is provided', async () => {
+        const mockConfig = createMockConfig();
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(mockConfig));
+        vi.mocked(felixApi.updateGlobalConfig).mockResolvedValue(
+          mockConfigResponse({ ...mockConfig, executor: { ...mockConfig.executor, max_iterations: 30 } })
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByDisplayValue('10')).toBeInTheDocument();
+        });
+
+        // Make a change
+        const maxIterInput = screen.getByDisplayValue('10');
+        fireEvent.change(maxIterInput, { target: { value: '30' } });
+
+        // Click save
+        await waitFor(() => {
+          const saveButton = screen.getByText('Save Changes');
+          expect(saveButton).not.toBeDisabled();
+        });
+
+        fireEvent.click(screen.getByText('Save Changes'));
+
+        await waitFor(() => {
+          expect(felixApi.updateGlobalConfig).toHaveBeenCalledWith(expect.objectContaining({
+            executor: expect.objectContaining({ max_iterations: 30 }),
+          }));
+        });
+
+        // Should NOT call the project-specific updateConfig
+        expect(felixApi.updateConfig).not.toHaveBeenCalled();
+      });
+
+      it('shows success message after saving global config', async () => {
+        const mockConfig = createMockConfig();
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(mockConfig));
+        vi.mocked(felixApi.updateGlobalConfig).mockResolvedValue(
+          mockConfigResponse({ ...mockConfig, executor: { ...mockConfig.executor, max_iterations: 30 } })
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByDisplayValue('10')).toBeInTheDocument();
+        });
+
+        const maxIterInput = screen.getByDisplayValue('10');
+        fireEvent.change(maxIterInput, { target: { value: '30' } });
+
+        fireEvent.click(screen.getByText('Save Changes'));
+
+        await waitFor(() => {
+          expect(screen.getByText(/saved successfully/i)).toBeInTheDocument();
+        });
+      });
+
+      it('shows error message when global config save fails', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+        vi.mocked(felixApi.updateGlobalConfig).mockRejectedValue(new Error('Failed to save global config'));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByDisplayValue('10')).toBeInTheDocument();
+        });
+
+        const maxIterInput = screen.getByDisplayValue('10');
+        fireEvent.change(maxIterInput, { target: { value: '30' } });
+
+        fireEvent.click(screen.getByText('Save Changes'));
+
+        await waitFor(() => {
+          expect(screen.getByText(/failed to save/i)).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('Backwards Compatibility with ProjectId', () => {
+      it('uses project-specific API when projectId is provided', async () => {
+        const testProjectId = 'test-project-123';
+        vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen projectId={testProjectId} onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(felixApi.getConfig).toHaveBeenCalledWith(testProjectId);
+        });
+
+        // Should NOT call the global getGlobalConfig
+        expect(felixApi.getGlobalConfig).not.toHaveBeenCalled();
+      });
+
+      it('saves using project-specific API when projectId is provided', async () => {
+        const testProjectId = 'test-project-123';
+        const mockConfig = createMockConfig();
+        vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(mockConfig));
+        vi.mocked(felixApi.updateConfig).mockResolvedValue(
+          mockConfigResponse({ ...mockConfig, executor: { ...mockConfig.executor, max_iterations: 15 } })
+        );
+
+        renderWithTheme(<SettingsScreen projectId={testProjectId} onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByDisplayValue('10')).toBeInTheDocument();
+        });
+
+        const maxIterInput = screen.getByDisplayValue('10');
+        fireEvent.change(maxIterInput, { target: { value: '15' } });
+
+        fireEvent.click(screen.getByText('Save Changes'));
+
+        await waitFor(() => {
+          expect(felixApi.updateConfig).toHaveBeenCalledWith(testProjectId, expect.objectContaining({
+            executor: expect.objectContaining({ max_iterations: 15 }),
+          }));
+        });
+
+        // Should NOT call updateGlobalConfig
+        expect(felixApi.updateGlobalConfig).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('All Settings Categories Without ProjectId', () => {
+      it('displays all category options without projectId', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('General')).toBeInTheDocument();
+          expect(screen.getByText('Agent')).toBeInTheDocument();
+          expect(screen.getByText('Paths')).toBeInTheDocument();
+          expect(screen.getByText('Advanced')).toBeInTheDocument();
+        });
+      });
+
+      it('can navigate to Agent settings without projectId', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('General Settings')).toBeInTheDocument();
+        });
+
+        const agentButtons = screen.getAllByText('Agent');
+        fireEvent.click(agentButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agent Settings')).toBeInTheDocument();
+          expect(screen.getByDisplayValue('droid')).toBeInTheDocument();
+        });
+      });
+
+      it('can navigate to Advanced settings without projectId', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfig({ backpressure: { enabled: true, commands: ['npm test'], max_retries: 3 } }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('General')).toBeInTheDocument();
+        });
+
+        const advancedButtons = screen.getAllByText('Advanced');
+        fireEvent.click(advancedButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Advanced Settings')).toBeInTheDocument();
+          expect(screen.getByText(/enable backpressure/i)).toBeInTheDocument();
+        });
+      });
     });
   });
 });
