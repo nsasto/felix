@@ -29,6 +29,7 @@ export interface ProjectRegisterRequest {
 
 export interface ProjectUpdateRequest {
   name?: string;
+  path?: string;
 }
 
 export interface SpecFile {

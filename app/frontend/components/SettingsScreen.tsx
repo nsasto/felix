@@ -93,6 +93,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [showUnregisterConfirm, setShowUnregisterConfirm] = useState<string | null>(null);
   const [configuringProjectId, setConfiguringProjectId] = useState<string | null>(null);
   const [configProjectName, setConfigProjectName] = useState('');
+  const [configProjectPath, setConfigProjectPath] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
   // Fetch config on mount
@@ -854,6 +855,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                         onClick={() => {
                           setConfiguringProjectId(project.id);
                           setConfigProjectName(project.name || '');
+                          setConfigProjectPath(project.path);
                         }}
                         className="px-3 py-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-lg hover:bg-slate-800/50 transition-all"
                       >
@@ -889,11 +891,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                             Display name for this project (leave empty to use directory name)
                           </p>
                         </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 mb-2">
+                            Project Folder
+                          </label>
+                          <input
+                            type="text"
+                            value={configProjectPath}
+                            onChange={(e) => setConfigProjectPath(e.target.value)}
+                            placeholder="C:\path\to\your\project"
+                            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none focus:border-felix-500/50 transition-all"
+                          />
+                          <p className="mt-1.5 text-[10px] text-slate-600">
+                            Full path to the project directory (must contain specs/ and felix/ directories)
+                          </p>
+                        </div>
                         <div className="flex justify-end gap-3">
                           <button
                             onClick={() => {
                               setConfiguringProjectId(null);
                               setConfigProjectName('');
+                              setConfigProjectPath('');
                             }}
                             className="px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
                           >
@@ -903,12 +921,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                             onClick={async () => {
                               setIsSavingConfig(true);
                               try {
+                                // Only send path if it changed
+                                const pathChanged = configProjectPath.trim() !== project.path;
                                 await felixApi.updateProject(project.id, {
                                   name: configProjectName.trim() || undefined,
+                                  path: pathChanged ? configProjectPath.trim() : undefined,
                                 });
                                 setSuccessMessage('Project configuration saved');
                                 setConfiguringProjectId(null);
                                 setConfigProjectName('');
+                                setConfigProjectPath('');
                                 fetchProjects();
                               } catch (err) {
                                 setProjectsError(err instanceof Error ? err.message : 'Failed to save project configuration');

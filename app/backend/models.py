@@ -22,6 +22,7 @@ class ProjectRegister(ProjectBase):
 class ProjectUpdate(BaseModel):
     """Request body for updating a project"""
     name: Optional[str] = Field(None, description="New project display name")
+    path: Optional[str] = Field(None, description="New project path")
 
 
 class Project(ProjectBase):
