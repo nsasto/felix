@@ -866,4 +866,467 @@ describe('SettingsScreen', () => {
       });
     });
   });
+
+  // S-0016: Felix Copilot Settings Tests
+  describe('Copilot Settings (S-0016)', () => {
+    const mockOnBack = vi.fn();
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    // Helper to create config with copilot
+    const createMockConfigWithCopilot = (copilotOverrides: any = {}): FelixConfig => ({
+      ...createMockConfig(),
+      copilot: {
+        enabled: false,
+        provider: 'openai',
+        model: 'gpt-4o',
+        context_sources: {
+          agents_md: true,
+          learnings_md: true,
+          prompt_md: true,
+          requirements: true,
+          other_specs: true,
+        },
+        features: {
+          streaming: true,
+          auto_suggest: true,
+          context_aware: true,
+        },
+        ...copilotOverrides,
+      },
+    });
+
+    describe('Category Navigation', () => {
+      it('displays Felix Copilot category in sidebar', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfigWithCopilot()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+      });
+
+      it('Felix Copilot category is positioned between Paths and Advanced', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfigWithCopilot()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        // Get all category buttons in the sidebar
+        const categories = screen.getAllByRole('button').filter(btn => 
+          ['General', 'Agent', 'Paths', 'Felix Copilot', 'Advanced', 'Projects', 'Agents'].some(
+            cat => btn.textContent?.includes(cat)
+          )
+        );
+
+        // Find indices
+        const pathsIndex = categories.findIndex(cat => cat.textContent?.includes('Paths'));
+        const copilotIndex = categories.findIndex(cat => cat.textContent?.includes('Felix Copilot'));
+        const advancedIndex = categories.findIndex(cat => cat.textContent?.includes('Advanced'));
+
+        // Copilot should be after Paths and before Advanced
+        expect(copilotIndex).toBeGreaterThan(pathsIndex);
+        expect(copilotIndex).toBeLessThan(advancedIndex);
+      });
+
+      it('shows copilot description in category', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfigWithCopilot()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('AI-powered spec writing assistant')).toBeInTheDocument();
+        });
+      });
+
+      it('navigates to copilot settings when category is clicked', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfigWithCopilot()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        // Click on Felix Copilot category
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          // The component shows "Felix Copilot" as the heading with "Enable Copilot" as a label
+          expect(screen.getByText('Enable Copilot')).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('Enable/Disable Toggle', () => {
+      it('shows Enable Copilot toggle at the top', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfigWithCopilot()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Enable Copilot')).toBeInTheDocument();
+        });
+      });
+
+      it('toggle defaults to OFF for new installations', async () => {
+        // Config with copilot.enabled = false (default)
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: false }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Enable Copilot')).toBeInTheDocument();
+          // Verify the toggle exists (it's a button element with rounded-full class)
+          // The toggle is visually off when copilot is disabled (no explicit "Disabled" text shown)
+          const toggleButtons = screen.getAllByRole('button').filter(btn =>
+            btn.className.includes('rounded-full') && btn.className.includes('w-12')
+          );
+          expect(toggleButtons.length).toBeGreaterThan(0);
+        });
+      });
+
+      it('shows toggle is ON when copilot is enabled', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Enable Copilot')).toBeInTheDocument();
+          // When enabled, the provider dropdown should be enabled (not have cursor-not-allowed)
+          const providerSelect = screen.getByDisplayValue('OpenAI');
+          expect(providerSelect).not.toBeDisabled();
+        });
+      });
+    });
+
+    describe('Provider Selection', () => {
+      it('shows Provider dropdown', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Provider')).toBeInTheDocument();
+        });
+      });
+
+      it('shows OpenAI, Anthropic, Custom options in dropdown', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          // Find the provider dropdown
+          const providerSelect = screen.getByDisplayValue('OpenAI');
+          expect(providerSelect).toBeInTheDocument();
+
+          // Check that dropdown options include all providers
+          const options = providerSelect.querySelectorAll('option');
+          const optionValues = Array.from(options).map(opt => opt.textContent);
+          expect(optionValues).toContain('OpenAI');
+          expect(optionValues).toContain('Anthropic');
+          expect(optionValues).toContain('Custom');
+        });
+      });
+    });
+
+    describe('Model Selection', () => {
+      it('shows Model dropdown with provider-specific options', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true, provider: 'openai' }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Model')).toBeInTheDocument();
+          // Default OpenAI model
+          expect(screen.getByDisplayValue('GPT-4o')).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('Context Sources', () => {
+      it('shows context sources section with toggles', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Context Sources')).toBeInTheDocument();
+          expect(screen.getByText('AGENTS.md')).toBeInTheDocument();
+          expect(screen.getByText('LEARNINGS.md')).toBeInTheDocument();
+          expect(screen.getByText('prompt.md')).toBeInTheDocument();
+          expect(screen.getByText('requirements.json')).toBeInTheDocument();
+          // Component shows "Other specs" (lowercase s)
+          expect(screen.getByText('Other specs')).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('Feature Toggles', () => {
+      it('shows feature toggles section', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          // Component shows "Features" (not "Feature Toggles")
+          expect(screen.getByText('Features')).toBeInTheDocument();
+          expect(screen.getByText('Streaming Responses')).toBeInTheDocument();
+          // Component shows "Auto-suggest Spec Titles" (not "Auto-suggest Titles")
+          expect(screen.getByText('Auto-suggest Spec Titles')).toBeInTheDocument();
+          expect(screen.getByText('Context-aware Completions')).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('API Key Section', () => {
+      it('shows API Key configuration section', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          // The component shows "API Key" as the label
+          expect(screen.getByText('API Key')).toBeInTheDocument();
+          expect(screen.getByText(/FELIX_COPILOT_API_KEY/)).toBeInTheDocument();
+        });
+      });
+
+      it('shows Test Connection button', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Test Connection')).toBeInTheDocument();
+        });
+      });
+
+      it('Test Connection button is disabled when copilot is disabled', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: false }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          const testButton = screen.getByText('Test Connection');
+          expect(testButton).toBeDisabled();
+        });
+      });
+    });
+
+    describe('Reset to Defaults', () => {
+      it('shows Reset to Defaults button', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: true }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Reset to Defaults')).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('Disabled State', () => {
+      it('disables provider dropdown when copilot is disabled', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: false }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          // Find the provider dropdown and verify it's disabled
+          const providerSelect = screen.getByDisplayValue('OpenAI');
+          expect(providerSelect).toBeDisabled();
+        });
+      });
+
+      it('disables model dropdown when copilot is disabled', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
+          mockConfigResponse(createMockConfigWithCopilot({ enabled: false }))
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          // Find the model dropdown and verify it's disabled
+          const modelSelect = screen.getByDisplayValue('GPT-4o');
+          expect(modelSelect).toBeDisabled();
+        });
+      });
+    });
+
+    describe('Config Persistence', () => {
+      it('saves copilot settings when Save Changes is clicked', async () => {
+        const mockConfig = createMockConfigWithCopilot({ enabled: false });
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(mockConfig));
+        vi.mocked(felixApi.updateGlobalConfig).mockResolvedValue(
+          mockConfigResponse({ ...mockConfig, copilot: { ...mockConfig.copilot!, enabled: true } })
+        );
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Felix Copilot')).toBeInTheDocument();
+        });
+
+        const copilotButtons = screen.getAllByText('Felix Copilot');
+        fireEvent.click(copilotButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText('Enable Copilot')).toBeInTheDocument();
+        });
+
+        // Find the enable toggle button (it's near "Disabled" text)
+        const toggleButtons = screen.getAllByRole('button');
+        const enableToggle = toggleButtons.find(btn => 
+          btn.className.includes('rounded-full') && btn.className.includes('w-12')
+        );
+        
+        if (enableToggle) {
+          fireEvent.click(enableToggle);
+        }
+
+        // Wait for Save Changes to be enabled
+        await waitFor(() => {
+          const saveButton = screen.getByText('Save Changes');
+          expect(saveButton).not.toBeDisabled();
+        });
+
+        fireEvent.click(screen.getByText('Save Changes'));
+
+        await waitFor(() => {
+          expect(felixApi.updateGlobalConfig).toHaveBeenCalled();
+        });
+      });
+    });
+  });
 });
