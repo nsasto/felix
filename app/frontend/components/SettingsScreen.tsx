@@ -4,7 +4,7 @@ import { IconFelix } from './Icons';
 import { useTheme, ThemeValue } from '../hooks/ThemeProvider';
 
 interface SettingsScreenProps {
-  projectId: string;
+  projectId?: string;  // Optional - when undefined, uses global settings API
   onBack: () => void;
 }
 
@@ -116,13 +116,17 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [agentNameValidationError, setAgentNameValidationError] = useState<string | null>(null);
 
   // Fetch config on mount and sync theme
+  // Uses global settings API when no projectId is provided
   useEffect(() => {
     const fetchConfig = async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const result = await felixApi.getConfig(projectId);
+        // Use global settings API when no projectId, otherwise use project-specific API
+        const result = projectId 
+          ? await felixApi.getConfig(projectId)
+          : await felixApi.getGlobalConfig();
         setConfig(result.config);
         setOriginalConfig(result.config);
         
@@ -331,6 +335,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   };
 
   // Handle save
+  // Uses global settings API when no projectId, otherwise uses project-specific API
   const handleSave = async () => {
     if (!config) return;
 
@@ -345,7 +350,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     setSuccessMessage(null);
 
     try {
-      const result = await felixApi.updateConfig(projectId, config);
+      // Use global settings API when no projectId, otherwise use project-specific API
+      const result = projectId
+        ? await felixApi.updateConfig(projectId, config)
+        : await felixApi.updateGlobalConfig(config);
       setConfig(result.config);
       setOriginalConfig(result.config);
       setSuccessMessage('Configuration saved successfully');
@@ -1252,7 +1260,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                   setSaving(true);
                   setError(null);
                   try {
-                    const result = await felixApi.updateConfig(projectId, newConfig);
+                    // Use global settings API when no projectId, otherwise use project-specific API
+                    const result = projectId
+                      ? await felixApi.updateConfig(projectId, newConfig)
+                      : await felixApi.updateGlobalConfig(newConfig);
                     setConfig(result.config);
                     setOriginalConfig(result.config);
                     setSuccessMessage('Agent configuration saved successfully');
