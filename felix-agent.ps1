@@ -958,6 +958,8 @@ All unauthorized changes have been reverted.
     
     # Create report
     $success = $LASTEXITCODE -eq 0
+    # Join output array with newlines to preserve formatting
+    $outputText = if ($output -is [array]) { $output -join "`n" } else { $output }
     $report = @"
 # Run Report
 
@@ -968,7 +970,7 @@ All unauthorized changes have been reverted.
 
 ## Output
 
-$output
+$outputText
 
 "@
     Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
