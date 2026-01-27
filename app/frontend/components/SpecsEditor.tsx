@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { felixApi, SpecFile } from '../services/felixApi';
+import { felixApi, SpecFile, Requirement } from '../services/felixApi';
 import { marked } from 'marked';
 import { IconFileText, IconPlus } from './Icons';
 import SpecEditWarningModal, { WarningAction } from './SpecEditWarningModal';
@@ -218,6 +218,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const [specsLoading, setSpecsLoading] = useState(true);
   const [specsError, setSpecsError] = useState<string | null>(null);
 
+  // Requirements state (for S-0015: Spec Screen Enhancements - search filtering)
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+
   // Selected spec state
   const [selectedFilename, setSelectedFilename] = useState<string | null>(initialSpecFilename || null);
   const [specContent, setSpecContent] = useState<string>('');
@@ -249,6 +252,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const [isResetPlanModalOpen, setIsResetPlanModalOpen] = useState(false);
   const [isResettingPlan, setIsResettingPlan] = useState(false);
   const [resetPlanMessage, setResetPlanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Search state (for S-0015: Spec Screen Enhancements)
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -298,6 +304,61 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
     fetchSpecs();
   }, [projectId]);
+
+  // Fetch requirements on mount or when projectId changes (for S-0015: search filtering)
+  useEffect(() => {
+    const fetchRequirements = async () => {
+      try {
+        const reqData = await felixApi.getRequirements(projectId);
+        setRequirements(reqData.requirements);
+      } catch (err) {
+        // Don't fail the UI if requirements can't be fetched - search just won't work as well
+        console.error('Failed to fetch requirements for search:', err);
+        setRequirements([]);
+      }
+    };
+
+    fetchRequirements();
+  }, [projectId]);
+
+  // Filter specs based on search query (S-0015: Spec Screen Enhancements)
+  const filteredSpecs = useMemo(() => {
+    if (!searchQuery.trim()) return specs;
+
+    const query = searchQuery.toLowerCase().trim();
+    return specs.filter((spec) => {
+      // Parse spec filename to get ID and title
+      const { id: specId, title: specTitle } = parseSpecFilename(spec.filename);
+      
+      // Find matching requirement for this spec
+      const req = requirements.find(r => 
+        r.spec_path.includes(spec.filename) || r.id === specId
+      );
+
+      // Match on spec ID
+      if (specId.toLowerCase().includes(query)) return true;
+
+      // Match on spec title (derived from filename)
+      if (specTitle.toLowerCase().includes(query)) return true;
+
+      // Match on requirement data if available
+      if (req) {
+        // Match on requirement ID
+        if (req.id.toLowerCase().includes(query)) return true;
+        
+        // Match on requirement title
+        if (req.title.toLowerCase().includes(query)) return true;
+        
+        // Match on status
+        if (req.status.toLowerCase().includes(query)) return true;
+        
+        // Match on labels
+        if (req.labels.some(label => label.toLowerCase().includes(query))) return true;
+      }
+
+      return false;
+    });
+  }, [specs, searchQuery, requirements]);
 
   // Fetch spec content when selection changes
   useEffect(() => {
@@ -659,8 +720,49 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </span>
         </div>
 
+        {/* Search Bar - S-0015: Spec Screen Enhancements */}
+        <div className="px-3 pt-3 pb-2 space-y-1.5">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search specs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg outline-none transition-all"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border-muted)',
+                color: 'var(--text-secondary)',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-muted)'; }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                title="Clear search"
+              >
+                <IconX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Search Results Count - S-0015 */}
+        {!specsLoading && !specsError && searchQuery && (
+          <div className="px-3 pb-1">
+            <span className="text-[9px] font-mono" style={{ color: 'var(--text-muted)' }}>
+              {filteredSpecs.length} / {specs.length} specs
+            </span>
+          </div>
+        )}
+
         {/* Scrollable Spec List */}
-        <div className="p-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
+        <div className="px-3 pb-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
           {specsLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-xs text-slate-500 animate-pulse">Loading specs...</div>
@@ -673,8 +775,22 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             <div className="text-xs text-slate-600 text-center py-8">
               No specs found
             </div>
+          ) : filteredSpecs.length === 0 ? (
+            // No specs match search - S-0015
+            <div className="text-center py-8">
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                No specs match your search
+              </div>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-2 text-[10px] font-medium transition-colors"
+                style={{ color: 'var(--accent-primary)' }}
+              >
+                Clear search
+              </button>
+            </div>
           ) : (
-            specs.map(spec => {
+            filteredSpecs.map(spec => {
               const { id, title } = parseSpecFilename(spec.filename);
               return (
                 <button
