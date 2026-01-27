@@ -73,6 +73,7 @@ export interface RunHistoryEntry {
   project_path: string;
   error_message: string | null;
   requirement_id: string | null;
+  agent_name: string | null;
 }
 
 export interface RunHistoryResponse {
@@ -316,9 +317,34 @@ class FelixApiService {
 
   // --- Run Endpoints ---
 
-  async listRuns(projectId: string, requirementId?: string): Promise<RunHistoryResponse> {
-    const params = requirementId ? `?requirement_id=${encodeURIComponent(requirementId)}` : '';
-    return this.request<RunHistoryResponse>(`/projects/${projectId}/runs${params}`);
+  async listRuns(
+    projectId: string,
+    filters?: {
+      requirementId?: string;
+      agentName?: string;
+      status?: string[];
+      startDate?: string;
+      endDate?: string;
+    }
+  ): Promise<RunHistoryResponse> {
+    const params = new URLSearchParams();
+    if (filters?.requirementId) {
+      params.append('requirement_id', filters.requirementId);
+    }
+    if (filters?.agentName) {
+      params.append('agent_name', filters.agentName);
+    }
+    if (filters?.status && filters.status.length > 0) {
+      params.append('status', filters.status.join(','));
+    }
+    if (filters?.startDate) {
+      params.append('start_date', filters.startDate);
+    }
+    if (filters?.endDate) {
+      params.append('end_date', filters.endDate);
+    }
+    const queryString = params.toString();
+    return this.request<RunHistoryResponse>(`/projects/${projectId}/runs${queryString ? `?${queryString}` : ''}`);
   }
 
   async startRun(projectId: string): Promise<{ run_id: string; pid: number }> {
