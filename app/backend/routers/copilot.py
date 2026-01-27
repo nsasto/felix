@@ -29,8 +29,8 @@ class CopilotTestResult(BaseModel):
 
 # --- Helper Functions ---
 
-async def test_openai_connection(api_key: str, model: str) -> tuple[bool, Optional[str]]:
-    """Test OpenAI API connection"""
+async def verify_openai_connection(api_key: str, model: str) -> tuple[bool, Optional[str]]:
+    """Verify OpenAI API connection"""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -67,8 +67,8 @@ async def test_openai_connection(api_key: str, model: str) -> tuple[bool, Option
         return False, f"Connection error: {str(e)}"
 
 
-async def test_anthropic_connection(api_key: str, model: str) -> tuple[bool, Optional[str]]:
-    """Test Anthropic API connection"""
+async def verify_anthropic_connection(api_key: str, model: str) -> tuple[bool, Optional[str]]:
+    """Verify Anthropic API connection"""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -147,9 +147,9 @@ async def test_copilot_connection():
     
     # Test connection based on provider
     if provider == "openai":
-        success, error = await test_openai_connection(api_key, model)
+        success, error = await verify_openai_connection(api_key, model)
     elif provider == "anthropic":
-        success, error = await test_anthropic_connection(api_key, model)
+        success, error = await verify_anthropic_connection(api_key, model)
     elif provider == "custom":
         # For custom providers, we can't test without knowing the endpoint
         # Just verify the API key is present
