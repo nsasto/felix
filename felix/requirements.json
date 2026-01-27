@@ -75,8 +75,7 @@
       "depends_on": [
         "S-0005"
       ],
-      "updated_at": "2026-01-26",
-      "last_run_id": "2026-01-26T23-23-48"
+      "updated_at": "2026-01-26"
     },
     {
       "id": "S-0006",
@@ -109,8 +108,7 @@
         "S-0003",
         "S-0002"
       ],
-      "updated_at": "2026-01-26",
-      "last_run_id": "2026-01-26T23-28-25"
+      "updated_at": "2026-01-26"
     },
     {
       "id": "S-0008",
@@ -145,8 +143,7 @@
         "S-0007",
         "S-0003"
       ],
-      "updated_at": "2026-01-27",
-      "last_run_id": "2026-01-27T07-50-09"
+      "updated_at": "2026-01-27"
     },
     {
       "id": "S-0010",
@@ -164,8 +161,27 @@
         "S-0003",
         "S-0002"
       ],
-      "updated_at": "2026-01-26",
-      "last_run_id": "2026-01-26T22-33-08"
+      "updated_at": "2026-01-26"
+    },
+    {
+      "id": "S-0011",
+      "title": "Update Card Viewer",
+      "spec_path": "specs/S-0011-update-card-viewer.md",
+      "status": "planned",
+      "priority": "medium",
+      "labels": [],
+      "depends_on": [],
+      "updated_at": "2026-01-27"{
+      "id": "S-0011",
+      "title": "Update Card Viewer",
+      "spec_path": "specs/S-0011-update-card-viewer.md",
+      "status": "planned",
+      "priority": "medium",
+      "labels": [],
+      "depends_on": [],
+      "updated_at": "2026-01-27",
+      "last_run_id": "2026-01-27T12-43-49"
+    }
     }
   ]
 }

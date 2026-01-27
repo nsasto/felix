@@ -102,6 +102,9 @@ foreach ($reqId in $runsByRequirement.Keys) {
 
 # Write back to file
 try {
+    # Ensure CRLF line endings for Windows
+    $updatedContent = $updatedContent -replace "`r?`n", "`r`n"
+    
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($requirementsFile, $updatedContent, $utf8NoBom)
     

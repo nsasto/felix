@@ -72,6 +72,7 @@ export interface RunHistoryEntry {
   exit_code: number | null;
   project_path: string;
   error_message: string | null;
+  requirement_id: string | null;
 }
 
 export interface RunHistoryResponse {
@@ -280,8 +281,9 @@ class FelixApiService {
 
   // --- Run Endpoints ---
 
-  async listRuns(projectId: string): Promise<RunHistoryResponse> {
-    return this.request<RunHistoryResponse>(`/projects/${projectId}/runs`);
+  async listRuns(projectId: string, requirementId?: string): Promise<RunHistoryResponse> {
+    const params = requirementId ? `?requirement_id=${encodeURIComponent(requirementId)}` : '';
+    return this.request<RunHistoryResponse>(`/projects/${projectId}/runs${params}`);
   }
 
   async startRun(projectId: string): Promise<{ run_id: string; pid: number }> {

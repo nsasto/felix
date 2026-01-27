@@ -248,6 +248,77 @@ function Update-RequirementStatus {
     }
 }
 
+function Update-RequirementRunId {
+    <#
+    .SYNOPSIS
+    Updates the last_run_id field for a specific requirement in requirements.json
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RequirementsFilePath,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$RequirementId,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$RunId
+    )
+    
+    try {
+        if (-not (Test-Path $RequirementsFilePath)) {
+            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+            Write-Host "Requirements file not found: $RequirementsFilePath" -ForegroundColor Red
+            return $false
+        }
+        
+        $content = Get-Content $RequirementsFilePath -Raw -Encoding UTF8
+        
+        # Find the requirement block and add/update last_run_id
+        # Pattern matches the requirement with this ID and captures the fields up to the closing brace
+        $pattern = '(?s)(\{\s*"id"\s*:\s*"' + [regex]::Escape($RequirementId) + '".*?)("updated_at"\s*:\s*"[^"]+")(.*?\})'
+        
+        if ($content -match $pattern) {
+            $beforeUpdated = $matches[1]
+            $updatedField = $matches[2]
+            $afterUpdated = $matches[3]
+            
+            # Check if last_run_id already exists in this requirement
+            if ($afterUpdated -match ',\s*"last_run_id"\s*:\s*"[^"]*"') {
+                # Update existing last_run_id
+                $afterUpdated = $afterUpdated -replace '("last_run_id"\s*:\s*")[^"]*"', "`${1}$RunId`""
+                $newContent = $content -replace [regex]::Escape($matches[0]), "$beforeUpdated$updatedField$afterUpdated"
+            }
+            else {
+                # Add new last_run_id field after updated_at
+                # Use CRLF line ending for Windows
+                $newLastRunField = ",`r`n      `"last_run_id`": `"$RunId`""
+                $newContent = $content -replace [regex]::Escape($matches[0]), "$beforeUpdated$updatedField$newLastRunField$afterUpdated"
+            }
+            
+            # Ensure CRLF line endings for Windows
+            $newContent = $newContent -replace "`r?`n", "`r`n"
+            
+            # Write back using .NET method for consistent UTF-8 without BOM
+            $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+            [System.IO.File]::WriteAllText($RequirementsFilePath, $newContent, $utf8NoBom)
+            
+            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+            Write-Host "Updated $RequirementId with last_run_id: $RunId" -ForegroundColor Green
+            return $true
+        }
+        else {
+            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+            Write-Host "Could not find requirement $RequirementId in requirements.json" -ForegroundColor Yellow
+            return $false
+        }
+    }
+    catch {
+        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Error updating last_run_id: $_" -ForegroundColor Red
+        return $false
+    }
+}
+
 function Resolve-PythonCommand {
     <#
     .SYNOPSIS
@@ -859,7 +930,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id
     
     # Update last_run_id in requirements.json
-    Update-RequirementRunId -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -RunId $runId
+    $null = Update-RequirementRunId -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -RunId $runId
     
     # Capture git state before execution (for planning mode guardrails)
     $gitStateBefore = $null
