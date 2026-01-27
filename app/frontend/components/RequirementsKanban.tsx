@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { felixApi, Requirement, RequirementsData, RequirementStatusResponse } from '../services/felixApi';
 import { IconPlus, IconFileText } from './Icons';
 import RequirementDetailSlideOut from './RequirementDetailSlideOut';
+import { 
+  hasIncompleteDependencies, 
+  getIncompleteDependencies,
+  formatIncompleteDependenciesTooltip
+} from '../utils/dependencies';
 
 // Requirement status columns matching the felix/requirements.json schema
 type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked' | 'done';
@@ -202,12 +207,14 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   };
 
   // Check if a requirement is blocked due to incomplete dependencies
-  const isBlockedByDependency = (requirement: Requirement): boolean => {
-    if (!requirement.depends_on || requirement.depends_on.length === 0) return false;
-    return requirement.depends_on.some(depId => {
-      const dep = requirements.find(r => r.id === depId);
-      return dep && dep.status !== 'complete';
-    });
+  // Uses the dependency utility that correctly recognizes both 'done' and 'complete' as valid states
+  const checkBlockedByDependency = (requirement: Requirement): boolean => {
+    return hasIncompleteDependencies(requirement, requirements);
+  };
+  
+  // Get incomplete dependencies for a requirement (memoized per requirement)
+  const getIncompleteDepsList = (requirement: Requirement): Requirement[] => {
+    return getIncompleteDependencies(requirement, requirements);
   };
 
   // Format a Unix timestamp (seconds since epoch) to a readable date string
@@ -383,9 +390,13 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
               >
                 {columnRequirements.map(requirement => {
                   const priorityStyle = PRIORITY_STYLES[requirement.priority] || PRIORITY_STYLES.medium;
-                  const hasBlockedDeps = isBlockedByDependency(requirement);
+                  const incompleteDeps = getIncompleteDepsList(requirement);
+                  const hasBlockedDeps = incompleteDeps.length > 0;
                   const isDragging = draggedItem?.id === requirement.id;
                   const planTimestampInfo = getPlanTimestampInfo(requirement.id);
+                  const depsTooltip = hasBlockedDeps 
+                    ? `Incomplete dependencies:\n${formatIncompleteDependenciesTooltip(incompleteDeps)}`
+                    : '';
 
                   return (
                     <div
@@ -429,13 +440,16 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                         {requirement.title}
                       </h4>
 
-                      {/* Dependencies warning */}
+                      {/* Dependencies warning with hover tooltip showing incomplete deps */}
                       {hasBlockedDeps && requirement.status !== 'blocked' && (
-                        <div className="flex items-center gap-1.5 mb-2 text-[9px] text-amber-400">
+                        <div 
+                          className="flex items-center gap-1.5 mb-2 text-[9px] text-amber-400 cursor-help"
+                          title={depsTooltip}
+                        >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
-                          <span>Has incomplete dependencies</span>
+                          <span>⚠️ {incompleteDeps.length} incomplete {incompleteDeps.length === 1 ? 'dependency' : 'dependencies'}</span>
                         </div>
                       )}
 
