@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from routers import projects, files, runs, websocket, agents
+from routers import projects, files, runs, websocket, agents, settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -56,6 +56,7 @@ app.include_router(files.router)
 app.include_router(runs.router)
 app.include_router(websocket.router)
 app.include_router(agents.router)
+app.include_router(settings.router)
 
 @app.get("/health")
 async def health_check():
