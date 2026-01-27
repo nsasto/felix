@@ -3,6 +3,11 @@ import { felixApi, Requirement, RunHistoryEntry } from "../services/felixApi";
 import { marked } from "marked";
 import RunArtifactViewer from "./RunArtifactViewer";
 import RunCard from "./RunCard";
+import { 
+  getAllDependenciesWithStatus, 
+  isDependencyComplete,
+  DependencyInfo 
+} from "../utils/dependencies";
 
 // Status badge styles matching RequirementsKanban
 const STATUS_STYLES: Record<
@@ -108,8 +113,27 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  // All requirements for dependency lookup
+  const [allRequirements, setAllRequirements] = useState<Requirement[]>([]);
+
   const slideOutRef = useRef<HTMLDivElement>(null);
   const isOpen = requirement !== null;
+
+  // Fetch all requirements for dependency lookup
+  useEffect(() => {
+    if (!projectId || !requirement) return;
+
+    const fetchAllRequirements = async () => {
+      try {
+        const data = await felixApi.getRequirements(projectId);
+        setAllRequirements(data.requirements || []);
+      } catch (err) {
+        console.warn("Failed to fetch requirements for dependency lookup:", err);
+      }
+    };
+
+    fetchAllRequirements();
+  }, [projectId, requirement?.id]);
 
   // Reset state when requirement changes
   useEffect(() => {
@@ -355,18 +379,44 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               </div>
             )}
 
-            {/* Dependencies */}
+            {/* Dependencies - Color-coded with status badges */}
             {requirement.depends_on && requirement.depends_on.length > 0 && (
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-500">Dependencies:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {requirement.depends_on.map((depId) => (
-                    <span
-                      key={depId}
-                      className="text-xs font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded"
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dependencies</span>
+                <div className="space-y-1.5">
+                  {getAllDependenciesWithStatus(requirement, allRequirements).map(({ requirement: dep, isComplete }) => (
+                    <div
+                      key={dep.id}
+                      className="flex items-center gap-2 p-2 rounded-lg theme-bg-elevated hover:bg-slate-800/60 cursor-pointer transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Could navigate to the dependency - for now just log
+                        console.log(`Navigate to dependency: ${dep.id}`);
+                      }}
+                      title={`${dep.id}: ${dep.title}`}
                     >
-                      {depId}
-                    </span>
+                      {/* Status icon */}
+                      <span className="text-sm">
+                        {isComplete ? '✓' : '⚠️'}
+                      </span>
+                      
+                      {/* Requirement info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-mono theme-text-primary">{dep.id}</div>
+                        <div className="text-[10px] theme-text-muted truncate">{dep.title}</div>
+                      </div>
+                      
+                      {/* Status badge */}
+                      <span
+                        className={`text-[9px] font-bold px-2 py-1 rounded uppercase whitespace-nowrap ${
+                          isComplete
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        }`}
+                      >
+                        {dep.status}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
