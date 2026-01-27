@@ -1,9 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  felixApi,
-  Requirement,
-  RunHistoryEntry,
-} from "../services/felixApi";
+import { felixApi, Requirement, RunHistoryEntry } from "../services/felixApi";
 import { marked } from "marked";
 
 // Status badge styles matching RequirementsKanban
@@ -78,7 +74,11 @@ const TOP_LEVEL_TABS: TopLevelTabInfo[] = [
   { id: "history", label: "Run History", icon: "🕐" },
 ];
 
-const ARTIFACT_SUB_TABS: { id: ArtifactSubTabId; label: string; icon: string }[] = [
+const ARTIFACT_SUB_TABS: {
+  id: ArtifactSubTabId;
+  label: string;
+  icon: string;
+}[] = [
   { id: "report", label: "Report", icon: "📊" },
   { id: "log", label: "Output Log", icon: "📜" },
   { id: "plan", label: "Plan", icon: "📝" },
@@ -97,19 +97,19 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 }) => {
   // Top level tabs: Overview (default) or Run History
   const [activeTab, setActiveTab] = useState<TopLevelTabId>("overview");
-  
+
   // Currently selected run in Run History tab
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  
+
   // Sub-tab for artifact detail panel
   const [activeSubTab, setActiveSubTab] = useState<ArtifactSubTabId>("report");
-  
+
   // Spec content for Overview tab
   const [specContent, setSpecContent] = useState<string>("");
   const [specLoading, setSpecLoading] = useState(false);
   const [specError, setSpecError] = useState<string | null>(null);
   const [specHtml, setSpecHtml] = useState<string>("");
-  
+
   // Artifact content for Run History detail panel
   const [artifactContent, setArtifactContent] = useState<string>("");
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -185,6 +185,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             /(<input type="checkbox"[^>]*)/g,
             '$1 disabled onclick="return false;"',
           );
+          console.log("Spec markdown parsed, HTML length:", readOnlyHtml.length);
           setSpecHtml(readOnlyHtml);
         }
       } catch (err) {
@@ -278,9 +279,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
     fetchArtifact();
   }, [projectId, requirement?.id, selectedRunId, activeSubTab]);
 
-  // Parse artifact markdown (for report and plan tabs)
+  // Parse artifact markdown (for all artifact tabs including log)
   useEffect(() => {
-    if (activeSubTab === "log" || !artifactContent) {
+    if (!artifactContent) {
       setArtifactHtml("");
       return;
     }
@@ -328,7 +329,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             event.target === slideOutRef.current
           ) {
             event.preventDefault();
-            const currentIndex = TOP_LEVEL_TABS.findIndex((t) => t.id === activeTab);
+            const currentIndex = TOP_LEVEL_TABS.findIndex(
+              (t) => t.id === activeTab,
+            );
             if (currentIndex > 0) {
               setActiveTab(TOP_LEVEL_TABS[currentIndex - 1].id);
             }
@@ -340,7 +343,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             event.target === slideOutRef.current
           ) {
             event.preventDefault();
-            const currentIndex = TOP_LEVEL_TABS.findIndex((t) => t.id === activeTab);
+            const currentIndex = TOP_LEVEL_TABS.findIndex(
+              (t) => t.id === activeTab,
+            );
             if (currentIndex < TOP_LEVEL_TABS.length - 1) {
               setActiveTab(TOP_LEVEL_TABS[currentIndex + 1].id);
             }
@@ -399,12 +404,15 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
   // Render Overview tab content
   const renderOverviewTab = () => {
+    console.log("Rendering Overview tab, specHtml length:", specHtml?.length, "specLoading:", specLoading, "specError:", specError);
     return (
       <div className="h-full overflow-y-auto custom-scrollbar">
         {/* Metadata Section */}
         <div className="p-6 border-b theme-border">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Metadata</h3>
-          
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+            Metadata
+          </h3>
+
           <div className="space-y-4">
             {/* Status and Priority Row */}
             <div className="flex items-center gap-3 flex-wrap">
@@ -468,8 +476,10 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
         {/* Specification Section */}
         <div className="p-6">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Specification</h3>
-          
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+            Specification
+          </h3>
+
           {specLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
@@ -509,9 +519,11 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         {/* Master List (left side, ~40% width) */}
         <div className="w-[40%] border-r theme-border flex flex-col">
           <div className="p-3 border-b theme-border">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Runs</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Runs
+            </h3>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {historyLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -526,7 +538,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             ) : runHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6">
                 <span className="text-2xl mb-2">🕐</span>
-                <h4 className="text-sm font-bold text-slate-400 mb-1">No Runs</h4>
+                <h4 className="text-sm font-bold text-slate-400 mb-1">
+                  No Runs
+                </h4>
                 <p className="text-xs text-slate-600">
                   No runs found for this requirement.
                 </p>
@@ -557,37 +571,42 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
                       key={run.run_id}
                       onClick={() => handleSelectRun(run.run_id)}
                       className={`
-                        w-full text-left px-3 py-2.5 rounded-lg border transition-all
-                        ${isSelected
-                          ? "theme-bg-elevated border-felix-500/50 ring-1 ring-felix-500/30"
-                          : "theme-bg-elevated/50 theme-border hover:border-slate-600"
+                        w-full text-left px-3 py-2 rounded-lg border transition-all
+                        ${
+                          isSelected
+                            ? "theme-bg-elevated border-felix-500/50 ring-1 ring-felix-500/30"
+                            : "theme-bg-elevated/50 theme-border hover:border-slate-600"
                         }
                       `}
                     >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusBg} ${statusColor} uppercase`}
-                        >
-                          {run.status}
-                        </span>
-                        {run.exit_code !== null && run.exit_code !== undefined && (
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-mono text-slate-400 truncate mb-0.5">
+                            {run.run_id}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            {formatDate(run.started_at)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {run.exit_code !== null &&
+                            run.exit_code !== undefined && (
+                              <span
+                                className={`text-[10px] font-mono ${
+                                  run.exit_code === 0
+                                    ? "text-emerald-400"
+                                    : "text-red-400"
+                                }`}
+                              >
+                                exit: {run.exit_code}
+                              </span>
+                            )}
                           <span
-                            className={`text-[10px] font-mono ${
-                              run.exit_code === 0
-                                ? "text-emerald-400"
-                                : "text-red-400"
-                            }`}
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusBg} ${statusColor} uppercase`}
                           >
-                            exit: {run.exit_code}
+                            {run.status}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="text-[10px] font-mono text-slate-400 truncate mb-1">
-                        {run.run_id}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {formatDate(run.started_at)}
+                        </div>
                       </div>
                     </button>
                   );
@@ -605,7 +624,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
                 <span className="text-2xl">📭</span>
               </div>
-              <h3 className="text-sm font-bold text-slate-400 mb-2">Select a Run</h3>
+              <h3 className="text-sm font-bold text-slate-400 mb-2">
+                Select a Run
+              </h3>
               <p className="text-xs text-slate-600 max-w-md">
                 Click on a run from the list to view its artifacts.
               </p>
@@ -638,25 +659,24 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
                 {artifactLoading ? (
                   <div className="flex flex-col items-center justify-center h-full">
                     <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin mb-3" />
-                    <span className="text-xs text-slate-600">Loading artifact...</span>
+                    <span className="text-xs text-slate-600">
+                      Loading artifact...
+                    </span>
                   </div>
                 ) : artifactError ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8">
                     <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
                       <span className="text-2xl">📄</span>
                     </div>
-                    <h3 className="text-sm font-bold text-slate-400 mb-2">Artifact Not Found</h3>
-                    <p className="text-xs text-slate-600 max-w-md">{artifactError}</p>
-                  </div>
-                ) : activeSubTab === "log" ? (
-                  // Log view - monospace text
-                  <div className="h-full overflow-y-auto custom-scrollbar p-4 theme-bg-deepest">
-                    <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
-                      {artifactContent || "No log content available."}
-                    </pre>
+                    <h3 className="text-sm font-bold text-slate-400 mb-2">
+                      Artifact Not Found
+                    </h3>
+                    <p className="text-xs text-slate-600 max-w-md">
+                      {artifactError}
+                    </p>
                   </div>
                 ) : (
-                  // Markdown view (report or plan)
+                  // Markdown view (report, plan, or log)
                   <div className="h-full overflow-y-auto custom-scrollbar p-6">
                     {artifactHtml ? (
                       <div
@@ -791,9 +811,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden">
-          {renderTabContent()}
-        </div>
+        <div className="flex-1 overflow-hidden">{renderTabContent()}</div>
 
         {/* Footer with keyboard hint */}
         <div className="h-10 border-t theme-border flex items-center px-6 justify-between flex-shrink-0 theme-bg-deep">
