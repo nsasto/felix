@@ -792,6 +792,28 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           ) : (
             filteredSpecs.map(spec => {
               const { id, title } = parseSpecFilename(spec.filename);
+              // Find matching requirement for status badge (S-0015: Safety Indicators)
+              const req = requirements.find(r => 
+                r.spec_path.includes(spec.filename) || r.id === id
+              );
+              
+              // Get status badge color based on requirement status
+              const getStatusBadgeStyle = (status: string | undefined) => {
+                switch (status?.toLowerCase()) {
+                  case 'in_progress':
+                    return { backgroundColor: 'rgba(234, 179, 8, 0.15)', color: '#eab308', border: '1px solid rgba(234, 179, 8, 0.3)' };
+                  case 'complete':
+                  case 'done':
+                    return { backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.3)' };
+                  case 'blocked':
+                    return { backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' };
+                  case 'planned':
+                    return { backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' };
+                  default:
+                    return { backgroundColor: 'rgba(100, 116, 139, 0.15)', color: '#64748b', border: '1px solid rgba(100, 116, 139, 0.3)' };
+                }
+              };
+
               return (
                 <button
                   key={spec.filename}
@@ -804,7 +826,19 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 >
                   <IconFileText className="w-4 h-4 flex-shrink-0" />
                   <div className="flex flex-col items-start min-w-0 flex-1">
-                    <span className="truncate font-medium w-full text-left">{title}</span>
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="truncate font-medium text-left flex-1">{title}</span>
+                      {/* Status Badge - S-0015 */}
+                      {req && (
+                        <span 
+                          className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex-shrink-0"
+                          style={getStatusBadgeStyle(req.status)}
+                          title={`Status: ${req.status}`}
+                        >
+                          {req.status === 'in_progress' ? 'IN PROG' : req.status.slice(0, 4).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[9px] opacity-40 font-mono">{id}</span>
                   </div>
                 </button>
