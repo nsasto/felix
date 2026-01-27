@@ -56,12 +56,15 @@ async def get_project(project_id: str):
 @router.put("/{project_id}", response_model=Project)
 async def update_project(project_id: str, request: ProjectUpdate):
     """
-    Update project metadata (name, etc.).
+    Update project metadata (name, path).
     """
-    project = storage.update_project(project_id, name=request.name)
-    if project:
-        return project
-    raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    try:
+        project = storage.update_project(project_id, name=request.name, path=request.path)
+        if project:
+            return project
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.delete("/{project_id}")
