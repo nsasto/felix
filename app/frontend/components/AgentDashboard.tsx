@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Panel,
-  Group as PanelGroup,
-  Separator as PanelResizeHandle,
-} from "react-resizable-panels";
-import {
   felixApi,
   AgentEntry,
   AgentRegistryResponse,
@@ -92,18 +87,6 @@ const RunStatusBadge: React.FC<{ status: string }> = ({ status }) => {
     </span>
   );
 };
-
-// --- Resize Handle Component ---
-
-const ResizeHandle: React.FC<{ id: string }> = ({ id }) => (
-  <PanelResizeHandle
-    id={id}
-    className="w-1.5 group hover:bg-felix-500/20 transition-colors flex items-center justify-center"
-    style={{ backgroundColor: "var(--border-default)" }}
-  >
-    <div className="w-0.5 h-8 bg-transparent group-hover:bg-felix-500 rounded-full transition-colors" />
-  </PanelResizeHandle>
-);
 
 // --- Toolbar Component ---
 
@@ -641,10 +624,10 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
   return (
     <div
       className="h-full flex flex-col"
-      style={{ backgroundColor: "var(--bg-deep)" }}
+      style={{ backgroundColor: "var(--bg-base)" }}
     >
       <div
-        className="p-4 border-b"
+        className="px-6 py-4 border-b"
         style={{ borderColor: "var(--border-default)" }}
       >
         <h2
@@ -654,7 +637,7 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
           Agents
         </h2>
       </div>
-      <div className="flex-1 overflow-y-auto custom-scrollbar pl-3 pr-4 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-3">
         {/* Active Agents */}
         {activeAgents.length > 0 && (
           <div>
@@ -761,13 +744,12 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
     return (
       <div
         className="h-full flex flex-col"
-        style={{ backgroundColor: "var(--bg-deepest)" }}
+        style={{ backgroundColor: "var(--bg-base)" }}
       >
         <div
-          className="h-12 border-b flex items-center justify-between px-4"
+          className="px-6 py-4 border-b flex items-center justify-between"
           style={{
             borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-base)",
           }}
         >
           <div className="flex items-center gap-2">
@@ -801,13 +783,12 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
     return (
       <div
         className="h-full flex flex-col"
-        style={{ backgroundColor: "var(--bg-deepest)" }}
+        style={{ backgroundColor: "var(--bg-base)" }}
       >
         <div
-          className="h-12 border-b flex items-center justify-between px-4"
+          className="px-6 py-4 border-b flex items-center justify-between"
           style={{
             borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-base)",
           }}
         >
           <div className="flex items-center gap-3">
@@ -857,14 +838,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
   return (
     <div
       className="h-full flex flex-col"
-      style={{ backgroundColor: "var(--bg-deepest)" }}
+      style={{ backgroundColor: "var(--bg-base)" }}
     >
       {/* Header */}
       <div
-        className="h-12 border-b flex items-center justify-between px-4"
+        className="px-6 py-4 border-b flex items-center justify-between"
         style={{
           borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-base)",
         }}
       >
         <div className="flex items-center gap-3">
@@ -905,9 +885,9 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       {/* Console output */}
       <div
         ref={consoleRef}
-        className="flex-1 overflow-y-auto custom-scrollbar p-4 font-mono text-xs leading-relaxed ansi-console"
+        className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console"
         style={{
-          backgroundColor: "var(--bg-deepest)",
+          backgroundColor: "var(--bg-base)",
           color: "var(--text-secondary)",
         }}
       >
@@ -996,11 +976,11 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
   return (
     <div
       className="h-full flex flex-col"
-      style={{ backgroundColor: "var(--bg-deep)" }}
+      style={{ backgroundColor: "var(--bg-base)" }}
     >
       {/* Header */}
       <div
-        className="p-4 border-b"
+        className="px-6 py-4 border-b"
         style={{ borderColor: "var(--border-default)" }}
       >
         <div className="flex items-center justify-between mb-3">
@@ -1112,7 +1092,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
       </div>
 
       {/* Run list */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-2">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div
@@ -1529,7 +1509,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   return (
     <div
       className="h-full flex flex-col"
-      style={{ backgroundColor: "var(--bg-deepest)" }}
+      style={{ backgroundColor: "var(--bg-base)" }}
     >
       {/* Error banner */}
       {error && (
@@ -1570,14 +1550,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         actionInProgress={actionInProgress}
       />
 
-      {/* Resizable Panel Layout */}
-      <PanelGroup direction="horizontal" className="flex-1">
-        {/* Agent List Panel - 20% */}
-        <Panel
-          defaultSize={20}
-          minSize={15}
-          maxSize={30}
-          style={{ minWidth: "250px" }}
+      {/* Three-Column Layout */}
+      <div className="flex-1 flex">
+        {/* Agent List Panel - Left Sidebar */}
+        <div
+          className="w-80 flex-shrink-0 border-r"
+          style={{ borderColor: "var(--border-default)" }}
         >
           <AgentListPanel
             agents={agents}
@@ -1585,28 +1563,30 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
             onSelectAgent={setSelectedAgent}
             loading={loading}
           />
-        </Panel>
+        </div>
 
-        <ResizeHandle id="resize-1" />
+        {/* Middle and Right Panels - Split View */}
+        <div className="flex-1 flex">
+          {/* Live Console Panel - Takes more space */}
+          <div
+            className="flex-1 border-r"
+            style={{ borderColor: "var(--border-default)" }}
+          >
+            <LiveConsolePanel
+              selectedAgent={selectedAgent}
+              projectId={projectId}
+            />
+          </div>
 
-        {/* Live Console Panel - 50% */}
-        <Panel defaultSize={50} minSize={30}>
-          <LiveConsolePanel
-            selectedAgent={selectedAgent}
-            projectId={projectId}
-          />
-        </Panel>
-
-        <ResizeHandle id="resize-2" />
-
-        {/* Run History Panel - 30% */}
-        <Panel defaultSize={30} minSize={20}>
-          <RunHistoryPanel
-            projectId={projectId}
-            onSelectRun={setSelectedRunId}
-          />
-        </Panel>
-      </PanelGroup>
+          {/* Run History Panel - Right Side */}
+          <div className="w-96 flex-shrink-0">
+            <RunHistoryPanel
+              projectId={projectId}
+              onSelectRun={setSelectedRunId}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Run Detail Slide-Out */}
       <RunDetailSlideOut
