@@ -197,7 +197,7 @@
       "id": "S-0014",
       "title": "Agent Orchestration Dashboard",
       "spec_path": "specs/S-0014-agent-orchestration-dashboard.md",
-      "status": "planned",
+      "status": "complete",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
