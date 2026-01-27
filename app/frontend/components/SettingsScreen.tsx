@@ -98,7 +98,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [configProjectPath, setConfigProjectPath] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
-  // Fetch config on mount
+  // Fetch config on mount and sync theme
   useEffect(() => {
     const fetchConfig = async () => {
       setLoading(true);
@@ -108,6 +108,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         const result = await felixApi.getConfig(projectId);
         setConfig(result.config);
         setOriginalConfig(result.config);
+        
+        // Sync theme from backend config to context and localStorage
+        // This ensures the backend config is the source of truth for theme
+        if (result.config.ui?.theme) {
+          setTheme(result.config.ui.theme as ThemeValue);
+        }
       } catch (err) {
         console.error('Failed to fetch config:', err);
         setError(err instanceof Error ? err.message : 'Failed to load configuration');
@@ -117,7 +123,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     };
 
     fetchConfig();
-  }, [projectId]);
+  }, [projectId, setTheme]);
 
   // Fetch projects when Projects category is selected
   const fetchProjects = useCallback(async () => {

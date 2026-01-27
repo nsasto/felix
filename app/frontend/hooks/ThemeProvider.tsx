@@ -21,6 +21,38 @@ interface ThemeContextType {
   systemPrefersDark: boolean;
 }
 
+/** LocalStorage key for persisting theme preference */
+const THEME_STORAGE_KEY = 'felix-theme';
+
+/**
+ * Get the stored theme from localStorage, or return the default
+ */
+export function getStoredTheme(): ThemeValue {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'dark' || stored === 'light' || stored === 'system') {
+      return stored;
+    }
+  } catch (e) {
+    // localStorage not available (e.g., private browsing)
+    console.warn('Could not read theme from localStorage:', e);
+  }
+  return 'dark';
+}
+
+/**
+ * Save theme to localStorage for instant loading on next visit
+ */
+function storeTheme(theme: ThemeValue): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch (e) {
+    console.warn('Could not save theme to localStorage:', e);
+  }
+}
+
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
 /**
@@ -129,9 +161,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Theme setter with optional callback
+  // Theme setter with optional callback and localStorage persistence
   const setTheme = useCallback((newTheme: ThemeValue) => {
     setThemeState(newTheme);
+    storeTheme(newTheme);
     onThemeChange?.(newTheme);
   }, [onThemeChange]);
 
