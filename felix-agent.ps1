@@ -946,7 +946,10 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $droidSuccess = $false
     $droidError = $null
     try {
-        $output = $fullPrompt | droid exec --skip-permissions-unsafe 2>&1
+        # Ensure UTF-8 encoding is preserved in output capture
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $output = $fullPrompt | droid exec --skip-permissions-unsafe 2>&1 | Out-String
+        $output = $output.Trim()
         $droidSuccess = $true
     }
     catch {
