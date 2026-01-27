@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import SettingsScreen from '../../components/SettingsScreen';
+import { ThemeProvider } from '../../hooks/ThemeProvider';
 import { felixApi, FelixConfig, ConfigContent } from '../../services/felixApi';
 
 // Mock the felixApi module
@@ -10,6 +11,15 @@ vi.mock('../../services/felixApi', () => ({
     updateConfig: vi.fn(),
   },
 }));
+
+// Helper to render with ThemeProvider
+const renderWithTheme = (ui: React.ReactElement) => {
+  return render(
+    <ThemeProvider defaultTheme="dark">
+      {ui}
+    </ThemeProvider>
+  );
+};
 
 // Create a mock config object
 const createMockConfig = (overrides: Partial<FelixConfig> = {}): FelixConfig => ({
@@ -74,7 +84,7 @@ describe('SettingsScreen', () => {
       });
       vi.mocked(felixApi.getConfig).mockReturnValue(configPromise);
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       // Verify loading state
       expect(screen.getByText(/loading settings/i)).toBeInTheDocument();
@@ -91,7 +101,7 @@ describe('SettingsScreen', () => {
     it('displays error message when config fetch fails', async () => {
       vi.mocked(felixApi.getConfig).mockRejectedValue(new Error('Failed to load config'));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         // Multiple elements may match, so use getAllByText and check at least one exists
@@ -106,7 +116,7 @@ describe('SettingsScreen', () => {
     it('calls onBack when back button is clicked in error state', async () => {
       vi.mocked(felixApi.getConfig).mockRejectedValue(new Error('Failed to load config'));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText(/back to projects/i)).toBeInTheDocument();
@@ -121,7 +131,7 @@ describe('SettingsScreen', () => {
     it('renders all settings categories', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -134,7 +144,7 @@ describe('SettingsScreen', () => {
     it('starts with General category selected by default', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General Settings')).toBeInTheDocument();
@@ -144,7 +154,7 @@ describe('SettingsScreen', () => {
     it('switches to Agent settings when category is clicked', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General Settings')).toBeInTheDocument();
@@ -162,7 +172,7 @@ describe('SettingsScreen', () => {
     it('switches to Paths settings when category is clicked', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -179,7 +189,7 @@ describe('SettingsScreen', () => {
     it('switches to Advanced settings when category is clicked', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -200,7 +210,7 @@ describe('SettingsScreen', () => {
         mockConfigResponse(createMockConfig({ executor: { max_iterations: 15 } as any }))
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         const maxIterInput = screen.getByDisplayValue('15');
@@ -213,7 +223,7 @@ describe('SettingsScreen', () => {
         mockConfigResponse(createMockConfig())
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         const defaultModeSelect = screen.getByDisplayValue('Planning');
@@ -224,7 +234,7 @@ describe('SettingsScreen', () => {
     it('updates state when max iterations is changed', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -239,7 +249,7 @@ describe('SettingsScreen', () => {
     it('shows unsaved changes indicator when config is modified', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -265,7 +275,7 @@ describe('SettingsScreen', () => {
         mockConfigResponse(createMockConfig())
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -284,7 +294,7 @@ describe('SettingsScreen', () => {
         mockConfigResponse(createMockConfig())
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -307,7 +317,7 @@ describe('SettingsScreen', () => {
         }))
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -330,7 +340,7 @@ describe('SettingsScreen', () => {
     it('shows warning that paths are read-only', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -351,7 +361,7 @@ describe('SettingsScreen', () => {
         mockConfigResponse(createMockConfig({ backpressure: { enabled: true, commands: [] } }))
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -372,7 +382,7 @@ describe('SettingsScreen', () => {
         }))
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -392,7 +402,7 @@ describe('SettingsScreen', () => {
     it('disables save button when no changes are made', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General Settings')).toBeInTheDocument();
@@ -405,7 +415,7 @@ describe('SettingsScreen', () => {
     it('enables save button when changes are made', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -427,7 +437,7 @@ describe('SettingsScreen', () => {
         mockConfigResponse({ ...mockConfig, executor: { ...mockConfig.executor, max_iterations: 20 } })
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -457,7 +467,7 @@ describe('SettingsScreen', () => {
         mockConfigResponse({ ...mockConfig, executor: { ...mockConfig.executor, max_iterations: 20 } })
       );
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -482,7 +492,7 @@ describe('SettingsScreen', () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
       vi.mocked(felixApi.updateConfig).mockRejectedValue(new Error('Failed to save'));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -503,7 +513,7 @@ describe('SettingsScreen', () => {
     it('shows discard button when changes are made', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -523,7 +533,7 @@ describe('SettingsScreen', () => {
     it('restores original values when discard is clicked', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -544,7 +554,7 @@ describe('SettingsScreen', () => {
     it('shows reset to defaults button per category', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('Reset to Defaults')).toBeInTheDocument();
@@ -556,7 +566,7 @@ describe('SettingsScreen', () => {
     it('shows validation error for invalid max_iterations', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -573,7 +583,7 @@ describe('SettingsScreen', () => {
     it('disables save button when validation errors exist', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
@@ -593,7 +603,7 @@ describe('SettingsScreen', () => {
     it('calls onBack when back button is clicked', async () => {
       vi.mocked(felixApi.getConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General Settings')).toBeInTheDocument();
