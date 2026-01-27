@@ -255,7 +255,7 @@
                                                 "S-0002"
                                             ],
                              "updated_at":  "2026-01-27",
-                             "last_run_id":  "2026-01-27T22-56-51"
+                             "last_run_id":  "2026-01-27T23-33-23"
                          },
                          {
                              "id":  "S-0017",
@@ -304,13 +304,26 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-27",
-                             "last_run_id":  "2026-01-27T21-55-16"
+                             "updated_at":  "2026-01-27"
                          },
                          {
                              "id":  "S-0020",
                              "title":  "Consolidate Agent Settings",
                              "spec_path":  "specs/S-0020-consolidate-agent-settings.md",
+                             "status":  "planned",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0021",
+                             "title":  "Agent Orchestration Enhancement",
+                             "spec_path":  "specs/S-0021-agent-orchestration-enhancement.md",
                              "status":  "planned",
                              "priority":  "medium",
                              "labels":  [

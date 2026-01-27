@@ -11,7 +11,7 @@ Felix follows a deterministic loop with explicit mode transitions:
 ```
 Requirements → Planning Mode → Building Mode → Validation → Complete
      ↓              ↓                ↓              ↓           ↓
-  specs/*.md    plan-*.md      git commits    tests pass   status:done
+  specs/*.md    plan-*.md      git commits    tests pass   status:complete
 ```
 
 Each iteration is atomic: it loads fresh context, executes one step, validates the result, and updates artifacts before proceeding.
