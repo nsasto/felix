@@ -59,6 +59,18 @@ npm run dev
 # Runs on http://localhost:3000
 ```
 
+### Running Felix agent (PowerShell)
+
+Run the agent locally with PowerShell (examples):
+
+```powershell
+# Start the agent for the repository at C:\dev\Felix
+.\felix-agent.ps1 C:\dev\Felix
+
+# Alternative: run the looped runner
+.\felix-loop.ps1 C:\dev\Felix
+```
+
 ### Production Mode
 
 ```bash
@@ -73,7 +85,7 @@ Run validation checks for a specific requirement. The validation script reads ac
 # Validate a specific requirement
 py -3 scripts/validate-requirement.py S-0002
 
-# If py is not available, set python.executable in felix/config.json or use python directly
+# If `py -3` is not available, use `python` or set the full Python executable path in `felix/config.json` under `python.executable`.
 
 # Example output:
 # Validating Requirement: S-0002

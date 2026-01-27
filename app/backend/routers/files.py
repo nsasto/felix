@@ -111,6 +111,31 @@ class UIConfig(BaseModel):
     theme: str = Field(default="dark", description="Theme setting: 'dark', 'light', or 'system'")
 
 
+class CopilotContextSourcesConfig(BaseModel):
+    """Context sources configuration for copilot"""
+    agents_md: bool = Field(default=True, description="Include AGENTS.md in context")
+    learnings_md: bool = Field(default=True, description="Include LEARNINGS.md in context")
+    prompt_md: bool = Field(default=True, description="Include prompt.md in context")
+    requirements: bool = Field(default=True, description="Include requirements.json in context")
+    other_specs: bool = Field(default=True, description="Include other spec files in context")
+
+
+class CopilotFeaturesConfig(BaseModel):
+    """Feature toggles for copilot"""
+    streaming: bool = Field(default=True, description="Enable streaming responses")
+    auto_suggest: bool = Field(default=True, description="Auto-suggest spec titles")
+    context_aware: bool = Field(default=True, description="Use project context in responses")
+
+
+class CopilotConfig(BaseModel):
+    """Copilot configuration from felix/config.json"""
+    enabled: bool = Field(default=False, description="Whether copilot is enabled")
+    provider: str = Field(default="openai", description="LLM provider: 'openai', 'anthropic', or 'custom'")
+    model: str = Field(default="gpt-4o", description="Model name to use")
+    context_sources: CopilotContextSourcesConfig = Field(default_factory=CopilotContextSourcesConfig)
+    features: CopilotFeaturesConfig = Field(default_factory=CopilotFeaturesConfig)
+
+
 class AgentEntry(BaseModel):
     """Agent entry for felix/agents.json registry"""
     pid: int = Field(..., description="Process ID of the agent")
@@ -130,6 +155,7 @@ class FelixConfig(BaseModel):
     paths: PathsConfig = Field(default_factory=PathsConfig)
     backpressure: BackpressureConfig = Field(default_factory=BackpressureConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
+    copilot: Optional[CopilotConfig] = Field(default=None, description="Copilot configuration")
 
 
 class ConfigContent(BaseModel):
@@ -599,6 +625,20 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
         paths_data = data.get("paths", {})
         backpressure_data = data.get("backpressure", {})
         ui_data = data.get("ui", {})
+        copilot_data = data.get("copilot", None)
+        
+        # Parse copilot config if present
+        copilot_config = None
+        if copilot_data:
+            context_sources_data = copilot_data.get("context_sources", {})
+            features_data = copilot_data.get("features", {})
+            copilot_config = CopilotConfig(
+                enabled=copilot_data.get("enabled", False),
+                provider=copilot_data.get("provider", "openai"),
+                model=copilot_data.get("model", "gpt-4o"),
+                context_sources=CopilotContextSourcesConfig(**context_sources_data) if context_sources_data else CopilotContextSourcesConfig(),
+                features=CopilotFeaturesConfig(**features_data) if features_data else CopilotFeaturesConfig()
+            )
         
         config = FelixConfig(
             version=data.get("version", "0.1.0"),
@@ -606,7 +646,8 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
             agent=AgentConfig(**agent_data) if agent_data else AgentConfig(),
             paths=PathsConfig(**paths_data) if paths_data else PathsConfig(),
             backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig(),
-            ui=UIConfig(**ui_data) if ui_data else UIConfig()
+            ui=UIConfig(**ui_data) if ui_data else UIConfig(),
+            copilot=copilot_config
         )
         
         return ConfigContent(

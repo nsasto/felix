@@ -107,6 +107,34 @@ This will:
 
 You only need to run this once. The test scripts will auto-setup if you skip this step.
 
+## Prerequisites
+
+Recommended tools and minimum versions for a smooth experience on Windows:
+
+- **PowerShell**: PowerShell 7+ (or Windows PowerShell with execution policy set appropriately)
+- **Python**: 3.10+
+- **Node.js**: 16+ and **npm**
+- **Git**: CLI installed and on PATH
+
+If your environment uses a non-standard Python executable, set the path in `felix/config.json` under the `python.executable` key so scripts like `validate-requirement.py` can be invoked reliably.
+
+### Quick setup (one-liner)
+
+Run the auto-setup which creates a venv and installs dependencies:
+
+```powershell
+.\scripts\setup-dev-environment.ps1
+```
+
+If the script fails, see the Troubleshooting section below.
+
+### Troubleshooting (Windows)
+
+- If virtualenv creation fails: run PowerShell as Administrator and ensure ExecutionPolicy allows script execution: `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`.
+- If Node/npm commands fail: ensure Node is installed and restart your shell so PATH updates take effect.
+- If ports are already in use (backend/frontend): identify and stop the process or change the port in the respective start command.
+- If `py -3` is not present, use `python` or provide the full Python executable path in `felix/config.json`.
+
 ---
 
 ## `specs/` – requirements content
