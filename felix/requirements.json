@@ -225,7 +225,7 @@
                              "id":  "S-0015",
                              "title":  "Spec Screen Enhancements",
                              "spec_path":  "specs/S-0015-spec-screen-enhancements.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
                                             "frontend",
