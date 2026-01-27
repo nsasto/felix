@@ -86,6 +86,7 @@ class ExecutorConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     """Agent configuration from felix/config.json"""
+    name: str = Field(default="felix-primary", description="Unique agent name identifier")
     executable: str = Field(default="droid", description="Agent executable name")
     args: List[str] = Field(default_factory=lambda: ["exec", "--skip-permissions-unsafe"], description="Agent arguments")
     working_directory: str = Field(default=".", description="Working directory for agent")
@@ -108,6 +109,17 @@ class BackpressureConfig(BaseModel):
 class UIConfig(BaseModel):
     """UI configuration from felix/config.json"""
     theme: str = Field(default="dark", description="Theme setting: 'dark', 'light', or 'system'")
+
+
+class AgentEntry(BaseModel):
+    """Agent entry for felix/agents.json registry"""
+    pid: int = Field(..., description="Process ID of the agent")
+    hostname: str = Field(..., description="Hostname where agent is running")
+    status: str = Field(default="active", description="Agent status: active, inactive, stopped")
+    current_run_id: Optional[str] = Field(None, description="Current requirement ID being worked on")
+    started_at: Optional[str] = Field(None, description="ISO timestamp when agent started")
+    last_heartbeat: Optional[str] = Field(None, description="ISO timestamp of last heartbeat")
+    stopped_at: Optional[str] = Field(None, description="ISO timestamp when agent was stopped")
 
 
 class FelixConfig(BaseModel):
