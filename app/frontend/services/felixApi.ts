@@ -436,6 +436,19 @@ class FelixApiService {
     });
   }
 
+  // --- Global Settings Endpoints (project-independent) ---
+
+  async getGlobalConfig(): Promise<ConfigContent> {
+    return this.request<ConfigContent>('/settings');
+  }
+
+  async updateGlobalConfig(config: FelixConfig): Promise<ConfigContent> {
+    return this.request<ConfigContent>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ config }),
+    });
+  }
+
   // --- Health Check ---
 
   async healthCheck(): Promise<{ status: string; service: string; version: string }> {
