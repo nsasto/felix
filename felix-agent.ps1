@@ -858,6 +858,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Write requirement ID
     Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id
     
+    # Update last_run_id in requirements.json
+    Update-RequirementRunId -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -RunId $runId
+    
     # Capture git state before execution (for planning mode guardrails)
     $gitStateBefore = $null
     if ($mode -eq "planning") {

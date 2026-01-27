@@ -755,8 +755,10 @@ export const executeTask = (taskId: string) => {
             <RequirementsKanban 
               projectId={selectedProjectId} 
               onSelectRequirement={(req) => {
-                // Navigate to spec view when requirement is clicked
-                console.log('Selected requirement:', req.id);
+                // Open run artifact viewer if this requirement has a last run
+                if (req.last_run_id) {
+                  setSelectedRunId(req.last_run_id);
+                }
               }}
             />
           ) : (
