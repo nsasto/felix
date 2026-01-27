@@ -1450,25 +1450,416 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     );
   };
 
-  // Render Copilot settings - placeholder for now, will be implemented in Task 5
+  // Copilot settings state
+  const [copilotTestLoading, setCopilotTestLoading] = useState(false);
+  const [copilotTestResult, setCopilotTestResult] = useState<{ success: boolean; error?: string } | null>(null);
+
+  // Model options by provider
+  const modelOptions: Record<string, { value: string; label: string }[]> = {
+    openai: [
+      { value: 'gpt-4o', label: 'GPT-4o' },
+      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+    ],
+    anthropic: [
+      { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+      { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+      { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+    ],
+  };
+
+  // Default copilot config
+  const defaultCopilotConfig = {
+    enabled: false,
+    provider: 'openai' as const,
+    model: 'gpt-4o',
+    context_sources: {
+      agents_md: true,
+      learnings_md: true,
+      prompt_md: true,
+      requirements: true,
+      other_specs: true,
+    },
+    features: {
+      streaming: true,
+      auto_suggest: true,
+      context_aware: true,
+    },
+  };
+
+  // Handle copilot config changes
+  const handleCopilotChange = (field: string, value: any) => {
+    if (!config) return;
+
+    const currentCopilot = config.copilot || defaultCopilotConfig;
+    
+    const newConfig = {
+      ...config,
+      copilot: {
+        ...currentCopilot,
+        [field]: value,
+      },
+    };
+
+    // Reset model when provider changes
+    if (field === 'provider') {
+      const defaultModel = value === 'openai' ? 'gpt-4o' : 
+                          value === 'anthropic' ? 'claude-3-5-sonnet-20241022' : '';
+      newConfig.copilot = {
+        ...newConfig.copilot,
+        model: defaultModel,
+      };
+    }
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+  };
+
+  const handleCopilotContextChange = (field: string, value: boolean) => {
+    if (!config) return;
+
+    const currentCopilot = config.copilot || defaultCopilotConfig;
+    
+    const newConfig = {
+      ...config,
+      copilot: {
+        ...currentCopilot,
+        context_sources: {
+          ...currentCopilot.context_sources,
+          [field]: value,
+        },
+      },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+  };
+
+  const handleCopilotFeatureChange = (field: string, value: boolean) => {
+    if (!config) return;
+
+    const currentCopilot = config.copilot || defaultCopilotConfig;
+    
+    const newConfig = {
+      ...config,
+      copilot: {
+        ...currentCopilot,
+        features: {
+          ...currentCopilot.features,
+          [field]: value,
+        },
+      },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+  };
+
+  // Test copilot connection
+  const handleTestCopilotConnection = async () => {
+    setCopilotTestLoading(true);
+    setCopilotTestResult(null);
+
+    try {
+      const result = await felixApi.testCopilotConnection();
+      setCopilotTestResult({
+        success: result.success,
+        error: result.error,
+      });
+    } catch (err) {
+      setCopilotTestResult({
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to test connection',
+      });
+    } finally {
+      setCopilotTestLoading(false);
+    }
+  };
+
+  // Reset copilot to defaults
+  const handleResetCopilot = () => {
+    if (!config) return;
+
+    const newConfig = {
+      ...config,
+      copilot: { ...defaultCopilotConfig },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+    setCopilotTestResult(null);
+  };
+
+  // Render Copilot settings
   const renderCopilotSettings = () => {
     if (!config) return null;
 
+    const copilotConfig = config.copilot || defaultCopilotConfig;
+    const isEnabled = copilotConfig.enabled;
+    const provider = copilotConfig.provider || 'openai';
+
     return (
       <div className="space-y-6">
-        <div className="mb-6">
-          <h3 className="text-lg font-bold theme-text-secondary">Felix Copilot</h3>
-          <p className="text-xs theme-text-muted mt-1">AI-powered spec writing assistant</p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold theme-text-secondary">Felix Copilot</h3>
+            <p className="text-xs theme-text-muted mt-1">AI-powered spec writing assistant</p>
+          </div>
+          <button
+            onClick={handleResetCopilot}
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
+          >
+            Reset to Defaults
+          </button>
         </div>
 
-        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
-          <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">✨</span>
+        {/* Enable/Disable Toggle */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-sm font-bold theme-text-secondary">
+                Enable Copilot
+              </label>
+              <p className="text-[11px] theme-text-muted mt-1">
+                Turn on AI-powered assistance for spec writing
+              </p>
+            </div>
+            <button
+              onClick={() => handleCopilotChange('enabled', !isEnabled)}
+              className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
+                isEnabled 
+                  ? 'bg-[var(--accent-secondary)]' 
+                  : 'theme-bg-surface'
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
+                  isEnabled ? 'left-7' : 'left-1'
+                }`}
+              />
+            </button>
           </div>
-          <h4 className="text-sm font-bold theme-text-tertiary mb-2">Coming Soon</h4>
-          <p className="text-xs theme-text-muted max-w-sm mx-auto">
-            Configure your LLM provider and API credentials to enable AI-powered spec writing assistance.
+        </div>
+
+        {/* Provider Selection */}
+        <div className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? 'opacity-50' : ''}`}>
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
+            Provider
+          </label>
+          <select
+            value={provider}
+            onChange={(e) => handleCopilotChange('provider', e.target.value)}
+            disabled={!isEnabled}
+            className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+              isEnabled ? 'cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20' : 'cursor-not-allowed'
+            }`}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="custom">Custom</option>
+          </select>
+          <p className="mt-2 text-[11px] theme-text-muted">
+            Choose your LLM provider. Felix uses your API key from .env file.
           </p>
+        </div>
+
+        {/* API Key Configuration */}
+        <div className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? 'opacity-50' : ''}`}>
+          <label className="block text-sm font-bold theme-text-secondary mb-3">
+            API Key
+          </label>
+          <div className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4 mb-4">
+            <p className="text-xs theme-text-tertiary mb-2">Add the following to your <code className="bg-[var(--hover-bg)] px-1.5 py-0.5 rounded font-mono">.env</code> file:</p>
+            <code className="block text-xs font-mono theme-text-secondary bg-[var(--hover-bg)] px-3 py-2 rounded-lg">
+              FELIX_COPILOT_API_KEY=sk-your-key-here
+            </code>
+          </div>
+          
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={handleTestCopilotConnection}
+              disabled={!isEnabled || copilotTestLoading}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                isEnabled && !copilotTestLoading
+                  ? 'bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]'
+                  : 'theme-bg-surface theme-text-muted cursor-not-allowed'
+              }`}
+            >
+              {copilotTestLoading ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                'Test Connection'
+              )}
+            </button>
+            
+            {copilotTestResult && (
+              <div className={`flex items-center gap-2 text-xs ${copilotTestResult.success ? 'text-[var(--status-success)]' : 'text-[var(--status-error)]'}`}>
+                {copilotTestResult.success ? (
+                  <>
+                    <span>✓</span>
+                    <span>Connected successfully</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✗</span>
+                    <span>{copilotTestResult.error || 'Connection failed'}</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <p className="text-[11px] theme-text-muted">
+            Your API key is stored in .env (not version controlled).{' '}
+            {provider === 'openai' && (
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:underline">
+                Get OpenAI API key →
+              </a>
+            )}
+            {provider === 'anthropic' && (
+              <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:underline">
+                Get Anthropic API key →
+              </a>
+            )}
+          </p>
+        </div>
+
+        {/* Model Selection */}
+        <div className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? 'opacity-50' : ''}`}>
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
+            Model
+          </label>
+          {provider === 'custom' ? (
+            <input
+              type="text"
+              value={copilotConfig.model}
+              onChange={(e) => handleCopilotChange('model', e.target.value)}
+              disabled={!isEnabled}
+              placeholder="Enter model name"
+              className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all ${
+                isEnabled ? 'focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20' : 'cursor-not-allowed'
+              }`}
+            />
+          ) : (
+            <select
+              value={copilotConfig.model}
+              onChange={(e) => handleCopilotChange('model', e.target.value)}
+              disabled={!isEnabled}
+              className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+                isEnabled ? 'cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20' : 'cursor-not-allowed'
+              }`}
+            >
+              {modelOptions[provider]?.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          )}
+          <p className="mt-2 text-[11px] theme-text-muted">
+            Model used for spec generation and conversations
+          </p>
+        </div>
+
+        {/* Context Sources */}
+        <div className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? 'opacity-50' : ''}`}>
+          <label className="block text-sm font-bold theme-text-secondary mb-4">
+            Context Sources
+          </label>
+          <div className="space-y-3">
+            {[
+              { key: 'agents_md', label: 'AGENTS.md', description: 'Operational instructions and validation' },
+              { key: 'learnings_md', label: 'LEARNINGS.md', description: 'Technical knowledge and common pitfalls' },
+              { key: 'prompt_md', label: 'prompt.md', description: 'Spec writing conventions' },
+              { key: 'requirements', label: 'requirements.json', description: 'Project dependencies and status' },
+              { key: 'other_specs', label: 'Other specs', description: 'Pattern consistency from existing specs' },
+            ].map((source) => (
+              <div key={source.key} className="flex items-center justify-between py-2">
+                <div>
+                  <span className="text-sm theme-text-secondary">{source.label}</span>
+                  <p className="text-[10px] theme-text-muted">{source.description}</p>
+                </div>
+                <button
+                  onClick={() => handleCopilotContextChange(source.key, !(copilotConfig.context_sources as any)[source.key])}
+                  disabled={!isEnabled}
+                  className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${
+                    (copilotConfig.context_sources as any)[source.key]
+                      ? 'bg-[var(--accent-secondary)]' 
+                      : 'theme-bg-surface'
+                  } ${!isEnabled ? 'cursor-not-allowed' : ''}`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
+                      (copilotConfig.context_sources as any)[source.key] ? 'left-5' : 'left-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Feature Toggles */}
+        <div className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? 'opacity-50' : ''}`}>
+          <label className="block text-sm font-bold theme-text-secondary mb-4">
+            Features
+          </label>
+          <div className="space-y-3">
+            {[
+              { key: 'streaming', label: 'Streaming Responses', description: 'Enables token-by-token streaming for faster feedback' },
+              { key: 'auto_suggest', label: 'Auto-suggest Spec Titles', description: 'Suggests titles based on your input' },
+              { key: 'context_aware', label: 'Context-aware Completions', description: 'Uses project context in responses' },
+            ].map((feature) => (
+              <div key={feature.key} className="flex items-center justify-between py-2">
+                <div>
+                  <span className="text-sm theme-text-secondary">{feature.label}</span>
+                  <p className="text-[10px] theme-text-muted">{feature.description}</p>
+                </div>
+                <button
+                  onClick={() => handleCopilotFeatureChange(feature.key, !(copilotConfig.features as any)[feature.key])}
+                  disabled={!isEnabled}
+                  className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${
+                    (copilotConfig.features as any)[feature.key]
+                      ? 'bg-[var(--accent-secondary)]' 
+                      : 'theme-bg-surface'
+                  } ${!isEnabled ? 'cursor-not-allowed' : ''}`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
+                      (copilotConfig.features as any)[feature.key] ? 'left-5' : 'left-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Warning when enabled but no API key */}
+        {isEnabled && copilotTestResult && !copilotTestResult.success && copilotTestResult.error?.includes('not found') && (
+          <div className="bg-[var(--status-warning)]/5 border border-[var(--status-warning)]/20 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-4 h-4 text-[var(--status-warning)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-xs text-[var(--status-warning)]/80">
+                Copilot is enabled but no API key is configured. Add <code className="bg-[var(--status-warning)]/10 px-1 rounded">FELIX_COPILOT_API_KEY</code> to your .env file to use copilot features.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Info about BYOK */}
+        <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-xs text-[var(--status-info)]/80">
+              <strong>Bring Your Own Key (BYOK):</strong> Felix never stores, transmits, or manages API billing. Your API key stays in your local .env file and is used only for direct API calls.
+            </p>
+          </div>
         </div>
       </div>
     );
