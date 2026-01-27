@@ -59,6 +59,7 @@ class RunHistoryEntry(BaseModel):
     exit_code: Optional[int] = None
     project_path: str
     error_message: Optional[str] = None
+    requirement_id: Optional[str] = None
 
 
 # In-memory store for running agent processes
@@ -496,12 +497,16 @@ async def stop_agent_run(project_id: str):
 
 
 @router.get("/{project_id}/runs", response_model=RunHistoryResponse)
-async def get_run_history(project_id: str):
+async def get_run_history(project_id: str, requirement_id: Optional[str] = None):
     """
     Get the run history for a project.
 
     Returns a list of all runs (running, completed, failed, stopped) in reverse chronological order.
     Scans the runs/ directory on disk to populate history from past runs.
+
+    Args:
+        project_id: The project ID
+        requirement_id: Optional requirement ID to filter runs (e.g., "S-0011")
     """
     # Clean up any dead agents first
     _cleanup_dead_agents()
@@ -571,6 +576,17 @@ async def get_run_history(project_id: str):
                 except Exception:
                     pass
 
+            # Read requirement_id.txt if it exists
+            run_requirement_id = None
+            requirement_id_file = run_dir / "requirement_id.txt"
+            if requirement_id_file.exists():
+                try:
+                    run_requirement_id = requirement_id_file.read_text(
+                        encoding="utf-8"
+                    ).strip()
+                except Exception:
+                    pass
+
             # Create historical entry
             history_entry = RunHistoryEntry(
                 run_id=run_id,
@@ -582,11 +598,16 @@ async def get_run_history(project_id: str):
                 exit_code=exit_code,
                 project_path=str(project_path),
                 error_message=error_message,
+                requirement_id=run_requirement_id,
             )
             runs.append(history_entry)
 
     # Return in reverse chronological order (newest first)
     runs_sorted = sorted(runs, key=lambda r: r.started_at, reverse=True)
+
+    # Filter by requirement_id if provided
+    if requirement_id:
+        runs_sorted = [r for r in runs_sorted if r.requirement_id == requirement_id]
 
     return RunHistoryResponse(
         project_id=project_id,
