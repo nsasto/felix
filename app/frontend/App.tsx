@@ -1547,27 +1547,10 @@ export const executeTask = (taskId: string) => {
             </div>
           )
         ) : uiState === "settings" ? (
-          selectedProjectId ? (
-            <SettingsScreen
-              projectId={selectedProjectId}
-              onBack={() => setUiState("projects")}
-            />
-          ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-deepest)" }}
-            >
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select a project to view settings
-              </span>
-              <button
-                onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
-              >
-                Go to Projects
-              </button>
-            </div>
-          )
+          <SettingsScreen
+            projectId={selectedProjectId ?? undefined}
+            onBack={() => setUiState("projects")}
+          />
         ) : (
           renderAssets()
         )}
