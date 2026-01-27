@@ -194,7 +194,7 @@ def check_agent_status(agent: AgentEntry) -> str:
 ## Validation Criteria
 
 - [ ] Agent registers on startup: `curl http://localhost:8080/api/agents` shows new agent
-- [ ] Heartbeat updates: Check `felix/agents.json` last_heartbeat field updates every 5s
+- [ ] Heartbeat updates: Check felix/agents.json file, verify last_heartbeat field updates every 5s
 - [x] Settings UI saves config: Manual verification - edit agent name, save, check config.json
 - [x] Agent list shows status: Manual verification - view registered agents in settings
 - [x] Stale agents marked inactive: Manual verification - stop agent, wait 15s, check status changes
