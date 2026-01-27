@@ -7,6 +7,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Configure UTF-8 encoding for console output
+chcp 65001 | Out-Null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 $backendDir = Join-Path $ProjectRoot "app\backend"
 $venvDir = Join-Path $backendDir ".venv"
 $requirementsFile = Join-Path $backendDir "requirements.txt"
@@ -80,10 +85,12 @@ $exitCode = $LASTEXITCODE
 Write-Host ""
 if ($exitCode -eq 0) {
     Write-Host "All tests passed" -ForegroundColor Green
-} elseif ($exitCode -eq 5) {
+}
+elseif ($exitCode -eq 5) {
     Write-Host "No tests collected" -ForegroundColor Yellow
     Write-Host "  Add test files matching test_*.py or *_test.py to tests/" -ForegroundColor Gray
-} else {
+}
+else {
     Write-Host "Tests failed (exit code: $exitCode)" -ForegroundColor Red
 }
 
