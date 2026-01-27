@@ -4,7 +4,7 @@ import { IconPlus, IconFileText } from './Icons';
 import RequirementDetailSlideOut from './RequirementDetailSlideOut';
 
 // Requirement status columns matching the felix/requirements.json schema
-type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked';
+type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked' | 'done';
 
 interface Column {
   status: RequirementStatus;
@@ -20,6 +20,7 @@ const COLUMNS: Column[] = [
   { status: 'in_progress', label: 'In Progress', color: 'bg-amber-500', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/20' },
   { status: 'complete', label: 'Complete', color: 'bg-emerald-500', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20' },
   { status: 'blocked', label: 'Blocked', color: 'bg-red-500', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/20' },
+  { status: 'done', label: 'Done', color: 'bg-purple-500', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/20' },
 ];
 
 const PRIORITY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -44,6 +45,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [showDone, setShowDone] = useState(false);
 
   // Requirement status info for each requirement (maps requirement id -> status info)
   // This includes plan info and spec modification timestamps for drift detection
@@ -132,6 +134,11 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
       return true;
     });
   }, [requirements, priorityFilter, labelFilter]);
+
+  // Visible columns based on showDone filter
+  const visibleColumns = React.useMemo(() => {
+    return COLUMNS.filter(col => showDone || col.status !== 'done');
+  }, [showDone]);
 
   // Get requirements for a specific column
   const getColumnRequirements = (status: RequirementStatus) => {
@@ -321,6 +328,19 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
           </button>
         )}
 
+        {/* Show Done toggle */}
+        <label className="flex items-center gap-2 cursor-pointer ml-4">
+          <input
+            type="checkbox"
+            checked={showDone}
+            onChange={(e) => setShowDone(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border theme-border bg-transparent checked:bg-purple-500 checked:border-purple-500 cursor-pointer accent-purple-500"
+          />
+          <span className="text-[10px] font-bold theme-text-muted uppercase tracking-widest" title="Done = reviewed and accepted, ready for production">
+            Show Done
+          </span>
+        </label>
+
         <div className="flex-1" />
         
         {/* Requirements count */}
@@ -331,7 +351,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
 
       {/* Kanban columns */}
       <div className="flex-1 flex gap-6 p-6 overflow-x-auto custom-scrollbar">
-        {COLUMNS.map(column => {
+        {visibleColumns.map(column => {
           const columnRequirements = getColumnRequirements(column.status);
           const isDropTarget = dragOverColumn === column.status;
 

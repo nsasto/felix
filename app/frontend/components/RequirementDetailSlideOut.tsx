@@ -32,6 +32,11 @@ const STATUS_STYLES: Record<
     text: "text-red-400",
     border: "border-red-500/20",
   },
+  done: {
+    bg: "bg-purple-500/10",
+    text: "text-purple-400",
+    border: "border-purple-500/20",
+  },
 };
 
 const PRIORITY_STYLES: Record<
@@ -185,7 +190,10 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             /(<input type="checkbox"[^>]*)/g,
             '$1 disabled onclick="return false;"',
           );
-          console.log("Spec markdown parsed, HTML length:", readOnlyHtml.length);
+          console.log(
+            "Spec markdown parsed, HTML length:",
+            readOnlyHtml.length,
+          );
           setSpecHtml(readOnlyHtml);
         }
       } catch (err) {
@@ -404,7 +412,14 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
   // Render Overview tab content
   const renderOverviewTab = () => {
-    console.log("Rendering Overview tab, specHtml length:", specHtml?.length, "specLoading:", specLoading, "specError:", specError);
+    console.log(
+      "Rendering Overview tab, specHtml length:",
+      specHtml?.length,
+      "specLoading:",
+      specLoading,
+      "specError:",
+      specError,
+    );
     return (
       <div className="h-full overflow-y-auto custom-scrollbar">
         {/* Metadata Section */}

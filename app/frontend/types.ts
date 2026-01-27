@@ -91,7 +91,7 @@ export type UIState = 'kanban' | 'canvas' | 'assets';
 // for reference.
 
 /** Requirement status values matching backend RequirementStatus */
-export type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked';
+export type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked' | 'done';
 
 /** Requirement priority values */
 export type RequirementPriority = 'low' | 'medium' | 'high' | 'critical';
