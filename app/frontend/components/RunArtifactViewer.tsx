@@ -101,9 +101,9 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
+    <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
       {/* Header */}
-      <div className="h-14 border-b border-slate-800/60 flex items-center px-6 justify-between bg-[#0d1117]/95 backdrop-blur">
+      <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
@@ -155,8 +155,8 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
           </div>
         ) : activeTab === 'log' ? (
           // Log view - monospace text
-          <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#050608]">
-            <pre className="font-mono text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">
+          <div className="h-full overflow-y-auto custom-scrollbar p-6 theme-bg-deepest">
+            <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
               {content || 'No log content available.'}
             </pre>
           </div>

@@ -246,7 +246,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         tabIndex={-1}
         className={`
           fixed top-0 right-0 h-full z-50
-          bg-[#0d1117] border-l border-slate-800/60
+          theme-bg-base border-l theme-border
           flex flex-col
           transition-transform duration-300 ease-out
           outline-none
@@ -261,7 +261,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         aria-labelledby="slide-out-title"
       >
         {/* Header */}
-        <div className="h-16 border-b border-slate-800/60 flex items-center px-6 justify-between flex-shrink-0 bg-[#0d1117]">
+        <div className="h-16 border-b theme-border flex items-center px-6 justify-between flex-shrink-0 theme-bg-base">
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-sm font-mono font-bold text-felix-400 bg-felix-500/10 px-2.5 py-1 rounded-lg border border-felix-500/20">
               {requirement.id}
@@ -286,7 +286,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="h-12 border-b border-slate-800/60 flex items-center px-6 gap-4 flex-shrink-0 bg-[#0a0c10]">
+        <div className="h-12 border-b theme-border flex items-center px-6 gap-4 flex-shrink-0 theme-bg-deep">
           {TABS.map(tab => (
             <button
               key={tab.id}
@@ -406,7 +406,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
                       prose-p:text-slate-400 prose-p:leading-relaxed
                       prose-a:text-felix-400 prose-a:no-underline hover:prose-a:underline
                       prose-code:text-amber-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-                      prose-pre:bg-[#161b22] prose-pre:border prose-pre:border-slate-800
+                      prose-pre:theme-bg-elevated prose-pre:border prose-pre:theme-border
                       prose-li:text-slate-400
                       prose-strong:text-slate-200
                       prose-blockquote:border-l-felix-500 prose-blockquote:text-slate-400
@@ -459,7 +459,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
                     return (
                       <div 
                         key={run.run_id}
-                        className="bg-[#161b22] border border-slate-800/60 rounded-xl overflow-hidden"
+                        className="theme-bg-elevated border theme-border rounded-xl overflow-hidden"
                       >
                         {/* Run Header */}
                         <button
@@ -491,7 +491,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
                         {/* Expanded Details */}
                         {isExpanded && (
-                          <div className="px-4 py-3 border-t border-slate-800/60 bg-[#0d1117]">
+                          <div className="px-4 py-3 border-t theme-border theme-bg-base">
                             <div className="space-y-2 text-xs">
                               <div className="flex justify-between">
                                 <span className="text-slate-500">Run ID:</span>
@@ -533,7 +533,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         </div>
 
         {/* Footer with keyboard hint */}
-        <div className="h-10 border-t border-slate-800/60 flex items-center px-6 justify-between flex-shrink-0 bg-[#0a0c10]">
+        <div className="h-10 border-t theme-border flex items-center px-6 justify-between flex-shrink-0 theme-bg-deep">
           <span className="text-[10px] text-slate-600">
             Press <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400 font-mono">ESC</kbd> to close
           </span>
