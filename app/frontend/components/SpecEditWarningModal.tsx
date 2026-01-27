@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type WarningAction = 'continue' | 'block' | 'cancel';
+export type WarningAction = 'continue' | 'reset_plan' | 'cancel';
 
 interface SpecEditWarningModalProps {
   /** The requirement ID being edited */
@@ -111,7 +111,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 mt-0.5">•</span>
-                <span><strong className="text-slate-300">Block & Edit</strong> – Stop the agent and mark requirement as "blocked" before editing</span>
+                <span><strong className="text-slate-300">Reset Plan</strong> – Mark as "planned", clear the plan file, then edit</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-slate-500 mt-0.5">•</span>
@@ -131,19 +131,19 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={() => onAction('block')}
+            onClick={() => onAction('reset_plan')}
             disabled={isLoading}
             className="px-4 py-2 bg-amber-600/80 text-white text-xs font-bold rounded-xl hover:bg-amber-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isLoading ? (
               <>
                 <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Blocking...
+                Resetting...
               </>
             ) : (
               <>
                 <IconPause className="w-3 h-3" />
-                Block & Edit
+                Reset Plan
               </>
             )}
           </button>
