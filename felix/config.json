@@ -7,6 +7,7 @@
     "auto_transition": true
   },
   "agent": {
+    "name": "felix-primary",
     "executable": "droid",
     "args": [
       "exec",
