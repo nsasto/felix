@@ -647,9 +647,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   };
 
   return (
-    <div className="flex-1 flex bg-[#0d1117] overflow-hidden">
+    <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Specs List Sidebar */}
-      <div className="w-64 border-r border-slate-800/60 flex flex-col bg-[#0a0c10]/40 flex-shrink-0">
+      <div className="w-64 border-r theme-border flex flex-col theme-bg-deep/40 flex-shrink-0">
         <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
             Specifications
@@ -708,9 +708,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       </div>
 
       {/* Editor Pane */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#0a0c10]/20">
+      <div className="flex-1 flex flex-col min-w-0 theme-bg-deep/20">
         {/* Toolbar */}
-        <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between bg-[#0d1117]/95 backdrop-blur z-20 flex-shrink-0">
+        <div className="h-12 border-b theme-border flex items-center px-4 justify-between theme-bg-base/95 backdrop-blur z-20 flex-shrink-0">
           <div className="flex items-center gap-4">
             {/* View mode toggle */}
             <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 shadow-inner">
@@ -948,26 +948,26 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Content Area */}
         {!selectedFilename ? (
           // No spec selected
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#050608]/20">
-            <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-              <IconFileText className="w-8 h-8 text-slate-700" />
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 theme-bg-deepest/20">
+            <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
+              <IconFileText className="w-8 h-8 theme-text-faint" />
             </div>
-            <h3 className="text-sm font-bold text-slate-400 mb-2">No Spec Selected</h3>
-            <p className="text-xs text-slate-600 max-w-sm">
+            <h3 className="text-sm font-bold theme-text-tertiary mb-2">No Spec Selected</h3>
+            <p className="text-xs theme-text-muted max-w-sm">
               Select a specification from the list to view and edit its content.
             </p>
           </div>
         ) : contentLoading ? (
           // Loading content
-          <div className="flex-1 flex items-center justify-center bg-[#050608]/20">
-            <div className="flex items-center gap-3 text-slate-500">
-              <div className="w-5 h-5 border-2 border-slate-600 border-t-felix-500 rounded-full animate-spin" />
+          <div className="flex-1 flex items-center justify-center theme-bg-deepest/20">
+            <div className="flex items-center gap-3 theme-text-muted">
+              <div className="w-5 h-5 border-2 theme-border border-t-felix-500 rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading spec...</span>
             </div>
           </div>
         ) : contentError ? (
           // Error loading content
-          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#050608]/20">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 theme-bg-deepest/20">
             <div className="bg-red-900/20 border border-red-500/20 rounded-xl px-6 py-4 max-w-md">
               <h3 className="text-sm font-bold text-red-400 mb-2">Failed to Load Spec</h3>
               <p className="text-xs text-red-300/70">{contentError}</p>
@@ -987,7 +987,8 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   ref={editorRef}
                   value={specContent}
                   onChange={(e) => setSpecContent(e.target.value)}
-                  className="w-full h-full p-12 bg-[#050608]/20 text-slate-300 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30 placeholder:text-slate-800"
+                  className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30"
+                  style={{ backgroundColor: 'var(--bg-deepest)' }}
                   placeholder="# Spec content..."
                 />
                 {viewMode === 'edit' && (
@@ -1000,7 +1001,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
             {/* Preview pane */}
             {(viewMode === 'preview' || viewMode === 'split') && (
-              <div className="flex-1 flex flex-col min-w-0 h-full bg-[#0d1117]/10 relative">
+              <div className="flex-1 flex flex-col min-w-0 h-full theme-bg-base/10 relative">
                 <div className="flex-1 p-12 overflow-y-auto custom-scrollbar markdown-preview font-sans max-w-4xl mx-auto w-full">
                   <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
                   {!parsedHtml && (
@@ -1026,18 +1027,21 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       {/* New Spec Modal */}
       {isNewSpecOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[480px] overflow-hidden">
+          <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[480px] overflow-hidden">
             {/* Modal header */}
-            <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4">
+            <div className="h-12 border-b theme-border flex items-center justify-between px-4">
               <div className="flex items-center gap-2">
                 <IconPlus className="w-4 h-4 text-felix-400" />
-                <span className="text-xs font-bold text-slate-300">
+                <span className="text-xs font-bold theme-text-secondary">
                   Create New Spec
                 </span>
               </div>
               <button
                 onClick={() => setIsNewSpecOpen(false)}
-                className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+                className="p-1.5 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
+                style={{ backgroundColor: 'transparent' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
                 <IconX className="w-4 h-4" />
               </button>
@@ -1047,7 +1051,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             <div className="p-4 space-y-4">
               {/* Spec ID */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
                   Spec ID *
                 </label>
                 <input
@@ -1055,7 +1059,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   value={newSpecId}
                   onChange={(e) => setNewSpecId(e.target.value.toUpperCase())}
                   placeholder="S-0006"
-                  className="w-full bg-[#161b22] border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-300 placeholder:text-slate-700 focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none font-mono"
+                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none font-mono"
                 />
                 <p className="mt-1.5 text-[9px] text-slate-600">
                   Format: S-XXXX (auto-incremented from existing specs)
@@ -1064,7 +1068,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
               {/* Spec Title */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
                   Title *
                 </label>
                 <input
@@ -1072,7 +1076,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   value={newSpecTitle}
                   onChange={(e) => setNewSpecTitle(e.target.value)}
                   placeholder="My New Feature"
-                  className="w-full bg-[#161b22] border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-300 placeholder:text-slate-700 focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none"
+                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none"
                 />
                 <p className="mt-1.5 text-[9px] text-slate-600">
                   Filename will be: {newSpecId && newSpecTitle ? `${newSpecId}-${newSpecTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.md` : 'S-XXXX-your-title.md'}
@@ -1094,7 +1098,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                         className={`p-3 rounded-xl border text-left transition-all ${
                           newSpecTemplate === templateKey
                             ? 'bg-felix-600/10 border-felix-500/30 text-felix-400'
-                            : 'bg-[#161b22] border-slate-700/50 text-slate-400 hover:border-slate-600'
+                            : 'theme-bg-elevated theme-border-muted theme-text-tertiary hover:theme-border'
                         }`}
                       >
                         <div className="text-xs font-medium mb-1">{template.name}</div>
@@ -1146,7 +1150,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       {/* Reset Plan Confirmation Modal (S-0006: Manual Reset Plan Controls) */}
       {isResetPlanModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[400px] overflow-hidden">
+          <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[400px] overflow-hidden">
             {/* Modal header */}
             <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4">
               <div className="flex items-center gap-2">

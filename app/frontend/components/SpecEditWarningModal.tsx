@@ -58,7 +58,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[480px] overflow-hidden">
+      <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[480px] overflow-hidden">
         {/* Modal header */}
         <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4 bg-amber-500/5">
           <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
         </div>
 
         {/* Modal footer */}
-        <div className="h-16 border-t border-slate-800/60 flex items-center justify-end gap-3 px-4 bg-[#0a0c10]/50">
+        <div className="h-16 border-t theme-border flex items-center justify-end gap-3 px-4 theme-bg-deep/50">
           <button
             onClick={() => onAction('cancel')}
             disabled={isLoading}
