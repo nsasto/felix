@@ -105,6 +105,11 @@ class BackpressureConfig(BaseModel):
     commands: List[str] = Field(default_factory=list, description="Backpressure commands to run")
 
 
+class UIConfig(BaseModel):
+    """UI configuration from felix/config.json"""
+    theme: str = Field(default="dark", description="Theme setting: 'dark', 'light', or 'system'")
+
+
 class FelixConfig(BaseModel):
     """Full felix/config.json configuration"""
     version: str = Field(default="0.1.0", description="Config version")
@@ -112,6 +117,7 @@ class FelixConfig(BaseModel):
     agent: AgentConfig = Field(default_factory=AgentConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     backpressure: BackpressureConfig = Field(default_factory=BackpressureConfig)
+    ui: UIConfig = Field(default_factory=UIConfig)
 
 
 class ConfigContent(BaseModel):
@@ -580,13 +586,15 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
         agent_data = data.get("agent", {})
         paths_data = data.get("paths", {})
         backpressure_data = data.get("backpressure", {})
+        ui_data = data.get("ui", {})
         
         config = FelixConfig(
             version=data.get("version", "0.1.0"),
             executor=ExecutorConfig(**executor_data) if executor_data else ExecutorConfig(),
             agent=AgentConfig(**agent_data) if agent_data else AgentConfig(),
             paths=PathsConfig(**paths_data) if paths_data else PathsConfig(),
-            backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig()
+            backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig(),
+            ui=UIConfig(**ui_data) if ui_data else UIConfig()
         )
         
         return ConfigContent(
@@ -638,6 +646,13 @@ async def update_config(
         raise HTTPException(
             status_code=400,
             detail="default_mode must be 'planning' or 'building'"
+        )
+    
+    # Validate ui.theme
+    if config.ui.theme not in ("dark", "light", "system"):
+        raise HTTPException(
+            status_code=400,
+            detail="ui.theme must be 'dark', 'light', or 'system'"
         )
     
     try:
