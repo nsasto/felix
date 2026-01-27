@@ -684,7 +684,7 @@ class RequirementStatusResponse(BaseModel):
 
 class RequirementStatusUpdate(BaseModel):
     """Request body for updating requirement status"""
-    status: str = Field(..., description="New status: draft, planned, in_progress, complete, blocked")
+    status: str = Field(..., description="New status: draft, planned, in_progress, complete, blocked, done")
 
 
 class PlanInfo(BaseModel):
@@ -804,10 +804,11 @@ async def update_requirement_status(
     """
     Update the status of a specific requirement.
     
-    Used to set requirement to 'blocked' status when user chooses to block and edit.
-    Valid status values: draft, planned, in_progress, complete, blocked
+    Used to set requirement to 'blocked' status when user chooses to block and edit,
+    or 'done' when a user manually marks a requirement as accepted/reviewed.
+    Valid status values: draft, planned, in_progress, complete, blocked, done
     """
-    valid_statuses = {"draft", "planned", "in_progress", "complete", "blocked"}
+    valid_statuses = {"draft", "planned", "in_progress", "complete", "blocked", "done"}
     if request.status not in valid_statuses:
         raise HTTPException(
             status_code=400, 
