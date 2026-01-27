@@ -2,10 +2,10 @@
     "current_requirement_id":  "S-0011",
     "last_run_id":  null,
     "last_mode":  "building",
-    "last_iteration_outcome":  "complete",
-    "updated_at":  "2026-01-27T12:43:49.1348515+00:00",
+    "last_iteration_outcome":  "validation_blocked",
+    "updated_at":  "2026-01-27T12:54:32.7387212+00:00",
     "current_iteration":  1,
     "status":  "running",
-    "validation_retry_count":  0,
+    "validation_retry_count":  2,
     "blocked_task":  null
 }

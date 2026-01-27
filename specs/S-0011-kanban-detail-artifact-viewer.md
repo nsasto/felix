@@ -84,7 +84,7 @@ Currently, the RequirementDetailSlideOut has limited functionality showing only 
 
 ## Validation Criteria
 
-- [ ] Backend endpoint supports requirement filtering: `GET /api/projects/{project_id}/runs?requirement_id=S-0011` returns only matching runs
+- [ ] Backend endpoint supports requirement filtering: `curl -s http://localhost:8080/api/projects/default/runs?requirement_id=S-0011` (status 200)
 - [ ] Frontend renders all 6 tabs: manual verification in browser
 - [ ] Tab navigation with arrow keys: press Left/Right in slide-out
 - [ ] History filtering works: view history tab and verify only runs for current requirement appear

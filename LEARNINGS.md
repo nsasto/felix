@@ -867,6 +867,7 @@ But fails when backticks are used for markdown formatting of file paths or techn
 3. **UI/Interaction Tests**: These should always be manual verification (cannot be scripted easily)
 4. **File References**: Don't use backticks for file paths in descriptions
 5. **Exit Code/Status**: Include expected outcome in parentheses for automated checks
+6. **Use Actual Commands, Not REST Descriptions**: Write `curl http://localhost:8080/api/endpoint` instead of `GET /api/endpoint`. The validation script executes commands literally.
 
 **Why This Matters**:
 
@@ -882,9 +883,17 @@ But fails when backticks are used for markdown formatting of file paths or techn
 
 - [ ] Tests pass: `cd app/backend && pytest` (exit code 0)
 
+✅ GOOD - Executable API check
+
+- [ ] Endpoint responds: `curl -s http://localhost:8080/api/runs` (status 200)
+
 ✅ GOOD - Manual verification
 
 - [x] UI displays correctly: Manual verification - open browser, verify layout
+
+❌ BAD - REST API description instead of command
+
+- [ ] Endpoint works: `GET /api/projects/{project_id}/runs?requirement_id=S-0011` returns matching runs
 
 ❌ BAD - File path in backticks
 
