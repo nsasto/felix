@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { felixApi, FelixConfig, Project } from '../services/felixApi';
 import { IconFelix } from './Icons';
+import { useTheme, ThemeValue } from '../hooks/ThemeProvider';
 
 interface SettingsScreenProps {
   projectId: string;
@@ -71,6 +72,7 @@ const CATEGORIES: CategoryInfo[] = [
 ];
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) => {
+  const { theme, setTheme } = useTheme();
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
   const [config, setConfig] = useState<FelixConfig | null>(null);
   const [originalConfig, setOriginalConfig] = useState<FelixConfig | null>(null);
@@ -216,6 +218,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     setValidationErrors(validateConfig(newConfig));
   };
 
+  const handleUIChange = (field: keyof FelixConfig['ui'], value: any) => {
+    if (!config) return;
+
+    const newConfig = {
+      ...config,
+      ui: {
+        ...config.ui,
+        [field]: value,
+      },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+
+    // Apply theme change immediately for instant feedback
+    if (field === 'theme') {
+      setTheme(value as ThemeValue);
+    }
+  };
+
   // Handle save
   const handleSave = async () => {
     if (!config) return;
@@ -295,6 +317,25 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
           >
             Reset to Defaults
           </button>
+        </div>
+
+        {/* Theme Selection */}
+        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+          <label className="block text-sm font-bold text-slate-300 mb-2">
+            Theme
+          </label>
+          <select
+            value={config.ui?.theme || 'dark'}
+            onChange={(e) => handleUIChange('theme', e.target.value as ThemeValue)}
+            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all cursor-pointer focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="system">System</option>
+          </select>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Choose your preferred color theme. "System" follows your operating system preference.
+          </p>
         </div>
 
         {/* Max Iterations */}

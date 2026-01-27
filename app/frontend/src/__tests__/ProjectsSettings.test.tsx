@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SettingsScreen from '../../components/SettingsScreen';
+import { ThemeProvider } from '../../hooks/ThemeProvider';
 import { felixApi, FelixConfig, ConfigContent, Project } from '../../services/felixApi';
 
 // Mock the felixApi module
@@ -14,6 +15,15 @@ vi.mock('../../services/felixApi', () => ({
     updateProject: vi.fn(),
   },
 }));
+
+// Helper to render with ThemeProvider
+const renderWithTheme = (ui: React.ReactElement) => {
+  return render(
+    <ThemeProvider defaultTheme="dark">
+      {ui}
+    </ThemeProvider>
+  );
+};
 
 // Create a mock config object
 const createMockConfig = (overrides: Partial<FelixConfig> = {}): FelixConfig => ({
@@ -96,7 +106,7 @@ describe('SettingsScreen - Projects Category', () => {
 
   describe('Projects Category Navigation', () => {
     it('shows Projects category in the sidebar', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('Projects')).toBeInTheDocument();
@@ -104,7 +114,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('shows Projects description in the sidebar', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('Manage registered projects')).toBeInTheDocument();
@@ -112,7 +122,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('switches to Projects settings when category is clicked', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General Settings')).toBeInTheDocument();
@@ -128,7 +138,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('fetches projects when Projects category is selected', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -153,7 +163,7 @@ describe('SettingsScreen - Projects Category', () => {
       });
       vi.mocked(felixApi.listProjects).mockReturnValue(projectsPromise);
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -178,7 +188,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('displays registered projects in the list', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -196,7 +206,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('displays project paths', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -213,7 +223,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('highlights active project', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -231,7 +241,7 @@ describe('SettingsScreen - Projects Category', () => {
     it('displays empty state when no projects registered', async () => {
       vi.mocked(felixApi.listProjects).mockResolvedValue([]);
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -249,7 +259,7 @@ describe('SettingsScreen - Projects Category', () => {
     it('displays error state when fetching projects fails', async () => {
       vi.mocked(felixApi.listProjects).mockRejectedValue(new Error('Failed to fetch'));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -269,7 +279,7 @@ describe('SettingsScreen - Projects Category', () => {
         .mockRejectedValueOnce(new Error('Failed to fetch'))
         .mockResolvedValueOnce(createMockProjects());
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -293,7 +303,7 @@ describe('SettingsScreen - Projects Category', () => {
 
   describe('Search and Filter', () => {
     it('displays search input', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -308,7 +318,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('filters projects by name', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -334,7 +344,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('filters projects by path', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -360,7 +370,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('shows all projects when search is cleared', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -394,7 +404,7 @@ describe('SettingsScreen - Projects Category', () => {
 
   describe('Project Registration', () => {
     it('shows Register New Project button', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -409,7 +419,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('opens register form when button is clicked', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -432,7 +442,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('closes register form when cancel is clicked', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -460,7 +470,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('disables register button when path is empty', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -482,7 +492,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('enables register button when path is entered', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -514,7 +524,7 @@ describe('SettingsScreen - Projects Category', () => {
         registered_at: '2026-01-26T12:00:00Z',
       });
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -556,7 +566,7 @@ describe('SettingsScreen - Projects Category', () => {
         registered_at: '2026-01-26T12:00:00Z',
       });
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -585,7 +595,7 @@ describe('SettingsScreen - Projects Category', () => {
     it('shows error message when registration fails', async () => {
       vi.mocked(felixApi.registerProject).mockRejectedValue(new Error('Invalid project path'));
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -614,7 +624,7 @@ describe('SettingsScreen - Projects Category', () => {
 
   describe('Project Unregistration', () => {
     it('shows Unregister button for non-active projects', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -632,7 +642,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('does not show Unregister button for active project', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -653,7 +663,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('shows confirmation dialog when Unregister is clicked', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -678,7 +688,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('hides confirmation dialog when Cancel is clicked', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -718,7 +728,7 @@ describe('SettingsScreen - Projects Category', () => {
     it('calls unregisterProject API when confirmed', async () => {
       vi.mocked(felixApi.unregisterProject).mockResolvedValue(undefined);
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -748,7 +758,7 @@ describe('SettingsScreen - Projects Category', () => {
     it('shows success message after unregistration', async () => {
       vi.mocked(felixApi.unregisterProject).mockResolvedValue(undefined);
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -778,7 +788,7 @@ describe('SettingsScreen - Projects Category', () => {
 
   describe('Project Configuration', () => {
     it('shows Configure button for each project', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -795,7 +805,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('opens configuration panel when Configure is clicked', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -818,7 +828,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('shows current project name in configuration input', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -847,7 +857,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('closes configuration panel when Cancel is clicked', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -885,7 +895,7 @@ describe('SettingsScreen - Projects Category', () => {
         registered_at: '2026-01-20T10:00:00Z',
       });
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -927,7 +937,7 @@ describe('SettingsScreen - Projects Category', () => {
         registered_at: '2026-01-20T10:00:00Z',
       });
 
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -962,7 +972,7 @@ describe('SettingsScreen - Projects Category', () => {
 
   describe('Project Actions', () => {
     it('shows Open button for each project', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -979,7 +989,7 @@ describe('SettingsScreen - Projects Category', () => {
     });
 
     it('shows copy-to-clipboard button for project path', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
@@ -998,7 +1008,7 @@ describe('SettingsScreen - Projects Category', () => {
 
   describe('Projects Sorting', () => {
     it('sorts projects by registration date (most recent first)', async () => {
-      render(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />);
 
       await waitFor(() => {
         expect(screen.getByText('General')).toBeInTheDocument();
