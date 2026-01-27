@@ -883,9 +883,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
 
 ## Error
 
-``````
+```
 $_
-``````
+```
 
 "@
         Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
@@ -968,9 +968,7 @@ All unauthorized changes have been reverted.
 
 ## Output
 
-``````
 $output
-``````
 
 "@
     Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
