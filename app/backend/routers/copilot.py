@@ -15,6 +15,12 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from routers.settings import load_global_config
+from services.copilot import (
+    CopilotService,
+    CopilotConfig,
+    ChatMessage as ServiceChatMessage,
+    create_copilot_service_from_config
+)
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
 
@@ -421,71 +427,39 @@ async def stream_copilot_chat(request: CopilotChatRequest):
     - {"token": "text"} - Each token as it arrives
     - {"avatar_state": "idle", "done": true} - Stream complete
     - {"error": "message", "avatar_state": "error"} - On error
+    
+    Uses CopilotService for LLM integration and context management.
     """
     async def event_generator() -> AsyncGenerator[str, None]:
         try:
-            # Get API key from environment
-            api_key = os.getenv("FELIX_COPILOT_API_KEY")
-            
-            if not api_key:
-                yield f"data: {json.dumps({'error': 'FELIX_COPILOT_API_KEY not configured', 'avatar_state': 'error'})}\n\n"
-                return
-            
-            # Load copilot configuration
+            # Load copilot configuration and create service
             config = load_global_config()
-            copilot_config = config.copilot
+            service = create_copilot_service_from_config(config.copilot)
             
-            if copilot_config is None:
-                provider = "openai"
-                model = "gpt-4o"
-                context_sources = {
-                    "agents_md": True,
-                    "learnings_md": True,
-                    "prompt_md": True,
-                    "requirements": True,
-                    "other_specs": True
-                }
-            else:
-                if not copilot_config.enabled:
-                    yield f"data: {json.dumps({'error': 'Copilot is disabled in settings', 'avatar_state': 'error'})}\n\n"
-                    return
-                provider = copilot_config.provider
-                model = copilot_config.model
-                context_sources = {
-                    "agents_md": copilot_config.context_sources.agents_md,
-                    "learnings_md": copilot_config.context_sources.learnings_md,
-                    "prompt_md": copilot_config.context_sources.prompt_md,
-                    "requirements": copilot_config.context_sources.requirements,
-                    "other_specs": copilot_config.context_sources.other_specs
-                }
-            
-            # Signal thinking state
-            yield f"data: {json.dumps({'avatar_state': 'thinking'})}\n\n"
+            # Load project context if project path provided
+            context = {}
+            if request.project_path:
+                project_path = Path(request.project_path)
+                context = service.load_context(project_path)
+                # Apply token budget trimming
+                context = service.trim_context_for_token_budget(context)
             
             # Build system prompt with context
-            system_prompt = build_system_prompt(request.project_path, context_sources)
+            system_prompt = service.build_system_prompt(context)
+            
+            # Convert Pydantic ChatMessage to service ChatMessage
+            history = [
+                ServiceChatMessage(role=msg.role, content=msg.content)
+                for msg in request.history
+            ]
             
             # Build message list
-            messages = build_messages(system_prompt, request.history, request.message)
+            messages = service.build_messages(system_prompt, history, request.message)
             
-            # Stream based on provider
-            if provider == "openai":
-                async for event in stream_openai_response(api_key, model, messages):
-                    yield event
-            elif provider == "anthropic":
-                async for event in stream_anthropic_response(api_key, model, messages):
-                    yield event
-            else:
-                yield f"data: {json.dumps({'error': f'Unsupported provider: {provider}', 'avatar_state': 'error'})}\n\n"
-                return
+            # Stream response using service
+            async for event in service.stream_response(messages):
+                yield event
             
-            # Signal completion
-            yield f"data: {json.dumps({'avatar_state': 'idle', 'done': True})}\n\n"
-            
-        except httpx.TimeoutException:
-            yield f"data: {json.dumps({'error': 'Request timed out', 'avatar_state': 'error'})}\n\n"
-        except httpx.ConnectError:
-            yield f"data: {json.dumps({'error': 'Connection failed', 'avatar_state': 'error'})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e), 'avatar_state': 'error'})}\n\n"
     
