@@ -496,8 +496,8 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       return;
     }
 
-    if (action === 'block') {
-      // User wants to block the requirement before editing
+    if (action === 'reset_plan') {
+      // User wants to reset the plan before editing (S-0015: Pre-Edit Warning Modal)
       if (!pendingRequirementId) {
         setIsWarningModalOpen(false);
         setPendingSpecFilename(null);
@@ -506,8 +506,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
       setIsBlockingRequirement(true);
       try {
-        // Update requirement status to "blocked"
-        await felixApi.updateRequirementStatus(projectId, pendingRequirementId, 'blocked');
+        // Delete the plan file
+        try {
+          await felixApi.deletePlan(projectId, pendingRequirementId);
+        } catch (delErr) {
+          // Plan might not exist - that's okay
+          console.log('Plan deletion attempted (may not exist):', delErr);
+        }
+
+        // Update requirement status to "planned"
+        await felixApi.updateRequirementStatus(projectId, pendingRequirementId, 'planned');
         
         // Try to stop the agent if running
         try {
@@ -522,9 +530,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           setSelectedFilename(pendingSpecFilename);
           onSelectSpec?.(pendingSpecFilename);
         }
+
+        // Refresh requirements to update the list
+        const reqData = await felixApi.getRequirements(projectId);
+        setRequirements(reqData.requirements);
       } catch (err) {
-        console.error('Failed to block requirement:', err);
-        // Still allow editing even if blocking failed
+        console.error('Failed to reset plan:', err);
+        // Still allow editing even if reset failed
         if (pendingSpecFilename) {
           setSelectedFilename(pendingSpecFilename);
           onSelectSpec?.(pendingSpecFilename);
