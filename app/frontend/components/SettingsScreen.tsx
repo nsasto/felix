@@ -314,39 +314,39 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-200">General Settings</h3>
-            <p className="text-xs text-slate-500 mt-1">Basic Felix configuration options</p>
+            <h3 className="text-lg font-bold theme-text-secondary">General Settings</h3>
+            <p className="text-xs theme-text-muted mt-1">Basic Felix configuration options</p>
           </div>
           <button
             onClick={handleResetCategory}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800/50"
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
           >
             Reset to Defaults
           </button>
         </div>
 
         {/* Theme Selection */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Theme
           </label>
           <select
             value={config.ui?.theme || 'dark'}
             onChange={(e) => handleUIChange('theme', e.target.value as ThemeValue)}
-            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all cursor-pointer focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
+            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
           >
             <option value="dark">Dark</option>
             <option value="light">Light</option>
             <option value="system">System</option>
           </select>
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Choose your preferred color theme. "System" follows your operating system preference.
           </p>
         </div>
 
         {/* Max Iterations */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Max Iterations
           </label>
           <input
@@ -354,53 +354,53 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             min="1"
             value={config.executor.max_iterations}
             onChange={(e) => handleExecutorChange('max_iterations', parseInt(e.target.value) || 0)}
-            className={`w-full bg-[#0d1117] border rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all ${
+            className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
               validationErrors.max_iterations 
-                ? 'border-red-500/50 focus:border-red-500'
-                : 'border-slate-700/50 focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+                ? 'border-[var(--status-error)]/50 focus:border-[var(--status-error)]'
+                : 'border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20'
             }`}
           />
           {validationErrors.max_iterations && (
-            <p className="mt-1.5 text-[10px] text-red-400">{validationErrors.max_iterations}</p>
+            <p className="mt-1.5 text-[10px] text-[var(--status-error)]">{validationErrors.max_iterations}</p>
           )}
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Maximum number of iterations the agent will run before stopping
           </p>
         </div>
 
         {/* Default Mode */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Default Mode
           </label>
           <select
             value={config.executor.default_mode}
             onChange={(e) => handleExecutorChange('default_mode', e.target.value)}
-            className={`w-full bg-[#0d1117] border rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all cursor-pointer ${
+            className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all cursor-pointer ${
               validationErrors.default_mode
-                ? 'border-red-500/50'
-                : 'border-slate-700/50 focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+                ? 'border-[var(--status-error)]/50'
+                : 'border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20'
             }`}
           >
             <option value="planning">Planning</option>
             <option value="building">Building</option>
           </select>
           {validationErrors.default_mode && (
-            <p className="mt-1.5 text-[10px] text-red-400">{validationErrors.default_mode}</p>
+            <p className="mt-1.5 text-[10px] text-[var(--status-error)]">{validationErrors.default_mode}</p>
           )}
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Mode the agent starts in when a run begins
           </p>
         </div>
 
         {/* Auto Transition */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
-              <label className="block text-sm font-bold text-slate-300">
+              <label className="block text-sm font-bold theme-text-secondary">
                 Auto Transition
               </label>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] theme-text-muted mt-1">
                 Automatically switch from planning to building mode when plan is complete
               </p>
             </div>
@@ -408,8 +408,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               onClick={() => handleExecutorChange('auto_transition', !config.executor.auto_transition)}
               className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
                 config.executor.auto_transition 
-                  ? 'bg-felix-600' 
-                  : 'bg-slate-700'
+                  ? 'bg-[var(--accent-secondary)]' 
+                  : 'theme-bg-surface'
               }`}
             >
               <div
@@ -432,61 +432,61 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-200">Agent Settings</h3>
-            <p className="text-xs text-slate-500 mt-1">Agent execution preferences and policies</p>
+            <h3 className="text-lg font-bold theme-text-secondary">Agent Settings</h3>
+            <p className="text-xs theme-text-muted mt-1">Agent execution preferences and policies</p>
           </div>
           <button
             onClick={handleResetCategory}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800/50"
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
           >
             Reset to Defaults
           </button>
         </div>
 
         {/* Executable */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Executable Path
           </label>
           <input
             type="text"
             value={config.agent.executable}
             onChange={(e) => handleAgentChange('executable', e.target.value)}
-            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none transition-all focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
+            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
           />
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Path to the agent executable (e.g., droid, python)
           </p>
         </div>
 
         {/* Arguments */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Arguments
           </label>
           <input
             type="text"
             value={config.agent.args.join(' ')}
             onChange={(e) => handleAgentChange('args', e.target.value.split(' ').filter(Boolean))}
-            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none transition-all focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
+            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
           />
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Command-line arguments passed to the agent executable (space-separated)
           </p>
         </div>
 
         {/* Working Directory */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Working Directory
           </label>
           <input
             type="text"
             value={config.agent.working_directory}
             onChange={(e) => handleAgentChange('working_directory', e.target.value)}
-            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none transition-all focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
+            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
           />
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Working directory for agent execution (use "." for project root)
           </p>
         </div>
@@ -501,43 +501,43 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     return (
       <div className="space-y-6">
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-slate-200">Paths</h3>
-          <p className="text-xs text-slate-500 mt-1">File and directory locations (read-only)</p>
+          <h3 className="text-lg font-bold theme-text-secondary">Paths</h3>
+          <p className="text-xs theme-text-muted mt-1">File and directory locations (read-only)</p>
         </div>
 
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl overflow-hidden">
-          <div className="divide-y divide-slate-800/60">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl overflow-hidden">
+          <div className="divide-y divide-[var(--border-default)]">
             <div className="flex justify-between items-center px-5 py-4">
               <div>
-                <span className="text-sm text-slate-300">Specs Directory</span>
-                <p className="text-[10px] text-slate-600 mt-0.5">Location of specification files</p>
+                <span className="text-sm theme-text-secondary">Specs Directory</span>
+                <p className="text-[10px] theme-text-muted mt-0.5">Location of specification files</p>
               </div>
-              <code className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg">{config.paths.specs}</code>
+              <code className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg">{config.paths.specs}</code>
             </div>
             <div className="flex justify-between items-center px-5 py-4">
               <div>
-                <span className="text-sm text-slate-300">AGENTS.md</span>
-                <p className="text-[10px] text-slate-600 mt-0.5">Agent instructions file</p>
+                <span className="text-sm theme-text-secondary">AGENTS.md</span>
+                <p className="text-[10px] theme-text-muted mt-0.5">Agent instructions file</p>
               </div>
-              <code className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg">{config.paths.agents}</code>
+              <code className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg">{config.paths.agents}</code>
             </div>
             <div className="flex justify-between items-center px-5 py-4">
               <div>
-                <span className="text-sm text-slate-300">Runs Directory</span>
-                <p className="text-[10px] text-slate-600 mt-0.5">Location of run artifacts</p>
+                <span className="text-sm theme-text-secondary">Runs Directory</span>
+                <p className="text-[10px] theme-text-muted mt-0.5">Location of run artifacts</p>
               </div>
-              <code className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg">{config.paths.runs}</code>
+              <code className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg">{config.paths.runs}</code>
             </div>
           </div>
         </div>
 
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
+        <div className="bg-[var(--status-warning)]/5 border border-[var(--status-warning)]/20 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <svg className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-[var(--status-warning)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-xs text-amber-400/80">
-              Path settings are read-only. Edit <code className="bg-amber-500/10 px-1 rounded">felix/config.json</code> directly to modify these values.
+            <p className="text-xs text-[var(--status-warning)]/80">
+              Path settings are read-only. Edit <code className="bg-[var(--status-warning)]/10 px-1 rounded">felix/config.json</code> directly to modify these values.
             </p>
           </div>
         </div>
@@ -553,25 +553,25 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-200">Advanced Settings</h3>
-            <p className="text-xs text-slate-500 mt-1">Developer options and debug settings</p>
+            <h3 className="text-lg font-bold theme-text-secondary">Advanced Settings</h3>
+            <p className="text-xs theme-text-muted mt-1">Developer options and debug settings</p>
           </div>
           <button
             onClick={handleResetCategory}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800/50"
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
           >
             Reset to Defaults
           </button>
         </div>
 
         {/* Backpressure Section */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <label className="block text-sm font-bold text-slate-300">
+              <label className="block text-sm font-bold theme-text-secondary">
                 Enable Backpressure
               </label>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] theme-text-muted mt-1">
                 Run lint/test/build commands between agent iterations
               </p>
             </div>
@@ -579,8 +579,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               onClick={() => handleBackpressureChange('enabled', !config.backpressure.enabled)}
               className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
                 config.backpressure.enabled 
-                  ? 'bg-felix-600' 
-                  : 'bg-slate-700'
+                  ? 'bg-[var(--accent-secondary)]' 
+                  : 'theme-bg-surface'
               }`}
             >
               <div
@@ -592,10 +592,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
           </div>
 
           {config.backpressure.enabled && (
-            <div className="space-y-4 pt-4 border-t border-slate-800/60">
+            <div className="space-y-4 pt-4 border-t border-[var(--border-default)]">
               {/* Max Retries */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2">
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Max Retries
                 </label>
                 <input
@@ -603,16 +603,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                   min="0"
                   value={(config.backpressure as any).max_retries || 3}
                   onChange={(e) => handleBackpressureChange('max_retries' as any, parseInt(e.target.value) || 0)}
-                  className={`w-full bg-[#0d1117] border rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all ${
+                  className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
                     validationErrors.max_retries
-                      ? 'border-red-500/50 focus:border-red-500'
-                      : 'border-slate-700/50 focus:border-felix-500/50'
+                      ? 'border-[var(--status-error)]/50 focus:border-[var(--status-error)]'
+                      : 'border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50'
                   }`}
                 />
                 {validationErrors.max_retries && (
-                  <p className="mt-1 text-[10px] text-red-400">{validationErrors.max_retries}</p>
+                  <p className="mt-1 text-[10px] text-[var(--status-error)]">{validationErrors.max_retries}</p>
                 )}
-                <p className="mt-1.5 text-[10px] text-slate-600">
+                <p className="mt-1.5 text-[10px] theme-text-muted">
                   Number of retry attempts for failed backpressure commands
                 </p>
               </div>
@@ -620,18 +620,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               {/* Commands (read-only display) */}
               {config.backpressure.commands.length > 0 && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-2">
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
                     Validation Commands
                   </label>
-                  <div className="bg-[#0d1117] border border-slate-700/50 rounded-lg p-4 space-y-2">
+                  <div className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4 space-y-2">
                     {config.backpressure.commands.map((cmd, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono text-slate-600 w-4">{index + 1}.</span>
-                        <code className="text-xs font-mono text-slate-400">{cmd}</code>
+                        <span className="text-[9px] font-mono theme-text-muted w-4">{index + 1}.</span>
+                        <code className="text-xs font-mono theme-text-tertiary">{cmd}</code>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[10px] text-slate-600">
+                  <p className="mt-1.5 text-[10px] theme-text-muted">
                     Edit felix/config.json directly to modify commands
                   </p>
                 </div>
@@ -641,24 +641,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         </div>
 
         {/* Executor Mode (read-only info) */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <div className="flex justify-between items-center">
             <div>
-              <label className="block text-sm font-bold text-slate-300">
+              <label className="block text-sm font-bold theme-text-secondary">
                 Executor Mode
               </label>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] theme-text-muted mt-1">
                 How the agent executor runs (local or remote)
               </p>
             </div>
-            <span className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg uppercase">
+            <span className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg uppercase">
               {config.executor.mode}
             </span>
           </div>
         </div>
 
         {/* Config Version */}
-        <div className="text-center text-[10px] font-mono text-slate-600 pt-4">
+        <div className="text-center text-[10px] font-mono theme-text-muted pt-4">
           Config Version: {config.version}
         </div>
       </div>
@@ -671,12 +671,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-200">Projects</h3>
-            <p className="text-xs text-slate-500 mt-1">Manage registered Felix projects</p>
+            <h3 className="text-lg font-bold theme-text-secondary">Projects</h3>
+            <p className="text-xs theme-text-muted mt-1">Manage registered Felix projects</p>
           </div>
           <button
             onClick={() => setShowRegisterForm(true)}
-            className="px-4 py-2 text-xs font-bold bg-felix-600 text-white rounded-lg hover:bg-felix-500 transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-xs font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-colors flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -692,25 +692,25 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             placeholder="Search projects by name or path..."
             value={projectSearchQuery}
             onChange={(e) => setProjectSearchQuery(e.target.value)}
-            className="w-full bg-[#161b22] border border-slate-800/60 rounded-xl px-4 py-3 pl-10 text-sm text-slate-300 outline-none focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20 transition-all"
+            className="w-full theme-bg-elevated border border-[var(--border-default)] rounded-xl px-4 py-3 pl-10 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20 transition-all"
           />
-          <svg className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 theme-text-muted absolute left-4 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
 
         {/* Register Form Modal */}
         {showRegisterForm && (
-          <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-bold text-slate-300">Register New Project</h4>
+              <h4 className="text-sm font-bold theme-text-secondary">Register New Project</h4>
               <button
                 onClick={() => {
                   setShowRegisterForm(false);
                   setRegisterPath('');
                   setRegisterName('');
                 }}
-                className="text-slate-500 hover:text-slate-300 transition-colors"
+                className="theme-text-muted hover:theme-text-secondary transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -719,26 +719,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2">Project Path *</label>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">Project Path *</label>
                 <input
                   type="text"
                   placeholder="C:\path\to\your\project"
                   value={registerPath}
                   onChange={(e) => setRegisterPath(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none focus:border-felix-500/50 transition-all"
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
                 />
-                <p className="mt-1.5 text-[10px] text-slate-600">
+                <p className="mt-1.5 text-[10px] theme-text-muted">
                   Full path to the project directory (must contain specs/ and felix/ directories)
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2">Project Name (optional)</label>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">Project Name (optional)</label>
                 <input
                   type="text"
                   placeholder="My Project"
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-felix-500/50 transition-all"
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-2">
@@ -748,7 +748,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                     setRegisterPath('');
                     setRegisterName('');
                   }}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                  className="px-4 py-2 text-xs font-bold theme-text-muted hover:theme-text-secondary transition-colors"
                 >
                   Cancel
                 </button>
@@ -775,8 +775,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                   disabled={!registerPath.trim() || isRegistering}
                   className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
                     registerPath.trim() && !isRegistering
-                      ? 'bg-felix-600 text-white hover:bg-felix-500'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      ? 'bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]'
+                      : 'theme-bg-surface theme-text-muted cursor-not-allowed'
                   }`}
                 >
                   {isRegistering ? (
@@ -796,23 +796,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         {/* Loading State */}
         {projectsLoading && (
           <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
-            <span className="text-xs font-mono text-slate-600 uppercase">Loading projects...</span>
+            <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-4" />
+            <span className="text-xs font-mono theme-text-muted uppercase">Loading projects...</span>
           </div>
         )}
 
         {/* Error State */}
         {projectsError && !projectsLoading && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+          <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-xl p-4">
             <div className="flex items-start gap-3">
-              <svg className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <div>
-                <p className="text-xs text-red-400">{projectsError}</p>
+                <p className="text-xs text-[var(--status-error)]">{projectsError}</p>
                 <button
                   onClick={fetchProjects}
-                  className="text-[10px] text-red-400/70 hover:text-red-400 mt-2 underline"
+                  className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
                 >
                   Try again
                 </button>
@@ -823,14 +823,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
 
         {/* Empty State */}
         {!projectsLoading && !projectsError && projects.length === 0 && (
-          <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-8 text-center">
-            <div className="w-12 h-12 bg-slate-800/50 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
+            <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 theme-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
             </div>
-            <h4 className="text-sm font-bold text-slate-400 mb-2">No Projects Registered</h4>
-            <p className="text-xs text-slate-600 max-w-sm mx-auto">
+            <h4 className="text-sm font-bold theme-text-tertiary mb-2">No Projects Registered</h4>
+            <p className="text-xs theme-text-muted max-w-sm mx-auto">
               Register a Felix project to get started. Projects must have specs/ and felix/ directories.
             </p>
           </div>
@@ -853,31 +853,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               .map((project) => (
                 <div
                   key={project.id}
-                  className={`bg-[#161b22] border rounded-xl p-5 transition-all ${
+                  className={`theme-bg-elevated border rounded-xl p-5 transition-all ${
                     project.id === projectId
-                      ? 'border-felix-500/40 bg-felix-500/5'
-                      : 'border-slate-800/60 hover:border-slate-700'
+                      ? 'border-[var(--accent-primary)]/40 bg-[var(--selected-bg)]'
+                      : 'border-[var(--border-default)] hover:border-[var(--border-muted)]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-sm font-bold text-slate-200 truncate">
+                        <h4 className="text-sm font-bold theme-text-secondary truncate">
                           {project.name || project.id}
                         </h4>
                         {project.id === projectId && (
-                          <span className="px-2 py-0.5 text-[9px] font-bold bg-felix-500/20 text-felix-400 rounded-full uppercase">
+                          <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full uppercase">
                             Active
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <code className="text-[11px] font-mono text-slate-500 truncate block">
+                        <code className="text-[11px] font-mono theme-text-muted truncate block">
                           {project.path}
                         </code>
                         <button
                           onClick={() => navigator.clipboard.writeText(project.path)}
-                          className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition-colors"
+                          className="flex-shrink-0 theme-text-muted hover:theme-text-tertiary transition-colors"
                           title="Copy path"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -885,7 +885,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                           </svg>
                         </button>
                       </div>
-                      <p className="text-[10px] text-slate-600 mt-2">
+                      <p className="text-[10px] theme-text-muted mt-2">
                         Registered {new Date(project.registered_at).toLocaleDateString()}
                       </p>
                     </div>
@@ -894,7 +894,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                         onClick={() => {
                           // TODO: Open project action - requires callback from parent
                         }}
-                        className="px-3 py-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-lg hover:bg-slate-800/50 transition-all"
+                        className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
                       >
                         Open
                       </button>
@@ -904,14 +904,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                           setConfigProjectName(project.name || '');
                           setConfigProjectPath(project.path);
                         }}
-                        className="px-3 py-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-lg hover:bg-slate-800/50 transition-all"
+                        className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
                       >
                         Configure
                       </button>
                       {project.id !== projectId && (
                         <button
                           onClick={() => setShowUnregisterConfirm(project.id)}
-                          className="px-3 py-1.5 text-[10px] font-bold text-red-400/70 hover:text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-all"
+                          className="px-3 py-1.5 text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] border border-[var(--status-error)]/20 rounded-lg hover:bg-[var(--status-error)]/10 transition-all"
                         >
                           Unregister
                         </button>
@@ -921,10 +921,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
 
                   {/* Configuration Panel */}
                   {configuringProjectId === project.id && (
-                    <div className="mt-4 pt-4 border-t border-slate-800/60">
+                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-400 mb-2">
+                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
                             Project Name
                           </label>
                           <input
@@ -932,14 +932,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                             value={configProjectName}
                             onChange={(e) => setConfigProjectName(e.target.value)}
                             placeholder={project.path.split(/[/\\]/).pop() || 'Project name'}
-                            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-felix-500/50 transition-all"
+                            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
                           />
-                          <p className="mt-1.5 text-[10px] text-slate-600">
+                          <p className="mt-1.5 text-[10px] theme-text-muted">
                             Display name for this project (leave empty to use directory name)
                           </p>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-400 mb-2">
+                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
                             Project Folder
                           </label>
                           <input
@@ -947,9 +947,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                             value={configProjectPath}
                             onChange={(e) => setConfigProjectPath(e.target.value)}
                             placeholder="C:\path\to\your\project"
-                            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none focus:border-felix-500/50 transition-all"
+                            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
                           />
-                          <p className="mt-1.5 text-[10px] text-slate-600">
+                          <p className="mt-1.5 text-[10px] theme-text-muted">
                             Full path to the project directory (must contain specs/ and felix/ directories)
                           </p>
                         </div>
@@ -960,7 +960,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                               setConfigProjectName('');
                               setConfigProjectPath('');
                             }}
-                            className="px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                            className="px-4 py-2 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
                           >
                             Cancel
                           </button>
@@ -988,8 +988,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                             disabled={isSavingConfig}
                             className={`px-4 py-2 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
                               !isSavingConfig
-                                ? 'bg-felix-600 text-white hover:bg-felix-500'
-                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                ? 'bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]'
+                                : 'theme-bg-surface theme-text-muted cursor-not-allowed'
                             }`}
                           >
                             {isSavingConfig ? (
@@ -1008,15 +1008,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
 
                   {/* Unregister Confirmation */}
                   {showUnregisterConfirm === project.id && (
-                    <div className="mt-4 pt-4 border-t border-slate-800/60">
+                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs text-amber-400">
+                        <p className="text-xs text-[var(--status-warning)]">
                           Remove this project from Felix? Files will remain on disk.
                         </p>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setShowUnregisterConfirm(null)}
-                            className="px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                            className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
                           >
                             Cancel
                           </button>
@@ -1035,11 +1035,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                               }
                             }}
                             disabled={unregisteringId === project.id}
-                            className="px-3 py-1.5 text-[10px] font-bold bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all flex items-center gap-2"
+                            className="px-3 py-1.5 text-[10px] font-bold bg-[var(--status-error)]/20 text-[var(--status-error)] rounded-lg hover:bg-[var(--status-error)]/30 transition-all flex items-center gap-2"
                           >
                             {unregisteringId === project.id ? (
                               <>
-                                <div className="w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                                <div className="w-3 h-3 border-2 border-[var(--status-error)]/30 border-t-[var(--status-error)] rounded-full animate-spin" />
                                 Removing...
                               </>
                             ) : (
@@ -1079,10 +1079,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   // Loading state
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
+      <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
-          <span className="text-xs font-mono text-slate-600 uppercase">Loading settings...</span>
+          <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-felix-500 rounded-full animate-spin mb-4" />
+          <span className="text-xs font-mono theme-text-muted uppercase">Loading settings...</span>
         </div>
       </div>
     );
@@ -1091,18 +1091,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   // Error state (no config)
   if (error && !config) {
     return (
-      <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
+      <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-[var(--status-error)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h3 className="text-sm font-bold text-slate-400 mb-2">Failed to Load Settings</h3>
-          <p className="text-xs text-slate-600 max-w-md mb-4">{error}</p>
+          <h3 className="text-sm font-bold theme-text-tertiary mb-2">Failed to Load Settings</h3>
+          <p className="text-xs theme-text-muted max-w-md mb-4">{error}</p>
           <button 
             onClick={onBack}
-            className="px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+            className="px-4 py-2 text-xs font-bold text-[var(--accent-primary)] border border-[var(--accent-primary)]/20 rounded-lg hover:bg-[var(--accent-primary)]/10 transition-colors"
           >
             ← Back to Projects
           </button>
@@ -1112,21 +1112,21 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   }
 
   return (
-    <div className="flex-1 flex bg-[#0d1117] overflow-hidden">
+    <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Left Sidebar - Categories Navigation */}
-      <div className="w-64 border-r border-slate-800/60 flex flex-col bg-[#0a0c10]/40 flex-shrink-0">
+      <div className="w-64 border-r border-[var(--border-default)] flex flex-col theme-bg-deep flex-shrink-0" style={{ backgroundColor: 'var(--bg-deep)' }}>
         {/* Sidebar Header */}
-        <div className="h-14 border-b border-slate-800/60 flex items-center px-5">
+        <div className="h-14 border-b border-[var(--border-default)] flex items-center px-5">
           <button
             onClick={onBack}
-            className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300 mr-3"
+            className="p-1.5 hover:bg-[var(--hover-bg)] rounded-lg transition-all theme-text-muted hover:theme-text-secondary mr-3"
             title="Back to Projects"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Settings</span>
+          <span className="text-xs font-bold theme-text-tertiary uppercase tracking-widest">Settings</span>
         </div>
 
         {/* Categories List */}
@@ -1137,25 +1137,25 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               onClick={() => setActiveCategory(category.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
                 activeCategory === category.id
-                  ? 'bg-felix-600/10 text-felix-400 border border-felix-500/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+                  ? 'bg-[var(--selected-bg)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/20'
+                  : 'theme-text-tertiary hover:theme-text-secondary hover:bg-[var(--hover-bg)] border border-transparent'
               }`}
             >
-              <div className={`flex-shrink-0 ${activeCategory === category.id ? 'text-felix-400' : 'text-slate-500'}`}>
+              <div className={`flex-shrink-0 ${activeCategory === category.id ? 'text-[var(--accent-primary)]' : 'theme-text-muted'}`}>
                 {category.icon}
               </div>
               <div className="min-w-0">
                 <span className="block text-sm font-medium">{category.label}</span>
-                <span className="block text-[10px] text-slate-600 truncate">{category.description}</span>
+                <span className="block text-[10px] theme-text-muted truncate">{category.description}</span>
               </div>
             </button>
           ))}
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-800/60">
-          <div className="flex items-center gap-2 text-[10px] text-slate-600">
-            <IconFelix className="w-4 h-4 text-felix-500/50" />
+        <div className="p-4 border-t border-[var(--border-default)]">
+          <div className="flex items-center gap-2 text-[10px] theme-text-muted">
+            <IconFelix className="w-4 h-4 text-[var(--accent-primary)]/50" />
             <span className="font-mono">felix/config.json</span>
           </div>
         </div>
@@ -1164,11 +1164,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       {/* Right Panel - Settings Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar with Save Controls */}
-        <div className="h-14 border-b border-slate-800/60 flex items-center px-6 justify-between bg-[#0d1117]/95 backdrop-blur flex-shrink-0">
+        <div className="h-14 border-b border-[var(--border-default)] flex items-center px-6 justify-between backdrop-blur flex-shrink-0" style={{ backgroundColor: 'var(--bg-base)', opacity: 0.95 }}>
           <div className="flex items-center gap-3">
             {hasChanges && (
-              <div className="flex items-center gap-2 text-[10px] text-amber-400">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <div className="flex items-center gap-2 text-[10px] text-[var(--status-warning)]">
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--status-warning)] animate-pulse" />
                 <span className="font-mono uppercase">Unsaved changes</span>
               </div>
             )}
@@ -1178,7 +1178,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             {hasChanges && (
               <button
                 onClick={handleReset}
-                className="px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
               >
                 Discard
               </button>
@@ -1188,8 +1188,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               disabled={saving || !hasChanges || Object.keys(validationErrors).length > 0}
               className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
                 hasChanges && Object.keys(validationErrors).length === 0
-                  ? 'bg-felix-600 text-white hover:bg-felix-500'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  ? 'bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]'
+                  : 'theme-bg-surface theme-text-muted cursor-not-allowed'
               }`}
             >
               {saving ? (
@@ -1207,7 +1207,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         {/* Success/Error Messages */}
         {(successMessage || error) && (
           <div className={`px-6 py-3 text-xs flex items-center gap-2 ${
-            successMessage ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+            successMessage ? 'bg-[var(--status-success)]/10 text-[var(--status-success)]' : 'bg-[var(--status-error)]/10 text-[var(--status-error)]'
           }`}>
             {successMessage ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
