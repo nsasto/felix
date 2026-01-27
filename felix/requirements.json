@@ -1,4 +1,4 @@
-{
+﻿{
   "requirements": [
     {
       "id": "S-0005",
@@ -131,7 +131,7 @@
       "id": "S-0009",
       "title": "Light Theme",
       "spec_path": "specs/S-0009-light-theme.md",
-      "status": "blocked",
+      "status": "in_progress",
       "priority": "medium",
       "labels": [
         "frontend",

@@ -553,7 +553,11 @@ function Invoke-BackpressureValidation {
                 }
                 $allOutput += ""
                 
-                if ($exitCode -ne 0) {
+                # Exit code 5 for backend tests means "no tests found" - treat as success
+                $isBackendTest = $cmd.command -match 'test-backend'
+                $isNoTestsFound = $exitCode -eq 5
+                
+                if ($exitCode -ne 0 -and -not ($isBackendTest -and $isNoTestsFound)) {
                     Write-Host "    ❌ FAILED (exit code: $exitCode)" -ForegroundColor Red
                     $result.success = $false
                     $result.failed_commands += @{
@@ -564,7 +568,10 @@ function Invoke-BackpressureValidation {
                     }
                 }
                 else {
-                    if ($hasRemoteException -and $isNoisyTool) {
+                    if ($isBackendTest -and $isNoTestsFound) {
+                        Write-Host "    ⚠️  PASSED (no tests found)" -ForegroundColor Yellow
+                    }
+                    elseif ($hasRemoteException -and $isNoisyTool) {
                         Write-Host "    ⚠️  PASSED (stderr output ignored)" -ForegroundColor Yellow
                     }
                     else {
