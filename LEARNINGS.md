@@ -305,6 +305,57 @@ if sys.platform == "win32":
 $env:PYTHONIOENCODING = "utf-8"
 ```
 
+### Issue 3: PowerShell Encoding Parameter Compatibility
+
+**Symptom**: Error when using `Set-Content` or `Out-File`: `Cannot bind parameter 'Encoding'. Cannot convert value "utf8NoBOM" to type "Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding"`
+
+**Root Cause**: PowerShell 5.1 (default on Windows) does not support the `utf8NoBOM` encoding parameter. This is only available in PowerShell 7+.
+
+**Version Differences**:
+
+PowerShell 5.1 (Windows PowerShell):
+
+- `UTF8` - UTF-8 with BOM (byte order mark)
+- `UTF7`, `UTF32`, `Unicode`, `ASCII`, etc.
+
+PowerShell 7+ (PowerShell Core):
+
+- `utf8NoBOM` - UTF-8 without BOM
+- `utf8BOM` - UTF-8 with BOM
+- All previous encodings
+
+**Anti-Pattern**:
+
+```powershell
+# ❌ WRONG - Fails in PowerShell 5.1
+Set-Content -Path "output.log" -Value $content -Encoding utf8NoBOM
+# Error: Cannot convert value "utf8NoBOM" to type...
+```
+
+**Pattern**:
+
+```powershell
+# ✅ CORRECT - Works in both PowerShell 5.1 and 7+
+Set-Content -Path "output.log" -Value $content -Encoding UTF8
+
+# For true UTF-8 without BOM in PowerShell 5.1, use .NET:
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($filePath, $content, $utf8NoBom)
+```
+
+**When It Matters**:
+
+- Writing markdown files (report.md, output.log, plan.md) - UTF-8 with BOM is generally fine
+- Writing JSON files - BOM can cause parsing issues, use .NET approach
+- Writing files for cross-platform tools - some tools expect no BOM
+- Most modern tools handle BOM correctly, so `UTF8` is safe default
+
+**Why This Happened**:
+
+- PowerShell 7 added `utf8NoBOM` as default encoding (breaking change from 5.1)
+- Copying code from PowerShell 7 examples breaks on Windows default install
+- Always test scripts on PowerShell 5.1 if supporting Windows users
+
 ---
 
 ## Silent Killers Gallery

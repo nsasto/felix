@@ -4,7 +4,7 @@
             "id": "S-0005",
             "title": "Validation-Driven Completion",
             "spec_path": "specs/S-0005-validation-driven-completion.md",
-            "status": "blocked",
+            "status": "done",
             "priority": "critical",
             "labels": [
                 "foundation",
@@ -12,13 +12,13 @@
                 "agent"
             ],
             "depends_on": [],
-            "updated_at": "2026-01-26"
+            "updated_at": "2026-01-27"
         },
         {
             "id": "S-0001",
             "title": "Felix Agent Executor",
             "spec_path": "specs/S-0001-felix-agent-executor.md",
-            "status": "complete",
+            "status": "done",
             "priority": "critical",
             "labels": [
                 "foundation",
@@ -27,13 +27,13 @@
             "depends_on": [
                 "S-0005"
             ],
-            "updated_at": "2026-01-26"
+            "updated_at": "2026-01-27"
         },
         {
             "id": "S-0002",
             "title": "Felix Backend API Server",
             "spec_path": "specs/S-0002-backend-api-server.md",
-            "status": "blocked",
+            "status": "done",
             "priority": "high",
             "labels": [
                 "backend",
@@ -43,13 +43,13 @@
                 "S-0001",
                 "S-0005"
             ],
-            "updated_at": "2026-01-26"
+            "updated_at": "2026-01-27"
         },
         {
             "id": "S-0003",
             "title": "Felix Frontend Observer UI",
             "spec_path": "specs/S-0003-frontend-observer-ui.md",
-            "status": "planned",
+            "status": "done",
             "priority": "high",
             "labels": [
                 "frontend",
@@ -66,7 +66,7 @@
             "id": "S-0004",
             "title": "Artifact Templates and Scaffolding",
             "spec_path": "specs/S-0004-artifact-templates.md",
-            "status": "complete",
+            "status": "done",
             "priority": "medium",
             "labels": [
                 "tooling",
@@ -75,7 +75,7 @@
             "depends_on": [
                 "S-0005"
             ],
-            "updated_at": "2026-01-26"
+            "updated_at": "2026-01-27"
         },
         {
             "id": "S-0006",
@@ -97,7 +97,7 @@
             "id": "S-0007",
             "title": "Settings Screen",
             "spec_path": "specs/S-0007-settings-screen.md.md",
-            "status": "complete",
+            "status": "done",
             "priority": "medium",
             "labels": [
                 "frontend",
@@ -108,13 +108,13 @@
                 "S-0003",
                 "S-0002"
             ],
-            "updated_at": "2026-01-26"
+            "updated_at": "2026-01-27"
         },
         {
             "id": "S-0008",
             "title": "Projects Settings Screen",
             "spec_path": "specs/S-0008-projects-settings-screen.md",
-            "status": "complete",
+            "status": "done",
             "priority": "medium",
             "labels": [
                 "frontend",
@@ -131,7 +131,7 @@
             "id": "S-0009",
             "title": "Light Theme",
             "spec_path": "specs/S-0009-light-theme.md",
-            "status": "complete",
+            "status": "done",
             "priority": "medium",
             "labels": [
                 "frontend",
@@ -149,7 +149,7 @@
             "id": "S-0010",
             "title": "Kanban Card Detail Slide-Out",
             "spec_path": "specs/S-0010-kanban-card-detail.md",
-            "status": "blocked",
+            "status": "done",
             "priority": "high",
             "labels": [
                 "frontend",
@@ -161,7 +161,7 @@
                 "S-0003",
                 "S-0002"
             ],
-            "updated_at": "2026-01-26"
+            "updated_at": "2026-01-27"
         },
         {
             "id": "S-0011",
@@ -177,6 +177,26 @@
             "id": "S-0012",
             "title": "Done Status",
             "spec_path": "specs/S-0012-done-status.md",
+            "status": "done",
+            "priority": "medium",
+            "labels": [],
+            "depends_on": [],
+            "updated_at": "2026-01-27"
+        },
+        {
+            "id": "S-0013",
+            "title": "Agent Settings Management",
+            "spec_path": "specs/S-0013-agent-settings-management.md",
+            "status": "draft",
+            "priority": "medium",
+            "labels": [],
+            "depends_on": [],
+            "updated_at": "2026-01-27"
+        },
+        {
+            "id": "S-0014",
+            "title": "Agent Control Panel",
+            "spec_path": "specs/S-0014-agent-control-panel.md",
             "status": "draft",
             "priority": "medium",
             "labels": [],
