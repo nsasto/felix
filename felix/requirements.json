@@ -125,13 +125,13 @@
         "S-0002",
         "S-0007"
       ],
-      "updated_at": "2026-01-26"
+      "updated_at": "2026-01-27"
     },
     {
       "id": "S-0009",
       "title": "Light Theme",
       "spec_path": "specs/S-0009-light-theme.md",
-      "status": "planned",
+      "status": "blocked",
       "priority": "medium",
       "labels": [
         "frontend",
