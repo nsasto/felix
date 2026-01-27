@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { felixApi, Requirement, RunHistoryEntry } from "../services/felixApi";
 import { marked } from "marked";
+import RunArtifactViewer from "./RunArtifactViewer";
+import RunCard from "./RunCard";
 
 // Status badge styles matching RequirementsKanban
 const STATUS_STYLES: Record<
@@ -66,7 +68,6 @@ const PRIORITY_STYLES: Record<
 };
 
 type TopLevelTabId = "overview" | "history";
-type ArtifactSubTabId = "report" | "log" | "plan";
 
 interface TopLevelTabInfo {
   id: TopLevelTabId;
@@ -77,16 +78,6 @@ interface TopLevelTabInfo {
 const TOP_LEVEL_TABS: TopLevelTabInfo[] = [
   { id: "overview", label: "Overview", icon: "📋" },
   { id: "history", label: "Run History", icon: "🕐" },
-];
-
-const ARTIFACT_SUB_TABS: {
-  id: ArtifactSubTabId;
-  label: string;
-  icon: string;
-}[] = [
-  { id: "report", label: "Report", icon: "📊" },
-  { id: "log", label: "Output Log", icon: "📜" },
-  { id: "plan", label: "Plan", icon: "📝" },
 ];
 
 interface RequirementDetailSlideOutProps {
@@ -106,20 +97,11 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   // Currently selected run in Run History tab
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
-  // Sub-tab for artifact detail panel
-  const [activeSubTab, setActiveSubTab] = useState<ArtifactSubTabId>("report");
-
   // Spec content for Overview tab
   const [specContent, setSpecContent] = useState<string>("");
   const [specLoading, setSpecLoading] = useState(false);
   const [specError, setSpecError] = useState<string | null>(null);
   const [specHtml, setSpecHtml] = useState<string>("");
-
-  // Artifact content for Run History detail panel
-  const [artifactContent, setArtifactContent] = useState<string>("");
-  const [artifactLoading, setArtifactLoading] = useState(false);
-  const [artifactError, setArtifactError] = useState<string | null>(null);
-  const [artifactHtml, setArtifactHtml] = useState<string>("");
 
   // History state
   const [runHistory, setRunHistory] = useState<RunHistoryEntry[]>([]);
@@ -135,11 +117,8 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
       // Default tab is always Overview (consistent entry point)
       setActiveTab("overview");
       setSelectedRunId(null);
-      setActiveSubTab("report");
       setSpecContent("");
       setSpecHtml("");
-      setArtifactContent("");
-      setArtifactHtml("");
       setRunHistory([]);
     }
   }, [requirement?.id]);
@@ -239,88 +218,6 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
     fetchHistory();
   }, [projectId, requirement?.id, activeTab]);
 
-  // Fetch artifact content when selected run or sub-tab changes
-  useEffect(() => {
-    if (!requirement || !selectedRunId) {
-      setArtifactContent("");
-      setArtifactHtml("");
-      return;
-    }
-
-    const fetchArtifact = async () => {
-      setArtifactLoading(true);
-      setArtifactError(null);
-      setArtifactContent("");
-
-      try {
-        let filename: string;
-        switch (activeSubTab) {
-          case "report":
-            filename = "report.md";
-            break;
-          case "log":
-            filename = "output.log";
-            break;
-          case "plan":
-            filename = `plan-${requirement.id}.md`;
-            break;
-          default:
-            return;
-        }
-
-        const result = await felixApi.getRunArtifact(
-          projectId,
-          selectedRunId,
-          filename,
-        );
-        setArtifactContent(result.content);
-      } catch (err) {
-        console.error("Failed to fetch artifact:", err);
-        setArtifactError(
-          err instanceof Error ? err.message : "Failed to load artifact",
-        );
-      } finally {
-        setArtifactLoading(false);
-      }
-    };
-
-    fetchArtifact();
-  }, [projectId, requirement?.id, selectedRunId, activeSubTab]);
-
-  // Parse artifact markdown (for all artifact tabs including log)
-  useEffect(() => {
-    if (!artifactContent) {
-      setArtifactHtml("");
-      return;
-    }
-
-    let isMounted = true;
-    const parseMarkdown = async () => {
-      try {
-        const result = await marked.parse(artifactContent);
-        if (isMounted) {
-          const readOnlyHtml = result.replace(
-            /(<input type="checkbox"[^>]*)/g,
-            '$1 disabled onclick="return false;"',
-          );
-          setArtifactHtml(readOnlyHtml);
-        }
-      } catch (err) {
-        console.error("Markdown parsing error:", err);
-        if (isMounted) {
-          setArtifactHtml(
-            `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`,
-          );
-        }
-      }
-    };
-
-    parseMarkdown();
-    return () => {
-      isMounted = false;
-    };
-  }, [activeSubTab, artifactContent]);
-
   // Keyboard handlers
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -382,13 +279,12 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+      if (diff < 60) return `${diff}s ago`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
     } catch {
       return dateString;
     }
@@ -400,7 +296,6 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
   const handleSelectRun = (runId: string) => {
     setSelectedRunId(runId);
-    setActiveSubTab("report"); // Default to report when selecting a run
   };
 
   // Don't render anything if no requirement selected
@@ -562,70 +457,14 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               </div>
             ) : (
               <div className="p-2 space-y-1">
-                {runHistory.map((run) => {
-                  const isSelected = run.run_id === selectedRunId;
-                  const statusColor =
-                    run.status === "completed"
-                      ? "text-emerald-400"
-                      : run.status === "running"
-                        ? "text-amber-400"
-                        : run.status === "failed"
-                          ? "text-red-400"
-                          : "text-slate-400";
-                  const statusBg =
-                    run.status === "completed"
-                      ? "bg-emerald-500/10 border-emerald-500/20"
-                      : run.status === "running"
-                        ? "bg-amber-500/10 border-amber-500/20"
-                        : run.status === "failed"
-                          ? "bg-red-500/10 border-red-500/20"
-                          : "bg-slate-500/10 border-slate-500/20";
-
-                  return (
-                    <button
-                      key={run.run_id}
-                      onClick={() => handleSelectRun(run.run_id)}
-                      className={`
-                        w-full text-left px-3 py-2 rounded-lg border transition-all
-                        ${
-                          isSelected
-                            ? "theme-bg-elevated border-felix-500/50 ring-1 ring-felix-500/30"
-                            : "theme-bg-elevated/50 theme-border hover:border-slate-600"
-                        }
-                      `}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-mono text-slate-400 truncate mb-0.5">
-                            {run.run_id}
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            {formatDate(run.started_at)}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {run.exit_code !== null &&
-                            run.exit_code !== undefined && (
-                              <span
-                                className={`text-[10px] font-mono ${
-                                  run.exit_code === 0
-                                    ? "text-emerald-400"
-                                    : "text-red-400"
-                                }`}
-                              >
-                                exit: {run.exit_code}
-                              </span>
-                            )}
-                          <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusBg} ${statusColor} uppercase`}
-                          >
-                            {run.status}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                {runHistory.map((run) => (
+                  <RunCard
+                    key={run.run_id}
+                    run={run}
+                    isSelected={run.run_id === selectedRunId}
+                    onClick={handleSelectRun}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -634,7 +473,6 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         {/* Detail Panel (right side, ~60% width) */}
         <div className="w-[60%] flex flex-col">
           {!selectedRunId ? (
-            // Empty state when no run selected
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
               <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
                 <span className="text-2xl">📭</span>
@@ -647,77 +485,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               </p>
             </div>
           ) : (
-            <>
-              {/* Sub-tab bar for artifacts */}
-              <div className="h-10 border-b theme-border flex items-center px-3 gap-1 flex-shrink-0 theme-bg-deep">
-                {ARTIFACT_SUB_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveSubTab(tab.id)}
-                    className={`
-                      px-3 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1.5
-                      ${
-                        activeSubTab === tab.id
-                          ? "bg-slate-800 text-felix-400 shadow-sm"
-                          : "text-slate-500 hover:text-slate-400"
-                      }
-                    `}
-                  >
-                    <span>{tab.icon}</span>
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Artifact content */}
-              <div className="flex-1 overflow-hidden">
-                {artifactLoading ? (
-                  <div className="flex flex-col items-center justify-center h-full">
-                    <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin mb-3" />
-                    <span className="text-xs text-slate-600">
-                      Loading artifact...
-                    </span>
-                  </div>
-                ) : artifactError ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                    <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-                      <span className="text-2xl">📄</span>
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-400 mb-2">
-                      Artifact Not Found
-                    </h3>
-                    <p className="text-xs text-slate-600 max-w-md">
-                      {artifactError}
-                    </p>
-                  </div>
-                ) : (
-                  // Markdown view (report, plan, or log)
-                  <div className="h-full overflow-y-auto custom-scrollbar p-6">
-                    {artifactHtml ? (
-                      <div
-                        className="prose prose-invert prose-sm max-w-none
-                          prose-headings:text-slate-200 prose-headings:font-bold
-                          prose-p:text-slate-400 prose-p:leading-relaxed
-                          prose-a:text-felix-400 prose-a:no-underline hover:prose-a:underline
-                          prose-code:text-amber-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-                          prose-pre:theme-bg-elevated prose-pre:border prose-pre:theme-border
-                          prose-li:text-slate-400
-                          prose-strong:text-slate-200
-                          prose-blockquote:border-l-felix-500 prose-blockquote:text-slate-400"
-                        dangerouslySetInnerHTML={{ __html: artifactHtml }}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
-                        <span className="text-4xl opacity-30">📋</span>
-                        <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                          No content available
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
+            <RunArtifactViewer projectId={projectId} runId={selectedRunId} />
           )}
         </div>
       </div>

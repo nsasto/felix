@@ -9,6 +9,8 @@ import {
 import { IconFelix, IconCpu, IconTerminal } from "./Icons";
 import { marked } from "marked";
 import Ansi from "ansi-to-react";
+import RunArtifactViewer from "./RunArtifactViewer";
+import RunCard from "./RunCard";
 
 // --- Types ---
 
@@ -1130,37 +1132,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
           </div>
         ) : (
           filteredRuns.map((run) => (
-            <button
-              key={run.run_id}
-              onClick={() => onSelectRun(run.run_id)}
-              className="w-full p-3 rounded-xl text-left transition-all border hover:border-felix-500/30"
-              style={{
-                backgroundColor: "var(--bg-base)",
-                borderColor: "var(--border-default)",
-              }}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <span
-                  className="text-xs font-mono truncate"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {run.run_id}
-                </span>
-                <RunStatusBadge status={run.status} />
-              </div>
-              <div
-                className="flex items-center gap-3 text-[10px]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {run.requirement_id && (
-                  <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    {run.requirement_id}
-                  </span>
-                )}
-                <span>{formatRelativeTime(run.started_at)}</span>
-                {run.exit_code !== null && <span>exit: {run.exit_code}</span>}
-              </div>
-            </button>
+            <RunCard key={run.run_id} run={run} onClick={onSelectRun} />
           ))
         )}
       </div>
@@ -1181,70 +1153,6 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
   runId,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<"report" | "log" | "plan">(
-    "report",
-  );
-  const [content, setContent] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [html, setHtml] = useState<string>("");
-
-  // Fetch artifact content
-  useEffect(() => {
-    if (!runId) return;
-
-    const fetchContent = async () => {
-      setLoading(true);
-      setError(null);
-      setContent("");
-
-      try {
-        const filename =
-          activeTab === "report"
-            ? "report.md"
-            : activeTab === "log"
-              ? "output.log"
-              : `plan-${runId.split("T")[0]}.md`;
-        const result = await felixApi.getRunArtifact(
-          projectId,
-          runId,
-          filename,
-        );
-        setContent(result.content);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load artifact",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchContent();
-  }, [projectId, runId, activeTab]);
-
-  // Parse markdown
-  useEffect(() => {
-    if (!content || activeTab === "log") {
-      setHtml("");
-      return;
-    }
-
-    let isMounted = true;
-    const parseMarkdown = async () => {
-      try {
-        const result = await marked.parse(content);
-        if (isMounted) setHtml(result);
-      } catch (err) {
-        console.error("Markdown parsing error:", err);
-      }
-    };
-    parseMarkdown();
-    return () => {
-      isMounted = false;
-    };
-  }, [content, activeTab]);
-
   // Handle ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1254,134 +1162,35 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  if (!runId) return null;
+  const isOpen = !!runId;
 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
+      <div
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
+          runId ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={onClose}
+      />
 
       {/* Slide-out panel */}
       <div
-        className="fixed right-0 top-0 bottom-8 w-[60vw] min-w-[500px] max-w-[800px] z-50 flex flex-col border-l shadow-2xl animate-in slide-in-from-right"
+        className={`fixed right-0 top-0 bottom-8 w-[60vw] min-w-[500px] max-w-[800px] z-50 flex flex-col border-l shadow-2xl transition-transform duration-300 ease-out ${
+          runId ? "translate-x-0" : "translate-x-full"
+        }`}
         style={{
           backgroundColor: "var(--bg-base)",
           borderColor: "var(--border-default)",
         }}
       >
-        {/* Header */}
-        <div
-          className="h-14 border-b flex items-center justify-between px-6"
-          style={{ borderColor: "var(--border-default)" }}
-        >
-          <div>
-            <h2
-              className="text-sm font-bold"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Run Details
-            </h2>
-            <p
-              className="text-[10px] font-mono"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {runId}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg transition-colors hover:bg-red-500/10"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div
-          className="flex items-center gap-1 px-4 py-2 border-b"
-          style={{ borderColor: "var(--border-default)" }}
-        >
-          {[
-            { id: "report", label: "Report", icon: "📊" },
-            { id: "log", label: "Output Log", icon: "📜" },
-            { id: "plan", label: "Plan", icon: "📝" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 ${
-                activeTab === tab.id ? "bg-felix-500/10 text-felix-400" : ""
-              }`}
-              style={{
-                color: activeTab === tab.id ? undefined : "var(--text-muted)",
-              }}
-            >
-              <span>{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div
-                className="w-8 h-8 border-2 rounded-full animate-spin"
-                style={{
-                  borderColor: "var(--border-muted)",
-                  borderTopColor: "var(--text-muted)",
-                }}
-              />
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-              <svg
-                className="w-12 h-12 mb-3 text-red-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
-          ) : activeTab === "log" ? (
-            <pre
-              className="p-6 font-mono text-xs leading-relaxed whitespace-pre-wrap"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {content || "No output available"}
-            </pre>
-          ) : (
-            <div
-              className="p-6 markdown-preview"
-              dangerouslySetInnerHTML={{
-                __html:
-                  html ||
-                  '<p class="text-sm opacity-50">No content available</p>',
-              }}
-            />
-          )}
-        </div>
+        {runId && (
+          <RunArtifactViewer
+            projectId={projectId}
+            runId={runId}
+            onClose={onClose}
+          />
+        )}
       </div>
     </>
   );
