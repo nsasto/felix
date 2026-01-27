@@ -1,3 +1,15 @@
 {
-  "agents": {}
+  "agents": [
+    {
+      "id": 0,
+      "name": "felix-primary",
+      "executable": "droid",
+      "args": [
+        "exec",
+        "--skip-permissions-unsafe"
+      ],
+      "working_directory": ".",
+      "environment": {}
+    }
+  ]
 }

@@ -693,14 +693,51 @@ $maxIterations = $config.executor.max_iterations
 $autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
 
-# Agent name from config (default: felix-primary)
-$agentName = if ($config.agent -and $config.agent.name) { 
-    $config.agent.name 
+# Load agent configuration from agents.json via agent_id
+$AgentsJsonFile = Join-Path $FelixDir "agents.json"
+if (-not (Test-Path $AgentsJsonFile)) {
+    Write-Host "ERROR: " -NoNewline -ForegroundColor Red
+    Write-Host "agents.json not found at: $AgentsJsonFile" -ForegroundColor Red
+    exit 1
+}
+
+$agentsData = Get-Content $AgentsJsonFile -Raw | ConvertFrom-Json
+$agentId = if ($config.agent -and $null -ne $config.agent.agent_id) { 
+    $config.agent.agent_id 
 }
 else { 
-    "felix-primary" 
+    0  # Default to agent ID 0
 }
+
+# Find agent by ID
+$agentConfig = $agentsData.agents | Where-Object { $_.id -eq $agentId }
+
+if (-not $agentConfig) {
+    Write-Host "WARNING: " -NoNewline -ForegroundColor Yellow
+    Write-Host "Agent ID $agentId not found in agents.json. Falling back to system default (ID 0)." -ForegroundColor Yellow
+    $agentConfig = $agentsData.agents | Where-Object { $_.id -eq 0 }
+    
+    if (-not $agentConfig) {
+        Write-Host "ERROR: " -NoNewline -ForegroundColor Red
+        Write-Host "System default agent (ID 0) not found in agents.json" -ForegroundColor Red
+        exit 1
+    }
+    
+    # Auto-correct config.json to reference agent ID 0
+    $config.agent.agent_id = 0
+    $config | ConvertTo-Json -Depth 10 | Set-Content $ConfigFile
+    Write-Host "[CONFIG] " -NoNewline -ForegroundColor Cyan
+    Write-Host "Auto-corrected config.json to reference agent ID 0" -ForegroundColor Green
+}
+
+$agentName = $agentConfig.name
 $script:agentName = $agentName
+$script:agentConfig = $agentConfig
+
+Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+Write-Host "Using agent: $agentName (ID: $($agentConfig.id))" -ForegroundColor White
+Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+Write-Host "Executable: $($agentConfig.executable) $($agentConfig.args -join ' ')" -ForegroundColor Gray
 
 # ============================================================================
 # Agent Registration and Heartbeat Functions
@@ -977,9 +1014,6 @@ if ($state.current_requirement_id -ne $currentReq.id) {
 # Agent Registration at Startup
 # ============================================================================
 
-Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-Write-Host "Agent name: $agentName" -ForegroundColor White
-
 # Register with the backend (best-effort)
 $registrationSucceeded = Register-Agent -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME
 
@@ -1126,21 +1160,26 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $gitStateBefore = Get-GitState -WorkingDir $ProjectPath
     }
     
-    # Call droid exec (like ralph.ps1)
-    Write-Host "Calling droid exec...`n"
+    # Call agent executable (using config from agents.json)
+    $executable = $agentConfig.executable
+    $args = $agentConfig.args
+    Write-Host "Calling $executable $($args -join ' ')...`n"
     
     $droidSuccess = $false
     $droidError = $null
     try {
         # Ensure UTF-8 encoding is preserved in output capture
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        $output = $fullPrompt | droid exec --skip-permissions-unsafe 2>&1 | Out-String
+        
+        # Build command with arguments from agents.json
+        $cmdArgs = @($args) + @()  # Convert to array and add any additional args
+        $output = $fullPrompt | & $executable @cmdArgs 2>&1 | Out-String
         $output = $output.Trim()
         $droidSuccess = $true
     }
     catch {
         $droidError = $_
-        Write-Host "ERROR during droid execution: $_"
+        Write-Host "ERROR during $executable execution: $_"
         
         # Write error report
         $report = @"
