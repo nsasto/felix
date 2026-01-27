@@ -1205,33 +1205,31 @@ Fix the validation issues to unblock progress.
         if ($gitStatus -and $LASTEXITCODE -eq 0) {
             Write-Host "[COMMIT] Uncommitted changes detected, committing..."
             
-            # Capture git diff before committing for observability
-            Write-Host "[DIFF] Capturing git diff to diff.patch..."
-            Push-Location $ProjectPath
-            try {
-                # Capture both staged and unstaged changes
-                $diffOutput = git diff HEAD 2>&1
-                if ($diffOutput) {
-                    $diffPath = Join-Path $runDir "diff.patch"
-                    Set-Content $diffPath $diffOutput -Encoding UTF8
-                    Write-Host "[DIFF] Git diff captured: $diffPath"
-                }
-                else {
-                    Write-Host "[DIFF] No diff content to capture"
-                }
-            }
-            catch {
-                Write-Host "[DIFF] Warning: Failed to capture git diff: $_"
-            }
-            finally {
-                Pop-Location
-            }
-            
             # Extract task description from output for commit message
             $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
             $taskDesc = if ($matches) { $matches[1].Trim() } else { "Task completion" }
             
+            # Stage all changes
             git add -A 2>&1 | Out-Null
+            
+            # Capture git diff after staging (shows exactly what will be committed)
+            Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
+            try {
+                $diffOutput = git diff --cached 2>&1
+                if ($diffOutput) {
+                    $diffPath = Join-Path $runDir "diff.patch"
+                    Set-Content $diffPath $diffOutput -Encoding UTF8
+                    Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
+                }
+                else {
+                    Write-Host "[ARTIFACTS] No changes to capture in diff"
+                }
+            }
+            catch {
+                Write-Host "[ARTIFACTS] Warning: Failed to capture git diff: $_"
+            }
+            
+            # Commit changes
             $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
             $commitOutput = git commit -m $commitMsg 2>&1
             
