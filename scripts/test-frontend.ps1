@@ -6,6 +6,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Configure UTF-8 encoding for console output
+chcp 65001 | Out-Null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 $frontendDir = Join-Path $ProjectRoot "app\frontend"
 
 Write-Host "Frontend Test Runner" -ForegroundColor Cyan
