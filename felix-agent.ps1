@@ -723,6 +723,192 @@ $maxIterations = $config.executor.max_iterations
 $autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
 
+# Agent name from config (default: felix-primary)
+$agentName = if ($config.agent -and $config.agent.name) { $config.agent.name } else { "felix-primary" }
+$script:agentName = $agentName
+
+# ============================================================================
+# Agent Registration and Heartbeat Functions
+# ============================================================================
+
+$script:BackendBaseUrl = "http://localhost:8080"
+$script:HeartbeatJob = $null
+
+function Register-Agent {
+    <#
+    .SYNOPSIS
+    Registers the agent with the backend API
+    #>
+    param(
+        [string]$AgentName,
+        [int]$ProcessId,
+        [string]$Hostname
+    )
+    
+    $registration = @{
+        agent_name = $AgentName
+        pid = $ProcessId
+        hostname = $Hostname
+        started_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    }
+    
+    try {
+        $body = $registration | ConvertTo-Json
+        $response = Invoke-RestMethod -Method POST `
+            -Uri "$script:BackendBaseUrl/api/agents/register" `
+            -Body $body `
+            -ContentType "application/json" `
+            -ErrorAction Stop
+        
+        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Registered as '$AgentName' (PID: $ProcessId)" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        # Registration is best-effort - don't fail if backend is unreachable
+        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Registration failed (backend may be unavailable): $_" -ForegroundColor Yellow
+        return $false
+    }
+}
+
+function Send-AgentHeartbeat {
+    <#
+    .SYNOPSIS
+    Sends a heartbeat to the backend API
+    #>
+    param(
+        [string]$AgentName,
+        [string]$CurrentRequirementId
+    )
+    
+    $heartbeat = @{
+        current_run_id = $CurrentRequirementId
+    }
+    
+    try {
+        $body = $heartbeat | ConvertTo-Json
+        Invoke-RestMethod -Method POST `
+            -Uri "$script:BackendBaseUrl/api/agents/$AgentName/heartbeat" `
+            -Body $body `
+            -ContentType "application/json" `
+            -ErrorAction Stop | Out-Null
+        return $true
+    }
+    catch {
+        # Heartbeat failures are non-fatal
+        return $false
+    }
+}
+
+function Start-HeartbeatJob {
+    <#
+    .SYNOPSIS
+    Starts a background job that sends heartbeats every 5 seconds
+    #>
+    param(
+        [string]$AgentName,
+        [string]$BaseUrl
+    )
+    
+    # Stop any existing heartbeat job
+    if ($script:HeartbeatJob) {
+        Stop-HeartbeatJob
+    }
+    
+    $script:HeartbeatJob = Start-Job -Name "FelixHeartbeat" -ScriptBlock {
+        param($AgentName, $BaseUrl)
+        
+        while ($true) {
+            Start-Sleep -Seconds 5
+            
+            try {
+                # Read current requirement from state file if available
+                $stateFile = "felix/state.json"
+                $currentReqId = $null
+                if (Test-Path $stateFile) {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    $currentReqId = $state.current_requirement_id
+                }
+                
+                $heartbeat = @{
+                    current_run_id = $currentReqId
+                } | ConvertTo-Json
+                
+                Invoke-RestMethod -Method POST `
+                    -Uri "$BaseUrl/api/agents/$AgentName/heartbeat" `
+                    -Body $heartbeat `
+                    -ContentType "application/json" `
+                    -ErrorAction SilentlyContinue | Out-Null
+            }
+            catch {
+                # Silently continue on heartbeat failures
+            }
+        }
+    } -ArgumentList $AgentName, $BaseUrl
+    
+    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+    Write-Host "Started heartbeat job (every 5s)" -ForegroundColor Green
+}
+
+function Stop-HeartbeatJob {
+    <#
+    .SYNOPSIS
+    Stops the background heartbeat job
+    #>
+    if ($script:HeartbeatJob) {
+        Stop-Job -Job $script:HeartbeatJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $script:HeartbeatJob -Force -ErrorAction SilentlyContinue
+        $script:HeartbeatJob = $null
+    }
+}
+
+function Unregister-Agent {
+    <#
+    .SYNOPSIS
+    Marks the agent as stopped in the registry
+    #>
+    param(
+        [string]$AgentName
+    )
+    
+    try {
+        Invoke-RestMethod -Method POST `
+            -Uri "$script:BackendBaseUrl/api/agents/$AgentName/stop" `
+            -ContentType "application/json" `
+            -ErrorAction Stop | Out-Null
+        
+        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Agent '$AgentName' marked as stopped" -ForegroundColor Yellow
+    }
+    catch {
+        # Best-effort - don't fail on unregister errors
+    }
+}
+
+function Exit-FelixAgent {
+    <#
+    .SYNOPSIS
+    Cleanly exit the agent with proper cleanup
+    #>
+    param(
+        [int]$ExitCode = 0
+    )
+    
+    # Stop heartbeat job
+    Stop-HeartbeatJob
+    
+    # Unregister agent if we have an agent name
+    if ($script:agentName) {
+        Unregister-Agent -AgentName $script:agentName
+    }
+    
+    exit $ExitCode
+}
+
+# Store agent name in script scope for cleanup function
+$script:agentName = $null
+
 # Resolve python upfront (hard stop if unavailable)
 $pythonInfo = $null
 try {
@@ -812,6 +998,31 @@ if ($state.current_requirement_id -ne $currentReq.id) {
     Write-Host "[STATE] Starting new requirement, reset validation retry counter" -ForegroundColor Cyan
 }
 
+# ============================================================================
+# Agent Registration at Startup
+# ============================================================================
+
+Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+Write-Host "Agent name: $agentName" -ForegroundColor White
+
+# Register with the backend (best-effort)
+$registrationSucceeded = Register-Agent -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME
+
+# Start heartbeat background job if registration succeeded
+if ($registrationSucceeded) {
+    Start-HeartbeatJob -AgentName $agentName -BaseUrl $script:BackendBaseUrl
+}
+
+# Ensure cleanup on exit
+$exitHandler = {
+    Stop-HeartbeatJob
+    Unregister-Agent -AgentName $agentName
+}
+
+# Register cleanup handler for graceful shutdown
+# Note: PowerShell doesn't have direct cleanup hooks, but we'll call these at normal exit points
+# The agent will be marked inactive automatically after heartbeat timeout if abruptly terminated
+
 # Main iteration loop
 for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host ""
@@ -868,7 +1079,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     if (-not (Test-Path $promptFile)) {
         Write-Host "ERROR: " -NoNewline -ForegroundColor Red
         Write-Host "Prompt template not found: $promptFile" -ForegroundColor Red
-        exit 1
+        Exit-FelixAgent -ExitCode 1
     }
     
     $promptTemplate = Get-Content $promptFile -Raw
@@ -979,7 +1190,7 @@ $_
         $state.updated_at = Get-Date -Format "o"
         $state | ConvertTo-Json | Set-Content $StateFile
         
-        exit 1
+        Exit-FelixAgent -ExitCode 1
     }
     
     # === Post-droid processing (outside try/catch) ===
@@ -1145,7 +1356,7 @@ Review the validation failures and fix the underlying issues before restarting.
                 Write-Host "[BLOCKED] To unblock: Fix validation issues, then manually change status to 'planned' in requirements.json" -ForegroundColor Yellow
                 
                 Write-Host "Exiting due to max retries exceeded (exit code 2)..."
-                exit 2
+                Exit-FelixAgent -ExitCode 2
             }
             
             Write-Host "[RETRY] Retry attempt $retryCount of $maxRetries"
@@ -1285,7 +1496,7 @@ Fix the validation issues to unblock progress.
                 if (-not (Test-Path $validationScript)) {
                     Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
                     Write-Host "❌ Validation script not found at $validationScript" -ForegroundColor Red
-                    exit 1
+                    Exit-FelixAgent -ExitCode 1
                 }
                 
                 try {
@@ -1310,7 +1521,7 @@ Fix the validation issues to unblock progress.
                 catch {
                     Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
                     Write-Host "❌ Error running validation: $_" -ForegroundColor Red
-                    exit 1
+                    Exit-FelixAgent -ExitCode 1
                 }
                 
                 if ($validationPassed) {
@@ -1326,7 +1537,7 @@ Fix the validation issues to unblock progress.
                     
                     Write-Host ""
                     Write-Host "Felix Agent complete - all tasks done and validated!"
-                    exit 0
+                    Exit-FelixAgent -ExitCode 0
                 }
                 else {
                     # Validation failed - emit STUCK signal
@@ -1371,7 +1582,7 @@ Fix the validation issues to unblock progress.
                         # Exit if configured
                         if ($exitOnBlocked) {
                             Write-Host "[EXIT] Exiting to allow other requirements to proceed (exit code 3)" -ForegroundColor Yellow
-                            exit 3
+                            Exit-FelixAgent -ExitCode 3
                         }
                     }
                     
@@ -1415,7 +1626,7 @@ Fix the validation issues to unblock progress.
             }
             catch {
                 Write-Host "[VALIDATION] ❌ Error running validation: $_"
-                exit 1
+                Exit-FelixAgent -ExitCode 1
             }
             
             if ($validationPassed) {
@@ -1429,7 +1640,7 @@ Fix the validation issues to unblock progress.
                 
                 Write-Host ""
                 Write-Host "Felix Agent complete - all tasks done and validated!"
-                exit 0
+                Exit-FelixAgent -ExitCode 0
             }
             else {
                 Write-Host ""
@@ -1482,4 +1693,4 @@ $state.last_iteration_outcome = "max_iterations"
 $state.updated_at = Get-Date -Format "o"
 $state | ConvertTo-Json | Set-Content $StateFile
 
-exit 1
+Exit-FelixAgent -ExitCode 1
