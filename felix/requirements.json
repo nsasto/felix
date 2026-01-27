@@ -185,8 +185,8 @@
         },
         {
             "id": "S-0013",
-            "title": "Agent Settings Management",
-            "spec_path": "specs/S-0013-agent-settings-management.md",
+            "title": "Agent Settings Registry",
+            "spec_path": "S-0013-agent-settings-registry.md",
             "status": "draft",
             "priority": "medium",
             "labels": [],
@@ -195,12 +195,82 @@
         },
         {
             "id": "S-0014",
-            "title": "Agent Control Panel",
-            "spec_path": "specs/S-0014-agent-control-panel.md",
+            "title": "Agent Orchestration Dashboard",
+            "spec_path": "specs/S-0014-agent-orchestration-dashboard.md",
             "status": "draft",
             "priority": "medium",
             "labels": [],
             "depends_on": [],
+            "updated_at": "2026-01-27"
+        },
+        {
+            "id": "S-0015",
+            "title": "Spec Screen Enhancements",
+            "spec_path": "specs/S-0015-spec-screen-enhancements.md",
+            "status": "draft",
+            "priority": "medium",
+            "labels": [
+                "frontend",
+                "ux",
+                "search"
+            ],
+            "depends_on": [
+                "S-0003",
+                "S-0006"
+            ],
+            "updated_at": "2026-01-27"
+        },
+        {
+            "id": "S-0016",
+            "title": "Felix Copilot Settings",
+            "spec_path": "specs/S-0016-copilot-settings.md",
+            "status": "draft",
+            "priority": "high",
+            "labels": [
+                "copilot",
+                "settings",
+                "ai",
+                "backend"
+            ],
+            "depends_on": [
+                "S-0007",
+                "S-0002"
+            ],
+            "updated_at": "2026-01-27"
+        },
+        {
+            "id": "S-0017",
+            "title": "Felix Copilot Chat Assistant",
+            "spec_path": "specs/S-0017-copilot-chat-assistant.md",
+            "status": "draft",
+            "priority": "high",
+            "labels": [
+                "copilot",
+                "ai",
+                "frontend",
+                "chat"
+            ],
+            "depends_on": [
+                "S-0016",
+                "S-0003",
+                "S-0002"
+            ],
+            "updated_at": "2026-01-27"
+        },
+        {
+            "id": "S-0018",
+            "title": "Dependency Status Validation",
+            "spec_path": "specs/S-0018-dependency-status-validation.md",
+            "status": "draft",
+            "priority": "medium",
+            "labels": [
+                "frontend",
+                "validation",
+                "ux"
+            ],
+            "depends_on": [
+                "S-0003"
+            ],
             "updated_at": "2026-01-27"
         }
     ]
