@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import CopilotAvatar, { AvatarState } from './CopilotAvatar';
 import { ChatMessage } from '../services/felixApi';
+import { marked } from 'marked';
 
 interface CopilotChatPanelProps {
   /** Whether the panel is open */
@@ -151,6 +152,40 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
   const showCharCount = charCount > 1800;
   const isOverLimit = charCount > 2000;
 
+  /**
+   * Render markdown content for assistant messages.
+   * User messages are displayed as plain text.
+   */
+  const renderMessageContent = useCallback((msg: ChatMessage) => {
+    if (msg.role === 'user') {
+      // User messages: plain text with whitespace preserved
+      return (
+        <div className="text-sm whitespace-pre-wrap break-words">
+          {msg.content}
+        </div>
+      );
+    }
+
+    // Assistant messages: render as markdown
+    try {
+      const html = marked.parse(msg.content, { async: false }) as string;
+      return (
+        <div 
+          className="text-sm copilot-markdown prose prose-sm prose-invert max-w-none"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
+    } catch (err) {
+      // Fallback to plain text if markdown parsing fails
+      console.error('Markdown parsing error:', err);
+      return (
+        <div className="text-sm whitespace-pre-wrap break-words">
+          {msg.content}
+        </div>
+      );
+    }
+  }, []);
+
   return (
     <div
       ref={panelRef}
@@ -263,10 +298,8 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
                 }
               `}
             >
-              {/* Message content */}
-              <div className="text-sm whitespace-pre-wrap break-words">
-                {msg.content}
-              </div>
+              {/* Message content - markdown for assistant, plain text for user */}
+              {renderMessageContent(msg)}
               
               {/* Timestamp */}
               <div 
@@ -368,7 +401,7 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
         </div>
       </div>
 
-      {/* Inline CSS for felix colors */}
+      {/* Inline CSS for felix colors and markdown styling */}
       <style>{`
         .bg-felix-500 {
           background-color: #738ef1;
@@ -381,6 +414,91 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
         }
         .ring-felix-500\\/50 {
           --tw-ring-color: rgba(115, 142, 241, 0.5);
+        }
+        
+        /* Copilot markdown styles for assistant messages */
+        .copilot-markdown {
+          line-height: 1.5;
+          word-wrap: break-word;
+        }
+        .copilot-markdown p {
+          margin: 0 0 0.5em 0;
+        }
+        .copilot-markdown p:last-child {
+          margin-bottom: 0;
+        }
+        .copilot-markdown strong {
+          font-weight: 600;
+          color: inherit;
+        }
+        .copilot-markdown em {
+          font-style: italic;
+        }
+        .copilot-markdown code {
+          font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+          font-size: 0.85em;
+          background-color: rgba(0, 0, 0, 0.2);
+          padding: 0.15em 0.35em;
+          border-radius: 4px;
+        }
+        .copilot-markdown pre {
+          background-color: rgba(0, 0, 0, 0.3);
+          border-radius: 6px;
+          padding: 0.75em 1em;
+          margin: 0.5em 0;
+          overflow-x: auto;
+        }
+        .copilot-markdown pre code {
+          background: none;
+          padding: 0;
+          font-size: 0.8em;
+        }
+        .copilot-markdown ul, .copilot-markdown ol {
+          margin: 0.5em 0;
+          padding-left: 1.5em;
+        }
+        .copilot-markdown li {
+          margin: 0.25em 0;
+        }
+        .copilot-markdown a {
+          color: #738ef1;
+          text-decoration: underline;
+        }
+        .copilot-markdown a:hover {
+          color: #9db4f7;
+        }
+        .copilot-markdown blockquote {
+          border-left: 3px solid #738ef1;
+          margin: 0.5em 0;
+          padding-left: 0.75em;
+          color: rgba(255, 255, 255, 0.7);
+        }
+        .copilot-markdown h1, .copilot-markdown h2, .copilot-markdown h3 {
+          font-weight: 600;
+          margin: 0.75em 0 0.5em 0;
+        }
+        .copilot-markdown h1:first-child, .copilot-markdown h2:first-child, .copilot-markdown h3:first-child {
+          margin-top: 0;
+        }
+        .copilot-markdown h1 { font-size: 1.25em; }
+        .copilot-markdown h2 { font-size: 1.1em; }
+        .copilot-markdown h3 { font-size: 1em; }
+        .copilot-markdown hr {
+          border: none;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          margin: 0.75em 0;
+        }
+        .copilot-markdown table {
+          border-collapse: collapse;
+          margin: 0.5em 0;
+          font-size: 0.9em;
+        }
+        .copilot-markdown th, .copilot-markdown td {
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 0.35em 0.65em;
+        }
+        .copilot-markdown th {
+          background-color: rgba(0, 0, 0, 0.2);
         }
       `}</style>
     </div>
