@@ -87,7 +87,7 @@ class TestCopilotTestEndpoint:
     def test_test_connection_openai_success(self, client, mock_felix_config):
         """Test returns success for valid OpenAI API key"""
         with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+            with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
                 with patch('routers.copilot.verify_openai_connection', new_callable=AsyncMock) as mock_test:
                     mock_test.return_value = (True, None)
                     response = client.post("/api/copilot/test")
@@ -102,7 +102,7 @@ class TestCopilotTestEndpoint:
     def test_test_connection_openai_failure(self, client, mock_felix_config):
         """Test returns error for invalid OpenAI API key"""
         with patch('routers.copilot.os.getenv', return_value="sk-invalid-key"):
-            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+            with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
                 with patch('routers.copilot.verify_openai_connection', new_callable=AsyncMock) as mock_test:
                     mock_test.return_value = (False, "Invalid API key")
                     response = client.post("/api/copilot/test")
@@ -125,7 +125,7 @@ class TestCopilotTestEndpoint:
         )
         
         with patch('routers.copilot.os.getenv', return_value="sk-ant-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=anthropic_config):
+            with patch('routers.copilot.load_global_config', return_value=(anthropic_config, None)):
                 with patch('routers.copilot.verify_anthropic_connection', new_callable=AsyncMock) as mock_test:
                     mock_test.return_value = (True, None)
                     response = client.post("/api/copilot/test")
@@ -149,7 +149,7 @@ class TestCopilotTestEndpoint:
         )
         
         with patch('routers.copilot.os.getenv', return_value="custom-api-key"):
-            with patch('routers.copilot.load_global_config', return_value=custom_config):
+            with patch('routers.copilot.load_global_config', return_value=(custom_config, None)):
                 response = client.post("/api/copilot/test")
         
         assert response.status_code == 200
@@ -163,7 +163,7 @@ class TestCopilotTestEndpoint:
         config_without_copilot = FelixConfig(copilot=None)
         
         with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=config_without_copilot):
+            with patch('routers.copilot.load_global_config', return_value=(config_without_copilot, None)):
                 with patch('routers.copilot.verify_openai_connection', new_callable=AsyncMock) as mock_test:
                     mock_test.return_value = (True, None)
                     response = client.post("/api/copilot/test")
@@ -188,7 +188,7 @@ class TestCopilotTestEndpoint:
         )
         
         with patch('routers.copilot.os.getenv', return_value="some-api-key"):
-            with patch('routers.copilot.load_global_config', return_value=unsupported_config):
+            with patch('routers.copilot.load_global_config', return_value=(unsupported_config, None)):
                 response = client.post("/api/copilot/test")
         
         assert response.status_code == 200
@@ -204,7 +204,7 @@ class TestCopilotStatusEndpoint:
         """Test status returns unconfigured when no copilot config exists"""
         config_without_copilot = FelixConfig(copilot=None)
         
-        with patch('routers.copilot.load_global_config', return_value=config_without_copilot):
+        with patch('routers.copilot.load_global_config', return_value=(config_without_copilot, None)):
             with patch('routers.copilot.os.getenv', return_value=""):
                 response = client.get("/api/copilot/status")
         
@@ -216,7 +216,7 @@ class TestCopilotStatusEndpoint:
 
     def test_status_with_copilot_config_enabled(self, client, mock_felix_config):
         """Test status returns enabled when copilot is configured and enabled"""
-        with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+        with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
             with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
                 response = client.get("/api/copilot/status")
         
@@ -240,7 +240,7 @@ class TestCopilotStatusEndpoint:
             )
         )
         
-        with patch('routers.copilot.load_global_config', return_value=disabled_config):
+        with patch('routers.copilot.load_global_config', return_value=(disabled_config, None)):
             with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
                 response = client.get("/api/copilot/status")
         
@@ -252,7 +252,7 @@ class TestCopilotStatusEndpoint:
 
     def test_status_no_api_key_in_env(self, client, mock_felix_config):
         """Test status shows api_key_present=False when no key in environment"""
-        with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+        with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
             with patch('routers.copilot.os.getenv', return_value=""):
                 response = client.get("/api/copilot/status")
         
@@ -380,7 +380,7 @@ class TestCopilotStreamEndpoint:
     def test_stream_endpoint_returns_sse_media_type(self, client, mock_felix_config):
         """Streaming endpoint returns correct SSE media type"""
         with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+            with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
                 with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
                     # Mock service
                     mock_service = MagicMock()
@@ -409,7 +409,7 @@ class TestCopilotStreamEndpoint:
     def test_stream_endpoint_sends_avatar_state_events(self, client, mock_felix_config):
         """Streaming includes avatar state transitions"""
         with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+            with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
                 with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
                     mock_service = MagicMock()
                     mock_service.load_context.return_value = {}
@@ -439,7 +439,7 @@ class TestCopilotStreamEndpoint:
     def test_stream_endpoint_with_conversation_history(self, client, mock_felix_config):
         """Streaming endpoint accepts and processes conversation history"""
         with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+            with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
                 with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
                     mock_service = MagicMock()
                     mock_service.load_context.return_value = {}
@@ -477,7 +477,7 @@ class TestCopilotStreamEndpoint:
         (project_dir / "AGENTS.md").write_text("# Test Agents", encoding='utf-8')
         
         with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+            with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
                 with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
                     mock_service = MagicMock()
                     mock_service.load_context.return_value = {"agents_md": "# Test Agents"}
@@ -506,7 +506,7 @@ class TestCopilotStreamEndpoint:
     def test_stream_endpoint_error_handling(self, client, mock_felix_config):
         """Streaming endpoint handles errors gracefully via error events"""
         with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
-            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+            with patch('routers.copilot.load_global_config', return_value=(mock_felix_config, None)):
                 with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
                     mock_service = MagicMock()
                     mock_service.load_context.return_value = {}
@@ -744,7 +744,7 @@ class TestCopilotConfigSaveLoad:
 
     def test_global_settings_returns_copilot_config(self, client, mock_felix_config):
         """Test that global settings endpoint includes copilot config"""
-        with patch('routers.settings.load_global_config', return_value=mock_felix_config):
+        with patch('routers.settings.load_global_config', return_value=(mock_felix_config, None)):
             response = client.get("/api/settings")
         
         assert response.status_code == 200
@@ -762,7 +762,7 @@ class TestCopilotConfigSaveLoad:
         config_data = {
             "version": "0.1.0",
             "executor": {"mode": "local", "max_iterations": 10, "default_mode": "building", "auto_transition": True},
-            "agent": {"name": "felix-primary", "executable": "droid", "args": [], "working_directory": ".", "environment": {}},
+            "agent": {"agent_id": 0},  # Use agent_id format (ID 0 = system default)
             "paths": {"specs": "specs", "agents": "AGENTS.md", "runs": "runs"},
             "backpressure": {"enabled": True, "commands": [], "max_retries": 3},
             "ui": {"theme": "dark"},
@@ -785,8 +785,10 @@ class TestCopilotConfigSaveLoad:
             }
         }
         
+        # Mock validate_agent_id_exists to return True for ID 0
         with patch('routers.settings.get_global_config_path', return_value=config_file):
-            response = client.put("/api/settings", json={"config": config_data})
+            with patch('routers.settings.validate_agent_id_exists', return_value=True):
+                response = client.put("/api/settings", json={"config": config_data})
         
         assert response.status_code == 200
         
