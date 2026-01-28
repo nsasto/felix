@@ -13,7 +13,7 @@ namespace FelixTrayManager.Services
     {
         private readonly TaskbarIcon _taskbarIcon;
         private readonly FelixProcessManager _processManager;
-        private readonly StateMonitor _stateMonitor;
+        private StateMonitor? _stateMonitor;
         private bool _disposed;
 
         // Icon state URIs
@@ -37,11 +37,11 @@ namespace FelixTrayManager.Services
         /// Creates a new TrayIconManager
         /// </summary>
         /// <param name="processManager">Felix process manager instance</param>
-        /// <param name="stateMonitor">Felix state monitor instance</param>
-        public TrayIconManager(FelixProcessManager processManager, StateMonitor stateMonitor)
+        /// <param name="stateMonitor">Felix state monitor instance (can be null if not configured yet)</param>
+        public TrayIconManager(FelixProcessManager processManager, StateMonitor? stateMonitor)
         {
             _processManager = processManager ?? throw new ArgumentNullException(nameof(processManager));
-            _stateMonitor = stateMonitor ?? throw new ArgumentNullException(nameof(stateMonitor));
+            _stateMonitor = stateMonitor;
 
             // Initialize the taskbar icon
             _taskbarIcon = new TaskbarIcon
@@ -53,8 +53,11 @@ namespace FelixTrayManager.Services
             // Subscribe to process state changes
             _processManager.StateChanged += OnProcessStateChanged;
 
-            // Subscribe to Felix state changes
-            _stateMonitor.StateChanged += OnFelixStateChanged;
+            // Subscribe to Felix state changes (only if state monitor exists)
+            if (_stateMonitor != null)
+            {
+                _stateMonitor.StateChanged += OnFelixStateChanged;
+            }
 
             // Set up double-click handler
             _taskbarIcon.TrayMouseDoubleClick += OnTrayIconDoubleClick;
@@ -210,7 +213,7 @@ namespace FelixTrayManager.Services
         /// </summary>
         private void ShowStatusMessage()
         {
-            var state = _stateMonitor.CurrentState;
+            var state = _stateMonitor?.CurrentState;
             var processState = _processManager.CurrentState;
 
             string title = "Felix Tray Manager";
@@ -226,6 +229,26 @@ namespace FelixTrayManager.Services
             }
 
             _taskbarIcon.ShowBalloonTip(title, message, BalloonIcon.Info);
+        }
+
+        /// <summary>
+        /// Updates the state monitor instance (used when settings are changed)
+        /// </summary>
+        /// <param name="stateMonitor">New state monitor instance</param>
+        public void UpdateStateMonitor(StateMonitor stateMonitor)
+        {
+            // Unsubscribe from old state monitor if it exists
+            if (_stateMonitor != null)
+            {
+                _stateMonitor.StateChanged -= OnFelixStateChanged;
+            }
+
+            // Subscribe to new state monitor
+            _stateMonitor = stateMonitor;
+            if (_stateMonitor != null)
+            {
+                _stateMonitor.StateChanged += OnFelixStateChanged;
+            }
         }
 
         /// <summary>
@@ -255,7 +278,10 @@ namespace FelixTrayManager.Services
 
             // Unsubscribe from events
             _processManager.StateChanged -= OnProcessStateChanged;
-            _stateMonitor.StateChanged -= OnFelixStateChanged;
+            if (_stateMonitor != null)
+            {
+                _stateMonitor.StateChanged -= OnFelixStateChanged;
+            }
             _taskbarIcon.TrayMouseDoubleClick -= OnTrayIconDoubleClick;
 
             // Dispose the taskbar icon
