@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import { IconFileText, IconPlus } from './Icons';
 import SpecEditWarningModal, { WarningAction } from './SpecEditWarningModal';
 import { useRequirementStatus } from '../hooks/useRequirementStatus';
+import CopilotChat from './CopilotChat';
 
 /**
  * Extract acceptance criteria and validation criteria sections from markdown content.
@@ -1482,6 +1483,30 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         isOpen={isWarningModalOpen}
         isLoading={isBlockingRequirement}
         onAction={handleWarningAction}
+      />
+
+      {/* S-0017: Felix Copilot Chat Assistant */}
+      {/* CopilotChat renders its own floating button and panel */}
+      <CopilotChat
+        projectId={projectId}
+        onInsertSpec={(content: string) => {
+          // Insert the generated spec content into the editor
+          // If no spec is currently selected, user needs to select or create one first
+          if (!selectedFilename) {
+            // Show alert if no spec is selected
+            alert('Please select or create a spec first to insert content.');
+            return;
+          }
+          // Replace or append to current content based on whether editor is empty
+          if (!specContent.trim()) {
+            // Editor is empty - replace with generated content
+            setSpecContent(content);
+          } else {
+            // Editor has content - append at cursor or end
+            // For simplicity, we'll append at the end with a separator
+            setSpecContent(prev => `${prev}\n\n---\n\n${content}`);
+          }
+        }}
       />
     </div>
   );
