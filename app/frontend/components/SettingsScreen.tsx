@@ -7,6 +7,9 @@ import {
   AgentRegistryResponse,
   AgentConfiguration,
   AgentConfigurationsResponse,
+  getCopilotApiKey,
+  setCopilotApiKey,
+  clearCopilotApiKey,
 } from "../services/felixApi";
 import { IconFelix } from "./Icons";
 import { useTheme, ThemeValue } from "../hooks/ThemeProvider";
@@ -2139,6 +2142,52 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     error?: string;
   } | null>(null);
 
+  // Copilot API key state (stored in localStorage)
+  const [copilotApiKeyInput, setCopilotApiKeyInput] = useState<string>("");
+  const [copilotApiKeyHasValue, setCopilotApiKeyHasValue] = useState<boolean>(false);
+  const [copilotApiKeySaving, setCopilotApiKeySaving] = useState(false);
+  const [copilotApiKeySaved, setCopilotApiKeySaved] = useState(false);
+
+  // Load Copilot API key status from localStorage on mount
+  useEffect(() => {
+    const savedKey = getCopilotApiKey();
+    setCopilotApiKeyHasValue(!!savedKey);
+    // Don't populate the input with the actual key for security
+    // Just show that a key exists
+  }, []);
+
+  // Clear API key saved message after 3 seconds
+  useEffect(() => {
+    if (copilotApiKeySaved) {
+      const timeout = setTimeout(() => setCopilotApiKeySaved(false), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [copilotApiKeySaved]);
+
+  // Save Copilot API key to localStorage
+  const handleSaveCopilotApiKey = () => {
+    if (!copilotApiKeyInput.trim()) return;
+    setCopilotApiKeySaving(true);
+    try {
+      setCopilotApiKey(copilotApiKeyInput.trim());
+      setCopilotApiKeyHasValue(true);
+      setCopilotApiKeyInput("");
+      setCopilotApiKeySaved(true);
+      // Also reset test result since key changed
+      setCopilotTestResult(null);
+    } finally {
+      setCopilotApiKeySaving(false);
+    }
+  };
+
+  // Clear Copilot API key from localStorage
+  const handleClearCopilotApiKey = () => {
+    clearCopilotApiKey();
+    setCopilotApiKeyHasValue(false);
+    setCopilotApiKeyInput("");
+    setCopilotTestResult(null);
+  };
+
   // Model options by provider
   const modelOptions: Record<string, { value: string; label: string }[]> = {
     openai: [
@@ -2365,25 +2414,107 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <label className="block text-sm font-bold theme-text-secondary mb-3">
             API Key
           </label>
-          <div className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4 mb-4">
-            <p className="text-xs theme-text-tertiary mb-2">
-              Add the following to your{" "}
-              <code className="bg-[var(--hover-bg)] px-1.5 py-0.5 rounded font-mono">
-                .env
-              </code>{" "}
-              file:
-            </p>
-            <code className="block text-xs font-mono theme-text-secondary bg-[var(--hover-bg)] px-3 py-2 rounded-lg">
-              FELIX_COPILOT_API_KEY=sk-your-key-here
-            </code>
+          
+          {/* API Key Status */}
+          {copilotApiKeyHasValue && (
+            <div className="flex items-center gap-2 mb-4 p-3 bg-[var(--status-success)]/10 border border-[var(--status-success)]/20 rounded-lg">
+              <svg
+                className="w-4 h-4 text-[var(--status-success)]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              <span className="text-xs text-[var(--status-success)]">
+                API key configured
+              </span>
+              <button
+                onClick={handleClearCopilotApiKey}
+                disabled={!isEnabled}
+                className={`ml-auto text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] transition-colors ${!isEnabled ? "cursor-not-allowed opacity-50" : ""}`}
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
+          {/* API Key Input */}
+          <div className="space-y-3 mb-4">
+            <div>
+              <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                {copilotApiKeyHasValue ? "Update API Key" : "Enter API Key"}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={copilotApiKeyInput}
+                  onChange={(e) => setCopilotApiKeyInput(e.target.value)}
+                  disabled={!isEnabled}
+                  placeholder={copilotApiKeyHasValue ? "••••••••••••••••" : "sk-proj-..."}
+                  className={`flex-1 theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all ${
+                    isEnabled
+                      ? "focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+                      : "cursor-not-allowed opacity-50"
+                  }`}
+                />
+                <button
+                  onClick={handleSaveCopilotApiKey}
+                  disabled={!isEnabled || !copilotApiKeyInput.trim() || copilotApiKeySaving}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                    isEnabled && copilotApiKeyInput.trim() && !copilotApiKeySaving
+                      ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
+                      : "theme-bg-surface theme-text-muted cursor-not-allowed"
+                  }`}
+                >
+                  {copilotApiKeySaving ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+              </div>
+              <p className="mt-1.5 text-[10px] theme-text-muted">
+                Your API key is stored in your browser's localStorage (not sent to any server)
+              </p>
+            </div>
+
+            {/* Save Confirmation */}
+            {copilotApiKeySaved && (
+              <div className="flex items-center gap-2 text-xs text-[var(--status-success)]">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span>API key saved successfully</span>
+              </div>
+            )}
           </div>
 
+          {/* Test Connection Button */}
           <div className="flex items-center gap-3 mb-4">
             <button
               onClick={handleTestCopilotConnection}
-              disabled={!isEnabled || copilotTestLoading}
+              disabled={!isEnabled || copilotTestLoading || !copilotApiKeyHasValue}
               className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                isEnabled && !copilotTestLoading
+                isEnabled && !copilotTestLoading && copilotApiKeyHasValue
                   ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
                   : "theme-bg-surface theme-text-muted cursor-not-allowed"
               }`}
@@ -2419,8 +2550,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             )}
           </div>
 
+          {/* Fallback info for local development */}
+          <div className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4 mb-4">
+            <p className="text-xs theme-text-tertiary mb-2">
+              <strong>Local Development Fallback:</strong> If no browser API key is set, the backend will check for{" "}
+              <code className="bg-[var(--hover-bg)] px-1.5 py-0.5 rounded font-mono">
+                FELIX_COPILOT_API_KEY
+              </code>{" "}
+              in your .env file.
+            </p>
+          </div>
+
           <p className="text-[11px] theme-text-muted">
-            Your API key is stored in .env (not version controlled).{" "}
             {provider === "openai" && (
               <a
                 href="https://platform.openai.com/api-keys"
