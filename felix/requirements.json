@@ -254,8 +254,7 @@
                                                 "S-0007",
                                                 "S-0002"
                                             ],
-                             "updated_at":  "2026-01-27",
-                             "last_run_id":  "2026-01-27T22-56-51"
+                             "updated_at":  "2026-01-27"
                          },
                          {
                              "id":  "S-0017",
@@ -304,8 +303,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-27",
-                             "last_run_id":  "2026-01-27T21-55-16"
+                             "updated_at":  "2026-01-27"
                          },
                          {
                              "id":  "S-0020",
@@ -320,6 +318,23 @@
 
                                             ],
                              "updated_at":  "2026-01-27"
+                         },
+                         {
+                             "id":  "S-0021",
+                             "title":  "Windows System Tray Manager",
+                             "spec_path":  "specs/S-0021-windows-tray-manager.md",
+                             "status":  "in_progress",
+                             "priority":  "medium",
+                             "labels":  [
+                                            "windows",
+                                            "desktop",
+                                            "tooling"
+                                        ],
+                             "depends_on":  [
+                                                "S-0001"
+                                            ],
+                             "updated_at":  "2026-01-28",
+                             "last_run_id":  "2026-01-28T09-22-23"
                          }
                      ]
 }
