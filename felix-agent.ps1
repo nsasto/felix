@@ -1148,11 +1148,37 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         Copy-Item $latestPlanPath (Join-Path $runDir "plan-$($currentReq.id).md")
     }
     
-    # Add requirements status
-    $reqSummary = $requirements | ConvertTo-Json -Depth 10
-    $contextParts += "# Requirements Status`n`n``````json`n$reqSummary`n``````"
+    # Build minimal requirements context
+    $reqContext = @{
+        current = @{
+            id        = $currentReq.id
+            title     = $currentReq.title
+            status    = $currentReq.status
+            spec_path = $currentReq.spec_path
+            priority  = $currentReq.priority
+        }
+    }
     
-    # Add current requirement ID
+    # Add dependencies with their statuses if they exist
+    if ($currentReq.depends_on -and $currentReq.depends_on.Count -gt 0) {
+        $deps = @()
+        foreach ($depId in $currentReq.depends_on) {
+            $depReq = $requirements.requirements | Where-Object { $_.id -eq $depId } | Select-Object -First 1
+            if ($depReq) {
+                $deps += @{
+                    id     = $depReq.id
+                    title  = $depReq.title
+                    status = $depReq.status
+                }
+            }
+        }
+        $reqContext.dependencies = $deps
+    }
+    
+    $reqSummary = $reqContext | ConvertTo-Json -Depth 10
+    $contextParts += "# Current Requirement Context`n`n``````json`n$reqSummary`n```````n`n*Note: Full requirements list available at ``felix/requirements.json`` if you need to check other requirements.*"
+    
+    # Add current requirement header
     $contextParts += "# Current Requirement`n`nYou are working on: **$($currentReq.id)** - $($currentReq.title)"
     
     # Add failure context from previous iteration if blocked
