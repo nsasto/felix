@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
+using System.Threading.Tasks;
 using FelixTrayManager.Models;
 
 namespace FelixTrayManager.Services;
@@ -41,6 +43,7 @@ public class SettingsManager
 
     /// <summary>
     /// Loads settings from disk. If file doesn't exist or is invalid, returns default settings.
+    /// Automatically migrates legacy settings to new format.
     /// </summary>
     public AppSettings LoadSettings()
     {
@@ -59,6 +62,15 @@ public class SettingsManager
             if (settings == null)
             {
                 throw new JsonException("Deserialized settings are null");
+            }
+
+            // Migrate legacy settings if needed
+            if (settings.IsLegacyMode())
+            {
+                System.Diagnostics.Debug.WriteLine("Migrating legacy settings to agent-based configuration...");
+                settings.MigrateLegacySettings();
+                SaveSettings(settings);
+                System.Diagnostics.Debug.WriteLine("Migration completed successfully.");
             }
 
             return settings;
@@ -132,5 +144,69 @@ public class SettingsManager
     public void ResetToDefaults()
     {
         SaveSettings(AppSettings.CreateDefault());
+    }
+
+    /// <summary>
+    /// Tests connection to the backend server endpoint
+    /// </summary>
+    /// <param name="serverEndpoint">Backend server URL to test</param>
+    /// <returns>Tuple with success status and result message</returns>
+    public async Task<(bool Success, string Message)> TestConnectionAsync(string serverEndpoint)
+    {
+        if (string.IsNullOrWhiteSpace(serverEndpoint))
+        {
+            return (false, "Server endpoint URL is required");
+        }
+
+        // Validate URL format
+        if (!Uri.TryCreate(serverEndpoint, UriKind.Absolute, out var uri))
+        {
+            return (false, "Invalid URL format");
+        }
+
+        try
+        {
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var healthUrl = $"{serverEndpoint.TrimEnd('/')}/health";
+            
+            var response = await httpClient.GetAsync(healthUrl);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                
+                // Try to extract version if available
+                try
+                {
+                    var healthData = JsonSerializer.Deserialize<JsonElement>(content);
+                    if (healthData.TryGetProperty("version", out var version))
+                    {
+                        return (true, $"✅ Connected to Felix backend v{version}");
+                    }
+                }
+                catch
+                {
+                    // Version not available, just report success
+                }
+                
+                return (true, "✅ Connected to Felix backend");
+            }
+            else
+            {
+                return (false, $"❌ Server responded with status code: {(int)response.StatusCode}");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"❌ Cannot connect to {serverEndpoint}: {ex.Message}");
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, $"❌ Connection timeout after 5 seconds");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"❌ Error: {ex.Message}");
+        }
     }
 }
