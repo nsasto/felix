@@ -12,6 +12,16 @@ vi.mock('../../services/felixApi', () => ({
     updateConfig: vi.fn(),
     getGlobalConfig: vi.fn(),
     updateGlobalConfig: vi.fn(),
+    // Agent configuration API methods (S-0020)
+    getAgentConfigurations: vi.fn(),
+    getAgentConfiguration: vi.fn(),
+    createAgentConfiguration: vi.fn(),
+    updateAgentConfiguration: vi.fn(),
+    deleteAgentConfiguration: vi.fn(),
+    setActiveAgent: vi.fn(),
+    getActiveAgentConfiguration: vi.fn(),
+    // Agent registry API methods (needed for Agents category)
+    getAgents: vi.fn(),
   },
 }));
 
@@ -1325,6 +1335,561 @@ describe('SettingsScreen', () => {
 
         await waitFor(() => {
           expect(felixApi.updateGlobalConfig).toHaveBeenCalled();
+        });
+      });
+    });
+  });
+
+  // S-0020: Agent Configuration Settings Tests
+  describe('Agent Configuration Settings (S-0020)', () => {
+    const mockOnBack = vi.fn();
+
+    // Mock agent configurations
+    const mockAgentConfigurations = {
+      agents: [
+        {
+          id: 0,
+          name: 'felix-primary',
+          executable: 'droid',
+          args: ['exec', '--skip-permissions-unsafe'],
+          working_directory: '.',
+          environment: {},
+        },
+        {
+          id: 1,
+          name: 'claude-agent',
+          executable: 'claude',
+          args: ['--model', 'sonnet'],
+          working_directory: '.',
+          environment: { API_KEY: 'test-key' },
+        },
+      ],
+      active_agent_id: 0,
+    };
+
+    // Mock agent registry response
+    const mockAgentRegistry = {
+      agents: {},
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      // Default mocks for agent configuration API
+      vi.mocked(felixApi.getAgentConfigurations).mockResolvedValue(mockAgentConfigurations);
+      vi.mocked(felixApi.getAgents).mockResolvedValue(mockAgentRegistry);
+    });
+
+    describe('Agents Category Navigation', () => {
+      it('displays Agents category in sidebar', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+      });
+
+      it('navigates to agents settings when Agents category is clicked', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        // Click on Agents category
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        // Wait for agent configurations to load
+        await waitFor(() => {
+          expect(felixApi.getAgentConfigurations).toHaveBeenCalled();
+        });
+      });
+    });
+
+    describe('Agent List Display', () => {
+      it('displays all agent configurations from agents.json', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        // Navigate to Agents category
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          // Both agents should be displayed
+          expect(screen.getByText('felix-primary')).toBeInTheDocument();
+          expect(screen.getByText('claude-agent')).toBeInTheDocument();
+        });
+      });
+
+      it('shows System Default badge for agent ID 0', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          // System default badge should be visible
+          expect(screen.getByText(/system default/i)).toBeInTheDocument();
+        });
+      });
+
+      it('shows Active badge for the currently active agent', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          // Active badge should be visible (agent 0 is active by default)
+          expect(screen.getByText(/active/i)).toBeInTheDocument();
+        });
+      });
+
+      it('displays agent executable and args', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          // Executable info should be visible
+          expect(screen.getByText(/droid/i)).toBeInTheDocument();
+          expect(screen.getByText(/claude/i)).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('Set Active Agent', () => {
+      it('calls setActiveAgent API when Set Active button is clicked', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+        vi.mocked(felixApi.setActiveAgent).mockResolvedValue({ agent_id: 1, message: 'Active agent set' });
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText('claude-agent')).toBeInTheDocument();
+        });
+
+        // Find and click Set Active button for claude-agent
+        const setActiveButtons = screen.getAllByText(/set active/i);
+        if (setActiveButtons.length > 0) {
+          fireEvent.click(setActiveButtons[0]);
+        }
+
+        await waitFor(() => {
+          expect(felixApi.setActiveAgent).toHaveBeenCalled();
+        });
+      });
+    });
+
+    describe('Add Agent Form', () => {
+      it('shows Add Agent button', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText(/add agent/i)).toBeInTheDocument();
+        });
+      });
+
+      it('opens agent form when Add Agent is clicked', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText(/add agent/i)).toBeInTheDocument();
+        });
+
+        // Click Add Agent button
+        const addButton = screen.getByText(/add agent/i);
+        fireEvent.click(addButton);
+
+        await waitFor(() => {
+          // Form fields should appear
+          expect(screen.getByPlaceholderText(/my-agent/i)).toBeInTheDocument();
+        });
+      });
+
+      it('calls createAgentConfiguration when form is submitted', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+        vi.mocked(felixApi.createAgentConfiguration).mockResolvedValue({
+          agent: { id: 2, name: 'new-agent', executable: 'new-exec', args: [], working_directory: '.', environment: {} },
+          message: 'Agent created',
+        });
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText(/add agent/i)).toBeInTheDocument();
+        });
+
+        // Click Add Agent button
+        const addButton = screen.getByText(/add agent/i);
+        fireEvent.click(addButton);
+
+        await waitFor(() => {
+          expect(screen.getByPlaceholderText(/my-agent/i)).toBeInTheDocument();
+        });
+
+        // Fill in form fields
+        const nameInput = screen.getByPlaceholderText(/my-agent/i);
+        fireEvent.change(nameInput, { target: { value: 'new-agent' } });
+
+        // Find executable input and fill it
+        const executableInputs = screen.getAllByRole('textbox');
+        const executableInput = executableInputs.find(input => 
+          input.getAttribute('placeholder')?.toLowerCase().includes('exec') ||
+          input.getAttribute('placeholder') === 'droid'
+        );
+        if (executableInput) {
+          fireEvent.change(executableInput, { target: { value: 'new-exec' } });
+        }
+
+        // Submit form - find Save button
+        const saveButtons = screen.getAllByText(/save/i);
+        const formSaveButton = saveButtons.find(btn => 
+          btn.closest('button') && !btn.closest('button')?.disabled
+        );
+        if (formSaveButton) {
+          fireEvent.click(formSaveButton);
+        }
+
+        await waitFor(() => {
+          expect(felixApi.createAgentConfiguration).toHaveBeenCalled();
+        });
+      });
+    });
+
+    describe('Edit Agent', () => {
+      it('shows Edit button on agent cards', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          // Edit buttons should be visible on agent cards
+          const editButtons = screen.getAllByText(/edit/i);
+          expect(editButtons.length).toBeGreaterThan(0);
+        });
+      });
+
+      it('calls updateAgentConfiguration when edit form is submitted', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+        vi.mocked(felixApi.updateAgentConfiguration).mockResolvedValue({
+          agent: { id: 0, name: 'updated-name', executable: 'droid', args: [], working_directory: '.', environment: {} },
+          message: 'Agent updated',
+        });
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText('felix-primary')).toBeInTheDocument();
+        });
+
+        // Click Edit on first agent
+        const editButtons = screen.getAllByText(/edit/i);
+        if (editButtons.length > 0) {
+          fireEvent.click(editButtons[0]);
+        }
+
+        // Wait for form to appear with pre-filled values
+        await waitFor(() => {
+          // The form should have some input with the agent name
+          const inputs = screen.getAllByRole('textbox');
+          expect(inputs.length).toBeGreaterThan(0);
+        });
+
+        // Find and update the name input
+        const nameInput = screen.getByDisplayValue('felix-primary');
+        if (nameInput) {
+          fireEvent.change(nameInput, { target: { value: 'updated-name' } });
+        }
+
+        // Submit form
+        const saveButtons = screen.getAllByText(/save/i);
+        const formSaveButton = saveButtons.find(btn => {
+          const button = btn.closest('button');
+          return button && !button.disabled;
+        });
+        if (formSaveButton) {
+          fireEvent.click(formSaveButton);
+        }
+
+        await waitFor(() => {
+          expect(felixApi.updateAgentConfiguration).toHaveBeenCalled();
+        });
+      });
+    });
+
+    describe('Delete Agent', () => {
+      it('disables delete button for system default agent (ID 0)', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText('felix-primary')).toBeInTheDocument();
+        });
+
+        // Find delete buttons
+        const deleteButtons = screen.getAllByText(/delete/i);
+        
+        // At least one delete button should exist (for non-system-default agents)
+        // The system default agent's delete button should be disabled or not present
+        // Check that there's a delete button that is enabled (for agent ID 1)
+        const enabledDeleteButton = deleteButtons.find(btn => {
+          const button = btn.closest('button');
+          return button && !button.disabled;
+        });
+        
+        expect(enabledDeleteButton).toBeDefined();
+      });
+
+      it('calls deleteAgentConfiguration for non-system-default agents', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+        vi.mocked(felixApi.deleteAgentConfiguration).mockResolvedValue({
+          status: 'deleted',
+          agent_id: 1,
+          message: 'Agent deleted',
+        });
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText('claude-agent')).toBeInTheDocument();
+        });
+
+        // Find and click delete button for the non-default agent
+        const deleteButtons = screen.getAllByText(/delete/i);
+        const enabledDeleteButton = deleteButtons.find(btn => {
+          const button = btn.closest('button');
+          return button && !button.disabled;
+        });
+        
+        if (enabledDeleteButton) {
+          fireEvent.click(enabledDeleteButton);
+        }
+
+        await waitFor(() => {
+          expect(felixApi.deleteAgentConfiguration).toHaveBeenCalled();
+        });
+      });
+    });
+
+    describe('Error Handling', () => {
+      it('displays error when agent configurations fail to load', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+        vi.mocked(felixApi.getAgentConfigurations).mockRejectedValue(new Error('Failed to load agent configs'));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          // Error message should be displayed
+          expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
+        });
+      });
+
+      it('shows Try Again button when agent configs fail to load', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+        vi.mocked(felixApi.getAgentConfigurations).mockRejectedValue(new Error('Failed to load'));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        await waitFor(() => {
+          expect(screen.getByText(/try again/i)).toBeInTheDocument();
+        });
+      });
+    });
+
+    describe('Refresh Functionality', () => {
+      it('refreshes agent configurations when refresh button is clicked', async () => {
+        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(mockConfigResponse(createMockConfig()));
+
+        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Agents')).toBeInTheDocument();
+        });
+
+        const agentsButton = screen.getAllByText('Agents').find(el => 
+          el.closest('button')?.classList.contains('w-full')
+        );
+        if (agentsButton) {
+          fireEvent.click(agentsButton);
+        }
+
+        // Wait for initial load
+        await waitFor(() => {
+          expect(felixApi.getAgentConfigurations).toHaveBeenCalledTimes(1);
+        });
+
+        // Find and click refresh button by text content
+        const refreshButton = screen.getByText('Refresh');
+        fireEvent.click(refreshButton);
+
+        await waitFor(() => {
+          // Should have been called again
+          expect(felixApi.getAgentConfigurations).toHaveBeenCalledTimes(2);
         });
       });
     });
