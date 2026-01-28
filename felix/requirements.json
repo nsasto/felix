@@ -323,7 +323,7 @@
                              "id":  "S-0021",
                              "title":  "Agent Orchestration Enhancement",
                              "spec_path":  "specs/S-0021-agent-orchestration-enhancement.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
 
