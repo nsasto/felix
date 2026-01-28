@@ -30,11 +30,16 @@
           animation: {
             'spin-slow': 'spin 3s linear infinite',
             'in': 'enter 0.3s ease-out',
+            'polling-pulse': 'polling-pulse 2s ease-in-out infinite',
           },
           keyframes: {
             enter: {
               '0%': { opacity: '0', transform: 'translateY(10px)' },
               '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            'polling-pulse': {
+              '0%, 100%': { opacity: '1' },
+              '50%': { opacity: '0.6' },
             }
           }
         }

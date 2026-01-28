@@ -104,6 +104,8 @@ interface ToolbarProps {
   onRefresh: () => void;
   onSettings: () => void;
   actionInProgress: string | null;
+  pollingMode: 'live' | 'manual';
+  onTogglePollingMode: () => void;
 }
 
 const DashboardToolbar: React.FC<ToolbarProps> = ({
@@ -114,6 +116,8 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
   onRefresh,
   onSettings,
   actionInProgress,
+  pollingMode,
+  onTogglePollingMode,
 }) => {
   const [showStartDropdown, setShowStartDropdown] = useState(false);
   const [showStopDropdown, setShowStopDropdown] = useState(false);
@@ -257,12 +261,40 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
             </div>
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-          <span className="text-[10px] font-bold text-emerald-500 uppercase">
-            Live Context Active
+        {/* Polling Mode Toggle Badge */}
+        <button
+          onClick={onTogglePollingMode}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer hover:opacity-80 ${
+            pollingMode === 'live'
+              ? 'bg-emerald-500/10 border border-emerald-500/20'
+              : 'border'
+          }`}
+          style={{
+            borderColor: pollingMode === 'manual' ? 'var(--border-default)' : undefined,
+          }}
+          title="Click to toggle polling mode"
+          aria-label={`Polling mode: ${pollingMode === 'live' ? 'Live Polling Active' : 'Manual Polling Mode'}. Click to toggle.`}
+        >
+          <div
+            className={`w-2 h-2 rounded-full ${
+              pollingMode === 'live' ? 'bg-emerald-500' : ''
+            }`}
+            style={{
+              backgroundColor: pollingMode === 'manual' ? 'var(--text-muted)' : undefined,
+              animation: pollingMode === 'live' ? 'polling-pulse 2s ease-in-out infinite' : 'none',
+            }}
+          />
+          <span
+            className={`text-[10px] font-bold uppercase ${
+              pollingMode === 'live' ? 'text-emerald-500' : ''
+            }`}
+            style={{
+              color: pollingMode === 'manual' ? 'var(--text-muted)' : undefined,
+            }}
+          >
+            {pollingMode === 'live' ? 'Live Polling Active' : 'Manual Polling Mode'}
           </span>
-        </div>
+        </button>
       </div>
 
       {/* Right section - Controls */}
@@ -1398,6 +1430,39 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
   );
 };
 
+// --- Polling Mode Types and Constants ---
+
+type PollingMode = 'live' | 'manual';
+const POLLING_MODE_STORAGE_KEY = 'felix_agent_polling_mode';
+
+/**
+ * Get the stored polling mode from localStorage, or return the default ('live')
+ */
+function getStoredPollingMode(): PollingMode {
+  if (typeof window === 'undefined') return 'live';
+  try {
+    const stored = localStorage.getItem(POLLING_MODE_STORAGE_KEY);
+    if (stored === 'live' || stored === 'manual') {
+      return stored;
+    }
+  } catch (e) {
+    console.warn('Could not read polling mode from localStorage:', e);
+  }
+  return 'live';
+}
+
+/**
+ * Save polling mode to localStorage
+ */
+function storePollingMode(mode: PollingMode): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(POLLING_MODE_STORAGE_KEY, mode);
+  } catch (e) {
+    console.warn('Could not save polling mode to localStorage:', e);
+  }
+}
+
 // --- Main Dashboard Component ---
 
 const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
@@ -1410,6 +1475,19 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Polling mode state - persisted in localStorage
+  const [pollingMode, setPollingMode] = useState<PollingMode>(() => getStoredPollingMode());
+  
+  // Persist polling mode to localStorage whenever it changes
+  useEffect(() => {
+    storePollingMode(pollingMode);
+  }, [pollingMode]);
+  
+  // Toggle function for polling mode
+  const togglePollingMode = useCallback(() => {
+    setPollingMode((prev) => (prev === 'live' ? 'manual' : 'live'));
+  }, []);
 
   // Fetch agents - merges configured agents with runtime status
   const fetchAgents = useCallback(async () => {
@@ -1490,19 +1568,25 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     }
   }, [projectId]);
 
-  // Initial fetch and polling
+  // Initial fetch (always runs once on mount)
   useEffect(() => {
     fetchAgents();
     fetchRequirements();
-
+  }, []); // Empty deps - run once on mount
+  
+  // Agent polling - only in live mode
+  useEffect(() => {
+    if (pollingMode !== 'live') return;
+    
     const agentInterval = setInterval(fetchAgents, 2000);
+    return () => clearInterval(agentInterval);
+  }, [fetchAgents, pollingMode]);
+  
+  // Requirements polling - always runs (not affected by polling mode toggle)
+  useEffect(() => {
     const reqInterval = setInterval(fetchRequirements, 10000);
-
-    return () => {
-      clearInterval(agentInterval);
-      clearInterval(reqInterval);
-    };
-  }, [fetchAgents, fetchRequirements]);
+    return () => clearInterval(reqInterval);
+  }, [fetchRequirements]);
 
   // Handle start agent
   const handleStart = async (requirementId: string) => {
@@ -1590,6 +1674,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         onRefresh={handleRefresh}
         onSettings={handleSettings}
         actionInProgress={actionInProgress}
+        pollingMode={pollingMode}
+        onTogglePollingMode={togglePollingMode}
       />
 
       {/* Three-Column Layout */}
