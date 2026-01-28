@@ -49,22 +49,43 @@ class CopilotService:
     # Maximum tokens for context trimming
     MAX_CONTEXT_TOKENS = 8000
     
-    def __init__(self, config: Optional[CopilotConfig] = None):
+    def __init__(self, config: Optional[CopilotConfig] = None, api_key: Optional[str] = None):
         """
         Initialize the copilot service.
         
         Args:
             config: Copilot configuration. Uses defaults if not provided.
+            api_key: Optional API key. If not provided, falls back to environment variable.
         """
         self.config = config or CopilotConfig()
-        self._api_key: Optional[str] = None
+        self._provided_api_key = api_key
+        self._env_api_key: Optional[str] = None
     
     @property
     def api_key(self) -> Optional[str]:
-        """Get API key from environment (lazy loading)"""
-        if self._api_key is None:
-            self._api_key = os.getenv("FELIX_COPILOT_API_KEY", "").strip()
-        return self._api_key if self._api_key else None
+        """
+        Get API key with priority: provided key → environment variable.
+        
+        Returns:
+            API key string or None if not configured
+        """
+        # First check if API key was explicitly provided
+        if self._provided_api_key:
+            return self._provided_api_key.strip() if self._provided_api_key.strip() else None
+        
+        # Fall back to environment variable (lazy loading)
+        if self._env_api_key is None:
+            self._env_api_key = os.getenv("FELIX_COPILOT_API_KEY", "").strip()
+        return self._env_api_key if self._env_api_key else None
+    
+    def set_api_key(self, api_key: Optional[str]) -> None:
+        """
+        Set the API key to use for requests.
+        
+        Args:
+            api_key: The API key to use, or None to fall back to env var
+        """
+        self._provided_api_key = api_key
     
     def validate_configuration(self) -> tuple[bool, Optional[str]]:
         """
@@ -77,7 +98,7 @@ class CopilotService:
             return False, "Copilot is disabled in settings"
         
         if not self.api_key:
-            return False, "FELIX_COPILOT_API_KEY not configured"
+            return False, "API key not configured. Please add your API key in Settings."
         
         if self.config.provider not in ["openai", "anthropic", "custom"]:
             return False, f"Unsupported provider: {self.config.provider}"
@@ -431,18 +452,19 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
                             continue
 
 
-def create_copilot_service_from_config(copilot_config: Any) -> CopilotService:
+def create_copilot_service_from_config(copilot_config: Any, api_key: Optional[str] = None) -> CopilotService:
     """
     Create a CopilotService from a copilot configuration object.
     
     Args:
         copilot_config: Config object from settings (may be None)
+        api_key: Optional API key. If not provided, falls back to environment variable.
         
     Returns:
         Configured CopilotService instance
     """
     if copilot_config is None:
-        return CopilotService()
+        return CopilotService(api_key=api_key)
     
     config = CopilotConfig(
         provider=copilot_config.provider,
@@ -457,4 +479,4 @@ def create_copilot_service_from_config(copilot_config: Any) -> CopilotService:
         }
     )
     
-    return CopilotService(config)
+    return CopilotService(config, api_key=api_key)

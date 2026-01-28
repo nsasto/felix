@@ -59,3 +59,26 @@
 2. **Current work tracking**: Heartbeat includes `current_run_id`, showing what requirement the agent is working on
 3. **Standard pattern**: Most distributed systems use heartbeats (Kubernetes, Consul, etc.)
 4. **5 seconds is reasonable**: Not excessive overhead
+
+
+## TODO: Add Agent ID to Run Output Folders
+
+**Current behavior:**
+- Run output folders are named by requirement only (e.g., `felix/runs/S-0001/`)
+- When multiple agents run the same requirement, outputs overwrite each other
+
+**Proposed behavior:**
+- Include agent ID in folder structure: `felix/runs/S-0001/{agent-id}/`
+- Each agent's run outputs are isolated
+- Easy to trace which agent produced which artifacts
+
+**Benefits:**
+- Supports multiple agents working on different requirements simultaneously
+- Prevents race conditions on shared output directories
+- Audit trail: know exactly which agent produced each log/artifact
+- Aligns with agent heartbeat tracking (agent ID already tracked in backend)
+
+**Implementation notes:**
+- Agent ID format: `{ComputerName}-{PID}` (matches heartbeat system)
+- Update `felix-agent.ps1` to create agent-specific output folders
+- Update validation/reporting to read from agent-specific paths
