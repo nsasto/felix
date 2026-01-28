@@ -1,14 +1,3 @@
-// filepath: felix/agent-registry.json
 {
-  "agents": {
-    "felix-primary": {
-      "name": "felix-primary",
-      "display_name": "Felix Primary",
-      "executable": "droid",
-      "args": ["exec"],
-      "working_directory": "C:\\dev\\Felix",
-      "enabled": true,
-      "status": "idle"
-    }
-  }
+  "agents": {}
 }
