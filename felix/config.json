@@ -7,7 +7,14 @@
     "auto_transition": true
   },
   "agent": {
-    "agent_id": 0
+    "name": "felix-primary",
+    "executable": "droid",
+    "args": [
+      "exec",
+      "--skip-permissions-unsafe"
+    ],
+    "working_directory": ".",
+    "environment": {}
   },
   "paths": {
     "specs": "specs",
@@ -20,5 +27,22 @@
   },
   "ui": {
     "theme": "dark"
+  },
+  "copilot": {
+    "enabled": true,
+    "provider": "openai",
+    "model": "gpt-4o",
+    "context_sources": {
+      "agents_md": true,
+      "learnings_md": true,
+      "prompt_md": true,
+      "requirements": true,
+      "other_specs": true
+    },
+    "features": {
+      "streaming": true,
+      "auto_suggest": true,
+      "context_aware": true
+    }
   }
 }
