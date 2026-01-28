@@ -21,6 +21,7 @@ import ConfigPanel from "./components/ConfigPanel";
 import PlanViewer from "./components/PlanViewer";
 import SettingsScreen from "./components/SettingsScreen";
 import AgentDashboard from "./components/AgentDashboard";
+import CopilotChat from "./components/CopilotChat";
 import { marked } from "marked";
 
 const INITIAL_TASKS: Task[] = [
@@ -1480,12 +1481,15 @@ export const executeTask = (taskId: string) => {
           renderCanvas()
         ) : uiState === "assets" ? (
           selectedProjectId ? (
-            <SpecsEditor
-              projectId={selectedProjectId}
-              onSelectSpec={(filename) => {
-                console.log("Selected spec:", filename);
-              }}
-            />
+            <>
+              <SpecsEditor
+                projectId={selectedProjectId}
+                onSelectSpec={(filename) => {
+                  console.log("Selected spec:", filename);
+                }}
+              />
+              <CopilotChat projectId={selectedProjectId} />
+            </>
           ) : (
             <div
               className="flex-1 flex flex-col items-center justify-center text-center"
