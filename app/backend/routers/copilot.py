@@ -155,7 +155,7 @@ async def test_copilot_connection():
         )
     
     # Load copilot configuration
-    config = load_global_config()
+    config, _ = load_global_config()
     copilot_config = config.copilot
     
     if copilot_config is None:
@@ -202,7 +202,7 @@ async def get_copilot_status():
     Returns whether copilot is enabled and configured,
     without exposing sensitive information.
     """
-    config = load_global_config()
+    config, _ = load_global_config()
     copilot_config = config.copilot
     
     api_key_present = bool(os.getenv("FELIX_COPILOT_API_KEY", "").strip())
@@ -433,7 +433,7 @@ async def stream_copilot_chat(request: CopilotChatRequest):
     async def event_generator() -> AsyncGenerator[str, None]:
         try:
             # Load copilot configuration and create service
-            config = load_global_config()
+            config, _ = load_global_config()
             service = create_copilot_service_from_config(config.copilot)
             
             # Load project context if project path provided

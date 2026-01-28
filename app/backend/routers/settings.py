@@ -3,6 +3,7 @@ Felix Backend - Global Settings API
 Handles global Felix settings that are project-independent.
 Settings are stored in ~/.felix/config.json (Felix home directory).
 """
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
@@ -11,6 +12,9 @@ import json
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 import storage
 
@@ -101,6 +105,7 @@ class ConfigContent(BaseModel):
     """Config file content response"""
     config: FelixConfig
     path: str
+    warning: Optional[str] = Field(default=None, description="Warning message if config had issues (e.g., invalid agent_id)")
 
 
 class ConfigUpdate(BaseModel):
@@ -115,13 +120,22 @@ def get_global_config_path() -> Path:
     return storage.get_felix_home() / "config.json"
 
 
-def load_global_config() -> FelixConfig:
-    """Load global Felix configuration from ~/.felix/config.json"""
+def load_global_config() -> tuple[FelixConfig, str | None]:
+    """
+    Load global Felix configuration from ~/.felix/config.json.
+    
+    Returns:
+        A tuple of (FelixConfig, warning_message) where warning_message is None if no issues.
+        If agent_id references a non-existent agent, auto-corrects to ID 0 and returns a warning.
+    """
     config_path = get_global_config_path()
+    warning_message = None
+    auto_correct_needed = False
+    original_agent_id = None
     
     if not config_path.exists():
         # Return default config if file doesn't exist
-        return FelixConfig()
+        return FelixConfig(), None
     
     try:
         data = json.loads(config_path.read_text(encoding='utf-8-sig'))
@@ -138,7 +152,8 @@ def load_global_config() -> FelixConfig:
         if agent_data:
             if "agent_id" in agent_data:
                 # New format - use agent_id directly
-                agent_config = AgentConfig(agent_id=agent_data["agent_id"])
+                original_agent_id = agent_data["agent_id"]
+                agent_config = AgentConfig(agent_id=original_agent_id)
             elif "name" in agent_data or "executable" in agent_data:
                 # Legacy format - has inline agent definition, use agent_id: 0 (system default)
                 # The actual agent data should be in agents.json
@@ -148,6 +163,15 @@ def load_global_config() -> FelixConfig:
                 agent_config = AgentConfig()
         else:
             agent_config = AgentConfig()
+        
+        # Validate that agent_id references an existing agent in agents.json
+        if not validate_agent_id_exists(agent_config.agent_id):
+            # Agent doesn't exist - fallback to ID 0 (system default)
+            original_agent_id = agent_config.agent_id
+            agent_config = AgentConfig(agent_id=0)
+            auto_correct_needed = True
+            warning_message = f"⚠️ Configured agent (ID {original_agent_id}) not found. Using system default."
+            logger.warning(f"Agent ID {original_agent_id} not found in agents.json. Falling back to system default (ID 0) and auto-correcting config.json.")
         
         # Parse copilot config if present
         copilot_config = None
@@ -162,7 +186,7 @@ def load_global_config() -> FelixConfig:
                 features=CopilotFeaturesConfig(**features_data) if features_data else CopilotFeaturesConfig()
             )
         
-        return FelixConfig(
+        config = FelixConfig(
             version=data.get("version", "0.1.0"),
             executor=ExecutorConfig(**executor_data) if executor_data else ExecutorConfig(),
             agent=agent_config,
@@ -171,6 +195,12 @@ def load_global_config() -> FelixConfig:
             ui=UIConfig(**ui_data) if ui_data else UIConfig(),
             copilot=copilot_config
         )
+        
+        # Auto-correct config.json if agent_id was invalid
+        if auto_correct_needed:
+            save_global_config(config)
+        
+        return config, warning_message
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=500, detail=f"Invalid JSON in config.json: {str(e)}")
     except Exception as e:
@@ -200,11 +230,15 @@ async def get_global_settings():
     
     Reads configuration from ~/.felix/config.json.
     Returns default values if the config file doesn't exist.
+    
+    If agent_id references a non-existent agent, auto-corrects to ID 0
+    and includes a warning in the response.
     """
-    config = load_global_config()
+    config, warning = load_global_config()
     return ConfigContent(
         config=config,
-        path=str(get_global_config_path())
+        path=str(get_global_config_path()),
+        warning=warning
     )
 
 
