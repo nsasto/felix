@@ -1,5 +1,5 @@
 ﻿FelixTrayManager
-
+1.0.0.0
 
 winexe
 C#
@@ -10,11 +10,11 @@ none
 false
 TRACE;DEBUG;NET;NET8_0;NETCOREAPP
 C:\projects\roboza\felix\app\tray-manager\App.xaml
-2-940597655
+3179406610
 
-11-269480641
+12-806151426
 2081853272844
-MainWindow.xaml;Views\SettingsWindow.xaml;
+MainWindow.xaml;Views\AboutWindow.xaml;Views\SettingsWindow.xaml;
 
 False
 
