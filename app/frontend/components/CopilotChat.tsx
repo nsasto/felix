@@ -9,6 +9,12 @@ import {
   CopilotStreamEvent 
 } from '../services/felixApi';
 
+/** Maximum number of messages to store in localStorage */
+const MAX_STORED_MESSAGES = 50;
+
+/** localStorage key prefix for chat history */
+const STORAGE_KEY_PREFIX = 'felix_copilot_chat_';
+
 interface CopilotChatProps {
   /** Project ID for API calls and localStorage key */
   projectId: string;
@@ -17,6 +23,80 @@ interface CopilotChatProps {
   /** Callback when user wants to insert generated spec content */
   onInsertSpec?: (content: string) => void;
 }
+
+/**
+ * Get localStorage key for a project's chat history.
+ * @param projectId - The project ID
+ * @returns localStorage key in format: felix_copilot_chat_{projectId}
+ */
+const getStorageKey = (projectId: string): string => {
+  return `${STORAGE_KEY_PREFIX}${projectId}`;
+};
+
+/**
+ * Load chat history from localStorage for a given project.
+ * @param projectId - The project ID
+ * @returns Array of ChatMessages, or empty array if none found
+ */
+const loadChatHistory = (projectId: string): ChatMessage[] => {
+  try {
+    const storageKey = getStorageKey(projectId);
+    const saved = localStorage.getItem(storageKey);
+    if (!saved) return [];
+    
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    
+    // Convert stored timestamps back to Date objects
+    return parsed.map((msg: any) => ({
+      ...msg,
+      timestamp: new Date(msg.timestamp),
+    }));
+  } catch (err) {
+    console.error('Failed to load chat history from localStorage:', err);
+    return [];
+  }
+};
+
+/**
+ * Save chat history to localStorage for a given project.
+ * Maintains a maximum of MAX_STORED_MESSAGES messages (FIFO).
+ * @param projectId - The project ID
+ * @param messages - Array of ChatMessages to save
+ */
+const saveChatHistory = (projectId: string, messages: ChatMessage[]): void => {
+  try {
+    const storageKey = getStorageKey(projectId);
+    
+    // Keep only the last MAX_STORED_MESSAGES messages (FIFO)
+    const toSave = messages.slice(-MAX_STORED_MESSAGES);
+    
+    // Convert Date objects to ISO strings for storage
+    const serialized = toSave.map(msg => ({
+      ...msg,
+      timestamp: msg.timestamp instanceof Date 
+        ? msg.timestamp.toISOString() 
+        : msg.timestamp,
+    }));
+    
+    localStorage.setItem(storageKey, JSON.stringify(serialized));
+  } catch (err) {
+    console.error('Failed to save chat history to localStorage:', err);
+  }
+};
+
+/**
+ * Clear chat history from localStorage for a given project.
+ * @param projectId - The project ID
+ */
+const clearChatHistory = (projectId: string): void => {
+  try {
+    const storageKey = getStorageKey(projectId);
+    localStorage.removeItem(storageKey);
+  } catch (err) {
+    console.error('Failed to clear chat history from localStorage:', err);
+  }
+};
 
 /**
  * CopilotChat - Main chat component integrating button, panel, and streaming logic.
@@ -65,6 +145,33 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
   // Error state for retry functionality
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+
+  // Track whether we've loaded history (to prevent saving on initial load)
+  const historyLoadedRef = useRef(false);
+
+  // Load chat history from localStorage when component mounts or projectId changes
+  useEffect(() => {
+    historyLoadedRef.current = false;
+    const history = loadChatHistory(projectId);
+    setMessages(history);
+    // Mark as loaded after setting messages
+    // Use a microtask to ensure the state update is processed first
+    Promise.resolve().then(() => {
+      historyLoadedRef.current = true;
+    });
+  }, [projectId]);
+
+  // Save chat history to localStorage when messages change
+  useEffect(() => {
+    // Don't save if we haven't loaded yet (prevents overwriting on initial render)
+    // Also don't save if messages array is empty (could be initial state or cleared)
+    if (!historyLoadedRef.current) {
+      return;
+    }
+    
+    // Save messages (even if empty, which clears the storage)
+    saveChatHistory(projectId, messages);
+  }, [projectId, messages]);
 
   // Load context source count from config
   useEffect(() => {
@@ -306,6 +413,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
 
   /**
    * Handle clearing chat history.
+   * Clears both in-memory state and localStorage.
    */
   const handleClearHistory = useCallback(() => {
     // Cancel any ongoing stream
@@ -314,13 +422,17 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
       streamControllerRef.current = null;
     }
     
+    // Clear localStorage for this project
+    clearChatHistory(projectId);
+    
+    // Clear in-memory state
     setMessages([]);
     setIsStreaming(false);
     setAvatarState('idle');
     setLastError(null);
     setLastFailedMessage(null);
     setUnreadCount(0);
-  }, []);
+  }, [projectId]);
 
   /**
    * Handle input focus - set avatar to listening.
