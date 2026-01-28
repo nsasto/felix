@@ -736,14 +736,28 @@ interface LiveConsolePanelProps {
   projectId: string;
 }
 
+// WebSocket message types
+interface ConsoleWebSocketMessage {
+  type: "connected" | "output" | "run_changed" | "idle" | "error";
+  content?: string;
+  run_id?: string;
+  message?: string;
+  status?: string;
+  agent_name?: string;
+}
+
 const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
   selectedAgent,
   projectId,
 }) => {
   const [consoleOutput, setConsoleOutput] = useState<string>("");
   const [scrollLocked, setScrollLocked] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const consoleRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
 
   // Auto-scroll to bottom when new content arrives
   useEffect(() => {
@@ -752,38 +766,122 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
     }
   }, [consoleOutput, scrollLocked]);
 
-  // Poll for console output when agent is active
+  // WebSocket connection for console streaming
   useEffect(() => {
     if (!selectedAgent || selectedAgent.agent.status !== "active") {
+      // Clean up WebSocket when agent is not active
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setConnectionStatus("disconnected");
       return;
     }
 
-    let isMounted = true;
+    const agentName = selectedAgent.name;
+    
+    const connectWebSocket = () => {
+      // Close existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
 
-    const fetchConsoleOutput = async () => {
-      // For now, we'll show a placeholder. Full implementation would require:
-      // 1. Backend WebSocket endpoint for console streaming
-      // 2. Or polling the current run's output.log
+      setConnectionStatus("connecting");
 
-      // Get the current run's output if available
-      if (selectedAgent.agent.current_run_id) {
+      // Create WebSocket connection
+      const wsUrl = `ws://localhost:8080/api/agents/${encodeURIComponent(agentName)}/console`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnectionStatus("connected");
+        reconnectAttempts.current = 0;
+        console.log(`WebSocket connected for agent: ${agentName}`);
+      };
+
+      ws.onmessage = (event) => {
         try {
-          // Try to fetch the output.log for the current run
-          // This is a placeholder - the actual implementation would tail the file
-          const runId = selectedAgent.agent.current_run_id;
-          // Note: This would require a new API endpoint to get run output in real-time
+          const message: ConsoleWebSocketMessage = JSON.parse(event.data);
+
+          switch (message.type) {
+            case "connected":
+              // Connection confirmation
+              console.log("WebSocket connected:", message.message);
+              break;
+
+            case "output":
+              // Append new output content
+              if (message.content) {
+                setConsoleOutput((prev) => prev + message.content);
+              }
+              if (message.run_id) {
+                setCurrentRunId(message.run_id);
+              }
+              break;
+
+            case "run_changed":
+              // New run started, clear output and show notification
+              setConsoleOutput(`--- Run changed to: ${message.run_id} ---\n`);
+              setCurrentRunId(message.run_id || null);
+              console.log("Run changed:", message.run_id);
+              break;
+
+            case "idle":
+              // Agent is idle
+              console.log("Agent idle:", message.message);
+              break;
+
+            case "error":
+              // Error message
+              console.error("WebSocket error:", message.message);
+              setConsoleOutput((prev) => prev + `\n[Error: ${message.message}]\n`);
+              break;
+
+            default:
+              console.log("Unknown WebSocket message:", message);
+          }
         } catch (err) {
-          console.error("Failed to fetch console output:", err);
+          console.error("Failed to parse WebSocket message:", err);
         }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        setConnectionStatus("disconnected");
+      };
+
+      ws.onclose = (event) => {
+        console.log(`WebSocket closed: code=${event.code}, reason=${event.reason}`);
+        setConnectionStatus("disconnected");
+        wsRef.current = null;
+
+        // Auto-reconnect with exponential backoff (max 30 seconds)
+        if (selectedAgent?.agent.status === "active") {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          reconnectAttempts.current++;
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            console.log(`Attempting to reconnect (attempt ${reconnectAttempts.current})...`);
+            connectWebSocket();
+          }, delay);
+        }
+      };
+    };
+
+    connectWebSocket();
+
+    // Cleanup on unmount or agent change
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
     };
-
-    const interval = setInterval(fetchConsoleOutput, 1000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [selectedAgent, projectId]);
+  }, [selectedAgent?.name, selectedAgent?.agent.status]);
 
   const handleClear = () => {
     setConsoleOutput("");

@@ -211,7 +211,7 @@
                              "id":  "S-0014",
                              "title":  "Agent Orchestration Dashboard",
                              "spec_path":  "specs/S-0014-agent-orchestration-dashboard.md",
-                             "status":  "complete",
+                             "status":  "planned",
                              "priority":  "medium",
                              "labels":  [
 
@@ -219,7 +219,8 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-27"
+                             "updated_at":  "2026-01-28",
+                             "last_run_id":  "2026-01-28T11-27-49"
                          },
                          {
                              "id":  "S-0015",
@@ -254,8 +255,7 @@
                                                 "S-0007",
                                                 "S-0002"
                                             ],
-                             "updated_at":  "2026-01-27",
-                             "last_run_id":  "2026-01-27T23-34-56"
+                             "updated_at":  "2026-01-27"
                          },
                          {
                              "id":  "S-0017",
@@ -274,8 +274,7 @@
                                                 "S-0003",
                                                 "S-0002"
                                             ],
-                             "updated_at":  "2026-01-28",
-                             "last_run_id":  "2026-01-28T08-26-06"
+                             "updated_at":  "2026-01-28"
                          },
                          {
                              "id":  "S-0018",
@@ -319,8 +318,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-28",
-                             "last_run_id":  "2026-01-28T09-26-11"
+                             "updated_at":  "2026-01-28"
                          },
                          {
                              "id":  "S-0021",
@@ -334,8 +332,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-28",
-                             "last_run_id":  "2026-01-28T09-57-16"
+                             "updated_at":  "2026-01-28"
                          }
                      ]
 }

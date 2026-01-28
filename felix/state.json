@@ -1,11 +1,11 @@
 {
-    "current_requirement_id":  "S-0021",
+    "current_requirement_id":  "S-0014",
     "last_run_id":  null,
     "last_mode":  "building",
     "last_iteration_outcome":  "complete",
-    "updated_at":  "2026-01-28T10:04:52.1016162+00:00",
-    "current_iteration":  4,
-    "status":  "complete",
+    "updated_at":  "2026-01-28T11:27:49.7535787+00:00",
+    "current_iteration":  1,
+    "status":  "running",
     "validation_retry_count":  0,
     "blocked_task":  {
                          "iteration":  2,
