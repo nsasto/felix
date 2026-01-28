@@ -2,7 +2,7 @@
 Felix Backend - Copilot API
 Handles API key testing, copilot configuration validation, and chat streaming.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, AsyncGenerator
@@ -130,28 +130,31 @@ async def verify_anthropic_connection(api_key: str, model: str) -> tuple[bool, O
 # --- Endpoints ---
 
 @router.post("/test", response_model=CopilotTestResult)
-async def test_copilot_connection():
+async def test_copilot_connection(
+    x_copilot_api_key: Optional[str] = Header(None, alias="X-Copilot-API-Key")
+):
     """
     Test the copilot API key connection.
     
-    Reads FELIX_COPILOT_API_KEY from environment and tests
-    connectivity to the configured LLM provider.
+    Priority for API key:
+    1. X-Copilot-API-Key header (for browser-provided keys)
+    2. FELIX_COPILOT_API_KEY environment variable (for local dev)
     
     Returns success/failure status without exposing the API key.
     """
-    # Get API key from environment
-    api_key = os.getenv("FELIX_COPILOT_API_KEY")
+    # Get API key with priority: header → env var
+    api_key = None
+    if x_copilot_api_key and x_copilot_api_key.strip():
+        api_key = x_copilot_api_key.strip()
+    else:
+        env_key = os.getenv("FELIX_COPILOT_API_KEY")
+        if env_key and env_key.strip():
+            api_key = env_key.strip()
     
     if not api_key:
         return CopilotTestResult(
             success=False,
-            error="FELIX_COPILOT_API_KEY not found in environment"
-        )
-    
-    if not api_key.strip():
-        return CopilotTestResult(
-            success=False,
-            error="FELIX_COPILOT_API_KEY is empty"
+            error="API key not configured. Please add your API key in Settings."
         )
     
     # Load copilot configuration
@@ -417,9 +420,16 @@ async def stream_anthropic_response(
 
 
 @router.post("/chat/stream")
-async def stream_copilot_chat(request: CopilotChatRequest):
+async def stream_copilot_chat(
+    request: CopilotChatRequest,
+    x_copilot_api_key: Optional[str] = Header(None, alias="X-Copilot-API-Key")
+):
     """
     Stream copilot chat response via Server-Sent Events (SSE).
+    
+    Priority for API key:
+    1. X-Copilot-API-Key header (for browser-provided keys)
+    2. FELIX_COPILOT_API_KEY environment variable (for local dev)
     
     Sends events in the format:
     - {"avatar_state": "thinking"} - Initial state
@@ -430,11 +440,17 @@ async def stream_copilot_chat(request: CopilotChatRequest):
     
     Uses CopilotService for LLM integration and context management.
     """
+    # Determine API key with priority: header → env var
+    api_key = None
+    if x_copilot_api_key and x_copilot_api_key.strip():
+        api_key = x_copilot_api_key.strip()
+    # If no header, the service will fall back to env var internally
+    
     async def event_generator() -> AsyncGenerator[str, None]:
         try:
-            # Load copilot configuration and create service
+            # Load copilot configuration and create service with API key
             config, _ = load_global_config()
-            service = create_copilot_service_from_config(config.copilot)
+            service = create_copilot_service_from_config(config.copilot, api_key=api_key)
             
             # Load project context if project path provided
             context = {}
