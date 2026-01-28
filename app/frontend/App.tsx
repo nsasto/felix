@@ -1489,15 +1489,12 @@ export const executeTask = (taskId: string) => {
           renderCanvas()
         ) : uiState === "assets" ? (
           selectedProjectId ? (
-            <>
-              <SpecsEditor
-                projectId={selectedProjectId}
-                onSelectSpec={(filename) => {
-                  console.log("Selected spec:", filename);
-                }}
-              />
-              <CopilotChat projectId={selectedProjectId} />
-            </>
+            <SpecsEditor
+              projectId={selectedProjectId}
+              onSelectSpec={(filename) => {
+                console.log("Selected spec:", filename);
+              }}
+            />
           ) : (
             <div
               className="flex-1 flex flex-col items-center justify-center text-center"
@@ -1567,6 +1564,11 @@ export const executeTask = (taskId: string) => {
           renderAssets()
         )}
       </div>
+
+      {/* Copilot Chat - Always rendered when in specs view */}
+      {uiState === "assets" && selectedProjectId && (
+        <CopilotChat projectId={selectedProjectId} />
+      )}
 
       {/* Persistent OS Status Bar */}
       <footer
