@@ -1509,9 +1509,9 @@ Fix the validation issues to unblock progress.
                 
                 Write-Host "[VERIFY] Asking LLM to verify task completion..."
                 
-                # Call droid with verification prompt
-                $verifyArgs = @("exec", "--prompt-file", $tempPromptPath)
-                $verificationOutput = & $DroidExe $verifyArgs 2>&1 | Out-String
+                # Call agent with verification prompt (use config from agents.json)
+                $cmdArgs = @($args) + @()
+                $verificationOutput = $fullPrompt | & $executable @cmdArgs 2>&1 | Out-String
                 
                 Write-Host $verificationOutput
                 
