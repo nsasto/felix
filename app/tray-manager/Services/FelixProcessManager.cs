@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FelixTrayManager.Models;
@@ -105,7 +106,36 @@ namespace FelixTrayManager.Services
             // Validate settings
             if (!settings.IsValid())
             {
-                SetErrorState("Invalid project path. Please configure a valid Felix project directory in Settings.");
+                SetErrorState("Invalid configuration. Please configure at least one valid agent in Settings.");
+                return false;
+            }
+
+            // Get the first enabled agent or use legacy mode
+            string? agentScriptPath = null;
+            string? projectPath = null;
+
+            if (settings.Agents != null && settings.Agents.Count > 0)
+            {
+                // New agent-based configuration
+                var agent = settings.Agents.FirstOrDefault(a => a.Enabled && a.IsValid());
+                if (agent == null)
+                {
+                    SetErrorState("No enabled agents configured. Please enable at least one agent in Settings.");
+                    return false;
+                }
+
+                agentScriptPath = agent.AgentPath;
+                projectPath = agent.ProjectPath;
+            }
+            else if (!string.IsNullOrWhiteSpace(settings.ProjectPath))
+            {
+                // Legacy mode - use ProjectPath
+                projectPath = settings.ProjectPath;
+                agentScriptPath = Path.Combine(settings.ProjectPath, "felix-agent.ps1");
+            }
+            else
+            {
+                SetErrorState("No agents configured. Please add an agent in Settings.");
                 return false;
             }
 
@@ -131,8 +161,7 @@ namespace FelixTrayManager.Services
                     return false;
                 }
 
-                // Locate felix-agent.ps1
-                var agentScriptPath = Path.Combine(settings.ProjectPath, "felix-agent.ps1");
+                // Validate agent script exists
                 if (!File.Exists(agentScriptPath))
                 {
                     SetErrorState($"felix-agent.ps1 not found at: {agentScriptPath}");
@@ -143,8 +172,8 @@ namespace FelixTrayManager.Services
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = powershellPath,
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{agentScriptPath}\" \"{settings.ProjectPath}\"",
-                    WorkingDirectory = settings.ProjectPath,
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{agentScriptPath}\" \"{projectPath}\"",
+                    WorkingDirectory = projectPath,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
