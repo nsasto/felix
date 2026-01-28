@@ -341,7 +341,7 @@
                              "id":  "S-0023",
                              "title":  "Live Polling Onoff",
                              "spec_path":  "specs/S-0023-live-polling-onoff.md",
-                             "status":  "complete",
+                             "status":  "blocked",
                              "priority":  "medium",
                              "labels":  [
 
@@ -350,7 +350,7 @@
 
                                             ],
                              "updated_at":  "2026-01-28",
-                             "last_run_id":  "2026-01-28T23-36-55"
+                             "last_run_id":  "2026-01-28T23-45-41"
                          },
                          {
                              "id":  "S-0024",
@@ -364,7 +364,8 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-28"
+                             "updated_at":  "2026-01-28",
+                             "last_run_id":  "2026-01-28T23-47-31"
                          }
                      ]
 }
