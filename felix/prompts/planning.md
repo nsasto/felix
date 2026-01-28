@@ -35,7 +35,10 @@
 6. **Avoid Overengineering** - No premature abstractions, no unnecessary complexity
 7. **Tech Stack Alignment** - Use PowerShell for agent, Python/FastAPI for backend, React for frontend
 8. **Ralph Alignment** - File-based state, naive persistence, disposable plans, backpressure validation
-9. **Dependency Order** - Check `depends_on` field in requirements.json
+9. **Dependency Order** - Check `depends_on` field (shown in Current Requirement Context)
+   - Review dependency statuses provided in context
+   - If you need to check other requirements, read `felix/requirements.json` directly
+   - Ensure dependent requirements are complete before planning this one
 10. **Search Before Planning** - Don't assume features aren't implemented; verify first
 11. **Clear Checkboxes** - Use `- [ ]` for pending items
 
@@ -119,6 +122,8 @@ Brief description of what needs to be implemented for this requirement.
 
 - Technical decisions or constraints to keep in mind
 ```
+
+**Backticks in Tasks:** Only use backticks for actual executable commands (e.g., `pytest`, `npm test`, `curl http://...`). Do NOT use backticks for file paths, URLs, placeholders, or configuration values. Use **bold** or plain text for those instead.
 
 ## Allowed File Modifications
 

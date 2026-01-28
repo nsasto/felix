@@ -127,6 +127,15 @@ Specs should include testable validation criteria with commands and expected out
 - [ ] Tests pass: `cd app/backend && pytest` (exit code 0)
 ```
 
+**Important:** Only use backticks for actual executable commands. Do NOT use backticks for:
+
+- File paths (use **bold** instead: **app/backend/main.py**)
+- URLs (use plain text: http://localhost:8080)
+- Placeholders (use plain text: {ComputerName})
+- Configuration values (use plain text or **bold**)
+
+The validation script executes anything in backticks as a shell command. If it's not meant to be executed, don't use backticks.
+
 ## Repository Conventions
 
 - Keep this file operational only

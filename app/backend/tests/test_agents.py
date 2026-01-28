@@ -55,6 +55,7 @@ class TestAgentRegistration:
         response = client.post(
             "/api/agents/register",
             json={
+                "agent_id": 0,
                 "agent_name": "test-agent",
                 "pid": 12345,
                 "hostname": "test-host",
@@ -64,6 +65,7 @@ class TestAgentRegistration:
         
         assert response.status_code == 200
         data = response.json()
+        assert data["agent_id"] == 0
         assert data["agent_name"] == "test-agent"
         assert data["status"] == "active"
         assert data["pid"] == 12345
@@ -74,25 +76,27 @@ class TestAgentRegistration:
         client.post(
             "/api/agents/register",
             json={
+                "agent_id": 1,
                 "agent_name": "persist-agent",
                 "pid": 99999,
                 "hostname": "persist-host"
             }
         )
         
-        # Read the file directly
+        # Read the file directly - keys are now agent_id as strings
         content = json.loads(mock_agents_registry.read_text(encoding='utf-8'))
-        assert "persist-agent" in content["agents"]
-        assert content["agents"]["persist-agent"]["pid"] == 99999
-        assert content["agents"]["persist-agent"]["hostname"] == "persist-host"
-        assert content["agents"]["persist-agent"]["status"] == "active"
+        assert "1" in content["agents"]
+        assert content["agents"]["1"]["pid"] == 99999
+        assert content["agents"]["1"]["hostname"] == "persist-host"
+        assert content["agents"]["1"]["status"] == "active"
 
     def test_register_duplicate_active_agent_fails(self, client, mock_agents_registry):
-        """Cannot register agent with same name if already active"""
+        """Cannot register agent with same ID if already active"""
         # First registration
         response1 = client.post(
             "/api/agents/register",
             json={
+                "agent_id": 2,
                 "agent_name": "duplicate-agent",
                 "pid": 11111,
                 "hostname": "host1"
@@ -100,10 +104,11 @@ class TestAgentRegistration:
         )
         assert response1.status_code == 200
         
-        # Second registration with same name should fail
+        # Second registration with same ID should fail
         response2 = client.post(
             "/api/agents/register",
             json={
+                "agent_id": 2,
                 "agent_name": "duplicate-agent",
                 "pid": 22222,
                 "hostname": "host2"
@@ -112,25 +117,27 @@ class TestAgentRegistration:
         assert response2.status_code == 409
         assert "already active" in response2.json()["detail"]
 
-    def test_register_reuses_stopped_agent_name(self, client, mock_agents_registry):
-        """Can re-register agent name after it was stopped"""
+    def test_register_reuses_stopped_agent_id(self, client, mock_agents_registry):
+        """Can re-register agent ID after it was stopped"""
         # Register agent
         client.post(
             "/api/agents/register",
             json={
+                "agent_id": 3,
                 "agent_name": "reuse-agent",
                 "pid": 11111,
                 "hostname": "host1"
             }
         )
         
-        # Stop the agent
-        client.post("/api/agents/reuse-agent/stop")
+        # Stop the agent using agent_id
+        client.post("/api/agents/3/stop")
         
-        # Re-register with same name - should succeed
+        # Re-register with same ID - should succeed
         response = client.post(
             "/api/agents/register",
             json={
+                "agent_id": 3,
                 "agent_name": "reuse-agent",
                 "pid": 22222,
                 "hostname": "host2"
@@ -143,21 +150,21 @@ class TestAgentRegistration:
         """Agent name must be alphanumeric with hyphens/underscores"""
         # Valid names
         valid_names = ["test-agent", "test_agent", "TestAgent123", "AGENT_1"]
-        for name in valid_names:
+        for idx, name in enumerate(valid_names):
             response = client.post(
                 "/api/agents/register",
-                json={"agent_name": name, "pid": 12345, "hostname": "host"}
+                json={"agent_id": 100 + idx, "agent_name": name, "pid": 12345, "hostname": "host"}
             )
             assert response.status_code == 200, f"Expected {name} to be valid"
-            # Stop it so we can register next one
-            client.post(f"/api/agents/{name}/stop")
+            # Stop it so we can test next one cleanly
+            client.post(f"/api/agents/{100 + idx}/stop")
         
         # Invalid names
         invalid_names = ["test agent", "test@agent", "test.agent", ""]
-        for name in invalid_names:
+        for idx, name in enumerate(invalid_names):
             response = client.post(
                 "/api/agents/register",
-                json={"agent_name": name, "pid": 12345, "hostname": "host"}
+                json={"agent_id": 200 + idx, "agent_name": name, "pid": 12345, "hostname": "host"}
             )
             assert response.status_code == 400, f"Expected {name} to be invalid"
 
@@ -167,15 +174,15 @@ class TestAgentHeartbeat:
 
     def test_heartbeat_updates_timestamp(self, client, mock_agents_registry):
         """Heartbeat updates agents.json with new timestamp"""
-        # Register agent
+        # Register agent with agent_id
         client.post(
             "/api/agents/register",
-            json={"agent_name": "heartbeat-agent", "pid": 12345, "hostname": "host"}
+            json={"agent_id": 10, "agent_name": "heartbeat-agent", "pid": 12345, "hostname": "host"}
         )
         
-        # Wait a tiny bit then heartbeat
+        # Wait a tiny bit then heartbeat using agent_id
         response = client.post(
-            "/api/agents/heartbeat-agent/heartbeat",
+            "/api/agents/10/heartbeat",
             json={"current_run_id": "S-0001"}
         )
         
@@ -187,26 +194,26 @@ class TestAgentHeartbeat:
 
     def test_heartbeat_updates_current_run_id(self, client, mock_agents_registry):
         """Heartbeat can update the current run ID"""
-        # Register agent
+        # Register agent with agent_id
         client.post(
             "/api/agents/register",
-            json={"agent_name": "run-agent", "pid": 12345, "hostname": "host"}
+            json={"agent_id": 11, "agent_name": "run-agent", "pid": 12345, "hostname": "host"}
         )
         
-        # Heartbeat with run ID
+        # Heartbeat with run ID using agent_id
         client.post(
-            "/api/agents/run-agent/heartbeat",
+            "/api/agents/11/heartbeat",
             json={"current_run_id": "S-0002"}
         )
         
-        # Verify in file
+        # Verify in file - keys are now agent_id as strings
         content = json.loads(mock_agents_registry.read_text(encoding='utf-8'))
-        assert content["agents"]["run-agent"]["current_run_id"] == "S-0002"
+        assert content["agents"]["11"]["current_run_id"] == "S-0002"
 
     def test_heartbeat_nonexistent_agent_fails(self, client, mock_agents_registry):
         """Heartbeat for non-existent agent returns 404"""
         response = client.post(
-            "/api/agents/ghost-agent/heartbeat",
+            "/api/agents/99999/heartbeat",
             json={"current_run_id": None}
         )
         assert response.status_code == 404
@@ -219,6 +226,8 @@ class TestAgentLiveness:
         """Agent with recent heartbeat is marked active"""
         now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         agent = AgentEntry(
+            agent_id=20,
+            agent_name="test-agent",
             pid=12345,
             hostname="host",
             status="active",
@@ -232,6 +241,8 @@ class TestAgentLiveness:
         """Agent with heartbeat > 10s old is marked inactive"""
         stale_time = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat().replace('+00:00', 'Z')
         agent = AgentEntry(
+            agent_id=21,
+            agent_name="test-agent",
             pid=12345,
             hostname="host",
             status="active",
@@ -245,6 +256,8 @@ class TestAgentLiveness:
         """Stopped agent remains stopped regardless of heartbeat"""
         now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         agent = AgentEntry(
+            agent_id=22,
+            agent_name="test-agent",
             pid=12345,
             hostname="host",
             status="stopped",
@@ -257,11 +270,13 @@ class TestAgentLiveness:
 
     def test_get_agents_updates_stale_status(self, client, mock_agents_registry):
         """GET /api/agents marks stale agents as inactive"""
-        # Create agent with stale heartbeat directly in file
+        # Create agent with stale heartbeat directly in file - keys are now agent_id as strings
         stale_time = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat().replace('+00:00', 'Z')
         content = {
             "agents": {
-                "stale-agent": {
+                "23": {
+                    "agent_id": 23,
+                    "agent_name": "stale-agent",
                     "pid": 12345,
                     "hostname": "host",
                     "status": "active",
@@ -279,7 +294,7 @@ class TestAgentLiveness:
         assert response.status_code == 200
         
         data = response.json()
-        assert data["agents"]["stale-agent"]["status"] == "inactive"
+        assert data["agents"]["23"]["status"] == "inactive"
 
 
 class TestAgentStop:
@@ -287,25 +302,25 @@ class TestAgentStop:
 
     def test_stop_agent(self, client, mock_agents_registry):
         """Stop endpoint marks agent as stopped"""
-        # Register agent
+        # Register agent with agent_id
         client.post(
             "/api/agents/register",
-            json={"agent_name": "stop-agent", "pid": 12345, "hostname": "host"}
+            json={"agent_id": 30, "agent_name": "stop-agent", "pid": 12345, "hostname": "host"}
         )
         
-        # Stop agent
-        response = client.post("/api/agents/stop-agent/stop")
+        # Stop agent using agent_id
+        response = client.post("/api/agents/30/stop")
         assert response.status_code == 200
         assert response.json()["status"] == "stopped"
         
-        # Verify in file
+        # Verify in file - keys are now agent_id as strings
         content = json.loads(mock_agents_registry.read_text(encoding='utf-8'))
-        assert content["agents"]["stop-agent"]["status"] == "stopped"
-        assert content["agents"]["stop-agent"]["stopped_at"] is not None
+        assert content["agents"]["30"]["status"] == "stopped"
+        assert content["agents"]["30"]["stopped_at"] is not None
 
     def test_stop_nonexistent_agent_fails(self, client, mock_agents_registry):
         """Stop for non-existent agent returns 404"""
-        response = client.post("/api/agents/no-such-agent/stop")
+        response = client.post("/api/agents/99999/stop")
         assert response.status_code == 404
 
 
@@ -320,11 +335,11 @@ class TestGetAgents:
 
     def test_get_agents_returns_all_agents(self, client, mock_agents_registry):
         """Get agents returns all registered agents"""
-        # Register multiple agents
+        # Register multiple agents with agent_id
         for i in range(3):
             client.post(
                 "/api/agents/register",
-                json={"agent_name": f"agent-{i}", "pid": 10000 + i, "hostname": f"host-{i}"}
+                json={"agent_id": 40 + i, "agent_name": f"agent-{i}", "pid": 10000 + i, "hostname": f"host-{i}"}
             )
         
         response = client.get("/api/agents")
@@ -332,9 +347,10 @@ class TestGetAgents:
         
         agents = response.json()["agents"]
         assert len(agents) == 3
-        assert "agent-0" in agents
-        assert "agent-1" in agents
-        assert "agent-2" in agents
+        # Keys are now agent_id as strings
+        assert "40" in agents
+        assert "41" in agents
+        assert "42" in agents
 
 
 class TestGetAgentsConfig:
