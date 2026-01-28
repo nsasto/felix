@@ -923,3 +923,323 @@ class TestCopilotConfigSaveLoad:
         data = response.json()
         # copilot should be None when not configured
         assert data["config"]["copilot"] is None
+
+
+class TestApiKeyHeaderSupport:
+    """Tests for API key header support (S-0022: Move Copilot API Key to Browser Storage)"""
+
+    def test_test_endpoint_uses_header_api_key(self, client, mock_felix_config):
+        """Test endpoint uses X-Copilot-API-Key header when provided"""
+        with patch("routers.copilot.os.getenv", return_value=None):  # No env var
+            with patch(
+                "routers.copilot.load_global_config",
+                return_value=(mock_felix_config, None),
+            ):
+                with patch(
+                    "routers.copilot.verify_openai_connection", new_callable=AsyncMock
+                ) as mock_verify:
+                    mock_verify.return_value = (True, None)
+                    response = client.post(
+                        "/api/copilot/test",
+                        headers={"X-Copilot-API-Key": "test-header-key-12345"},
+                    )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # Verify the header key was passed to verify_openai_connection
+        mock_verify.assert_called_once()
+        call_args = mock_verify.call_args[0]
+        assert call_args[0] == "test-header-key-12345"
+
+    def test_test_endpoint_header_takes_priority_over_env(self, client, mock_felix_config):
+        """Test that header API key takes priority over environment variable"""
+        with patch("routers.copilot.os.getenv", return_value="test-env-key"):  # Env var set
+            with patch(
+                "routers.copilot.load_global_config",
+                return_value=(mock_felix_config, None),
+            ):
+                with patch(
+                    "routers.copilot.verify_openai_connection", new_callable=AsyncMock
+                ) as mock_verify:
+                    mock_verify.return_value = (True, None)
+                    response = client.post(
+                        "/api/copilot/test",
+                        headers={"X-Copilot-API-Key": "test-header-priority"},
+                    )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # Verify header key was used instead of env key
+        mock_verify.assert_called_once()
+        call_args = mock_verify.call_args[0]
+        assert call_args[0] == "test-header-priority"
+
+    def test_test_endpoint_falls_back_to_env_when_no_header(self, client, mock_felix_config):
+        """Test that env var is used when no header provided"""
+        with patch("routers.copilot.os.getenv", return_value="test-env-fallback"):
+            with patch(
+                "routers.copilot.load_global_config",
+                return_value=(mock_felix_config, None),
+            ):
+                with patch(
+                    "routers.copilot.verify_openai_connection", new_callable=AsyncMock
+                ) as mock_verify:
+                    mock_verify.return_value = (True, None)
+                    response = client.post("/api/copilot/test")  # No header
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # Verify env key was used as fallback
+        mock_verify.assert_called_once()
+        call_args = mock_verify.call_args[0]
+        assert call_args[0] == "test-env-fallback"
+
+    def test_test_endpoint_returns_error_when_no_key_available(self, client):
+        """Test returns error when neither header nor env var provides API key"""
+        with patch("routers.copilot.os.getenv", return_value=None):
+            response = client.post("/api/copilot/test")  # No header
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "api key" in data["error"].lower()
+        assert "not configured" in data["error"].lower()
+
+    def test_stream_endpoint_uses_header_api_key(self, client, mock_felix_config):
+        """Stream endpoint uses X-Copilot-API-Key header when provided"""
+        with patch("routers.copilot.os.getenv", return_value=None):  # No env var
+            with patch(
+                "routers.copilot.load_global_config",
+                return_value=(mock_felix_config, None),
+            ):
+                with patch(
+                    "routers.copilot.create_copilot_service_from_config"
+                ) as mock_service_factory:
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = []
+
+                    async def mock_stream(*args, **kwargs):
+                        yield 'data: {"avatar_state": "thinking"}\n\n'
+                        yield 'data: {"token": "Hello"}\n\n'
+                        yield 'data: {"avatar_state": "idle", "done": true}\n\n'
+
+                    mock_service.stream_response = mock_stream
+                    mock_service_factory.return_value = mock_service
+
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={"message": "test message", "history": []},
+                        headers={"X-Copilot-API-Key": "test-header-stream-key"},
+                    )
+
+        assert response.status_code == 200
+        # Verify service was created with header API key
+        mock_service_factory.assert_called_once()
+        call_kwargs = mock_service_factory.call_args[1]
+        assert call_kwargs["api_key"] == "test-header-stream-key"
+
+    def test_stream_endpoint_header_priority_over_env(self, client, mock_felix_config):
+        """Stream endpoint: header API key takes priority over env var"""
+        with patch("routers.copilot.os.getenv", return_value="test-env-key"):
+            with patch(
+                "routers.copilot.load_global_config",
+                return_value=(mock_felix_config, None),
+            ):
+                with patch(
+                    "routers.copilot.create_copilot_service_from_config"
+                ) as mock_service_factory:
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = []
+
+                    async def mock_stream(*args, **kwargs):
+                        yield 'data: {"avatar_state": "idle", "done": true}\n\n'
+
+                    mock_service.stream_response = mock_stream
+                    mock_service_factory.return_value = mock_service
+
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={"message": "test", "history": []},
+                        headers={"X-Copilot-API-Key": "test-header-priority"},
+                    )
+
+        assert response.status_code == 200
+        # Verify header key was used instead of env
+        call_kwargs = mock_service_factory.call_args[1]
+        assert call_kwargs["api_key"] == "test-header-priority"
+
+    def test_stream_endpoint_fallback_to_env_when_no_header(self, client, mock_felix_config):
+        """Stream endpoint: falls back to env var when no header provided"""
+        with patch("routers.copilot.os.getenv", return_value="test-env-key"):
+            with patch(
+                "routers.copilot.load_global_config",
+                return_value=(mock_felix_config, None),
+            ):
+                with patch(
+                    "routers.copilot.create_copilot_service_from_config"
+                ) as mock_service_factory:
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = []
+
+                    async def mock_stream(*args, **kwargs):
+                        yield 'data: {"avatar_state": "idle", "done": true}\n\n'
+
+                    mock_service.stream_response = mock_stream
+                    mock_service_factory.return_value = mock_service
+
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={"message": "test", "history": []},
+                        # No header provided
+                    )
+
+        assert response.status_code == 200
+        # When no header provided, api_key should be None (service uses env internally)
+        call_kwargs = mock_service_factory.call_args[1]
+        assert call_kwargs["api_key"] is None
+
+    def test_stream_endpoint_error_when_no_key_available(self, client, mock_felix_config):
+        """Stream endpoint returns error event when no API key available"""
+        # Create a config that's enabled but don't provide any API key
+        with patch("routers.copilot.os.getenv", return_value=None):
+            with patch(
+                "routers.copilot.load_global_config",
+                return_value=(mock_felix_config, None),
+            ):
+                with patch(
+                    "routers.copilot.create_copilot_service_from_config"
+                ) as mock_service_factory:
+                    # Create a service that will fail validation
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = []
+
+                    # Return error from stream_response when no API key
+                    async def mock_stream_error(*args, **kwargs):
+                        yield 'data: {"error": "API key not configured. Please add your API key in Settings.", "avatar_state": "error"}\n\n'
+
+                    mock_service.stream_response = mock_stream_error
+                    mock_service_factory.return_value = mock_service
+
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={"message": "test", "history": []},
+                        # No header provided, no env var
+                    )
+
+        assert response.status_code == 200  # SSE returns 200 even on errors
+        content = response.text
+        assert "error" in content
+        assert "api key" in content.lower() or "API key" in content
+
+
+class TestCopilotServiceApiKey:
+    """Tests for CopilotService API key handling"""
+
+    def test_service_uses_provided_api_key(self):
+        """Service uses explicitly provided API key"""
+        from services.copilot import CopilotService, CopilotConfig
+
+        config = CopilotConfig(enabled=True)
+        service = CopilotService(config, api_key="test-provided-key")
+
+        assert service.api_key == "test-provided-key"
+
+    def test_service_provided_key_takes_priority(self):
+        """Provided API key takes priority over environment variable"""
+        from services.copilot import CopilotService, CopilotConfig
+
+        config = CopilotConfig(enabled=True)
+
+        with patch.dict(os.environ, {"FELIX_COPILOT_API_KEY": "test-env-key"}):
+            service = CopilotService(config, api_key="test-provided-priority")
+            # Force env key caching to trigger
+            assert service.api_key == "test-provided-priority"
+
+    def test_service_falls_back_to_env_when_no_provided_key(self):
+        """Service falls back to env var when no key provided"""
+        from services.copilot import CopilotService, CopilotConfig
+
+        config = CopilotConfig(enabled=True)
+
+        with patch("services.copilot.os.getenv", return_value="test-env-fallback"):
+            service = CopilotService(config)
+            # Reset env cache to allow fallback
+            service._env_api_key = None
+            assert service.api_key == "test-env-fallback"
+
+    def test_service_returns_none_when_no_key_available(self):
+        """Service returns None when no key available"""
+        from services.copilot import CopilotService, CopilotConfig
+
+        config = CopilotConfig(enabled=True)
+
+        with patch("services.copilot.os.getenv", return_value=""):
+            service = CopilotService(config)
+            service._env_api_key = None
+            assert service.api_key is None
+
+    def test_service_set_api_key(self):
+        """Service can dynamically set API key"""
+        from services.copilot import CopilotService, CopilotConfig
+
+        config = CopilotConfig(enabled=True)
+        service = CopilotService(config)
+
+        with patch("services.copilot.os.getenv", return_value=""):
+            service._env_api_key = None
+            assert service.api_key is None
+
+            service.set_api_key("test-new-key")
+            assert service.api_key == "test-new-key"
+
+    def test_create_copilot_service_from_config_with_api_key(self):
+        """Factory function passes API key to service"""
+        from services.copilot import create_copilot_service_from_config, CopilotConfig
+
+        copilot_config = MagicMock()
+        copilot_config.provider = "openai"
+        copilot_config.model = "gpt-4o"
+        copilot_config.enabled = True
+        copilot_config.context_sources.agents_md = True
+        copilot_config.context_sources.learnings_md = True
+        copilot_config.context_sources.prompt_md = True
+        copilot_config.context_sources.requirements = True
+        copilot_config.context_sources.other_specs = True
+
+        service = create_copilot_service_from_config(copilot_config, api_key="test-factory-key")
+
+        assert service._provided_api_key == "test-factory-key"
+        assert service.api_key == "test-factory-key"
+
+    def test_create_copilot_service_from_config_no_api_key(self):
+        """Factory function creates service without API key (uses env)"""
+        from services.copilot import create_copilot_service_from_config
+
+        copilot_config = MagicMock()
+        copilot_config.provider = "openai"
+        copilot_config.model = "gpt-4o"
+        copilot_config.enabled = True
+        copilot_config.context_sources.agents_md = True
+        copilot_config.context_sources.learnings_md = True
+        copilot_config.context_sources.prompt_md = True
+        copilot_config.context_sources.requirements = True
+        copilot_config.context_sources.other_specs = True
+
+        service = create_copilot_service_from_config(copilot_config)
+
+        assert service._provided_api_key is None
