@@ -101,7 +101,7 @@ export interface AgentStatus {
 export interface AgentEntry {
   pid: number;
   hostname: string;
-  status: 'active' | 'inactive' | 'stopped';
+  status: 'active' | 'inactive' | 'stopped' | 'stale' | 'not-started';
   current_run_id: string | null;
   started_at: string | null;
   last_heartbeat: string | null;
@@ -278,6 +278,48 @@ export interface SetActiveAgentRequest {
 export interface SetActiveAgentResponse {
   agent_id: number;
   message: string;
+}
+
+// --- Agent Config List Types (for S-0021: Agent Orchestration Enhancement) ---
+
+/**
+ * Agent configuration entry from agents.json as returned by /api/agents/config.
+ * Used by the Agent Orchestration Dashboard to display all available agents.
+ */
+export interface AgentConfigEntry {
+  id: number;
+  name: string;
+  executable: string;
+  args: string[];
+  working_directory: string;
+  environment: Record<string, string>;
+}
+
+export interface AgentConfigsListResponse {
+  agents: AgentConfigEntry[];
+}
+
+/**
+ * Merged agent combining configuration from agents.json with runtime status from the registry.
+ * Used by the Agent Orchestration Dashboard to display complete agent information.
+ */
+export interface MergedAgent {
+  // From agents.json (configuration)
+  id: number;
+  name: string;
+  executable: string;
+  args: string[];
+  working_directory: string;
+  environment: Record<string, string>;
+  // From runtime registry (or derived status)
+  status: 'not-started' | 'active' | 'stale' | 'inactive' | 'stopped';
+  // Runtime data (optional - only present if agent has been started)
+  pid?: number;
+  hostname?: string;
+  current_run_id?: string | null;
+  last_heartbeat?: string | null;
+  started_at?: string | null;
+  stopped_at?: string | null;
 }
 
 // --- Copilot Chat Types (for S-0017: Felix Copilot Chat Assistant) ---
@@ -562,6 +604,17 @@ class FelixApiService {
       method: 'POST',
       body: JSON.stringify({ requirement_id: requirementId }),
     });
+  }
+
+  // --- Agent Config Endpoints (for S-0021: Agent Orchestration Enhancement) ---
+
+  /**
+   * Get all configured agents from agents.json.
+   * Returns the list of agent configurations for display in the Agent Orchestration Dashboard.
+   * This is different from getAgents() which returns runtime registry (running/stopped agents).
+   */
+  async getAgentsConfig(): Promise<AgentConfigsListResponse> {
+    return this.request<AgentConfigsListResponse>('/agents/config');
   }
 
   // --- Global Settings Endpoints (project-independent) ---
