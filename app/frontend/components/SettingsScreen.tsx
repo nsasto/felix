@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { felixApi, FelixConfig, Project, AgentEntry, AgentRegistryResponse } from '../services/felixApi';
+import { felixApi, FelixConfig, Project, AgentEntry, AgentRegistryResponse, AgentConfiguration, AgentConfigurationsResponse } from '../services/felixApi';
 import { IconFelix } from './Icons';
 import { useTheme, ThemeValue } from '../hooks/ThemeProvider';
 
@@ -116,12 +116,21 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [configProjectPath, setConfigProjectPath] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
-  // Agents state
+  // Agents state (orchestration - running agents)
   const [registeredAgents, setRegisteredAgents] = useState<Record<string, AgentEntry>>({});
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [agentNameInput, setAgentNameInput] = useState<string>('');
   const [agentNameValidationError, setAgentNameValidationError] = useState<string | null>(null);
+
+  // Agent configurations state (from agents.json)
+  const [agentConfigurations, setAgentConfigurations] = useState<AgentConfiguration[]>([]);
+  const [activeAgentId, setActiveAgentId] = useState<number>(0);
+  const [agentConfigsLoading, setAgentConfigsLoading] = useState(false);
+  const [agentConfigsError, setAgentConfigsError] = useState<string | null>(null);
+  const [settingActiveAgent, setSettingActiveAgent] = useState<number | null>(null);
+  const [deletingAgentId, setDeletingAgentId] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
 
   // Fetch config on mount and sync theme
   // Uses global settings API when no projectId is provided
@@ -190,15 +199,32 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     }
   }, []);
 
+  // Fetch agent configurations from agents.json
+  const fetchAgentConfigurations = useCallback(async () => {
+    setAgentConfigsLoading(true);
+    setAgentConfigsError(null);
+    try {
+      const response = await felixApi.getAgentConfigurations();
+      setAgentConfigurations(response.agents);
+      setActiveAgentId(response.active_agent_id);
+    } catch (err) {
+      console.error('Failed to fetch agent configurations:', err);
+      setAgentConfigsError(err instanceof Error ? err.message : 'Failed to load agent configurations');
+    } finally {
+      setAgentConfigsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeCategory === 'agents') {
       fetchAgents();
+      fetchAgentConfigurations();
       // Also initialize agent name input from config
       if (config?.agent?.name) {
         setAgentNameInput(config.agent.name);
       }
     }
-  }, [activeCategory, fetchAgents, config?.agent?.name]);
+  }, [activeCategory, fetchAgents, fetchAgentConfigurations, config?.agent?.name]);
 
   // Clear success message after 3 seconds
   useEffect(() => {
@@ -1164,147 +1190,245 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const renderAgentsSettings = () => {
     if (!config) return null;
 
+    // Handle setting active agent
+    const handleSetActiveAgent = async (agentId: number) => {
+      setSettingActiveAgent(agentId);
+      try {
+        await felixApi.setActiveAgent(agentId);
+        setActiveAgentId(agentId);
+        setSuccessMessage(`Agent set as active successfully`);
+      } catch (err) {
+        console.error('Failed to set active agent:', err);
+        setAgentConfigsError(err instanceof Error ? err.message : 'Failed to set active agent');
+      } finally {
+        setSettingActiveAgent(null);
+      }
+    };
+
+    // Handle deleting agent
+    const handleDeleteAgent = async (agentId: number) => {
+      setDeletingAgentId(agentId);
+      try {
+        await felixApi.deleteAgentConfiguration(agentId);
+        setSuccessMessage('Agent deleted successfully');
+        setShowDeleteConfirm(null);
+        fetchAgentConfigurations();
+      } catch (err) {
+        console.error('Failed to delete agent:', err);
+        setAgentConfigsError(err instanceof Error ? err.message : 'Failed to delete agent');
+      } finally {
+        setDeletingAgentId(null);
+      }
+    };
+
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold theme-text-secondary">Agent Registry</h3>
-            <p className="text-xs theme-text-muted mt-1">Agent configuration and registry status</p>
+            <h3 className="text-lg font-bold theme-text-secondary">Agent Configurations</h3>
+            <p className="text-xs theme-text-muted mt-1">Manage saved agent presets from agents.json</p>
           </div>
           <button
-            onClick={fetchAgents}
-            disabled={agentsLoading}
+            onClick={() => {
+              fetchAgentConfigurations();
+              fetchAgents();
+            }}
+            disabled={agentConfigsLoading || agentsLoading}
             className="px-4 py-2 text-xs font-bold theme-text-tertiary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex items-center gap-2"
           >
-            <svg className={`w-4 h-4 ${agentsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-4 h-4 ${agentConfigsLoading || agentsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            {agentsLoading ? 'Refreshing...' : 'Refresh'}
+            {agentConfigsLoading || agentsLoading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
 
-        {/* Agent Configuration Card */}
+        {/* Agent Configurations List */}
         <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
-          <h4 className="text-sm font-bold theme-text-secondary mb-4">Agent Configuration</h4>
-          <div className="space-y-4">
-            {/* Agent Name */}
-            <div>
-              <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                Agent Name
-              </label>
-              <input
-                type="text"
-                value={agentNameInput}
-                onChange={(e) => handleAgentNameInputChange(e.target.value)}
-                placeholder="felix-primary"
-                className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
-                  agentNameValidationError
-                    ? 'border-[var(--status-error)]/50 focus:border-[var(--status-error)]'
-                    : 'border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20'
-                }`}
-              />
-              {agentNameValidationError && (
-                <p className="mt-1.5 text-[10px] text-[var(--status-error)]">{agentNameValidationError}</p>
-              )}
-              <p className="mt-2 text-[11px] theme-text-muted">
-                Unique identifier for this agent instance. Must be alphanumeric with hyphens and underscores only.
+          <h4 className="text-sm font-bold theme-text-secondary mb-4">Saved Agents</h4>
+
+          {/* Error State */}
+          {agentConfigsError && (
+            <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <p className="text-xs text-[var(--status-error)]">{agentConfigsError}</p>
+                  <button
+                    onClick={fetchAgentConfigurations}
+                    className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {agentConfigsLoading && agentConfigurations.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-3" />
+              <span className="text-[10px] font-mono theme-text-muted uppercase">Loading agent configurations...</span>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!agentConfigsLoading && !agentConfigsError && agentConfigurations.length === 0 && (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 theme-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <h4 className="text-sm font-bold theme-text-tertiary mb-2">No Agent Configurations</h4>
+              <p className="text-xs theme-text-muted max-w-sm mx-auto">
+                No saved agent configurations found. Add an agent to get started.
               </p>
             </div>
+          )}
 
-            {/* Executable */}
-            <div>
-              <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                Executable
-              </label>
-              <input
-                type="text"
-                value={config.agent.executable}
-                onChange={(e) => handleAgentChange('executable', e.target.value)}
-                placeholder="droid"
-                className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-              />
-              <p className="mt-2 text-[11px] theme-text-muted">
-                Path to the agent executable (e.g., droid, python)
-              </p>
+          {/* Agent Configurations List */}
+          {agentConfigurations.length > 0 && (
+            <div className="space-y-3">
+              {agentConfigurations
+                .sort((a, b) => a.id - b.id)
+                .map((agent) => {
+                  const isSystemDefault = agent.id === 0;
+                  const isActive = agent.id === activeAgentId;
+                  
+                  return (
+                    <div
+                      key={agent.id}
+                      className={`theme-bg-base border rounded-lg p-4 transition-all ${
+                        isActive
+                          ? 'border-[var(--accent-primary)]/40 bg-[var(--selected-bg)]'
+                          : 'border-[var(--border-muted)]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <h5 className="text-sm font-bold theme-text-secondary truncate">
+                              {agent.name}
+                            </h5>
+                            <span className="text-[9px] font-mono theme-text-muted">
+                              ID: {agent.id}
+                            </span>
+                            {isSystemDefault && (
+                              <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--status-warning)]/20 text-[var(--status-warning)] rounded-full flex items-center gap-1">
+                                🔒 System Default
+                              </span>
+                            )}
+                            {isActive && (
+                              <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full flex items-center gap-1">
+                                ✓ Active
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex items-center gap-2">
+                              <span className="theme-text-muted">Executable:</span>
+                              <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded">
+                                {agent.executable}
+                              </code>
+                            </div>
+                            {agent.args.length > 0 && (
+                              <div className="flex items-start gap-2">
+                                <span className="theme-text-muted">Args:</span>
+                                <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded break-all">
+                                  {agent.args.join(' ')}
+                                </code>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="theme-text-muted">Working Dir:</span>
+                              <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded">
+                                {agent.working_directory}
+                              </code>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!isActive && (
+                            <button
+                              onClick={() => handleSetActiveAgent(agent.id)}
+                              disabled={settingActiveAgent === agent.id}
+                              className="px-3 py-1.5 text-[10px] font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-all flex items-center gap-1"
+                            >
+                              {settingActiveAgent === agent.id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Setting...
+                                </>
+                              ) : (
+                                'Set Active'
+                              )}
+                            </button>
+                          )}
+                          {isSystemDefault ? (
+                            <button
+                              disabled
+                              className="px-3 py-1.5 text-[10px] font-bold theme-text-muted border border-[var(--border-muted)] rounded-lg cursor-not-allowed opacity-50"
+                              title="System default cannot be deleted"
+                            >
+                              Delete
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setShowDeleteConfirm(agent.id)}
+                              className="px-3 py-1.5 text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] border border-[var(--status-error)]/20 rounded-lg hover:bg-[var(--status-error)]/10 transition-all"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Delete Confirmation */}
+                      {showDeleteConfirm === agent.id && (
+                        <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-[var(--status-warning)]">
+                              Delete this agent configuration? This cannot be undone.
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setShowDeleteConfirm(null)}
+                                className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAgent(agent.id)}
+                                disabled={deletingAgentId === agent.id}
+                                className="px-3 py-1.5 text-[10px] font-bold bg-[var(--status-error)]/20 text-[var(--status-error)] rounded-lg hover:bg-[var(--status-error)]/30 transition-all flex items-center gap-2"
+                              >
+                                {deletingAgentId === agent.id ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-[var(--status-error)]/30 border-t-[var(--status-error)] rounded-full animate-spin" />
+                                    Deleting...
+                                  </>
+                                ) : (
+                                  'Confirm Delete'
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
-
-            {/* Arguments */}
-            <div>
-              <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                Arguments
-              </label>
-              <input
-                type="text"
-                value={config.agent.args.join(' ')}
-                onChange={(e) => handleAgentChange('args', e.target.value.split(' ').filter(Boolean))}
-                placeholder="exec --skip-permissions-unsafe"
-                className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-              />
-              <p className="mt-2 text-[11px] theme-text-muted">
-                Command-line arguments passed to the agent executable (space-separated)
-              </p>
-            </div>
-
-            {/* Save Button */}
-            <div className="pt-2">
-              <button
-                onClick={async () => {
-                  // Validate agent name
-                  const nameError = validateAgentName(agentNameInput);
-                  if (nameError) {
-                    setAgentNameValidationError(nameError);
-                    return;
-                  }
-
-                  // Update config with new agent name
-                  const newConfig = {
-                    ...config,
-                    agent: {
-                      ...config.agent,
-                      name: agentNameInput,
-                    },
-                  };
-
-                  setSaving(true);
-                  setError(null);
-                  try {
-                    // Use global settings API when no projectId, otherwise use project-specific API
-                    const result = projectId
-                      ? await felixApi.updateConfig(projectId, newConfig)
-                      : await felixApi.updateGlobalConfig(newConfig);
-                    setConfig(result.config);
-                    setOriginalConfig(result.config);
-                    setSuccessMessage('Agent configuration saved successfully');
-                  } catch (err) {
-                    console.error('Failed to save agent config:', err);
-                    setError(err instanceof Error ? err.message : 'Failed to save agent configuration');
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                disabled={saving || !!agentNameValidationError}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                  !saving && !agentNameValidationError
-                    ? 'bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]'
-                    : 'theme-bg-surface theme-text-muted cursor-not-allowed'
-                }`}
-              >
-                {saving ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Agent Configuration'
-                )}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Registered Agents List */}
+        {/* Running Agents (Orchestration) */}
         <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
-          <h4 className="text-sm font-bold theme-text-secondary mb-4">Registered Agents</h4>
+          <h4 className="text-sm font-bold theme-text-secondary mb-4">Running Agents</h4>
 
           {/* Error State */}
           {agentsError && (
@@ -1330,21 +1454,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
           {agentsLoading && Object.keys(registeredAgents).length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
               <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-3" />
-              <span className="text-[10px] font-mono theme-text-muted uppercase">Loading agents...</span>
+              <span className="text-[10px] font-mono theme-text-muted uppercase">Loading running agents...</span>
             </div>
           )}
 
           {/* Empty State */}
           {!agentsLoading && !agentsError && Object.keys(registeredAgents).length === 0 && (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 theme-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-              </div>
-              <h4 className="text-sm font-bold theme-text-tertiary mb-2">No Agents Registered</h4>
-              <p className="text-xs theme-text-muted max-w-sm mx-auto">
-                Agents will appear here once they register with the backend. Start an agent to see it in this list.
+            <div className="text-center py-6">
+              <p className="text-xs theme-text-muted">
+                No agents are currently running. Start an agent to see it here.
               </p>
             </div>
           )}
@@ -1354,13 +1472,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             <div className="space-y-3">
               {Object.entries(registeredAgents)
                 .sort(([, a], [, b]) => {
-                  // Sort by status (active first), then by last_heartbeat
                   const statusOrder = { active: 0, inactive: 1, stopped: 2 };
                   const aOrder = statusOrder[a.status as keyof typeof statusOrder] ?? 3;
                   const bOrder = statusOrder[b.status as keyof typeof statusOrder] ?? 3;
                   if (aOrder !== bOrder) return aOrder - bOrder;
-                  
-                  // Sort by last_heartbeat descending
                   const aTime = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
                   const bTime = b.last_heartbeat ? new Date(b.last_heartbeat).getTime() : 0;
                   return bTime - aTime;
@@ -1370,64 +1485,33 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                     key={agentName}
                     className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          {/* Status Badge */}
-                          <span
-                            className="flex-shrink-0"
-                            title={`Status: ${agent.status}`}
-                          >
-                            {agent.status === 'active' && (
-                              <span className="text-base" title="Active">🟢</span>
-                            )}
-                            {agent.status === 'inactive' && (
-                              <span className="text-base" title="Inactive">⚪</span>
-                            )}
-                            {agent.status === 'stopped' && (
-                              <span className="text-base" title="Stopped">🔴</span>
-                            )}
-                          </span>
-                          <h5 className="text-sm font-bold theme-text-secondary truncate">
-                            {agentName}
-                          </h5>
-                          {agentName === config?.agent?.name && (
-                            <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full uppercase">
-                              This Agent
-                            </span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                          <div className="flex items-center gap-2">
-                            <span className="theme-text-muted">Hostname:</span>
-                            <span className="theme-text-tertiary font-mono">{agent.hostname}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="theme-text-muted">PID:</span>
-                            <span className="theme-text-tertiary font-mono">{agent.pid}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="theme-text-muted">Last heartbeat:</span>
-                            <span className="theme-text-tertiary">{getRelativeTime(agent.last_heartbeat)}</span>
-                          </div>
-                          {agent.current_run_id && (
-                            <div className="flex items-center gap-2">
-                              <span className="theme-text-muted">Working on:</span>
-                              <span className="theme-text-secondary font-mono">{agent.current_run_id}</span>
-                            </div>
-                          )}
-                        </div>
-                        {agent.started_at && (
-                          <div className="mt-2 text-[10px] theme-text-muted">
-                            Started: {new Date(agent.started_at).toLocaleString()}
-                          </div>
-                        )}
-                        {agent.stopped_at && (
-                          <div className="mt-1 text-[10px] text-[var(--status-error)]/70">
-                            Stopped: {new Date(agent.stopped_at).toLocaleString()}
-                          </div>
-                        )}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="flex-shrink-0" title={`Status: ${agent.status}`}>
+                        {agent.status === 'active' && <span className="text-base">🟢</span>}
+                        {agent.status === 'inactive' && <span className="text-base">⚪</span>}
+                        {agent.status === 'stopped' && <span className="text-base">🔴</span>}
+                      </span>
+                      <h5 className="text-sm font-bold theme-text-secondary truncate">{agentName}</h5>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <span className="theme-text-muted">Hostname:</span>
+                        <span className="theme-text-tertiary font-mono">{agent.hostname}</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <span className="theme-text-muted">PID:</span>
+                        <span className="theme-text-tertiary font-mono">{agent.pid}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="theme-text-muted">Last heartbeat:</span>
+                        <span className="theme-text-tertiary">{getRelativeTime(agent.last_heartbeat)}</span>
+                      </div>
+                      {agent.current_run_id && (
+                        <div className="flex items-center gap-2">
+                          <span className="theme-text-muted">Working on:</span>
+                          <span className="theme-text-secondary font-mono">{agent.current_run_id}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1441,9 +1525,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             <svg className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-xs text-[var(--status-info)]/80">
-              Agents send heartbeats every 5 seconds. An agent is marked inactive if no heartbeat is received for 10 seconds.
-            </p>
+            <div className="text-xs text-[var(--status-info)]/80">
+              <p><strong>Agent Configurations</strong> are saved presets (from agents.json). The <strong>active</strong> agent is used when starting new runs.</p>
+              <p className="mt-1"><strong>Running Agents</strong> show currently registered agent instances with heartbeats.</p>
+            </div>
           </div>
         </div>
       </div>
