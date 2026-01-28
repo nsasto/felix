@@ -55,6 +55,9 @@ public partial class App : Application
             // Subscribe to process output for logging
             _processManager.OutputReceived += OnProcessOutputReceived;
 
+            // Subscribe to state monitor errors for notifications
+            _stateMonitor.StateError += OnStateMonitorError;
+
         // Set up context menu
         var contextMenu = new ContextMenu();
         
@@ -303,6 +306,27 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Handles state monitor errors (e.g., state file read errors)
+    /// </summary>
+    private void OnStateMonitorError(object? sender, StateErrorEventArgs e)
+    {
+        // Log the error
+        _logger?.Warning($"State monitor error: {e.ErrorMessage}");
+
+        // Only show notification if Felix is running (otherwise errors are expected)
+        if (_processManager?.IsRunning == true)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _trayIconManager?.ShowNotification(
+                    "State File Error",
+                    $"Unable to read Felix state: {e.ErrorMessage}",
+                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Warning);
+            });
+        }
+    }
+
     private void Application_Exit(object sender, ExitEventArgs e)
     {
         _logger?.Info("Application shutting down...");
@@ -312,6 +336,11 @@ public partial class App : Application
         {
             _processManager.StateChanged -= OnProcessStateChanged;
             _processManager.OutputReceived -= OnProcessOutputReceived;
+        }
+
+        if (_stateMonitor != null)
+        {
+            _stateMonitor.StateError -= OnStateMonitorError;
         }
 
         // Clean up services
