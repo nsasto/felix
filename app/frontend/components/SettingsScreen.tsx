@@ -132,6 +132,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   const [deletingAgentId, setDeletingAgentId] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
 
+  // Agent form state (for add/edit)
+  const [showAgentForm, setShowAgentForm] = useState(false);
+  const [editingAgentId, setEditingAgentId] = useState<number | null>(null);
+  const [agentFormName, setAgentFormName] = useState('');
+  const [agentFormExecutable, setAgentFormExecutable] = useState('');
+  const [agentFormArgs, setAgentFormArgs] = useState('');
+  const [agentFormWorkingDir, setAgentFormWorkingDir] = useState('.');
+  const [agentFormSaving, setAgentFormSaving] = useState(false);
+  const [agentFormError, setAgentFormError] = useState<string | null>(null);
+
   // Fetch config on mount and sync theme
   // Uses global settings API when no projectId is provided
   useEffect(() => {
@@ -1221,6 +1231,77 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       }
     };
 
+    // Reset agent form
+    const resetAgentForm = () => {
+      setShowAgentForm(false);
+      setEditingAgentId(null);
+      setAgentFormName('');
+      setAgentFormExecutable('');
+      setAgentFormArgs('');
+      setAgentFormWorkingDir('.');
+      setAgentFormError(null);
+    };
+
+    // Open add agent form
+    const openAddAgentForm = () => {
+      resetAgentForm();
+      setShowAgentForm(true);
+    };
+
+    // Open edit agent form
+    const openEditAgentForm = (agent: AgentConfiguration) => {
+      setEditingAgentId(agent.id);
+      setAgentFormName(agent.name);
+      setAgentFormExecutable(agent.executable);
+      setAgentFormArgs(agent.args.join(' '));
+      setAgentFormWorkingDir(agent.working_directory);
+      setAgentFormError(null);
+      setShowAgentForm(true);
+    };
+
+    // Handle agent form save
+    const handleAgentFormSave = async () => {
+      // Validate required fields
+      if (!agentFormName.trim()) {
+        setAgentFormError('Agent name is required');
+        return;
+      }
+      if (!agentFormExecutable.trim()) {
+        setAgentFormError('Executable path is required');
+        return;
+      }
+
+      setAgentFormSaving(true);
+      setAgentFormError(null);
+
+      try {
+        const agentData = {
+          name: agentFormName.trim(),
+          executable: agentFormExecutable.trim(),
+          args: agentFormArgs.trim() ? agentFormArgs.trim().split(/\s+/) : [],
+          working_directory: agentFormWorkingDir.trim() || '.',
+        };
+
+        if (editingAgentId !== null) {
+          // Update existing agent
+          await felixApi.updateAgentConfiguration(editingAgentId, agentData);
+          setSuccessMessage('Agent updated successfully');
+        } else {
+          // Create new agent
+          await felixApi.createAgentConfiguration(agentData);
+          setSuccessMessage('Agent created successfully');
+        }
+
+        resetAgentForm();
+        fetchAgentConfigurations();
+      } catch (err) {
+        console.error('Failed to save agent:', err);
+        setAgentFormError(err instanceof Error ? err.message : 'Failed to save agent');
+      } finally {
+        setAgentFormSaving(false);
+      }
+    };
+
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
@@ -1228,20 +1309,155 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             <h3 className="text-lg font-bold theme-text-secondary">Agent Configurations</h3>
             <p className="text-xs theme-text-muted mt-1">Manage saved agent presets from agents.json</p>
           </div>
-          <button
-            onClick={() => {
-              fetchAgentConfigurations();
-              fetchAgents();
-            }}
-            disabled={agentConfigsLoading || agentsLoading}
-            className="px-4 py-2 text-xs font-bold theme-text-tertiary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex items-center gap-2"
-          >
-            <svg className={`w-4 h-4 ${agentConfigsLoading || agentsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {agentConfigsLoading || agentsLoading ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                fetchAgentConfigurations();
+                fetchAgents();
+              }}
+              disabled={agentConfigsLoading || agentsLoading}
+              className="px-4 py-2 text-xs font-bold theme-text-tertiary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex items-center gap-2"
+            >
+              <svg className={`w-4 h-4 ${agentConfigsLoading || agentsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {agentConfigsLoading || agentsLoading ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <button
+              onClick={openAddAgentForm}
+              className="px-4 py-2 text-xs font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Agent
+            </button>
+          </div>
         </div>
+
+        {/* Agent Form (Add/Edit) */}
+        {showAgentForm && (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-bold theme-text-secondary">
+                {editingAgentId !== null ? 'Edit Agent' : 'Add New Agent'}
+              </h4>
+              <button
+                onClick={resetAgentForm}
+                className="theme-text-muted hover:theme-text-secondary transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Form Error */}
+            {agentFormError && (
+              <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-[var(--status-error)]">{agentFormError}</p>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Agent Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="my-agent"
+                  value={agentFormName}
+                  onChange={(e) => setAgentFormName(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  A unique name for this agent configuration
+                </p>
+              </div>
+
+              {/* Executable */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Executable Path *
+                </label>
+                <input
+                  type="text"
+                  placeholder="droid"
+                  value={agentFormExecutable}
+                  onChange={(e) => setAgentFormExecutable(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Path to the agent executable (e.g., droid, python, npx)
+                </p>
+              </div>
+
+              {/* Arguments */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Arguments
+                </label>
+                <input
+                  type="text"
+                  placeholder="exec --no-interactive"
+                  value={agentFormArgs}
+                  onChange={(e) => setAgentFormArgs(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Command-line arguments passed to the executable (space-separated)
+                </p>
+              </div>
+
+              {/* Working Directory */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Working Directory
+                </label>
+                <input
+                  type="text"
+                  placeholder="."
+                  value={agentFormWorkingDir}
+                  onChange={(e) => setAgentFormWorkingDir(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Working directory for agent execution (use "." for project root)
+                </p>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={resetAgentForm}
+                  className="px-4 py-2 text-xs font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAgentFormSave}
+                  disabled={agentFormSaving || !agentFormName.trim() || !agentFormExecutable.trim()}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                    agentFormName.trim() && agentFormExecutable.trim() && !agentFormSaving
+                      ? 'bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]'
+                      : 'theme-bg-surface theme-text-muted cursor-not-allowed'
+                  }`}
+                >
+                  {agentFormSaving ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    editingAgentId !== null ? 'Update Agent' : 'Create Agent'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Agent Configurations List */}
         <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
@@ -1368,6 +1584,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                               )}
                             </button>
                           )}
+                          <button
+                            onClick={() => openEditAgentForm(agent)}
+                            className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
+                          >
+                            Edit
+                          </button>
                           {isSystemDefault ? (
                             <button
                               disabled
