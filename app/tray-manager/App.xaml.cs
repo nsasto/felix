@@ -112,6 +112,13 @@ public partial class App : Application
         if (!_settingsManager.Settings.IsValid())
         {
             _logger?.Warning("Cannot start Felix: Invalid project path configuration");
+            
+            // Show configuration error notification
+            _trayIconManager?.ShowNotification(
+                "Configuration Error",
+                "Please configure a valid Felix project path in Settings before starting.",
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Warning);
+            
             MessageBox.Show(
                 "Please configure a valid Felix project path in Settings before starting.",
                 "Invalid Configuration",
@@ -259,11 +266,22 @@ public partial class App : Application
                 case FelixProcessManager.ProcessState.Running:
                     _startMenuItem.IsEnabled = false;
                     _stopMenuItem.IsEnabled = true;
+                    // Show success notification
+                    _trayIconManager?.ShowNotification(
+                        "Felix Started",
+                        "Felix agent is now running and monitoring your project.",
+                        Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
                     break;
 
                 case FelixProcessManager.ProcessState.Error:
                     _startMenuItem.IsEnabled = true;
                     _stopMenuItem.IsEnabled = false;
+                    // Show error notification
+                    var errorMsg = e.ErrorMessage ?? "An unknown error occurred";
+                    _trayIconManager?.ShowNotification(
+                        "Felix Error",
+                        errorMsg,
+                        Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Error);
                     break;
             }
         });
