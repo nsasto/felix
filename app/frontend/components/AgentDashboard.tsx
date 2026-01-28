@@ -37,6 +37,8 @@ const StatusIcon: React.FC<{ status: string }> = ({ status }) => {
       return <span title="Inactive">⚪</span>;
     case "stopped":
       return <span title="Stopped">🔴</span>;
+    case "not-started":
+      return <span title="Not Started">⚫</span>;
     default:
       return <span title="Unknown">⚪</span>;
   }
