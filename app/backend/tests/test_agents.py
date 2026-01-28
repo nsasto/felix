@@ -335,3 +335,129 @@ class TestGetAgents:
         assert "agent-0" in agents
         assert "agent-1" in agents
         assert "agent-2" in agents
+
+
+class TestGetAgentsConfig:
+    """Tests for GET /api/agents/config endpoint (S-0021: Agent Orchestration Enhancement)"""
+
+    @pytest.fixture
+    def mock_felix_home_with_agents(self, tmp_path):
+        """Create a temporary felix home directory with agents.json"""
+        felix_home = tmp_path / ".felix"
+        felix_home.mkdir(parents=True, exist_ok=True)
+        
+        agents_file = felix_home / "agents.json"
+        agents_data = {
+            "agents": [
+                {
+                    "id": 0,
+                    "name": "felix-primary",
+                    "executable": "droid",
+                    "args": ["exec", "--skip-permissions-unsafe"],
+                    "working_directory": ".",
+                    "environment": {}
+                },
+                {
+                    "id": 1,
+                    "name": "test-agent",
+                    "executable": "claude",
+                    "args": ["--model", "opus"],
+                    "working_directory": "/custom/path",
+                    "environment": {"API_KEY": "test123"}
+                }
+            ]
+        }
+        agents_file.write_text(json.dumps(agents_data, indent=2), encoding='utf-8')
+        
+        return felix_home
+
+    @pytest.fixture
+    def mock_storage_felix_home(self, mock_felix_home_with_agents):
+        """Patch storage.get_felix_home to use temporary directory"""
+        with patch('storage.get_felix_home', return_value=mock_felix_home_with_agents):
+            with patch('routers.agents.storage.get_felix_home', return_value=mock_felix_home_with_agents):
+                yield mock_felix_home_with_agents
+
+    def test_get_agents_config_returns_all_configured_agents(self, client, mock_storage_felix_home):
+        """Get agents config returns all configured agents from agents.json"""
+        response = client.get("/api/agents/config")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert "agents" in data
+        assert len(data["agents"]) == 2
+        
+        # Verify first agent (system default)
+        agent_0 = next(a for a in data["agents"] if a["id"] == 0)
+        assert agent_0["name"] == "felix-primary"
+        assert agent_0["executable"] == "droid"
+        assert "exec" in agent_0["args"]
+        
+        # Verify second agent
+        agent_1 = next(a for a in data["agents"] if a["id"] == 1)
+        assert agent_1["name"] == "test-agent"
+        assert agent_1["executable"] == "claude"
+        assert agent_1["args"] == ["--model", "opus"]
+        assert agent_1["working_directory"] == "/custom/path"
+        assert agent_1["environment"]["API_KEY"] == "test123"
+
+    def test_get_agents_config_returns_default_when_file_missing(self, client, tmp_path):
+        """Returns default agent when agents.json doesn't exist"""
+        # Create empty felix home without agents.json
+        felix_home = tmp_path / ".felix_empty"
+        felix_home.mkdir(parents=True, exist_ok=True)
+        
+        with patch('storage.get_felix_home', return_value=felix_home):
+            with patch('routers.agents.storage.get_felix_home', return_value=felix_home):
+                response = client.get("/api/agents/config")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should return default agent
+        assert len(data["agents"]) == 1
+        assert data["agents"][0]["id"] == 0
+        assert data["agents"][0]["name"] == "felix-primary"
+        assert data["agents"][0]["executable"] == "droid"
+
+    def test_get_agents_config_handles_malformed_json(self, client, tmp_path):
+        """Returns default agent when agents.json is malformed"""
+        felix_home = tmp_path / ".felix_malformed"
+        felix_home.mkdir(parents=True, exist_ok=True)
+        
+        agents_file = felix_home / "agents.json"
+        agents_file.write_text("not valid json {{{", encoding='utf-8')
+        
+        with patch('storage.get_felix_home', return_value=felix_home):
+            with patch('routers.agents.storage.get_felix_home', return_value=felix_home):
+                response = client.get("/api/agents/config")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should return default agent on parse error
+        assert len(data["agents"]) == 1
+        assert data["agents"][0]["id"] == 0
+        assert data["agents"][0]["name"] == "felix-primary"
+
+    def test_get_agents_config_response_schema(self, client, mock_storage_felix_home):
+        """Verify response matches expected schema for frontend merge"""
+        response = client.get("/api/agents/config")
+        assert response.status_code == 200
+        
+        data = response.json()
+        
+        # Verify schema for each agent matches MergedAgent requirements
+        for agent in data["agents"]:
+            assert "id" in agent
+            assert "name" in agent
+            assert "executable" in agent
+            assert "args" in agent
+            assert "working_directory" in agent
+            assert "environment" in agent
+            assert isinstance(agent["id"], int)
+            assert isinstance(agent["name"], str)
+            assert isinstance(agent["executable"], str)
+            assert isinstance(agent["args"], list)
+            assert isinstance(agent["working_directory"], str)
+            assert isinstance(agent["environment"], dict)
