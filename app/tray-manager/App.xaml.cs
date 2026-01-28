@@ -43,8 +43,16 @@ public partial class App : Application
             _processManager = new FelixProcessManager();
             _logger.Info("Process manager initialized");
 
-            _stateMonitor = new StateMonitor(_settingsManager.Settings.ProjectPath);
-            _logger.Info($"State monitor initialized (watching: {_settingsManager.Settings.ProjectPath})");
+            // Only initialize StateMonitor if we have a valid project path
+            if (!string.IsNullOrWhiteSpace(_settingsManager.Settings.ProjectPath))
+            {
+                _stateMonitor = new StateMonitor(_settingsManager.Settings.ProjectPath);
+                _logger.Info($"State monitor initialized (watching: {_settingsManager.Settings.ProjectPath})");
+            }
+            else
+            {
+                _logger.Info("State monitor not initialized - no project path configured yet");
+            }
 
             _trayIconManager = new TrayIconManager(_processManager, _stateMonitor);
             _logger.Info("Tray icon manager initialized");
@@ -55,8 +63,11 @@ public partial class App : Application
             // Subscribe to process output for logging
             _processManager.OutputReceived += OnProcessOutputReceived;
 
-            // Subscribe to state monitor errors for notifications
-            _stateMonitor.StateError += OnStateMonitorError;
+            // Subscribe to state monitor errors for notifications (only if initialized)
+            if (_stateMonitor != null)
+            {
+                _stateMonitor.StateError += OnStateMonitorError;
+            }
 
         // Set up context menu
         var contextMenu = new ContextMenu();
@@ -84,9 +95,12 @@ public partial class App : Application
 
         _trayIconManager.TaskbarIcon.ContextMenu = contextMenu;
 
-            // Start state monitoring
-            _stateMonitor.Start();
-            _logger.Info("State monitoring started");
+            // Start state monitoring (only if initialized)
+            if (_stateMonitor != null)
+            {
+                _stateMonitor.Start();
+                _logger.Info("State monitoring started");
+            }
 
             // No main window - run minimized to tray
             _logger.Info("Application startup complete - running in system tray");
@@ -186,11 +200,34 @@ public partial class App : Application
         var settingsWindow = new Views.SettingsWindow(_settingsManager);
         var result = settingsWindow.ShowDialog();
 
-        // If settings were saved, update state monitor with new project path
-        if (result == true && _stateMonitor != null)
+        // If settings were saved, update or create state monitor with new project path
+        if (result == true)
         {
             _logger?.Info($"Settings updated. New project path: {_settingsManager.Settings.ProjectPath}");
-            _stateMonitor.UpdateProjectPath(_settingsManager.Settings.ProjectPath);
+            
+            if (!string.IsNullOrWhiteSpace(_settingsManager.Settings.ProjectPath))
+            {
+                if (_stateMonitor != null)
+                {
+                    // Update existing state monitor
+                    _stateMonitor.UpdateProjectPath(_settingsManager.Settings.ProjectPath);
+                }
+                else
+                {
+                    // Create state monitor for the first time
+                    _stateMonitor = new StateMonitor(_settingsManager.Settings.ProjectPath);
+                    _stateMonitor.StateError += OnStateMonitorError;
+                    _stateMonitor.Start();
+                    
+                    // Update tray icon manager with the new state monitor
+                    if (_trayIconManager != null)
+                    {
+                        _trayIconManager.UpdateStateMonitor(_stateMonitor);
+                    }
+                    
+                    _logger?.Info($"State monitor initialized for first time (watching: {_settingsManager.Settings.ProjectPath})");
+                }
+            }
         }
     }
 
