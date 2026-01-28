@@ -90,6 +90,23 @@ class StopMode(str):
     FORCE = "force"
 
 
+# --- Agent Configuration Models (for S-0021: Agent Orchestration Enhancement) ---
+
+class AgentConfigEntry(BaseModel):
+    """Agent configuration entry from agents.json"""
+    id: int = Field(..., description="Unique agent ID (0 = system default)")
+    name: str = Field(..., description="Display name for the agent")
+    executable: str = Field(default="droid", description="Agent executable path")
+    args: List[str] = Field(default_factory=list, description="Command line arguments")
+    working_directory: str = Field(default=".", description="Working directory")
+    environment: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+
+
+class AgentConfigsListResponse(BaseModel):
+    """Response containing configured agents from agents.json"""
+    agents: List[AgentConfigEntry]
+
+
 # --- Agent Registry File Operations ---
 
 def get_agents_file_path() -> Path:
@@ -343,6 +360,62 @@ async def get_agents():
     save_agents_registry(agents)
     
     return AgentRegistryResponse(agents=agents)
+
+
+@router.get("/config", response_model=AgentConfigsListResponse)
+async def get_agents_config():
+    """
+    Get all configured agents from felix/agents.json.
+    
+    This endpoint returns agent configurations (templates/presets) from the
+    global Felix home directory. These are distinct from the runtime registry
+    which tracks currently running agent instances.
+    
+    Used by the Agent Orchestration Dashboard (S-0021) to display all available
+    agents regardless of whether they've been started yet.
+    
+    Returns:
+        AgentConfigsListResponse with list of configured agents
+    """
+    # Load agents config from the global Felix home agents.json
+    agents_config_path = storage.get_felix_home() / "agents.json"
+    
+    if not agents_config_path.exists():
+        # Return default agent configuration
+        default_agents = [
+            AgentConfigEntry(
+                id=0,
+                name="felix-primary",
+                executable="droid",
+                args=["exec", "--skip-permissions-unsafe"],
+                working_directory=".",
+                environment={}
+            )
+        ]
+        return AgentConfigsListResponse(agents=default_agents)
+    
+    try:
+        data = json.loads(agents_config_path.read_text(encoding='utf-8'))
+        agents_list = data.get("agents", [])
+        
+        # Convert to AgentConfigEntry objects
+        agents = [AgentConfigEntry(**agent) for agent in agents_list]
+        
+        return AgentConfigsListResponse(agents=agents)
+    except (json.JSONDecodeError, ValueError) as e:
+        # Return default on parse error
+        print(f"Warning: Failed to parse global agents.json: {e}")
+        default_agents = [
+            AgentConfigEntry(
+                id=0,
+                name="felix-primary",
+                executable="droid",
+                args=["exec", "--skip-permissions-unsafe"],
+                working_directory=".",
+                environment={}
+            )
+        ]
+        return AgentConfigsListResponse(agents=default_agents)
 
 
 @router.post("/{agent_name}/stop", response_model=AgentStopResponse)

@@ -6,15 +6,14 @@ As a developer managing Felix agents, I need a real-time control panel to monito
 
 The current Orchestration tab provides basic run monitoring but lacks agent-level visibility, live console streaming, and comprehensive control features. This spec redesigns the Orchestration tab as a full-featured agent dashboard with three-panel layout: agent list, live console, and run history, with toolbar controls for starting/stopping agents and viewing process details.
 
-**Design Principle**: The dashboard is a command center for agent operations. Left panel shows "what agents are running", middle panel shows "what they're doing right now", right panel shows "what they've done". Toolbar provides direct control.
+**Design Principle**: The dashboard is a command center for agent operations. Left panel shows "all registered agents and their current status", middle panel shows "what they're doing right now", right panel shows "what they've done". Toolbar provides direct control.
 
 ## Acceptance Criteria
 
 ### Layout & Navigation
 
 - [ ] Replace current Orchestration tab with new Agent Dashboard
-- [ ] Three-panel horizontal layout: Agent List (20%), Live Console (50%), Run History (30%)
-- [ ] Panels are resizable via drag handles (min widths: 200px, 400px, 200px)
+- [ ] Three-panel horizontal layout: Agent List, Live Console , Run History 
 - [ ] Toolbar at top of dashboard (above all panels)
 - [ ] Default selected agent: first active agent, or none if no agents active
 

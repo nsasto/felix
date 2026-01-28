@@ -5,6 +5,8 @@ import {
   AgentRegistryResponse,
   RunHistoryEntry,
   Requirement,
+  MergedAgent,
+  AgentConfigEntry,
 } from "../services/felixApi";
 import { IconFelix, IconCpu, IconTerminal } from "./Icons";
 import { marked } from "marked";
@@ -20,7 +22,7 @@ interface AgentDashboardProps {
 
 interface SelectedAgent {
   name: string;
-  entry: AgentEntry;
+  agent: MergedAgent;
 }
 
 // --- Status Icon Component ---
@@ -35,6 +37,8 @@ const StatusIcon: React.FC<{ status: string }> = ({ status }) => {
       return <span title="Inactive">⚪</span>;
     case "stopped":
       return <span title="Stopped">🔴</span>;
+    case "not-started":
+      return <span title="Not Started">⚫</span>;
     default:
       return <span title="Unknown">⚪</span>;
   }
@@ -138,9 +142,9 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
 
   // Calculate uptime
   const getUptime = () => {
-    if (!selectedAgent?.entry.started_at) return null;
+    if (!selectedAgent?.agent.started_at) return null;
     try {
-      const started = new Date(selectedAgent.entry.started_at);
+      const started = new Date(selectedAgent.agent.started_at);
       const now = new Date();
       const diff = now.getTime() - started.getTime();
       const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -156,7 +160,11 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
     (r) => r.status === "planned" || r.status === "blocked",
   );
 
-  const isAgentActive = selectedAgent?.entry.status === "active";
+  const isAgentActive = selectedAgent?.agent.status === "active";
+  
+  // Start button should be enabled for not-started and stopped agents (can be restarted)
+  const canStartAgent = selectedAgent && (selectedAgent.agent.status === "not-started" || selectedAgent.agent.status === "stopped");
+  const canStopAgent = selectedAgent && isAgentActive;
 
   return (
     <div
@@ -199,7 +207,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                   className="text-[10px] font-mono"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  {selectedAgent.entry.hostname}
+                  {selectedAgent.agent.hostname || selectedAgent.agent.executable}
                 </p>
               </div>
             </div>
@@ -207,11 +215,11 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
               className="flex items-center gap-4 text-[10px] font-mono"
               style={{ color: "var(--text-faint)" }}
             >
-              <span>PID: {selectedAgent.entry.pid}</span>
+              {selectedAgent.agent.pid && <span>PID: {selectedAgent.agent.pid}</span>}
               {getUptime() && <span>Uptime: {getUptime()}</span>}
-              {selectedAgent.entry.current_run_id && (
+              {selectedAgent.agent.current_run_id && (
                 <span className="px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
-                  {selectedAgent.entry.current_run_id}
+                  {selectedAgent.agent.current_run_id}
                 </span>
               )}
             </div>
@@ -248,7 +256,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
       {/* Right section - Controls */}
       <div className="flex items-center gap-3">
         {/* Live indicator */}
-        {selectedAgent?.entry.status === "active" && (
+        {selectedAgent?.agent.status === "active" && (
           <div className="flex items-center gap-2 mr-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50" />
             <span className="text-[10px] font-mono text-emerald-400 uppercase">
@@ -262,7 +270,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={() => setShowStartDropdown(!showStartDropdown)}
             disabled={
-              !selectedAgent || isAgentActive || actionInProgress !== null
+              !canStartAgent || actionInProgress !== null
             }
             className="px-4 py-2 text-xs font-bold text-white bg-felix-600 hover:bg-felix-500 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
@@ -339,7 +347,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={() => setShowStopDropdown(!showStopDropdown)}
             disabled={
-              !selectedAgent || !isAgentActive || actionInProgress !== null
+              !canStopAgent || actionInProgress !== null
             }
             className="px-4 py-2 text-xs font-bold text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
@@ -469,7 +477,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
 // --- Agent List Panel ---
 
 interface AgentListPanelProps {
-  agents: Record<string, AgentEntry>;
+  agents: MergedAgent[];
   selectedAgent: SelectedAgent | null;
   onSelectAgent: (agent: SelectedAgent) => void;
   loading: boolean;
@@ -481,12 +489,13 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
   onSelectAgent,
   loading,
 }) => {
-  const agentEntries = Object.entries(agents);
-  const activeAgents = agentEntries.filter(([_, a]) => a.status === "active");
-  const inactiveAgents = agentEntries.filter(([_, a]) => a.status !== "active");
+  // Group agents by status per S-0021 spec
+  const availableAgents = agents.filter((a) => a.status === "not-started");
+  const activeAgents = agents.filter((a) => a.status === "active" || a.status === "stale");
+  const inactiveAgents = agents.filter((a) => a.status === "inactive" || a.status === "stopped");
 
   // Format relative time
-  const formatRelativeTime = (isoString: string | null) => {
+  const formatRelativeTime = (isoString: string | null | undefined) => {
     if (!isoString) return null;
     try {
       const date = new Date(isoString);
@@ -500,14 +509,14 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
     }
   };
 
-  const renderAgentCard = ([name, entry]: [string, AgentEntry]) => {
-    const isSelected = selectedAgent?.name === name;
-    const relativeTime = formatRelativeTime(entry.last_heartbeat);
+  const renderAgentCard = (agent: MergedAgent) => {
+    const isSelected = selectedAgent?.name === agent.name;
+    const relativeTime = formatRelativeTime(agent.last_heartbeat);
 
     return (
       <button
-        key={name}
-        onClick={() => onSelectAgent({ name, entry })}
+        key={agent.name}
+        onClick={() => onSelectAgent({ name: agent.name, agent })}
         className={`w-full p-3 rounded-xl text-left transition-all border ${
           isSelected
             ? "border-felix-500/50 bg-felix-500/10"
@@ -519,18 +528,18 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
         }}
       >
         <div className="flex items-start gap-3">
-          <StatusIcon status={entry.status} />
+          <StatusIcon status={agent.status} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span
                 className="font-bold text-sm truncate"
                 style={{ color: "var(--text-secondary)" }}
               >
-                {name}
+                {agent.name}
               </span>
-              {entry.current_run_id && (
+              {agent.current_run_id && (
                 <span className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
-                  {entry.current_run_id}
+                  {agent.current_run_id}
                 </span>
               )}
             </div>
@@ -538,14 +547,34 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
               className="flex items-center gap-2 text-[10px]"
               style={{ color: "var(--text-muted)" }}
             >
-              <span className="truncate">{entry.hostname}</span>
-              {entry.status === "active" && relativeTime && (
+              {agent.status === "not-started" ? (
+                // For not-started agents, show executable + args preview
+                <span className="truncate font-mono">
+                  {agent.executable} {agent.args.slice(0, 2).join(" ")}...
+                </span>
+              ) : (
+                // For running/stopped agents, show hostname
+                <span className="truncate">{agent.hostname || agent.executable}</span>
+              )}
+              {(agent.status === "active" || agent.status === "stale") && relativeTime && (
                 <>
                   <span>•</span>
                   <span>{relativeTime}</span>
                 </>
               )}
             </div>
+            {/* Status text for not-started agents */}
+            {agent.status === "not-started" && (
+              <p className="text-[9px] mt-1" style={{ color: "var(--text-faint)" }}>
+                Ready to start
+              </p>
+            )}
+            {/* Last active timestamp for stopped agents */}
+            {agent.status === "stopped" && agent.stopped_at && (
+              <p className="text-[9px] mt-1" style={{ color: "var(--text-faint)" }}>
+                Stopped {formatRelativeTime(agent.stopped_at)}
+              </p>
+            )}
           </div>
         </div>
       </button>
@@ -582,7 +611,7 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
     );
   }
 
-  if (agentEntries.length === 0) {
+  if (agents.length === 0) {
     return (
       <div
         className="h-full flex flex-col"
@@ -613,7 +642,7 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
             className="text-xs font-bold mb-1"
             style={{ color: "var(--text-tertiary)" }}
           >
-            No agents registered
+            No agents configured
           </p>
           <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             Configure agents in Settings
@@ -640,6 +669,25 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
         </h2>
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-3">
+        {/* Available Agents (not-started) */}
+        {availableAgents.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: "#6b7280" }}
+              />
+              <span
+                className="text-[10px] font-bold uppercase"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Available ({availableAgents.length})
+              </span>
+            </div>
+            <div className="space-y-2">{availableAgents.map(renderAgentCard)}</div>
+          </div>
+        )}
+
         {/* Active Agents */}
         {activeAgents.length > 0 && (
           <div>
@@ -706,7 +754,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 
   // Poll for console output when agent is active
   useEffect(() => {
-    if (!selectedAgent || selectedAgent.entry.status !== "active") {
+    if (!selectedAgent || selectedAgent.agent.status !== "active") {
       return;
     }
 
@@ -718,11 +766,11 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       // 2. Or polling the current run's output.log
 
       // Get the current run's output if available
-      if (selectedAgent.entry.current_run_id) {
+      if (selectedAgent.agent.current_run_id) {
         try {
           // Try to fetch the output.log for the current run
           // This is a placeholder - the actual implementation would tail the file
-          const runId = selectedAgent.entry.current_run_id;
+          const runId = selectedAgent.agent.current_run_id;
           // Note: This would require a new API endpoint to get run output in real-time
         } catch (err) {
           console.error("Failed to fetch console output:", err);
@@ -780,8 +828,21 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
     );
   }
 
-  // Empty state - agent idle
-  if (selectedAgent.entry.status !== "active") {
+  // Empty state - agent idle (not-started, stopped, inactive, or stale)
+  if (selectedAgent.agent.status !== "active") {
+    // Determine appropriate message based on status
+    const getStatusMessage = () => {
+      switch (selectedAgent.agent.status) {
+        case "not-started":
+          return { primary: "Agent not running", secondary: "Start the agent to see output" };
+        case "stopped":
+          return { primary: "Agent stopped", secondary: "Restart the agent to see output" };
+        default:
+          return { primary: "Agent idle - waiting for work", secondary: "Start a run to see live output" };
+      }
+    };
+    const message = getStatusMessage();
+    
     return (
       <div
         className="h-full flex flex-col"
@@ -811,7 +872,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
                 color: "var(--text-muted)",
               }}
             >
-              {selectedAgent.entry.status}
+              {selectedAgent.agent.status}
             </span>
           </div>
         </div>
@@ -826,10 +887,10 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             />
           </div>
           <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
-            Agent idle - waiting for work
+            {message.primary}
           </p>
           <p className="text-[10px]" style={{ color: "var(--text-faint)" }}>
-            Start a run to see live output
+            {message.secondary}
           </p>
         </div>
       </div>
@@ -857,9 +918,9 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
           >
             {selectedAgent.name}
           </span>
-          {selectedAgent.entry.current_run_id && (
+          {selectedAgent.agent.current_run_id && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
-              {selectedAgent.entry.current_run_id}
+              {selectedAgent.agent.current_run_id}
             </span>
           )}
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -1199,7 +1260,7 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
 // --- Main Dashboard Component ---
 
 const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
-  const [agents, setAgents] = useState<Record<string, AgentEntry>>({});
+  const [agents, setAgents] = useState<MergedAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
     null,
   );
@@ -1209,30 +1270,66 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch agents
+  // Fetch agents - merges configured agents with runtime status
   const fetchAgents = useCallback(async () => {
     try {
-      const response = await felixApi.getAgents();
-      setAgents(response.agents);
+      // Load both configured agents and runtime agents in parallel
+      const [configResponse, runtimeResponse] = await Promise.all([
+        felixApi.getAgentsConfig().catch(() => ({ agents: [] })), // Graceful fallback
+        felixApi.getAgents(),
+      ]);
+
+      const configuredAgents = configResponse.agents || [];
+      const runtimeAgents = runtimeResponse.agents || {};
+
+      // Merge: configured agents are source of truth, overlay with runtime status
+      const mergedAgents: MergedAgent[] = configuredAgents.map((config) => {
+        const runtime = runtimeAgents[config.name];
+
+        if (!runtime) {
+          // No runtime entry - agent has never been started
+          return {
+            ...config,
+            status: "not-started" as const,
+          };
+        }
+
+        // Has runtime entry - merge config with runtime data
+        return {
+          ...config,
+          status: runtime.status,
+          pid: runtime.pid,
+          hostname: runtime.hostname,
+          current_run_id: runtime.current_run_id,
+          last_heartbeat: runtime.last_heartbeat,
+          started_at: runtime.started_at,
+          stopped_at: runtime.stopped_at,
+        };
+      });
+
+      setAgents(mergedAgents);
       setError(null);
 
       // Auto-select first active agent if none selected
       if (!selectedAgent) {
-        const activeAgents = Object.entries(response.agents).filter(
-          ([_, a]) => a.status === "active",
+        const activeAgents = mergedAgents.filter(
+          (a) => a.status === "active",
         );
         if (activeAgents.length > 0) {
           setSelectedAgent({
-            name: activeAgents[0][0],
-            entry: activeAgents[0][1],
+            name: activeAgents[0].name,
+            agent: activeAgents[0],
           });
         }
       } else {
-        // Update selected agent entry
-        if (selectedAgent.name in response.agents) {
+        // Update selected agent data
+        const updatedAgent = mergedAgents.find(
+          (a) => a.name === selectedAgent.name,
+        );
+        if (updatedAgent) {
           setSelectedAgent({
-            name: selectedAgent.name,
-            entry: response.agents[selectedAgent.name],
+            name: updatedAgent.name,
+            agent: updatedAgent,
           });
         }
       }
