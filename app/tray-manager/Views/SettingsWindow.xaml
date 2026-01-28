@@ -5,10 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Felix Tray Manager - Settings" 
-        Height="400" 
-        Width="550"
+        Height="600" 
+        Width="700"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize"
         ShowInTaskbar="True">
     
     <Window.Resources>
@@ -52,40 +52,104 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 
-                <!-- Project Configuration Section -->
-                <TextBlock Text="Project Configuration" Style="{StaticResource SectionHeaderStyle}"/>
+                <!-- Server Configuration Section -->
+                <TextBlock Text="Server Configuration" Style="{StaticResource SectionHeaderStyle}"/>
                 <Separator Margin="0,0,0,10"/>
                 
-                <!-- Project Path -->
-                <TextBlock Text="Felix Project Path:" Style="{StaticResource LabelStyle}"/>
+                <TextBlock Text="Backend Server Endpoint:" Style="{StaticResource LabelStyle}"/>
                 <Grid Margin="0,5,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     
-                    <TextBox x:Name="ProjectPathTextBox" 
+                    <TextBox x:Name="ServerEndpointTextBox" 
                              Grid.Column="0"
                              Height="25"
                              VerticalContentAlignment="Center"
-                             Margin="0,0,10,0"
-                             TextChanged="OnProjectPathChanged"/>
+                             Margin="0,0,10,0"/>
                     
-                    <Button x:Name="BrowseButton" 
+                    <Button x:Name="TestConnectionButton" 
                             Grid.Column="1"
-                            Content="Browse..."
-                            Width="80"
+                            Content="Test Connection"
+                            Width="120"
                             Height="25"
-                            Click="OnBrowseClick"/>
+                            Click="OnTestConnectionClick"/>
                 </Grid>
-                <TextBlock x:Name="ValidationMessage" 
-                           Style="{StaticResource ValidationStyle}"
-                           Visibility="Collapsed"/>
+                <TextBlock x:Name="ConnectionStatusMessage" 
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Margin="0,5,0,0"/>
+
+                <!-- Agent Management Section -->
+                <TextBlock Text="Agent Management" 
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="0,20,0,5"/>
+                <Separator Margin="0,0,0,10"/>
+                
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="200"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Button x:Name="AddAgentButton"
+                            Grid.Row="0"
+                            Content="+ Add Agent"
+                            Width="100"
+                            Height="30"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,10"
+                            Click="OnAddAgentClick"/>
+                    
+                    <DataGrid x:Name="AgentsDataGrid"
+                              Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              SelectionMode="Single"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="80"/>
+                            <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="*" MinWidth="120"/>
+                            <DataGridTextColumn Header="Agent Path" Binding="{Binding AgentPath}" Width="2*" MinWidth="200"/>
+                            <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding Enabled}" Width="60"/>
+                            <DataGridTemplateColumn Header="Actions" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="Edit" 
+                                                    Width="50" 
+                                                    Height="25" 
+                                                    Margin="2"
+                                                    Click="OnEditAgentClick"
+                                                    Tag="{Binding}"/>
+                                            <Button Content="Remove" 
+                                                    Width="60" 
+                                                    Height="25" 
+                                                    Margin="2"
+                                                    Click="OnRemoveAgentClick"
+                                                    Tag="{Binding}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+                <!-- General Settings Section -->
+                <TextBlock Text="General Settings" 
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="0,20,0,5"/>
+                <Separator Margin="0,0,0,10"/>
 
                 <!-- Max Iterations -->
                 <TextBlock Text="Maximum Iterations:" 
                            Style="{StaticResource LabelStyle}"
-                           Margin="0,15,0,0"/>
+                           Margin="0,5,0,0"/>
                 <TextBlock Text="The maximum number of iterations the Felix agent will execute before stopping." 
                            FontSize="11"
                            Foreground="Gray"

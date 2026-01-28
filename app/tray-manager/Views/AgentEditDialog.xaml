@@ -1,0 +1,108 @@
+<Window x:Class="FelixTrayManager.Views.AgentEditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Agent Configuration" 
+        Height="350" 
+        Width="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" 
+                   x:Name="HeaderText"
+                   Text="Add Agent" 
+                   FontSize="16" 
+                   FontWeight="Bold" 
+                   Margin="0,0,0,15"/>
+
+        <!-- Form -->
+        <StackPanel Grid.Row="1">
+            
+            <!-- Name (read-only) -->
+            <TextBlock Text="Unique Name:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+            <TextBox x:Name="NameTextBox" 
+                     Height="25"
+                     IsReadOnly="True"
+                     Background="#F0F0F0"
+                     Margin="0,0,0,10"/>
+            
+            <!-- Display Name -->
+            <TextBlock Text="Display Name:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+            <TextBox x:Name="DisplayNameTextBox" 
+                     Height="25"
+                     Margin="0,0,0,10"/>
+            
+            <!-- Agent Path -->
+            <TextBlock Text="Agent Path:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBox x:Name="AgentPathTextBox" 
+                         Grid.Column="0"
+                         Height="25"
+                         VerticalContentAlignment="Center"
+                         Margin="0,0,10,0"/>
+                
+                <Button x:Name="BrowseButton" 
+                        Grid.Column="1"
+                        Content="Browse..."
+                        Width="80"
+                        Height="25"
+                        Click="OnBrowseClick"/>
+            </Grid>
+            
+            <!-- Enabled Checkbox -->
+            <CheckBox x:Name="EnabledCheckBox"
+                      Content="Enabled"
+                      Margin="0,5,0,10"
+                      IsChecked="True"/>
+            
+            <!-- Location Type (hidden for now, defaults to "local") -->
+            
+            <!-- Validation Message -->
+            <TextBlock x:Name="ValidationMessage" 
+                       FontSize="11"
+                       Foreground="Red"
+                       TextWrapping="Wrap"
+                       Margin="0,5,0,0"
+                       Visibility="Collapsed"/>
+        </StackPanel>
+
+        <!-- Action Buttons -->
+        <Grid Grid.Row="2" Margin="0,15,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="CancelButton"
+                    Grid.Column="1"
+                    Content="Cancel"
+                    Width="80"
+                    Height="30"
+                    Margin="0,0,10,0"
+                    IsCancel="True"
+                    Click="OnCancelClick"/>
+
+            <Button x:Name="SaveButton"
+                    Grid.Column="2"
+                    Content="Save"
+                    Width="80"
+                    Height="30"
+                    IsDefault="True"
+                    Click="OnSaveClick"/>
+        </Grid>
+    </Grid>
+</Window>
