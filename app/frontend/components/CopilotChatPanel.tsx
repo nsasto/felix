@@ -26,6 +26,12 @@ interface CopilotChatPanelProps {
   onClearHistory: () => void;
   /** Number of context sources loaded */
   contextSourceCount?: number;
+  /** Callback when user wants to insert spec content into editor */
+  onInsertSpec?: (content: string) => void;
+  /** Callback for quick draft action */
+  onQuickDraft?: () => void;
+  /** Callback for help command */
+  onHelpCommand?: () => void;
 }
 
 /**
@@ -50,6 +56,9 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
   onCancelStream,
   onClearHistory,
   contextSourceCount = 0,
+  onInsertSpec,
+  onQuickDraft,
+  onHelpCommand,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -151,6 +160,22 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
   const charCount = inputValue.length;
   const showCharCount = charCount > 1800;
   const isOverLimit = charCount > 2000;
+
+  /**
+   * Check if a message content looks like a generated spec.
+   * A spec typically has markdown headings (# or ##) and structured content.
+   */
+  const looksLikeSpec = useCallback((content: string): boolean => {
+    // Must have at least one heading
+    const hasHeading = /^#+ .+/m.test(content);
+    // Should be longer than a simple response (at least 200 chars)
+    const isSubstantial = content.length > 200;
+    // Should have multiple sections (multiple headings or lists)
+    const hasMultipleSections = (content.match(/^#+ .+/gm) || []).length >= 2 || 
+                                 (content.match(/^- \[/gm) || []).length >= 2;
+    
+    return hasHeading && isSubstantial && hasMultipleSections;
+  }, []);
 
   /**
    * Render markdown content for assistant messages.
@@ -287,7 +312,7 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
             <div
               className={`
@@ -310,6 +335,30 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
                 {formatTimestamp(msg.timestamp)}
               </div>
             </div>
+            
+            {/* Insert Spec button for spec-like assistant messages */}
+            {msg.role === 'assistant' && 
+             !isStreaming && 
+             looksLikeSpec(msg.content) && 
+             onInsertSpec && (
+              <button
+                onClick={() => onInsertSpec(msg.content)}
+                className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg
+                  bg-gradient-to-r from-felix-500 to-felix-600 
+                  text-white shadow-sm
+                  hover:from-felix-600 hover:to-felix-700
+                  transition-all duration-200
+                  flex items-center gap-1.5"
+                title="Insert this spec into the editor"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+                  />
+                </svg>
+                Insert Spec
+              </button>
+            )}
           </div>
         ))}
 
@@ -330,8 +379,50 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Quick Actions Bar */}
+      {!isStreaming && (
+        <div className="px-3 pt-2 pb-0 border-t theme-border flex gap-2 flex-shrink-0">
+          {/* Draft Spec button */}
+          {onQuickDraft && (
+            <button
+              onClick={onQuickDraft}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg
+                bg-gradient-to-r from-felix-500 to-felix-600 
+                text-white shadow-sm
+                hover:from-felix-600 hover:to-felix-700
+                transition-all duration-200
+                flex items-center gap-1.5"
+              title="Start drafting a new spec"
+            >
+              <span>✨</span>
+              Draft Spec
+            </button>
+          )}
+          
+          {/* Help button */}
+          {onHelpCommand && (
+            <button
+              onClick={onHelpCommand}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg
+                theme-bg-elevated theme-text-muted
+                hover:theme-text-primary
+                transition-all duration-200
+                flex items-center gap-1.5"
+              title="Show available commands"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                />
+              </svg>
+              Help
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Input Section - 80px */}
-      <div className="h-20 p-3 border-t theme-border flex-shrink-0">
+      <div className="h-20 p-3 border-t-0 flex-shrink-0">
         <div className="flex gap-2 h-full">
           {/* Text input */}
           <div className="flex-1 relative">
@@ -414,6 +505,24 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
         }
         .ring-felix-500\\/50 {
           --tw-ring-color: rgba(115, 142, 241, 0.5);
+        }
+        
+        /* Felix gradient classes for buttons */
+        .from-felix-500 {
+          --tw-gradient-from: #738ef1;
+          --tw-gradient-to: rgba(115, 142, 241, 0);
+          --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        }
+        .to-felix-600 {
+          --tw-gradient-to: #5268e8;
+        }
+        .hover\\:from-felix-600:hover {
+          --tw-gradient-from: #5268e8;
+          --tw-gradient-to: rgba(82, 104, 232, 0);
+          --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        }
+        .hover\\:to-felix-700:hover {
+          --tw-gradient-to: #4055d6;
         }
         
         /* Copilot markdown styles for assistant messages */
