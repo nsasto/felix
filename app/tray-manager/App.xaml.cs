@@ -1,5 +1,6 @@
 ﻿using System.Configuration;
 using System.Data;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Hardcodet.Wpf.TaskbarNotification;
@@ -27,6 +28,9 @@ public partial class App : Application
 
     private void Application_Startup(object sender, StartupEventArgs e)
     {
+        // Set shutdown mode to explicit - don't close when windows close
+        Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         // Initialize logger first
         _logger = new Logger();
         _logger.Info("Application starting...");
@@ -63,6 +67,9 @@ public partial class App : Application
             // Subscribe to process output for logging
             _processManager.OutputReceived += OnProcessOutputReceived;
 
+            // Subscribe to settings changes to update menu state
+            _settingsManager.SettingsChanged += OnSettingsChanged;
+
             // Subscribe to state monitor errors for notifications (only if initialized)
             if (_stateMonitor != null)
             {
@@ -94,6 +101,9 @@ public partial class App : Application
         contextMenu.Items.Add(_exitMenuItem);
 
         _trayIconManager.TaskbarIcon.ContextMenu = contextMenu;
+
+            // Update menu state based on current settings
+            UpdateMenuStateBasedOnAgents();
 
             // Start state monitoring (only if initialized)
             if (_stateMonitor != null)
@@ -291,10 +301,13 @@ public partial class App : Application
             if (_startMenuItem == null || _stopMenuItem == null)
                 return;
 
+            // Check if we have enabled agents
+            var hasEnabledAgents = HasEnabledAgents();
+
             switch (e.NewState)
             {
                 case FelixProcessManager.ProcessState.Stopped:
-                    _startMenuItem.IsEnabled = true;
+                    _startMenuItem.IsEnabled = hasEnabledAgents;
                     _stopMenuItem.IsEnabled = false;
                     break;
 
@@ -314,7 +327,7 @@ public partial class App : Application
                     break;
 
                 case FelixProcessManager.ProcessState.Error:
-                    _startMenuItem.IsEnabled = true;
+                    _startMenuItem.IsEnabled = hasEnabledAgents;
                     _stopMenuItem.IsEnabled = false;
                     // Show error notification
                     var errorMsg = e.ErrorMessage ?? "An unknown error occurred";
@@ -325,6 +338,62 @@ public partial class App : Application
                     break;
             }
         });
+    }
+
+    /// <summary>
+    /// Handles settings changes to update menu state
+    /// </summary>
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        _logger?.Info("Settings changed - updating menu state");
+        
+        Dispatcher.Invoke(() =>
+        {
+            UpdateMenuStateBasedOnAgents();
+        });
+    }
+
+    /// <summary>
+    /// Updates menu item states based on whether agents are configured
+    /// </summary>
+    private void UpdateMenuStateBasedOnAgents()
+    {
+        if (_startMenuItem == null || _stopMenuItem == null || _settingsManager == null || _processManager == null)
+            return;
+
+        var hasEnabledAgents = HasEnabledAgents();
+        
+        // Only enable Start if we have agents AND process is not running
+        if (_processManager.IsRunning)
+        {
+            _startMenuItem.IsEnabled = false;
+            _stopMenuItem.IsEnabled = true;
+        }
+        else
+        {
+            _startMenuItem.IsEnabled = hasEnabledAgents;
+            _stopMenuItem.IsEnabled = false;
+        }
+
+        _logger?.Info($"Menu state updated - enabled agents: {hasEnabledAgents}");
+    }
+
+    /// <summary>
+    /// Checks if there are any enabled agents configured
+    /// </summary>
+    private bool HasEnabledAgents()
+    {
+        if (_settingsManager?.Settings == null)
+            return false;
+
+        // Check for agents in new format
+        if (_settingsManager.Settings.Agents != null && _settingsManager.Settings.Agents.Count > 0)
+        {
+            return _settingsManager.Settings.Agents.Any(a => a.Enabled && a.IsValid());
+        }
+
+        // Fallback to legacy project path validation
+        return _settingsManager.Settings.IsValid();
     }
 
     /// <summary>
@@ -373,6 +442,11 @@ public partial class App : Application
         {
             _processManager.StateChanged -= OnProcessStateChanged;
             _processManager.OutputReceived -= OnProcessOutputReceived;
+        }
+
+        if (_settingsManager != null)
+        {
+            _settingsManager.SettingsChanged -= OnSettingsChanged;
         }
 
         if (_stateMonitor != null)
