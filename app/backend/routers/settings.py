@@ -28,7 +28,13 @@ class ExecutorConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    """Agent configuration"""
+    """Agent configuration - references agent by ID from agents.json"""
+    agent_id: int = Field(default=0, description="ID of the active agent from agents.json (0 = system default)")
+
+
+class AgentConfigFull(BaseModel):
+    """Full agent configuration - used when resolving agent_id to full config"""
+    id: int = Field(..., description="Unique agent ID (0 = system default)")
     name: str = Field(default="felix-primary", description="Unique agent name identifier")
     executable: str = Field(default="droid", description="Agent executable name")
     args: List[str] = Field(default_factory=lambda: ["exec", "--skip-permissions-unsafe"], description="Agent arguments")
@@ -128,6 +134,21 @@ def load_global_config() -> FelixConfig:
         ui_data = data.get("ui", {})
         copilot_data = data.get("copilot", None)
         
+        # Handle agent config migration: detect legacy inline agent vs new agent_id format
+        if agent_data:
+            if "agent_id" in agent_data:
+                # New format - use agent_id directly
+                agent_config = AgentConfig(agent_id=agent_data["agent_id"])
+            elif "name" in agent_data or "executable" in agent_data:
+                # Legacy format - has inline agent definition, use agent_id: 0 (system default)
+                # The actual agent data should be in agents.json
+                agent_config = AgentConfig(agent_id=0)
+            else:
+                # Unknown format, default to agent_id: 0
+                agent_config = AgentConfig()
+        else:
+            agent_config = AgentConfig()
+        
         # Parse copilot config if present
         copilot_config = None
         if copilot_data:
@@ -144,7 +165,7 @@ def load_global_config() -> FelixConfig:
         return FelixConfig(
             version=data.get("version", "0.1.0"),
             executor=ExecutorConfig(**executor_data) if executor_data else ExecutorConfig(),
-            agent=AgentConfig(**agent_data) if agent_data else AgentConfig(),
+            agent=agent_config,
             paths=PathsConfig(**paths_data) if paths_data else PathsConfig(),
             backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig(),
             ui=UIConfig(**ui_data) if ui_data else UIConfig(),
@@ -187,6 +208,31 @@ async def get_global_settings():
     )
 
 
+def get_agents_json_path() -> Path:
+    """Get the path to the agents.json file in the global Felix home"""
+    return storage.get_felix_home() / "agents.json"
+
+
+def load_agents_config():
+    """Load agents configuration from agents.json"""
+    agents_path = get_agents_json_path()
+    
+    if not agents_path.exists():
+        return {"agents": []}
+    
+    try:
+        return json.loads(agents_path.read_text(encoding='utf-8'))
+    except json.JSONDecodeError:
+        return {"agents": []}
+
+
+def validate_agent_id_exists(agent_id: int) -> bool:
+    """Check if an agent with the given ID exists in agents.json"""
+    agents_data = load_agents_config()
+    agents = agents_data.get("agents", [])
+    return any(agent.get("id") == agent_id for agent in agents)
+
+
 @router.put("/settings", response_model=ConfigContent)
 async def update_global_settings(request: ConfigUpdate):
     """
@@ -198,6 +244,7 @@ async def update_global_settings(request: ConfigUpdate):
     - max_iterations must be a positive integer
     - default_mode must be 'planning' or 'building'
     - ui.theme must be 'dark', 'light', or 'system'
+    - agent.agent_id must reference an existing agent in agents.json
     """
     config = request.config
     
@@ -220,6 +267,13 @@ async def update_global_settings(request: ConfigUpdate):
         raise HTTPException(
             status_code=400,
             detail="ui.theme must be 'dark', 'light', or 'system'"
+        )
+    
+    # Validate agent_id exists in agents.json
+    if not validate_agent_id_exists(config.agent.agent_id):
+        raise HTTPException(
+            status_code=400,
+            detail=f"agent_id {config.agent.agent_id} does not exist in agents.json"
         )
     
     save_global_config(config)
