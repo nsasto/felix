@@ -1133,6 +1133,44 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Add current requirement ID
     $contextParts += "# Current Requirement`n`nYou are working on: **$($currentReq.id)** - $($currentReq.title)"
     
+    # Add failure context from previous iteration if blocked
+    if ($state.blocked_task) {
+        $failedCommandsList = ($state.blocked_task.failed_commands | ForEach-Object { "- $_" }) -join "`n"
+        
+        $retryInfo = "# ⚠️ Previous Iteration - Task Blocked ⚠️`n`n"
+        $retryInfo += "**IMPORTANT:** The following task failed validation in the previous iteration. You MUST fix these issues before proceeding.`n`n"
+        $retryInfo += "**Blocked Task:** $($state.blocked_task.description)`n"
+        $retryInfo += "**Retry Attempt:** $($state.blocked_task.retry_count) of $($state.blocked_task.max_retries)`n"
+        $retryInfo += "**Blocked Since:** $($state.blocked_task.blocked_at)`n"
+        $retryInfo += "**Reason:** $($state.blocked_task.reason)`n`n"
+        $retryInfo += "## Failed Validation Commands`n`n"
+        $retryInfo += "$failedCommandsList`n`n"
+        $retryInfo += "## What You Must Do`n`n"
+        $retryInfo += "1. **Review the failed validation commands above** - These commands must pass before the task can be committed`n"
+        $retryInfo += "2. **Fix the underlying issues** causing the test/build/lint failures`n"
+        $retryInfo += "3. **DO NOT mark the task complete** until all validation passes`n"
+        $retryInfo += "4. **Focus on fixing the errors** - Read error messages carefully and address root causes`n"
+        
+        # Load backpressure log from most recent run if available
+        $lastRunId = $state.last_run_id
+        if ($lastRunId) {
+            $lastRunDir = Join-Path $RunsDir $lastRunId
+            $backpressureLogPath = Join-Path $lastRunDir "backpressure.log"
+            if (Test-Path $backpressureLogPath) {
+                $backpressureLog = Get-Content $backpressureLogPath -Raw
+                $retryInfo += "`n## Full Validation Output from Previous Iteration`n`n"
+                $retryInfo += "The commands above produced the following output. **Read this carefully** to understand what needs to be fixed:`n`n"
+                $retryInfo += $backpressureLog
+                $retryInfo += "`n"
+            }
+        }
+        
+        $contextParts += $retryInfo
+        
+        Write-Host "[CONTEXT] " -NoNewline -ForegroundColor Yellow
+        Write-Host "Injected blocked task failure context (retry $($state.blocked_task.retry_count)/$($state.blocked_task.max_retries))" -ForegroundColor Yellow
+    }
+    
     # Add plan output path instruction
     $planOutputPath = "runs/$runId/plan-$($currentReq.id).md"
     if ($mode -eq "planning") {
