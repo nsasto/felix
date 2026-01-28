@@ -374,6 +374,371 @@ class TestAnthropicConnection:
             assert error is None
 
 
+class TestCopilotStreamEndpoint:
+    """Tests for POST /api/copilot/chat/stream endpoint (S-0017)"""
+
+    def test_stream_endpoint_returns_sse_media_type(self, client, mock_felix_config):
+        """Streaming endpoint returns correct SSE media type"""
+        with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
+            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+                with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
+                    # Mock service
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = [{"role": "user", "content": "test"}]
+                    
+                    async def mock_stream(*args, **kwargs):
+                        yield 'data: {"avatar_state": "thinking"}\n\n'
+                        yield 'data: {"avatar_state": "speaking"}\n\n'
+                        yield 'data: {"token": "Hello"}\n\n'
+                        yield 'data: {"avatar_state": "idle", "done": true}\n\n'
+                    
+                    mock_service.stream_response = mock_stream
+                    mock_service_factory.return_value = mock_service
+                    
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={"message": "test message", "history": []}
+                    )
+        
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+
+    def test_stream_endpoint_sends_avatar_state_events(self, client, mock_felix_config):
+        """Streaming includes avatar state transitions"""
+        with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
+            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+                with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = [{"role": "user", "content": "test"}]
+                    
+                    async def mock_stream(*args, **kwargs):
+                        yield 'data: {"avatar_state": "thinking"}\n\n'
+                        yield 'data: {"avatar_state": "speaking"}\n\n'
+                        yield 'data: {"token": "Hello"}\n\n'
+                        yield 'data: {"avatar_state": "idle", "done": true}\n\n'
+                    
+                    mock_service.stream_response = mock_stream
+                    mock_service_factory.return_value = mock_service
+                    
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={"message": "test message", "history": []}
+                    )
+        
+        content = response.text
+        assert "thinking" in content
+        assert "speaking" in content
+        assert "idle" in content
+
+    def test_stream_endpoint_with_conversation_history(self, client, mock_felix_config):
+        """Streaming endpoint accepts and processes conversation history"""
+        with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
+            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+                with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = []
+                    
+                    async def mock_stream(*args, **kwargs):
+                        yield 'data: {"avatar_state": "thinking"}\n\n'
+                        yield 'data: {"avatar_state": "idle", "done": true}\n\n'
+                    
+                    mock_service.stream_response = mock_stream
+                    mock_service_factory.return_value = mock_service
+                    
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={
+                            "message": "follow up question",
+                            "history": [
+                                {"role": "user", "content": "first message"},
+                                {"role": "assistant", "content": "first response"}
+                            ]
+                        }
+                    )
+        
+        assert response.status_code == 200
+        # Verify history was passed to build_messages
+        mock_service.build_messages.assert_called_once()
+
+    def test_stream_endpoint_with_project_path(self, client, mock_felix_config, tmp_path):
+        """Streaming endpoint loads context when project_path provided"""
+        # Create mock project files
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        (project_dir / "AGENTS.md").write_text("# Test Agents", encoding='utf-8')
+        
+        with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
+            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+                with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {"agents_md": "# Test Agents"}
+                    mock_service.trim_context_for_token_budget.return_value = {"agents_md": "# Test Agents"}
+                    mock_service.build_system_prompt.return_value = "test prompt with context"
+                    mock_service.build_messages.return_value = []
+                    
+                    async def mock_stream(*args, **kwargs):
+                        yield 'data: {"avatar_state": "idle", "done": true}\n\n'
+                    
+                    mock_service.stream_response = mock_stream
+                    mock_service_factory.return_value = mock_service
+                    
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={
+                            "message": "test",
+                            "history": [],
+                            "project_path": str(project_dir)
+                        }
+                    )
+        
+        assert response.status_code == 200
+        mock_service.load_context.assert_called_once()
+
+    def test_stream_endpoint_error_handling(self, client, mock_felix_config):
+        """Streaming endpoint handles errors gracefully via error events"""
+        with patch('routers.copilot.os.getenv', return_value="sk-test-key"):
+            with patch('routers.copilot.load_global_config', return_value=mock_felix_config):
+                with patch('routers.copilot.create_copilot_service_from_config') as mock_service_factory:
+                    mock_service = MagicMock()
+                    mock_service.load_context.return_value = {}
+                    mock_service.trim_context_for_token_budget.return_value = {}
+                    mock_service.build_system_prompt.return_value = "test prompt"
+                    mock_service.build_messages.return_value = []
+                    
+                    # Simulate error in stream
+                    async def mock_stream_error(*args, **kwargs):
+                        yield 'data: {"avatar_state": "thinking"}\n\n'
+                        yield 'data: {"error": "API connection failed", "avatar_state": "error"}\n\n'
+                    
+                    mock_service.stream_response = mock_stream_error
+                    mock_service_factory.return_value = mock_service
+                    
+                    response = client.post(
+                        "/api/copilot/chat/stream",
+                        json={"message": "test", "history": []}
+                    )
+        
+        assert response.status_code == 200  # SSE streams return 200 even with errors
+        content = response.text
+        assert "error" in content
+        assert "API connection failed" in content
+        assert "avatar_state" in content
+
+
+class TestCopilotService:
+    """Tests for CopilotService class (S-0017)"""
+
+    def test_service_default_configuration(self):
+        """Service uses default configuration when not provided"""
+        from services.copilot import CopilotService, CopilotConfig
+        
+        service = CopilotService()
+        assert service.config.provider == "openai"
+        assert service.config.model == "gpt-4o"
+        assert service.config.enabled is True
+
+    def test_service_custom_configuration(self):
+        """Service accepts custom configuration"""
+        from services.copilot import CopilotService, CopilotConfig
+        
+        config = CopilotConfig(
+            provider="anthropic",
+            model="claude-3-5-sonnet-20241022",
+            enabled=True
+        )
+        service = CopilotService(config)
+        
+        assert service.config.provider == "anthropic"
+        assert service.config.model == "claude-3-5-sonnet-20241022"
+
+    def test_service_validate_configuration_disabled(self):
+        """Validation fails when copilot is disabled"""
+        from services.copilot import CopilotService, CopilotConfig
+        
+        config = CopilotConfig(enabled=False)
+        service = CopilotService(config)
+        
+        is_valid, error = service.validate_configuration()
+        assert is_valid is False
+        assert "disabled" in error.lower()
+
+    def test_service_validate_configuration_no_api_key(self):
+        """Validation fails when API key is not set"""
+        from services.copilot import CopilotService, CopilotConfig
+        
+        config = CopilotConfig(enabled=True)
+        service = CopilotService(config)
+        
+        with patch.dict(os.environ, {}, clear=True):
+            with patch.object(service, '_api_key', None):
+                # Force reload of api_key
+                service._api_key = None
+                with patch('services.copilot.os.getenv', return_value=""):
+                    is_valid, error = service.validate_configuration()
+        
+        assert is_valid is False
+        assert "not configured" in error.lower()
+
+    def test_service_validate_configuration_unsupported_provider(self):
+        """Validation fails for unsupported provider"""
+        from services.copilot import CopilotService, CopilotConfig
+        
+        config = CopilotConfig(enabled=True, provider="unknown")
+        service = CopilotService(config)
+        service._api_key = "test-key"
+        
+        is_valid, error = service.validate_configuration()
+        assert is_valid is False
+        assert "unsupported" in error.lower()
+
+    def test_service_load_context(self, tmp_path):
+        """Service loads project context files"""
+        from services.copilot import CopilotService
+        
+        # Create test project files
+        (tmp_path / "AGENTS.md").write_text("# Agent Guidelines", encoding='utf-8')
+        (tmp_path / "LEARNINGS.md").write_text("# Project Learnings", encoding='utf-8')
+        (tmp_path / "prompt.md").write_text("# Spec Template", encoding='utf-8')
+        (tmp_path / "felix").mkdir()
+        (tmp_path / "felix" / "requirements.json").write_text('{"requirements": []}', encoding='utf-8')
+        (tmp_path / "specs").mkdir()
+        (tmp_path / "specs" / "S-0001.md").write_text("# Spec 1", encoding='utf-8')
+        
+        service = CopilotService()
+        context = service.load_context(tmp_path)
+        
+        assert "agents_md" in context
+        assert "Agent Guidelines" in context["agents_md"]
+        assert "learnings_md" in context
+        assert "prompt_md" in context
+        assert "requirements" in context
+        assert "other_specs" in context
+        assert "S-0001" in context["other_specs"]
+
+    def test_service_load_context_respects_disabled_sources(self, tmp_path):
+        """Service respects disabled context sources"""
+        from services.copilot import CopilotService, CopilotConfig
+        
+        # Create test project files
+        (tmp_path / "AGENTS.md").write_text("# Agent Guidelines", encoding='utf-8')
+        (tmp_path / "LEARNINGS.md").write_text("# Project Learnings", encoding='utf-8')
+        
+        config = CopilotConfig(
+            context_sources={
+                "agents_md": True,
+                "learnings_md": False,  # Disabled
+                "prompt_md": True,
+                "requirements": True,
+                "other_specs": True
+            }
+        )
+        service = CopilotService(config)
+        context = service.load_context(tmp_path)
+        
+        assert "agents_md" in context
+        assert "learnings_md" not in context  # Should not be loaded
+
+    def test_service_build_system_prompt_empty_context(self):
+        """Service builds base prompt with no context"""
+        from services.copilot import CopilotService
+        
+        service = CopilotService()
+        prompt = service.build_system_prompt({})
+        
+        assert "Felix Copilot" in prompt
+        assert "technical specifications" in prompt.lower()
+        assert "Project Context" not in prompt
+
+    def test_service_build_system_prompt_with_context(self):
+        """Service builds prompt with context sections"""
+        from services.copilot import CopilotService
+        
+        service = CopilotService()
+        context = {
+            "agents_md": "# Agent Guidelines\nBuild fast.",
+            "requirements": '{"requirements": []}'
+        }
+        prompt = service.build_system_prompt(context)
+        
+        assert "Felix Copilot" in prompt
+        assert "Project Context" in prompt
+        assert "Agent Guidelines" in prompt
+        assert "requirements.json" in prompt
+
+    def test_service_build_messages_with_history(self):
+        """Service builds messages including history"""
+        from services.copilot import CopilotService, ChatMessage
+        
+        service = CopilotService()
+        history = [
+            ChatMessage(role="user", content="Hello"),
+            ChatMessage(role="assistant", content="Hi there!")
+        ]
+        
+        messages = service.build_messages("System prompt", history, "New question")
+        
+        assert len(messages) == 4  # system + 2 history + user
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        assert messages[1]["content"] == "Hello"
+        assert messages[2]["role"] == "assistant"
+        assert messages[3]["role"] == "user"
+        assert messages[3]["content"] == "New question"
+
+    def test_service_build_messages_limits_history(self):
+        """Service limits history to MAX_CONTEXT_MESSAGES"""
+        from services.copilot import CopilotService, ChatMessage
+        
+        service = CopilotService()
+        # Create 15 history messages
+        history = [
+            ChatMessage(role="user" if i % 2 == 0 else "assistant", content=f"Message {i}")
+            for i in range(15)
+        ]
+        
+        messages = service.build_messages("System prompt", history, "New question")
+        
+        # Should be: system + 10 history (MAX_CONTEXT_MESSAGES) + user = 12
+        assert len(messages) == 12
+        # First history message should be Message 5 (last 10 of 0-14)
+        assert messages[1]["content"] == "Message 5"
+
+    def test_service_trim_context_for_token_budget(self):
+        """Service trims context when exceeding token budget"""
+        from services.copilot import CopilotService
+        
+        service = CopilotService()
+        # Create large context (each char ~0.25 tokens, so 40k chars = ~10k tokens)
+        large_content = "x" * 40000
+        context = {"agents_md": large_content}
+        
+        trimmed = service.trim_context_for_token_budget(context)
+        
+        # Should be trimmed
+        assert len(trimmed["agents_md"]) < len(large_content)
+        assert "[...truncated...]" in trimmed["agents_md"]
+
+    def test_service_trim_context_preserves_small_context(self):
+        """Service preserves context under token budget"""
+        from services.copilot import CopilotService
+        
+        service = CopilotService()
+        context = {"agents_md": "Small content"}
+        
+        trimmed = service.trim_context_for_token_budget(context)
+        
+        assert trimmed["agents_md"] == "Small content"
+
+
 class TestCopilotConfigSaveLoad:
     """Tests for copilot config persistence in global settings"""
 
