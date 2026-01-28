@@ -124,7 +124,7 @@ namespace FelixTrayManager.Views {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/FelixTrayManager;component/views/settingswindow.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/FelixTrayManager;V1.0.0.0;component/views/settingswindow.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\..\Views\SettingsWindow.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

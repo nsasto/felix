@@ -23,3 +23,5 @@ C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\FelixTrayMana
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\ref\FelixTrayManager.dll
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\Views\SettingsWindow.baml
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\Views\SettingsWindow.g.cs
+C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\Views\AboutWindow.baml
+C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\Views\AboutWindow.g.cs

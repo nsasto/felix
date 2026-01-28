@@ -144,12 +144,9 @@ public partial class App : Application
     /// </summary>
     private void OnAboutClick(object sender, RoutedEventArgs e)
     {
-        // TODO: Open About dialog (Phase 9)
-        MessageBox.Show(
-            "Felix Tray Manager\nVersion 1.0.0\n\nWindows system tray manager for Felix autonomous agent",
-            "About Felix Tray Manager",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        // Open About dialog
+        var aboutWindow = new Views.AboutWindow();
+        aboutWindow.ShowDialog();
     }
 
     /// <summary>
