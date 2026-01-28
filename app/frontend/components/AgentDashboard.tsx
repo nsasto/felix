@@ -21,7 +21,7 @@ interface AgentDashboardProps {
 }
 
 interface SelectedAgent {
-  name: string;
+  id: number;
   agent: MergedAgent;
 }
 
@@ -161,9 +161,12 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
   );
 
   const isAgentActive = selectedAgent?.agent.status === "active";
-  
+
   // Start button should be enabled for not-started and stopped agents (can be restarted)
-  const canStartAgent = selectedAgent && (selectedAgent.agent.status === "not-started" || selectedAgent.agent.status === "stopped");
+  const canStartAgent =
+    selectedAgent &&
+    (selectedAgent.agent.status === "not-started" ||
+      selectedAgent.agent.status === "stopped");
   const canStopAgent = selectedAgent && isAgentActive;
 
   return (
@@ -207,7 +210,8 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                   className="text-[10px] font-mono"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  {selectedAgent.agent.hostname || selectedAgent.agent.executable}
+                  {selectedAgent.agent.hostname ||
+                    selectedAgent.agent.executable}
                 </p>
               </div>
             </div>
@@ -215,7 +219,9 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
               className="flex items-center gap-4 text-[10px] font-mono"
               style={{ color: "var(--text-faint)" }}
             >
-              {selectedAgent.agent.pid && <span>PID: {selectedAgent.agent.pid}</span>}
+              {selectedAgent.agent.pid && (
+                <span>PID: {selectedAgent.agent.pid}</span>
+              )}
               {getUptime() && <span>Uptime: {getUptime()}</span>}
               {selectedAgent.agent.current_run_id && (
                 <span className="px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
@@ -269,9 +275,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
         <div className="relative" ref={startDropdownRef}>
           <button
             onClick={() => setShowStartDropdown(!showStartDropdown)}
-            disabled={
-              !canStartAgent || actionInProgress !== null
-            }
+            disabled={!canStartAgent || actionInProgress !== null}
             className="px-4 py-2 text-xs font-bold text-white bg-felix-600 hover:bg-felix-500 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {actionInProgress === "start" ? (
@@ -346,9 +350,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
         <div className="relative" ref={stopDropdownRef}>
           <button
             onClick={() => setShowStopDropdown(!showStopDropdown)}
-            disabled={
-              !canStopAgent || actionInProgress !== null
-            }
+            disabled={!canStopAgent || actionInProgress !== null}
             className="px-4 py-2 text-xs font-bold text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {actionInProgress === "stop" ? (
@@ -491,8 +493,12 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
 }) => {
   // Group agents by status per S-0021 spec
   const availableAgents = agents.filter((a) => a.status === "not-started");
-  const activeAgents = agents.filter((a) => a.status === "active" || a.status === "stale");
-  const inactiveAgents = agents.filter((a) => a.status === "inactive" || a.status === "stopped");
+  const activeAgents = agents.filter(
+    (a) => a.status === "active" || a.status === "stale",
+  );
+  const inactiveAgents = agents.filter(
+    (a) => a.status === "inactive" || a.status === "stopped",
+  );
 
   // Format relative time
   const formatRelativeTime = (isoString: string | null | undefined) => {
@@ -510,13 +516,13 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
   };
 
   const renderAgentCard = (agent: MergedAgent) => {
-    const isSelected = selectedAgent?.name === agent.name;
+    const isSelected = selectedAgent?.id === agent.id;
     const relativeTime = formatRelativeTime(agent.last_heartbeat);
 
     return (
       <button
-        key={agent.name}
-        onClick={() => onSelectAgent({ name: agent.name, agent })}
+        key={agent.id}
+        onClick={() => onSelectAgent({ id: agent.id, agent })}
         className={`w-full p-3 rounded-xl text-left transition-all border ${
           isSelected
             ? "border-felix-500/50 bg-felix-500/10"
@@ -554,24 +560,33 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
                 </span>
               ) : (
                 // For running/stopped agents, show hostname
-                <span className="truncate">{agent.hostname || agent.executable}</span>
+                <span className="truncate">
+                  {agent.hostname || agent.executable}
+                </span>
               )}
-              {(agent.status === "active" || agent.status === "stale") && relativeTime && (
-                <>
-                  <span>•</span>
-                  <span>{relativeTime}</span>
-                </>
-              )}
+              {(agent.status === "active" || agent.status === "stale") &&
+                relativeTime && (
+                  <>
+                    <span>•</span>
+                    <span>{relativeTime}</span>
+                  </>
+                )}
             </div>
             {/* Status text for not-started agents */}
             {agent.status === "not-started" && (
-              <p className="text-[9px] mt-1" style={{ color: "var(--text-faint)" }}>
+              <p
+                className="text-[9px] mt-1"
+                style={{ color: "var(--text-faint)" }}
+              >
                 Ready to start
               </p>
             )}
             {/* Last active timestamp for stopped agents */}
             {agent.status === "stopped" && agent.stopped_at && (
-              <p className="text-[9px] mt-1" style={{ color: "var(--text-faint)" }}>
+              <p
+                className="text-[9px] mt-1"
+                style={{ color: "var(--text-faint)" }}
+              >
                 Stopped {formatRelativeTime(agent.stopped_at)}
               </p>
             )}
@@ -684,7 +699,9 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
                 Available ({availableAgents.length})
               </span>
             </div>
-            <div className="space-y-2">{availableAgents.map(renderAgentCard)}</div>
+            <div className="space-y-2">
+              {availableAgents.map(renderAgentCard)}
+            </div>
           </div>
         )}
 
@@ -752,7 +769,9 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 }) => {
   const [consoleOutput, setConsoleOutput] = useState<string>("");
   const [scrollLocked, setScrollLocked] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+  const [connectionStatus, setConnectionStatus] = useState<
+    "disconnected" | "connecting" | "connected"
+  >("disconnected");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const consoleRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -778,8 +797,8 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       return;
     }
 
-    const agentName = selectedAgent.name;
-    
+    const agentId = selectedAgent.id;
+
     const connectWebSocket = () => {
       // Close existing connection
       if (wsRef.current) {
@@ -789,14 +808,14 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       setConnectionStatus("connecting");
 
       // Create WebSocket connection
-      const wsUrl = `ws://localhost:8080/api/agents/${encodeURIComponent(agentName)}/console`;
+      const wsUrl = `ws://localhost:8080/api/agents/${agentId}/console`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         setConnectionStatus("connected");
         reconnectAttempts.current = 0;
-        console.log(`WebSocket connected for agent: ${agentName}`);
+        console.log(`WebSocket connected for agent ID ${agentId}`);
       };
 
       ws.onmessage = (event) => {
@@ -834,7 +853,9 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             case "error":
               // Error message
               console.error("WebSocket error:", message.message);
-              setConsoleOutput((prev) => prev + `\n[Error: ${message.message}]\n`);
+              setConsoleOutput(
+                (prev) => prev + `\n[Error: ${message.message}]\n`,
+              );
               break;
 
             default:
@@ -851,17 +872,24 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       };
 
       ws.onclose = (event) => {
-        console.log(`WebSocket closed: code=${event.code}, reason=${event.reason}`);
+        console.log(
+          `WebSocket closed: code=${event.code}, reason=${event.reason}`,
+        );
         setConnectionStatus("disconnected");
         wsRef.current = null;
 
         // Auto-reconnect with exponential backoff (max 30 seconds)
         if (selectedAgent?.agent.status === "active") {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          const delay = Math.min(
+            1000 * Math.pow(2, reconnectAttempts.current),
+            30000,
+          );
           reconnectAttempts.current++;
-          
+
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log(`Attempting to reconnect (attempt ${reconnectAttempts.current})...`);
+            console.log(
+              `Attempting to reconnect (attempt ${reconnectAttempts.current})...`,
+            );
             connectWebSocket();
           }, delay);
         }
@@ -932,15 +960,24 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
     const getStatusMessage = () => {
       switch (selectedAgent.agent.status) {
         case "not-started":
-          return { primary: "Agent not running", secondary: "Start the agent to see output" };
+          return {
+            primary: "Agent not running",
+            secondary: "Start the agent to see output",
+          };
         case "stopped":
-          return { primary: "Agent stopped", secondary: "Restart the agent to see output" };
+          return {
+            primary: "Agent stopped",
+            secondary: "Restart the agent to see output",
+          };
         default:
-          return { primary: "Agent idle - waiting for work", secondary: "Start a run to see live output" };
+          return {
+            primary: "Agent idle - waiting for work",
+            secondary: "Start a run to see live output",
+          };
       }
     };
     const message = getStatusMessage();
-    
+
     return (
       <div
         className="h-full flex flex-col"
@@ -1382,7 +1419,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
 
       // Merge: configured agents are source of truth, overlay with runtime status
       const mergedAgents: MergedAgent[] = configuredAgents.map((config) => {
-        const runtime = runtimeAgents[config.name];
+        const runtime = runtimeAgents[config.id];
 
         if (!runtime) {
           // No runtime entry - agent has never been started
@@ -1410,23 +1447,21 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
 
       // Auto-select first active agent if none selected
       if (!selectedAgent) {
-        const activeAgents = mergedAgents.filter(
-          (a) => a.status === "active",
-        );
+        const activeAgents = mergedAgents.filter((a) => a.status === "active");
         if (activeAgents.length > 0) {
           setSelectedAgent({
-            name: activeAgents[0].name,
+            id: activeAgents[0].id,
             agent: activeAgents[0],
           });
         }
       } else {
         // Update selected agent data
         const updatedAgent = mergedAgents.find(
-          (a) => a.name === selectedAgent.name,
+          (a) => a.id === selectedAgent.id,
         );
         if (updatedAgent) {
           setSelectedAgent({
-            name: updatedAgent.name,
+            id: updatedAgent.id,
             agent: updatedAgent,
           });
         }
@@ -1469,10 +1504,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     setActionInProgress("start");
     try {
       // Start the agent with the specified requirement
-      await felixApi.startAgentWithRequirement(
-        selectedAgent.name,
-        requirementId,
-      );
+      await felixApi.startAgentWithRequirement(selectedAgent.id, requirementId);
       await fetchAgents();
     } catch (err) {
       console.error("Failed to start agent:", err);
@@ -1488,7 +1520,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     setActionInProgress("stop");
     try {
       // Stop the agent with the specified mode
-      await felixApi.stopAgent(selectedAgent.name, mode);
+      await felixApi.stopAgent(selectedAgent.id, mode);
       await fetchAgents();
     } catch (err) {
       console.error("Failed to stop agent:", err);

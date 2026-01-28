@@ -693,12 +693,30 @@ $maxIterations = $config.executor.max_iterations
 $autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
 
-# Load agent configuration from agents.json via agent_id
-$AgentsJsonFile = Join-Path $FelixDir "agents.json"
+# Load agent configuration from global ~/.felix/agents.json via agent_id
+$FelixHome = if ($env:FELIX_HOME) { $env:FELIX_HOME } else { Join-Path $env:USERPROFILE ".felix" }
+$AgentsJsonFile = Join-Path $FelixHome "agents.json"
+
+# Create default agents.json if it doesn't exist
 if (-not (Test-Path $AgentsJsonFile)) {
-    Write-Host "ERROR: " -NoNewline -ForegroundColor Red
-    Write-Host "agents.json not found at: $AgentsJsonFile" -ForegroundColor Red
-    exit 1
+    Write-Host "[CONFIG] " -NoNewline -ForegroundColor Cyan
+    Write-Host "Creating default agents.json at: $AgentsJsonFile" -ForegroundColor Yellow
+    
+    $defaultAgentsConfig = @{
+        agents = @(
+            @{
+                id                = 0
+                name              = "felix-primary"
+                executable        = "droid"
+                args              = @("exec", "--skip-permissions-unsafe")
+                working_directory = "."
+                environment       = @{}
+            }
+        )
+    }
+    
+    New-Item -Path (Split-Path $AgentsJsonFile -Parent) -ItemType Directory -Force | Out-Null
+    $defaultAgentsConfig | ConvertTo-Json -Depth 10 | Set-Content $AgentsJsonFile
 }
 
 $agentsData = Get-Content $AgentsJsonFile -Raw | ConvertFrom-Json
@@ -732,6 +750,7 @@ if (-not $agentConfig) {
 
 $agentName = $agentConfig.name
 $script:agentName = $agentName
+$script:agentId = $agentConfig.id
 $script:agentConfig = $agentConfig
 
 Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
@@ -752,12 +771,14 @@ function Register-Agent {
     Registers the agent with the backend API
     #>
     param(
+        [int]$AgentId,
         [string]$AgentName,
         [int]$ProcessId,
         [string]$Hostname
     )
     
     $registration = @{
+        agent_id   = $AgentId
         agent_name = $AgentName
         pid        = $ProcessId
         hostname   = $Hostname
@@ -773,7 +794,7 @@ function Register-Agent {
             -ErrorAction Stop
         
         Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Registered as '$AgentName' (PID: $ProcessId)" -ForegroundColor Green
+        Write-Host "Registered as agent ID $AgentId ('$AgentName', PID: $ProcessId)" -ForegroundColor Green
         return $true
     }
     catch {
@@ -790,7 +811,7 @@ function Send-AgentHeartbeat {
     Sends a heartbeat to the backend API
     #>
     param(
-        [string]$AgentName,
+        [int]$AgentId,
         [string]$CurrentRequirementId
     )
     
@@ -801,7 +822,7 @@ function Send-AgentHeartbeat {
     try {
         $body = $heartbeat | ConvertTo-Json
         Invoke-RestMethod -Method POST `
-            -Uri "$script:BackendBaseUrl/api/agents/$AgentName/heartbeat" `
+            -Uri "$script:BackendBaseUrl/api/agents/$AgentId/heartbeat" `
             -Body $body `
             -ContentType "application/json" `
             -ErrorAction Stop | Out-Null
@@ -819,7 +840,7 @@ function Start-HeartbeatJob {
     Starts a background job that sends heartbeats every 5 seconds
     #>
     param(
-        [string]$AgentName,
+        [int]$AgentId,
         [string]$BaseUrl
     )
     
@@ -829,7 +850,7 @@ function Start-HeartbeatJob {
     }
     
     $script:HeartbeatJob = Start-Job -Name "FelixHeartbeat" -ScriptBlock {
-        param($AgentName, $BaseUrl)
+        param($AgentId, $BaseUrl)
         
         while ($true) {
             Start-Sleep -Seconds 5
@@ -848,7 +869,7 @@ function Start-HeartbeatJob {
                 } | ConvertTo-Json
                 
                 Invoke-RestMethod -Method POST `
-                    -Uri "$BaseUrl/api/agents/$AgentName/heartbeat" `
+                    -Uri "$BaseUrl/api/agents/$AgentId/heartbeat" `
                     -Body $heartbeat `
                     -ContentType "application/json" `
                     -ErrorAction SilentlyContinue | Out-Null
@@ -857,7 +878,7 @@ function Start-HeartbeatJob {
                 # Silently continue on heartbeat failures
             }
         }
-    } -ArgumentList $AgentName, $BaseUrl
+    } -ArgumentList $AgentId, $BaseUrl
     
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
     Write-Host "Started heartbeat job (every 5s)" -ForegroundColor Green
@@ -881,17 +902,17 @@ function Unregister-Agent {
     Marks the agent as stopped in the registry
     #>
     param(
-        [string]$AgentName
+        [int]$AgentId
     )
     
     try {
         Invoke-RestMethod -Method POST `
-            -Uri "$script:BackendBaseUrl/api/agents/$AgentName/stop" `
+            -Uri "$script:BackendBaseUrl/api/agents/$AgentId/stop" `
             -ContentType "application/json" `
             -ErrorAction Stop | Out-Null
         
         Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Agent '$AgentName' marked as stopped" -ForegroundColor Yellow
+        Write-Host "Agent ID $AgentId marked as stopped" -ForegroundColor Yellow
     }
     catch {
         # Best-effort - don't fail on unregister errors
@@ -910,16 +931,17 @@ function Exit-FelixAgent {
     # Stop heartbeat job
     Stop-HeartbeatJob
     
-    # Unregister agent if we have an agent name
-    if ($script:agentName) {
-        Unregister-Agent -AgentName $script:agentName
+    # Unregister agent if we have an agent ID
+    if ($script:agentId) {
+        Unregister-Agent -AgentId $script:agentId
     }
     
     exit $ExitCode
 }
 
-# Store agent name in script scope for cleanup function
+# Store agent name and ID in script scope for cleanup function
 $script:agentName = $null
+$script:agentId = $null
 
 # Resolve python upfront (hard stop if unavailable)
 $pythonInfo = $null
@@ -1015,17 +1037,17 @@ if ($state.current_requirement_id -ne $currentReq.id) {
 # ============================================================================
 
 # Register with the backend (best-effort)
-$registrationSucceeded = Register-Agent -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME
+$registrationSucceeded = Register-Agent -AgentId $agentConfig.id -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME
 
 # Start heartbeat background job if registration succeeded
 if ($registrationSucceeded) {
-    Start-HeartbeatJob -AgentName $agentName -BaseUrl $script:BackendBaseUrl
+    Start-HeartbeatJob -AgentId $agentConfig.id -BaseUrl $script:BackendBaseUrl
 }
 
 # Ensure cleanup on exit
 $exitHandler = {
     Stop-HeartbeatJob
-    Unregister-Agent -AgentName $agentName
+    Unregister-Agent -AgentId $agentConfig.id
 }
 
 # Register cleanup handler for graceful shutdown
