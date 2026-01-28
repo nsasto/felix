@@ -26,7 +26,8 @@ public partial class AgentEditDialog : Window
             Name = uniqueName,
             DisplayName = uniqueName,
             Enabled = true,
-            LocationType = "local"
+            LocationType = "local",
+            ProjectPath = string.Empty
         };
         
         HeaderText.Text = "Add Agent";
@@ -47,6 +48,7 @@ public partial class AgentEditDialog : Window
             Name = agent.Name,
             DisplayName = agent.DisplayName,
             AgentPath = agent.AgentPath,
+            ProjectPath = agent.ProjectPath,
             Enabled = agent.Enabled,
             LocationType = agent.LocationType
         };
@@ -60,6 +62,7 @@ public partial class AgentEditDialog : Window
         NameTextBox.Text = Agent.Name;
         DisplayNameTextBox.Text = Agent.DisplayName;
         AgentPathTextBox.Text = Agent.AgentPath;
+        ProjectPathTextBox.Text = Agent.ProjectPath;
         EnabledCheckBox.IsChecked = Agent.Enabled;
     }
 
@@ -84,6 +87,31 @@ public partial class AgentEditDialog : Window
         if (dialog.ShowDialog() == true)
         {
             AgentPathTextBox.Text = dialog.FileName;
+            
+            // Auto-populate project path from agent path directory
+            var projectPath = Path.GetDirectoryName(dialog.FileName);
+            if (!string.IsNullOrEmpty(projectPath) && string.IsNullOrWhiteSpace(ProjectPathTextBox.Text))
+            {
+                ProjectPathTextBox.Text = projectPath;
+            }
+        }
+    }
+
+    private void OnBrowseProjectClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Select Project Folder"
+        };
+
+        if (!string.IsNullOrEmpty(Agent.ProjectPath) && Directory.Exists(Agent.ProjectPath))
+        {
+            dialog.InitialDirectory = Agent.ProjectPath;
+        }
+
+        if (dialog.ShowDialog() == true)
+        {
+            ProjectPathTextBox.Text = dialog.FolderName;
         }
     }
 
@@ -115,9 +143,22 @@ public partial class AgentEditDialog : Window
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(ProjectPathTextBox.Text))
+        {
+            ShowValidationMessage("Project path is required.");
+            return;
+        }
+
+        if (!Directory.Exists(ProjectPathTextBox.Text))
+        {
+            ShowValidationMessage("The specified project directory does not exist.");
+            return;
+        }
+
         // Update agent configuration
         Agent.DisplayName = DisplayNameTextBox.Text.Trim();
         Agent.AgentPath = AgentPathTextBox.Text.Trim();
+        Agent.ProjectPath = ProjectPathTextBox.Text.Trim();
         Agent.Enabled = EnabledCheckBox.IsChecked ?? true;
 
         DialogResult = true;

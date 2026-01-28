@@ -22,6 +22,7 @@ public partial class App : Application
     // Context menu items (need references for enable/disable logic)
     private MenuItem? _startMenuItem;
     private MenuItem? _stopMenuItem;
+    private MenuItem? _viewLogMenuItem;
     private MenuItem? _settingsMenuItem;
     private MenuItem? _aboutMenuItem;
     private MenuItem? _exitMenuItem;
@@ -81,6 +82,7 @@ public partial class App : Application
         
         _startMenuItem = new MenuItem { Header = "Start Felix" };
         _stopMenuItem = new MenuItem { Header = "Stop Felix", IsEnabled = false };
+        _viewLogMenuItem = new MenuItem { Header = "View Output/Log", IsEnabled = false };
         _settingsMenuItem = new MenuItem { Header = "Settings" };
         _aboutMenuItem = new MenuItem { Header = "About" };
         _exitMenuItem = new MenuItem { Header = "Exit" };
@@ -88,12 +90,14 @@ public partial class App : Application
         // Attach event handlers
         _startMenuItem.Click += OnStartFelixClick;
         _stopMenuItem.Click += OnStopFelixClick;
+        _viewLogMenuItem.Click += OnViewLogClick;
         _settingsMenuItem.Click += OnSettingsClick;
         _aboutMenuItem.Click += OnAboutClick;
         _exitMenuItem.Click += OnExitClick;
 
         contextMenu.Items.Add(_startMenuItem);
         contextMenu.Items.Add(_stopMenuItem);
+        contextMenu.Items.Add(_viewLogMenuItem);
         contextMenu.Items.Add(new Separator());
         contextMenu.Items.Add(_settingsMenuItem);
         contextMenu.Items.Add(_aboutMenuItem);
@@ -242,6 +246,20 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Handles View Output/Log menu item click
+    /// </summary>
+    private void OnViewLogClick(object sender, RoutedEventArgs e)
+    {
+        if (_processManager == null)
+            return;
+
+        _logger?.Debug("Opening Log Viewer window");
+        
+        var logWindow = new Views.LogViewerWindow(_processManager);
+        logWindow.Show();
+    }
+
+    /// <summary>
     /// Handles About menu item click
     /// </summary>
     private void OnAboutClick(object sender, RoutedEventArgs e)
@@ -309,6 +327,7 @@ public partial class App : Application
                 case FelixProcessManager.ProcessState.Stopped:
                     _startMenuItem.IsEnabled = hasEnabledAgents;
                     _stopMenuItem.IsEnabled = false;
+                    if (_viewLogMenuItem != null) _viewLogMenuItem.IsEnabled = false;
                     break;
 
                 case FelixProcessManager.ProcessState.Starting:
@@ -319,6 +338,7 @@ public partial class App : Application
                 case FelixProcessManager.ProcessState.Running:
                     _startMenuItem.IsEnabled = false;
                     _stopMenuItem.IsEnabled = true;
+                    if (_viewLogMenuItem != null) _viewLogMenuItem.IsEnabled = true;
                     // Show success notification
                     _trayIconManager?.ShowNotification(
                         "Felix Started",
@@ -329,6 +349,7 @@ public partial class App : Application
                 case FelixProcessManager.ProcessState.Error:
                     _startMenuItem.IsEnabled = hasEnabledAgents;
                     _stopMenuItem.IsEnabled = false;
+                    if (_viewLogMenuItem != null) _viewLogMenuItem.IsEnabled = false;
                     // Show error notification
                     var errorMsg = e.ErrorMessage ?? "An unknown error occurred";
                     _trayIconManager?.ShowNotification(

@@ -34,6 +34,12 @@ public class AgentConfig
     public string AgentPath { get; set; } = string.Empty;
 
     /// <summary>
+    /// Project path (root directory containing felix/ folder)
+    /// </summary>
+    [JsonPropertyName("projectPath")]
+    public string ProjectPath { get; set; } = string.Empty;
+
+    /// <summary>
     /// Whether this agent is enabled
     /// </summary>
     [JsonPropertyName("enabled")]
@@ -51,12 +57,15 @@ public class AgentConfig
     public static AgentConfig CreateDefault(string agentPath)
     {
         var computerName = Environment.MachineName;
+        var projectPath = Path.GetDirectoryName(agentPath) ?? string.Empty;
+        
         return new AgentConfig
         {
             Id = Guid.NewGuid().ToString(),
             Name = computerName,
             DisplayName = computerName,
             AgentPath = agentPath,
+            ProjectPath = projectPath,
             Enabled = true,
             LocationType = "local"
         };
@@ -78,18 +87,21 @@ public class AgentConfig
         if (!fileName.Equals("felix-agent.ps1", StringComparison.OrdinalIgnoreCase))
             return false;
 
+        // Validate project path exists
+        if (string.IsNullOrWhiteSpace(ProjectPath))
+            return false;
+
+        if (!Directory.Exists(ProjectPath))
+            return false;
+
         return true;
     }
 
     /// <summary>
-    /// Gets the project path from the agent path
-    /// (agent path should be in the project root)
+    /// Gets the project path (backward compatibility helper)
     /// </summary>
     public string GetProjectPath()
     {
-        if (string.IsNullOrWhiteSpace(AgentPath))
-            return string.Empty;
-
-        return Path.GetDirectoryName(AgentPath) ?? string.Empty;
+        return ProjectPath;
     }
 }

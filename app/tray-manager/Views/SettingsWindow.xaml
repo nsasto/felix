@@ -112,10 +112,11 @@
                               HeadersVisibility="Column"
                               IsReadOnly="True">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="80"/>
-                            <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="*" MinWidth="120"/>
-                            <DataGridTextColumn Header="Agent Path" Binding="{Binding AgentPath}" Width="2*" MinWidth="200"/>
                             <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding Enabled}" Width="60"/>
+                            <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="*" MinWidth="100"/>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="80"/>
+                            <DataGridTextColumn Header="Agent Path" Binding="{Binding AgentPath}" Width="2*" MinWidth="150"/>
+                            <DataGridTextColumn Header="Project Path" Binding="{Binding ProjectPath}" Width="2*" MinWidth="150"/>
                             <DataGridTemplateColumn Header="Actions" Width="120">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
