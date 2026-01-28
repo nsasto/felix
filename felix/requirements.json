@@ -337,7 +337,7 @@
                              "id":  "S-0022",
                              "title":  "Windows Tray Manager - Remote Agent Management",
                              "spec_path":  "specs/S-0022-windows-tray-remote-enhancements.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
                                             "windows",
