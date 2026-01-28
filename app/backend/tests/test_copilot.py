@@ -304,12 +304,12 @@ class TestOpenAIConnection:
     @pytest.mark.asyncio
     async def test_openai_success_response(self):
         """Test OpenAI returns success on 200 response"""
-        with patch("routers.copilot.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value.__aenter__.return_value = mock_client
+        with patch("openai.AsyncOpenAI") as mock_openai_class:
+            mock_client = MagicMock()
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=MagicMock())
+            mock_openai_class.return_value = mock_client
 
             success, error = await verify_openai_connection("sk-test", "gpt-4o")
 
@@ -319,12 +319,22 @@ class TestOpenAIConnection:
     @pytest.mark.asyncio
     async def test_openai_invalid_api_key(self):
         """Test OpenAI returns error on 401 response"""
-        with patch("routers.copilot.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
-            mock_response.status_code = 401
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value.__aenter__.return_value = mock_client
+        from openai import AuthenticationError
+        from unittest.mock import MagicMock as MM
+
+        with patch("openai.AsyncOpenAI") as mock_openai_class:
+            mock_client = MagicMock()
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            # Create a mock request object for the AuthenticationError
+            mock_request = MM()
+            mock_request.url = "https://api.openai.com/v1/chat/completions"
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=AuthenticationError(
+                    message="Invalid API key", response=MM(status_code=401), body={}
+                )
+            )
+            mock_openai_class.return_value = mock_client
 
             success, error = await verify_openai_connection("sk-invalid", "gpt-4o")
 
@@ -334,12 +344,14 @@ class TestOpenAIConnection:
     @pytest.mark.asyncio
     async def test_openai_model_not_found(self):
         """Test OpenAI returns error on 404 response"""
-        with patch("routers.copilot.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
-            mock_response.status_code = 404
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value.__aenter__.return_value = mock_client
+        with patch("openai.AsyncOpenAI") as mock_openai_class:
+            mock_client = MagicMock()
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=Exception("Model 'nonexistent-model' not found")
+            )
+            mock_openai_class.return_value = mock_client
 
             success, error = await verify_openai_connection(
                 "sk-test", "nonexistent-model"
@@ -351,12 +363,19 @@ class TestOpenAIConnection:
     @pytest.mark.asyncio
     async def test_openai_rate_limit_success(self):
         """Test OpenAI returns success on 429 (rate limit means key is valid)"""
-        with patch("routers.copilot.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
-            mock_response.status_code = 429
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value.__aenter__.return_value = mock_client
+        from openai import RateLimitError
+        from unittest.mock import MagicMock as MM
+
+        with patch("openai.AsyncOpenAI") as mock_openai_class:
+            mock_client = MagicMock()
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=RateLimitError(
+                    message="Rate limit exceeded", response=MM(status_code=429), body={}
+                )
+            )
+            mock_openai_class.return_value = mock_client
 
             success, error = await verify_openai_connection("sk-test", "gpt-4o")
 
@@ -370,12 +389,11 @@ class TestAnthropicConnection:
     @pytest.mark.asyncio
     async def test_anthropic_success_response(self):
         """Test Anthropic returns success on 200 response"""
-        with patch("routers.copilot.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value.__aenter__.return_value = mock_client
+        with patch("anthropic.AsyncAnthropic") as mock_anthropic_class:
+            mock_client = MagicMock()
+            mock_client.messages = MagicMock()
+            mock_client.messages.create = AsyncMock(return_value=MagicMock())
+            mock_anthropic_class.return_value = mock_client
 
             success, error = await verify_anthropic_connection(
                 "sk-ant-test", "claude-3-5-sonnet-20241022"
@@ -387,12 +405,20 @@ class TestAnthropicConnection:
     @pytest.mark.asyncio
     async def test_anthropic_invalid_api_key(self):
         """Test Anthropic returns error on 401 response"""
-        with patch("routers.copilot.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
+        from anthropic import AuthenticationError
+        from unittest.mock import MagicMock as MM
+
+        with patch("anthropic.AsyncAnthropic") as mock_anthropic_class:
+            mock_client = MagicMock()
+            mock_client.messages = MagicMock()
+            mock_response = MM()
             mock_response.status_code = 401
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                side_effect=AuthenticationError(
+                    message="Invalid API key", response=mock_response, body={}
+                )
+            )
+            mock_anthropic_class.return_value = mock_client
 
             success, error = await verify_anthropic_connection(
                 "sk-ant-invalid", "claude-3-5-sonnet-20241022"
@@ -404,12 +430,20 @@ class TestAnthropicConnection:
     @pytest.mark.asyncio
     async def test_anthropic_rate_limit_success(self):
         """Test Anthropic returns success on 429 (rate limit means key is valid)"""
-        with patch("routers.copilot.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
+        from anthropic import RateLimitError
+        from unittest.mock import MagicMock as MM
+
+        with patch("anthropic.AsyncAnthropic") as mock_anthropic_class:
+            mock_client = MagicMock()
+            mock_client.messages = MagicMock()
+            mock_response = MM()
             mock_response.status_code = 429
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                side_effect=RateLimitError(
+                    message="Rate limit exceeded", response=mock_response, body={}
+                )
+            )
+            mock_anthropic_class.return_value = mock_client
 
             success, error = await verify_anthropic_connection(
                 "sk-ant-test", "claude-3-5-sonnet-20241022"
