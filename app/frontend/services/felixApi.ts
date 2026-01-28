@@ -831,3 +831,30 @@ class FelixApiService {
 }
 
 export const felixApi = new FelixApiService();
+
+// --- Copilot API Key localStorage Functions (for S-0022: Copilot API Key Storage) ---
+
+const COPILOT_API_KEY_STORAGE_KEY = 'felix_copilot_api_key';
+
+/**
+ * Store the Copilot API key in localStorage.
+ * @param key - The OpenAI/Anthropic API key to store
+ */
+export function setCopilotApiKey(key: string): void {
+  localStorage.setItem(COPILOT_API_KEY_STORAGE_KEY, key);
+}
+
+/**
+ * Retrieve the Copilot API key from localStorage.
+ * @returns The stored API key, or null if not set
+ */
+export function getCopilotApiKey(): string | null {
+  return localStorage.getItem(COPILOT_API_KEY_STORAGE_KEY);
+}
+
+/**
+ * Remove the Copilot API key from localStorage.
+ */
+export function clearCopilotApiKey(): void {
+  localStorage.removeItem(COPILOT_API_KEY_STORAGE_KEY);
+}
