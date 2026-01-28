@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2026 Felix Contributors")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("Windows system tray manager for Felix autonomous agent")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+240fb299b9491dbcefb8d8fd04405b29f8022c8c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+043233e49bf4a3529f9f27f2e614210961328793")]
 [assembly: System.Reflection.AssemblyProductAttribute("Felix Tray Manager")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FelixTrayManager")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
