@@ -21,3 +21,5 @@ C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\refint\FelixT
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\FelixTrayManager.pdb
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\FelixTrayManager.genruntimeconfig.cache
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\ref\FelixTrayManager.dll
+C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\Views\SettingsWindow.baml
+C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows\Views\SettingsWindow.g.cs
