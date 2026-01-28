@@ -377,6 +377,9 @@ export interface ConfigContent {
 
 // --- API Functions ---
 
+// Copilot API Key localStorage key (for S-0022: Copilot API Key Storage)
+const COPILOT_API_KEY_STORAGE_KEY = 'felix_copilot_api_key';
+
 class FelixApiService {
   private baseUrl: string;
 
@@ -660,17 +663,30 @@ class FelixApiService {
     // Start the fetch request
     const startStream = async () => {
       try {
+        // Build headers with optional API key from localStorage
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        // Get API key from localStorage and add to headers if present
+        const apiKey = localStorage.getItem(COPILOT_API_KEY_STORAGE_KEY);
+        if (apiKey) {
+          headers['X-Copilot-API-Key'] = apiKey;
+        }
+
         const response = await fetch(`${this.baseUrl}/copilot/chat/stream`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify(request),
           signal: abortController?.signal,
         });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          // Provide clear error message for 401 Unauthorized (missing API key)
+          if (response.status === 401) {
+            throw new Error(errorData.detail || 'API key required. Please add your OpenAI API key in Settings → Copilot.');
+          }
           throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
         }
 
@@ -833,8 +849,6 @@ class FelixApiService {
 export const felixApi = new FelixApiService();
 
 // --- Copilot API Key localStorage Functions (for S-0022: Copilot API Key Storage) ---
-
-const COPILOT_API_KEY_STORAGE_KEY = 'felix_copilot_api_key';
 
 /**
  * Store the Copilot API key in localStorage.
