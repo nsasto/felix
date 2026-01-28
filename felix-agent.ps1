@@ -1480,152 +1480,86 @@ Fix the validation issues to unblock progress.
     # Check for all tasks completion signal (building mode)
     if ($mode -eq "building" -and $output -match '<promise>ALL_COMPLETE</promise>') {
         Write-Host ""
-        Write-Host "[ALL COMPLETE] All tasks done for requirement!"
+        Write-Host "[ALL COMPLETE] LLM signaled all tasks complete. Verifying with task checker..."
         
-        # Verify plan actually has no remaining tasks
-        $planPattern = "plan-$($currentReq.id).md"
-        $existingPlans = Get-ChildItem $RunsDir -Recurse -Filter $planPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+        # Load verification prompt
+        $verificationPromptPath = Join-Path $ProjectPath "felix\prompts\check-tasks-complete.md"
         
-        if ($existingPlans -and $existingPlans.Count -gt 0) {
-            $latestPlanPath = $existingPlans[0].FullName
-            $planContent = Get-Content $latestPlanPath -Raw
-            
-            # Check for unchecked tasks (- [ ])
-            $uncheckedTasks = ($planContent | Select-String '- \[ \]' -AllMatches).Matches.Count
-            
-            if ($uncheckedTasks -gt 0) {
-                Write-Host "[WARNING] LLM signaled ALL_COMPLETE but $uncheckedTasks unchecked tasks remain in plan"
-                Write-Host "Ignoring signal and continuing to next iteration..."
-            }
-            else {
-                # All tasks truly complete - run validation before marking complete
-                Write-Host ""
-                Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                Write-Host "All plan tasks complete. Running validation..." -ForegroundColor Magenta
-                
-                # Run validation script
-                $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.ps1"
-                $validationPassed = $false
-                
-                if (-not (Test-Path $validationScript)) {
-                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                    Write-Host "❌ Validation script not found at $validationScript" -ForegroundColor Red
-                    Exit-FelixAgent -ExitCode 1
-                }
-                
-                try {
-                    $validationResult = Invoke-RequirementValidation -ValidationScript $validationScript -RequirementId $currentReq.id
-                    $validationOutput = $validationResult.output
-                    $validationExitCode = $validationResult.exitCode
-                    
-                    Write-Host $validationOutput
-                    
-                    if ($validationExitCode -eq 0) {
-                        Write-Host ""
-                        Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                        Write-Host "✅ Validation PASSED!" -ForegroundColor Green
-                        $validationPassed = $true
-                    }
-                    else {
-                        Write-Host ""
-                        Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                        Write-Host "❌ Validation FAILED (exit code: $validationExitCode)" -ForegroundColor Red
-                    }
-                }
-                catch {
-                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                    Write-Host "❌ Error running validation: $_" -ForegroundColor Red
-                    Exit-FelixAgent -ExitCode 1
-                }
-                
-                if ($validationPassed) {
-                    # Validation passed - mark requirement complete
-                    $state.status = "complete"
-                    $state.last_iteration_outcome = "complete"
-                    $state.validation_retry_count = 0
-                    $state.updated_at = Get-Date -Format "o"
-                    $state | ConvertTo-Json | Set-Content $StateFile
-                    
-                    # Update requirements.json to mark requirement as complete
-                    Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
-                    
-                    Write-Host ""
-                    Write-Host "Felix Agent complete - all tasks done and validated!"
-                    Exit-FelixAgent -ExitCode 0
-                }
-                else {
-                    # Validation failed - emit STUCK signal
-                    Write-Host ""
-                    Write-Host "[STUCK] Tasks complete but validation failed!"
-                    Write-Host "<promise>STUCK</promise>"
-                    
-                    # Track validation retry count
-                    if (-not $state.validation_retry_count) {
-                        $state.validation_retry_count = 0
-                    }
-                    $state.validation_retry_count++
-                    
-                    # Get validation config (with defaults)
-                    $validationConfig = $config.validation
-                    $markBlockedOnFailure = if ($null -ne $validationConfig.mark_blocked_on_failure) { $validationConfig.mark_blocked_on_failure } else { $true }
-                    $exitOnBlocked = if ($null -ne $validationConfig.exit_on_blocked) { $validationConfig.exit_on_blocked } else { $true }
-                    $maxValidationRetries = if ($null -ne $validationConfig.max_validation_retries) { $validationConfig.max_validation_retries } else { 1 }
-                    
-                    # Log retry attempt
-                    $totalAttempts = $maxValidationRetries + 1
-                    Write-Host "[VALIDATION RETRY] Attempt $($state.validation_retry_count) of $totalAttempts" -ForegroundColor Yellow
-                    
-                    # Check if max retries exceeded
-                    if ($state.validation_retry_count -gt $maxValidationRetries) {
-                        Write-Host ""
-                        Write-Host "[BLOCKED] Maximum validation retries ($totalAttempts attempts) exceeded" -ForegroundColor Red
-                        
-                        # Mark requirement as blocked if configured
-                        if ($markBlockedOnFailure) {
-                            Write-Host "[BLOCKED] Marking requirement $($currentReq.id) as blocked in requirements.json" -ForegroundColor Red
-                            Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "blocked"
-                            Write-Host "[BLOCKED] Requirement blocked due to repeated validation failures." -ForegroundColor Red
-                            Write-Host "[BLOCKED] To unblock: Fix validation issues, then manually change status to 'planned' in requirements.json" -ForegroundColor Yellow
-                        }
-                        
-                        $state.last_iteration_outcome = "validation_blocked"
-                        $state.status = "blocked"
-                        $state.updated_at = Get-Date -Format "o"
-                        $state | ConvertTo-Json | Set-Content $StateFile
-                        
-                        # Exit if configured
-                        if ($exitOnBlocked) {
-                            Write-Host "[EXIT] Exiting to allow other requirements to proceed (exit code 3)" -ForegroundColor Yellow
-                            Exit-FelixAgent -ExitCode 3
-                        }
-                    }
-                    
-                    $state.last_iteration_outcome = "validation_failed"
-                    $state.updated_at = Get-Date -Format "o"
-                    $state | ConvertTo-Json | Set-Content $StateFile
-                    
-                    # Continue to next iteration to allow LLM to fix issues
-                }
-            }
+        if (-not (Test-Path $verificationPromptPath)) {
+            Write-Host "[WARNING] Task verification prompt not found at $verificationPromptPath"
+            Write-Host "Falling back to trusting LLM signal..."
+            $tasksVerified = $true
         }
         else {
-            # No plan found - run validation anyway
+            # Get latest plan
+            $planPattern = "plan-$($currentReq.id).md"
+            $existingPlans = Get-ChildItem $RunsDir -Recurse -Filter $planPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+            
+            if ($existingPlans -and $existingPlans.Count -gt 0) {
+                $latestPlanPath = $existingPlans[0].FullName
+                $planContent = Get-Content $latestPlanPath -Raw
+                
+                # Load verification prompt and inject plan
+                $verificationPrompt = Get-Content $verificationPromptPath -Raw
+                $fullPrompt = $verificationPrompt -replace '\{PLAN_CONTENT\}', $planContent
+                
+                # Create temporary prompt file for verification
+                $tempPromptPath = Join-Path $RunDir "verify-tasks-prompt.txt"
+                $fullPrompt | Out-File -FilePath $tempPromptPath -Encoding UTF8
+                
+                Write-Host "[VERIFY] Asking LLM to verify task completion..."
+                
+                # Call droid with verification prompt
+                $verifyArgs = @("exec", "--prompt-file", $tempPromptPath)
+                $verificationOutput = & $DroidExe $verifyArgs 2>&1 | Out-String
+                
+                Write-Host $verificationOutput
+                
+                if ($verificationOutput -match '<verification>TASKS_COMPLETE</verification>') {
+                    Write-Host "[VERIFY] ✅ LLM confirmed all tasks complete"
+                    $tasksVerified = $true
+                }
+                else {
+                    Write-Host "[WARNING] LLM verification found incomplete tasks"
+                    Write-Host "Ignoring ALL_COMPLETE signal and continuing iterations..."
+                    $tasksVerified = $false
+                }
+                
+                # Clean up temp prompt file
+                if (Test-Path $tempPromptPath) {
+                    Remove-Item $tempPromptPath -Force
+                }
+            }
+            else {
+                Write-Host "[WARNING] Could not find plan file to verify"
+                Write-Host "Trusting LLM signal..."
+                $tasksVerified = $true
+            }
+        }
+        
+        if ($tasksVerified) {
+            # All tasks verified complete - run validation before marking complete
             Write-Host ""
             Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-            Write-Host "No plan found. Running validation..." -ForegroundColor Magenta
-            
+            Write-Host "All plan tasks complete. Running validation..." -ForegroundColor Magenta
+                
+            # Run validation script
             $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.ps1"
             $validationPassed = $false
-            
+                
             if (-not (Test-Path $validationScript)) {
                 Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
                 Write-Host "❌ Validation script not found at $validationScript" -ForegroundColor Red
+                Exit-FelixAgent -ExitCode 1
+            }
+                
+            try {
                 $validationResult = Invoke-RequirementValidation -ValidationScript $validationScript -RequirementId $currentReq.id
                 $validationOutput = $validationResult.output
                 $validationExitCode = $validationResult.exitCode
-                
+                    
                 Write-Host $validationOutput
-                
+                    
                 if ($validationExitCode -eq 0) {
                     Write-Host ""
                     Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
@@ -1639,31 +1573,78 @@ Fix the validation issues to unblock progress.
                 }
             }
             catch {
-                Write-Host "[VALIDATION] ❌ Error running validation: $_"
+                Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
+                Write-Host "❌ Error running validation: $_" -ForegroundColor Red
                 Exit-FelixAgent -ExitCode 1
             }
-            
+                
             if ($validationPassed) {
+                # Validation passed - mark requirement complete
                 $state.status = "complete"
                 $state.last_iteration_outcome = "complete"
+                $state.validation_retry_count = 0
                 $state.updated_at = Get-Date -Format "o"
                 $state | ConvertTo-Json | Set-Content $StateFile
-                
+                    
                 # Update requirements.json to mark requirement as complete
                 Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
-                
+                    
                 Write-Host ""
                 Write-Host "Felix Agent complete - all tasks done and validated!"
                 Exit-FelixAgent -ExitCode 0
             }
             else {
+                # Validation failed - emit STUCK signal
                 Write-Host ""
-                Write-Host "[STUCK] Validation failed!"
+                Write-Host "[STUCK] Tasks complete but validation failed!"
                 Write-Host "<promise>STUCK</promise>"
-                
+                    
+                # Track validation retry count
+                if (-not $state.validation_retry_count) {
+                    $state.validation_retry_count = 0
+                }
+                $state.validation_retry_count++
+                    
+                # Get validation config (with defaults)
+                $validationConfig = $config.validation
+                $markBlockedOnFailure = if ($null -ne $validationConfig.mark_blocked_on_failure) { $validationConfig.mark_blocked_on_failure } else { $true }
+                $exitOnBlocked = if ($null -ne $validationConfig.exit_on_blocked) { $validationConfig.exit_on_blocked } else { $true }
+                $maxValidationRetries = if ($null -ne $validationConfig.max_validation_retries) { $validationConfig.max_validation_retries } else { 1 }
+                    
+                # Log retry attempt
+                $totalAttempts = $maxValidationRetries + 1
+                Write-Host "[VALIDATION RETRY] Attempt $($state.validation_retry_count) of $totalAttempts" -ForegroundColor Yellow
+                    
+                # Check if max retries exceeded
+                if ($state.validation_retry_count -gt $maxValidationRetries) {
+                    Write-Host ""
+                    Write-Host "[BLOCKED] Maximum validation retries ($totalAttempts attempts) exceeded" -ForegroundColor Red
+                        
+                    # Mark requirement as blocked if configured
+                    if ($markBlockedOnFailure) {
+                        Write-Host "[BLOCKED] Marking requirement $($currentReq.id) as blocked in requirements.json" -ForegroundColor Red
+                        Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "blocked"
+                        Write-Host "[BLOCKED] Requirement blocked due to repeated validation failures." -ForegroundColor Red
+                        Write-Host "[BLOCKED] To unblock: Fix validation issues, then manually change status to 'planned' in requirements.json" -ForegroundColor Yellow
+                    }
+                        
+                    $state.last_iteration_outcome = "validation_blocked"
+                    $state.status = "blocked"
+                    $state.updated_at = Get-Date -Format "o"
+                    $state | ConvertTo-Json | Set-Content $StateFile
+                        
+                    # Exit if configured
+                    if ($exitOnBlocked) {
+                        Write-Host "[EXIT] Exiting to allow other requirements to proceed (exit code 3)" -ForegroundColor Yellow
+                        Exit-FelixAgent -ExitCode 3
+                    }
+                }
+                    
                 $state.last_iteration_outcome = "validation_failed"
                 $state.updated_at = Get-Date -Format "o"
                 $state | ConvertTo-Json | Set-Content $StateFile
+                    
+                # Continue to next iteration to allow LLM to fix issues
             }
         }
     }
