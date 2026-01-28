@@ -331,8 +331,22 @@
                              "depends_on":  [
 
                                             ],
+                             "updated_at":  "2026-01-28"
+                         },
+                         {
+                             "id":  "S-0022",
+                             "title":  "Copilot Apikey Storage",
+                             "spec_path":  "specs/S-0022-copilot-apikey-storage.md",
+                             "status":  "planned",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-01-28",
-                             "last_run_id":  "2026-01-28T14-59-36"
+                             "last_run_id":  "2026-01-28T16-14-09"
                          }
                      ]
 }
