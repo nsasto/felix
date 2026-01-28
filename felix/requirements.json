@@ -311,7 +311,7 @@
                              "id":  "S-0020",
                              "title":  "Consolidate Agent Settings",
                              "spec_path":  "specs/S-0020-consolidate-agent-settings.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
 
@@ -319,7 +319,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-27",
+                             "updated_at":  "2026-01-28",
                              "last_run_id":  "2026-01-28T09-26-11"
                          },
                          {
