@@ -125,12 +125,18 @@ public partial class App : Application
     /// </summary>
     private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
-        // TODO: Open Settings window (Phase 8)
-        MessageBox.Show(
-            "Settings window coming soon in Phase 8.",
-            "Settings",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        if (_settingsManager == null)
+            return;
+
+        // Open Settings window
+        var settingsWindow = new Views.SettingsWindow(_settingsManager);
+        var result = settingsWindow.ShowDialog();
+
+        // If settings were saved, update state monitor with new project path
+        if (result == true && _stateMonitor != null)
+        {
+            _stateMonitor.UpdateProjectPath(_settingsManager.Settings.ProjectPath);
+        }
     }
 
     /// <summary>
