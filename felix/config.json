@@ -26,7 +26,7 @@
     "commands": []
   },
   "ui": {
-    "theme": "dark"
+    "theme": "light"
   },
   "copilot": {
     "enabled": true,

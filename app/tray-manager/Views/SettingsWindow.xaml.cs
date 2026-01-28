@@ -1,7 +1,9 @@
 using System;
-using System.IO;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using FelixTrayManager.Models;
@@ -16,6 +18,7 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsManager _settingsManager;
     private readonly AppSettings _workingSettings;
+    private ObservableCollection<AgentConfig> _agentsCollection;
     private bool _hasUnsavedChanges = false;
 
     // Registry key for Windows startup
@@ -30,14 +33,17 @@ public partial class SettingsWindow : Window
         // Create a working copy of settings
         _workingSettings = new AppSettings
         {
-            ProjectPath = _settingsManager.Settings.ProjectPath,
+            ServerEndpoint = _settingsManager.Settings.ServerEndpoint,
+            Agents = new System.Collections.Generic.List<AgentConfig>(_settingsManager.Settings.Agents),
             AutoStartOnLogin = _settingsManager.Settings.AutoStartOnLogin,
             MaxIterations = _settingsManager.Settings.MaxIterations,
             RunInBackgroundOnClose = _settingsManager.Settings.RunInBackgroundOnClose
         };
 
+        // Create observable collection for data binding
+        _agentsCollection = new ObservableCollection<AgentConfig>(_workingSettings.Agents);
+        
         LoadSettings();
-        ValidateProjectPath();
     }
 
     /// <summary>
@@ -45,90 +51,114 @@ public partial class SettingsWindow : Window
     /// </summary>
     private void LoadSettings()
     {
-        ProjectPathTextBox.Text = _workingSettings.ProjectPath;
+        ServerEndpointTextBox.Text = _workingSettings.ServerEndpoint;
+        AgentsDataGrid.ItemsSource = _agentsCollection;
         MaxIterationsTextBox.Text = _workingSettings.MaxIterations.ToString();
         AutoStartCheckBox.IsChecked = _workingSettings.AutoStartOnLogin;
         RunInBackgroundCheckBox.IsChecked = _workingSettings.RunInBackgroundOnClose;
     }
 
     /// <summary>
-    /// Handles Browse button click to select project folder
+    /// Handles Test Connection button click
     /// </summary>
-    private void OnBrowseClick(object sender, RoutedEventArgs e)
+    private async void OnTestConnectionClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFolderDialog
+        var endpoint = ServerEndpointTextBox.Text?.Trim();
+        
+        if (string.IsNullOrWhiteSpace(endpoint))
         {
-            Title = "Select Felix Project Folder",
-            InitialDirectory = string.IsNullOrEmpty(_workingSettings.ProjectPath) 
-                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-                : _workingSettings.ProjectPath
+            ConnectionStatusMessage.Text = "❌ Please enter a server endpoint URL";
+            ConnectionStatusMessage.Foreground = System.Windows.Media.Brushes.Red;
+            return;
+        }
+
+        // Show testing message
+        ConnectionStatusMessage.Text = "⏳ Testing connection...";
+        ConnectionStatusMessage.Foreground = System.Windows.Media.Brushes.Gray;
+        TestConnectionButton.IsEnabled = false;
+
+        try
+        {
+            var (success, message) = await _settingsManager.TestConnectionAsync(endpoint);
+            
+            ConnectionStatusMessage.Text = message;
+            ConnectionStatusMessage.Foreground = success 
+                ? System.Windows.Media.Brushes.Green 
+                : System.Windows.Media.Brushes.Red;
+        }
+        finally
+        {
+            TestConnectionButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Handles Add Agent button click
+    /// </summary>
+    private void OnAddAgentClick(object sender, RoutedEventArgs e)
+    {
+        // Generate unique name
+        var uniqueName = _workingSettings.GenerateUniqueAgentName();
+        
+        var dialog = new AgentEditDialog(uniqueName)
+        {
+            Owner = this
         };
 
         if (dialog.ShowDialog() == true)
         {
-            ProjectPathTextBox.Text = dialog.FolderName;
+            _agentsCollection.Add(dialog.Agent);
             _hasUnsavedChanges = true;
         }
     }
 
     /// <summary>
-    /// Validates the project path when it changes
+    /// Handles Edit Agent button click
     /// </summary>
-    private void OnProjectPathChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private void OnEditAgentClick(object sender, RoutedEventArgs e)
     {
-        ValidateProjectPath();
-        _hasUnsavedChanges = true;
+        if (sender is Button button && button.Tag is AgentConfig agent)
+        {
+            var dialog = new AgentEditDialog(agent)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                // Update the agent in the collection
+                var index = _agentsCollection.IndexOf(agent);
+                if (index >= 0)
+                {
+                    _agentsCollection[index] = dialog.Agent;
+                    _hasUnsavedChanges = true;
+                    
+                    // Refresh the DataGrid
+                    AgentsDataGrid.Items.Refresh();
+                }
+            }
+        }
     }
 
     /// <summary>
-    /// Validates that the project path contains a felix/ directory
+    /// Handles Remove Agent button click
     /// </summary>
-    private void ValidateProjectPath()
+    private void OnRemoveAgentClick(object sender, RoutedEventArgs e)
     {
-        var path = ProjectPathTextBox.Text;
-
-        if (string.IsNullOrWhiteSpace(path))
+        if (sender is Button button && button.Tag is AgentConfig agent)
         {
-            ShowValidationMessage("Project path is required.");
-            SaveButton.IsEnabled = false;
-            return;
+            var result = MessageBox.Show(
+                $"Are you sure you want to remove agent '{agent.DisplayName}'?",
+                "Confirm Remove",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                _agentsCollection.Remove(agent);
+                _hasUnsavedChanges = true;
+            }
         }
-
-        if (!Directory.Exists(path))
-        {
-            ShowValidationMessage("The specified directory does not exist.");
-            SaveButton.IsEnabled = false;
-            return;
-        }
-
-        var felixDir = Path.Combine(path, "felix");
-        if (!Directory.Exists(felixDir))
-        {
-            ShowValidationMessage("The selected directory does not contain a 'felix' folder. Please select a valid Felix project directory.");
-            SaveButton.IsEnabled = false;
-            return;
-        }
-
-        // Valid path
-        HideValidationMessage();
-        SaveButton.IsEnabled = true;
-    }
-
-    /// <summary>
-    /// Shows validation error message
-    /// </summary>
-    private void ShowValidationMessage(string message)
-    {
-        ValidationMessage.Text = message;
-        ValidationMessage.Visibility = Visibility.Visible;
-    }
-
-    /// <summary>
-    /// Hides validation error message
-    /// </summary>
-    private void HideValidationMessage()
-    {
-        ValidationMessage.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>
@@ -162,10 +192,12 @@ public partial class SettingsWindow : Window
         if (result == MessageBoxResult.Yes)
         {
             var defaults = AppSettings.CreateDefault();
-            ProjectPathTextBox.Text = defaults.ProjectPath;
+            ServerEndpointTextBox.Text = defaults.ServerEndpoint;
+            _agentsCollection.Clear();
             MaxIterationsTextBox.Text = defaults.MaxIterations.ToString();
             AutoStartCheckBox.IsChecked = defaults.AutoStartOnLogin;
             RunInBackgroundCheckBox.IsChecked = defaults.RunInBackgroundOnClose;
+            ConnectionStatusMessage.Text = string.Empty;
             _hasUnsavedChanges = true;
         }
     }
@@ -201,7 +233,8 @@ public partial class SettingsWindow : Window
             return;
 
         // Update working settings from UI
-        _workingSettings.ProjectPath = ProjectPathTextBox.Text;
+        _workingSettings.ServerEndpoint = ServerEndpointTextBox.Text.Trim();
+        _workingSettings.Agents = _agentsCollection.ToList();
         _workingSettings.MaxIterations = int.Parse(MaxIterationsTextBox.Text);
         _workingSettings.AutoStartOnLogin = AutoStartCheckBox.IsChecked ?? false;
         _workingSettings.RunInBackgroundOnClose = RunInBackgroundCheckBox.IsChecked ?? true;
@@ -239,10 +272,16 @@ public partial class SettingsWindow : Window
     /// </summary>
     private bool ValidateInputs()
     {
-        // Validate project path
-        if (string.IsNullOrWhiteSpace(ProjectPathTextBox.Text))
+        // Validate server endpoint
+        if (string.IsNullOrWhiteSpace(ServerEndpointTextBox.Text))
         {
-            MessageBox.Show("Project path is required.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Server endpoint is required.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        if (!Uri.TryCreate(ServerEndpointTextBox.Text.Trim(), UriKind.Absolute, out _))
+        {
+            MessageBox.Show("Server endpoint must be a valid URL.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
 
@@ -257,6 +296,20 @@ public partial class SettingsWindow : Window
         {
             MessageBox.Show("Maximum iterations must be between 1 and 10000.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
+        }
+
+        // Validate agent configurations
+        foreach (var agent in _agentsCollection)
+        {
+            if (!agent.IsValid())
+            {
+                MessageBox.Show(
+                    $"Agent '{agent.DisplayName}' has an invalid configuration. Please check the agent path.",
+                    "Validation Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
         }
 
         return true;
