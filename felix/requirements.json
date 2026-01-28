@@ -326,7 +326,7 @@
                              "id":  "S-0021",
                              "title":  "Agent Orchestration Enhancement",
                              "spec_path":  "specs/S-0021-agent-orchestration-enhancement.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
 
@@ -334,7 +334,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-27",
+                             "updated_at":  "2026-01-28",
                              "last_run_id":  "2026-01-28T09-57-16"
                          }
                      ]

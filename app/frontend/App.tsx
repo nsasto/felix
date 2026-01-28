@@ -84,7 +84,13 @@ const INITIAL_ASSETS: MarkdownAsset[] = [
 ];
 
 // Extended UI state to include projects, config, plan, settings, and orchestration views
-type ExtendedUIState = UIState | "projects" | "config" | "plan" | "settings" | "orchestration";
+type ExtendedUIState =
+  | UIState
+  | "projects"
+  | "config"
+  | "plan"
+  | "settings"
+  | "orchestration";
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
@@ -1202,7 +1208,9 @@ export const executeTask = (taskId: string) => {
             className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "orchestration" ? "text-felix-400 shadow-md" : ""}`}
             style={{
               backgroundColor:
-                uiState === "orchestration" ? "var(--bg-surface)" : "transparent",
+                uiState === "orchestration"
+                  ? "var(--bg-surface)"
+                  : "transparent",
               color:
                 uiState === "orchestration"
                   ? "var(--accent-primary)"
