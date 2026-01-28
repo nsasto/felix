@@ -236,13 +236,14 @@
                 "S-0007",
                 "S-0002"
             ],
-            "updated_at": "2026-01-27"
+            "updated_at": "2026-01-27",
+            "last_run_id": "2026-01-27T23-34-56"
         },
         {
             "id": "S-0017",
             "title": "Felix Copilot Chat Assistant",
             "spec_path": "specs/S-0017-copilot-chat-assistant.md",
-            "status": "planned",
+            "status": "complete",
             "priority": "high",
             "labels": [
                 "copilot",
@@ -255,7 +256,8 @@
                 "S-0003",
                 "S-0002"
             ],
-            "updated_at": "2026-01-27"
+            "updated_at": "2026-01-28",
+            "last_run_id": "2026-01-28T08-26-06"
         },
         {
             "id": "S-0018",
@@ -287,45 +289,23 @@
             "id": "S-0020",
             "title": "Consolidate Agent Settings",
             "spec_path": "specs/S-0020-consolidate-agent-settings.md",
-            "status": "planned",
+            "status": "complete",
             "priority": "medium",
             "labels": [],
             "depends_on": [],
-            "updated_at": "2026-01-27"
+            "updated_at": "2026-01-28",
+            "last_run_id": "2026-01-28T09-26-11"
         },
         {
             "id": "S-0021",
-            "title": "Windows System Tray Manager",
-            "spec_path": "specs/S-0021-windows-tray-manager.md",
-            "status": "in_progress",
+            "title": "Agent Orchestration Enhancement",
+            "spec_path": "specs/S-0021-agent-orchestration-enhancement.md",
+            "status": "complete",
             "priority": "medium",
-            "labels": [
-                "windows",
-                "desktop",
-                "tooling"
-            ],
-            "depends_on": [
-                "S-0001"
-            ],
+            "labels": [],
+            "depends_on": [],
             "updated_at": "2026-01-28",
-            "last_run_id": "2026-01-28T10-21-32"
-        },
-        {
-            "id": "S-0022",
-            "title": "Windows Tray Manager - Remote Agent Management",
-            "spec_path": "specs/S-0022-windows-tray-remote-enhancements.md",
-            "status": "planned",
-            "priority": "medium",
-            "labels": [
-                "windows",
-                "desktop",
-                "remote",
-                "multi-agent"
-            ],
-            "depends_on": [
-                "S-0021"
-            ],
-            "updated_at": "2026-01-28"
+            "last_run_id": "2026-01-28T09-57-16"
         }
     ]
 }

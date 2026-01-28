@@ -1,0 +1,617 @@
+import React, { useEffect, useRef, useCallback } from 'react';
+import CopilotAvatar, { AvatarState } from './CopilotAvatar';
+import { ChatMessage } from '../services/felixApi';
+import { marked } from 'marked';
+
+interface CopilotChatPanelProps {
+  /** Whether the panel is open */
+  isOpen: boolean;
+  /** Callback when panel should close */
+  onClose: () => void;
+  /** Current avatar animation state */
+  avatarState: AvatarState;
+  /** Array of chat messages */
+  messages: ChatMessage[];
+  /** Current input value */
+  inputValue: string;
+  /** Callback when input changes */
+  onInputChange: (value: string) => void;
+  /** Callback when message is sent */
+  onSendMessage: () => void;
+  /** Whether currently streaming a response */
+  isStreaming: boolean;
+  /** Callback to cancel streaming */
+  onCancelStream: () => void;
+  /** Callback to clear chat history */
+  onClearHistory: () => void;
+  /** Number of context sources loaded */
+  contextSourceCount?: number;
+  /** Callback when user wants to insert spec content into editor */
+  onInsertSpec?: (content: string) => void;
+  /** Callback for quick draft action */
+  onQuickDraft?: () => void;
+  /** Callback for help command */
+  onHelpCommand?: () => void;
+}
+
+/**
+ * Chat panel component for the Felix Copilot chat assistant.
+ * Features:
+ * - Fixed position above the chat button
+ * - Header with avatar, title, and action buttons
+ * - Scrollable message area
+ * - Input area with send button
+ * - Slide-up/down animations
+ * - ESC key and outside click to close
+ */
+const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
+  isOpen,
+  onClose,
+  avatarState,
+  messages,
+  inputValue,
+  onInputChange,
+  onSendMessage,
+  isStreaming,
+  onCancelStream,
+  onClearHistory,
+  contextSourceCount = 0,
+  onInsertSpec,
+  onQuickDraft,
+  onHelpCommand,
+}) => {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isOpen]);
+
+  // Auto-focus input when panel opens
+  useEffect(() => {
+    if (isOpen) {
+      // Small delay to allow animation to start
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  // Handle ESC key to close panel
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (!isOpen) return;
+      
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    },
+    [isOpen, onClose]
+  );
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Handle outside click to close panel
+  const handleOutsideClick = useCallback(
+    (event: MouseEvent) => {
+      if (!isOpen) return;
+      
+      const panel = panelRef.current;
+      if (panel && !panel.contains(event.target as Node)) {
+        // Check if click was on the chat button (don't close if clicking the button)
+        const chatButton = document.querySelector('[aria-label*="Felix Copilot chat"]');
+        if (chatButton && chatButton.contains(event.target as Node)) {
+          return;
+        }
+        onClose();
+      }
+    },
+    [isOpen, onClose]
+  );
+
+  useEffect(() => {
+    // Add listener with a small delay to prevent immediate closing on open
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        document.addEventListener('mousedown', handleOutsideClick);
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('mousedown', handleOutsideClick);
+      };
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isOpen, handleOutsideClick]);
+
+  // Handle input key events
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      if (inputValue.trim() && !isStreaming) {
+        onSendMessage();
+      }
+    }
+  };
+
+  // Handle clear history with confirmation
+  const handleClearHistory = () => {
+    if (window.confirm('Clear all conversation history?')) {
+      onClearHistory();
+    }
+  };
+
+  // Format timestamp for display
+  const formatTimestamp = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Character count display
+  const charCount = inputValue.length;
+  const showCharCount = charCount > 1800;
+  const isOverLimit = charCount > 2000;
+
+  /**
+   * Check if a message content looks like a generated spec.
+   * A spec typically has markdown headings (# or ##) and structured content.
+   */
+  const looksLikeSpec = useCallback((content: string): boolean => {
+    // Must have at least one heading
+    const hasHeading = /^#+ .+/m.test(content);
+    // Should be longer than a simple response (at least 200 chars)
+    const isSubstantial = content.length > 200;
+    // Should have multiple sections (multiple headings or lists)
+    const hasMultipleSections = (content.match(/^#+ .+/gm) || []).length >= 2 || 
+                                 (content.match(/^- \[/gm) || []).length >= 2;
+    
+    return hasHeading && isSubstantial && hasMultipleSections;
+  }, []);
+
+  /**
+   * Render markdown content for assistant messages.
+   * User messages are displayed as plain text.
+   */
+  const renderMessageContent = useCallback((msg: ChatMessage) => {
+    if (msg.role === 'user') {
+      // User messages: plain text with whitespace preserved
+      return (
+        <div className="text-sm whitespace-pre-wrap break-words">
+          {msg.content}
+        </div>
+      );
+    }
+
+    // Assistant messages: render as markdown
+    try {
+      const html = marked.parse(msg.content, { async: false }) as string;
+      return (
+        <div 
+          className="text-sm copilot-markdown prose prose-sm prose-invert max-w-none"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
+    } catch (err) {
+      // Fallback to plain text if markdown parsing fails
+      console.error('Markdown parsing error:', err);
+      return (
+        <div className="text-sm whitespace-pre-wrap break-words">
+          {msg.content}
+        </div>
+      );
+    }
+  }, []);
+
+  return (
+    <div
+      ref={panelRef}
+      className={`
+        fixed z-50
+        w-[380px] h-[520px]
+        rounded-2xl
+        theme-bg-surface
+        shadow-2xl
+        flex flex-col
+        overflow-hidden
+        transition-all duration-300 ease-out
+        ${isOpen 
+          ? 'opacity-100 translate-y-0 pointer-events-auto' 
+          : 'opacity-0 translate-y-4 pointer-events-none'
+        }
+      `}
+      style={{
+        // Position above the chat button (button is 56px, plus 8px gap, plus margin)
+        bottom: 'calc(56px + 16px + 8px)',
+        right: '16px',
+        // Gradient border effect using box-shadow
+        boxShadow: isOpen 
+          ? '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(115, 142, 241, 0.3)'
+          : 'none',
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Felix Copilot Chat"
+    >
+      {/* Header Section - 80px */}
+      <div 
+        className="h-20 px-4 py-3 border-b theme-border flex items-center gap-3 flex-shrink-0"
+        style={{
+          background: 'linear-gradient(180deg, rgba(115, 142, 241, 0.1) 0%, transparent 100%)',
+        }}
+      >
+        {/* Avatar */}
+        <CopilotAvatar state={avatarState} size={48} />
+        
+        {/* Title and context badge */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold theme-text-primary">Felix Copilot</h3>
+          {contextSourceCount > 0 && (
+            <span className="text-[10px] theme-text-muted">
+              📚 {contextSourceCount} sources
+            </span>
+          )}
+        </div>
+        
+        {/* Action buttons */}
+        <div className="flex items-center gap-1">
+          {/* Clear history button */}
+          <button
+            onClick={handleClearHistory}
+            className="p-2 rounded-lg theme-text-muted hover:theme-text-primary hover:bg-slate-800/50 transition-colors"
+            aria-label="Clear conversation history"
+            title="Clear history"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" 
+              />
+            </svg>
+          </button>
+          
+          {/* Minimize button */}
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg theme-text-muted hover:theme-text-primary hover:bg-slate-800/50 transition-colors"
+            aria-label="Minimize chat panel"
+            title="Minimize"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Messages Section - flex-1 */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+        {/* Empty state */}
+        {messages.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center text-center px-6">
+            <div className="w-16 h-16 bg-felix-500/10 rounded-full flex items-center justify-center mb-4">
+              <span className="text-3xl">✨</span>
+            </div>
+            <p className="text-sm theme-text-primary font-medium mb-2">
+              Hi! I'm Felix Copilot.
+            </p>
+            <p className="text-xs theme-text-muted">
+              Ask me to draft a spec or answer questions about your project.
+            </p>
+          </div>
+        )}
+
+        {/* Message bubbles */}
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+          >
+            <div
+              className={`
+                max-w-[85%] rounded-2xl px-4 py-2
+                ${msg.role === 'user'
+                  ? 'bg-felix-500 text-white'
+                  : 'theme-bg-elevated theme-text-primary'
+                }
+              `}
+            >
+              {/* Message content - markdown for assistant, plain text for user */}
+              {renderMessageContent(msg)}
+              
+              {/* Timestamp */}
+              <div 
+                className={`text-[10px] mt-1 ${
+                  msg.role === 'user' ? 'text-white/70' : 'theme-text-muted'
+                }`}
+              >
+                {formatTimestamp(msg.timestamp)}
+              </div>
+            </div>
+            
+            {/* Insert Spec button for spec-like assistant messages */}
+            {msg.role === 'assistant' && 
+             !isStreaming && 
+             looksLikeSpec(msg.content) && 
+             onInsertSpec && (
+              <button
+                onClick={() => onInsertSpec(msg.content)}
+                className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg
+                  bg-gradient-to-r from-felix-500 to-felix-600 
+                  text-white shadow-sm
+                  hover:from-felix-600 hover:to-felix-700
+                  transition-all duration-200
+                  flex items-center gap-1.5"
+                title="Insert this spec into the editor"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+                  />
+                </svg>
+                Insert Spec
+              </button>
+            )}
+          </div>
+        ))}
+
+        {/* Loading indicator when thinking/streaming */}
+        {isStreaming && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+          <div className="flex justify-start">
+            <div className="theme-bg-elevated rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-felix-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-felix-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-felix-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scroll anchor */}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Quick Actions Bar */}
+      {!isStreaming && (
+        <div className="px-3 pt-2 pb-0 border-t theme-border flex gap-2 flex-shrink-0">
+          {/* Draft Spec button */}
+          {onQuickDraft && (
+            <button
+              onClick={onQuickDraft}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg
+                bg-gradient-to-r from-felix-500 to-felix-600 
+                text-white shadow-sm
+                hover:from-felix-600 hover:to-felix-700
+                transition-all duration-200
+                flex items-center gap-1.5"
+              title="Start drafting a new spec"
+            >
+              <span>✨</span>
+              Draft Spec
+            </button>
+          )}
+          
+          {/* Help button */}
+          {onHelpCommand && (
+            <button
+              onClick={onHelpCommand}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg
+                theme-bg-elevated theme-text-muted
+                hover:theme-text-primary
+                transition-all duration-200
+                flex items-center gap-1.5"
+              title="Show available commands"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                />
+              </svg>
+              Help
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Input Section - 80px */}
+      <div className="h-20 p-3 border-t-0 flex-shrink-0">
+        <div className="flex gap-2 h-full">
+          {/* Text input */}
+          <div className="flex-1 relative">
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => onInputChange(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              placeholder="Ask me anything or type /draft to create a spec..."
+              maxLength={2000}
+              className={`
+                w-full h-full px-3 py-2 text-sm
+                rounded-lg theme-bg-elevated theme-border
+                theme-text-primary placeholder:theme-text-muted
+                resize-none
+                focus:outline-none focus:ring-2 focus:ring-felix-500/50
+                ${isOverLimit ? 'border-red-500' : ''}
+              `}
+              disabled={isStreaming}
+            />
+            
+            {/* Character count */}
+            {showCharCount && (
+              <span 
+                className={`absolute bottom-1 right-2 text-[10px] ${
+                  isOverLimit ? 'text-red-500' : 'theme-text-muted'
+                }`}
+              >
+                {charCount}/2000
+              </span>
+            )}
+          </div>
+          
+          {/* Send/Cancel button */}
+          {isStreaming ? (
+            <button
+              onClick={onCancelStream}
+              className="px-4 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors flex items-center justify-center"
+              aria-label="Cancel streaming"
+              title="Cancel"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={onSendMessage}
+              disabled={!inputValue.trim() || isOverLimit}
+              className={`
+                px-4 rounded-lg transition-colors flex items-center justify-center
+                ${inputValue.trim() && !isOverLimit
+                  ? 'bg-felix-500 hover:bg-felix-600 text-white'
+                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                }
+              `}
+              aria-label="Send message"
+              title="Send"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" 
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Inline CSS for felix colors and markdown styling */}
+      <style>{`
+        .bg-felix-500 {
+          background-color: #738ef1;
+        }
+        .bg-felix-500\\/10 {
+          background-color: rgba(115, 142, 241, 0.1);
+        }
+        .hover\\:bg-felix-600:hover {
+          background-color: #5268e8;
+        }
+        .ring-felix-500\\/50 {
+          --tw-ring-color: rgba(115, 142, 241, 0.5);
+        }
+        
+        /* Felix gradient classes for buttons */
+        .from-felix-500 {
+          --tw-gradient-from: #738ef1;
+          --tw-gradient-to: rgba(115, 142, 241, 0);
+          --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        }
+        .to-felix-600 {
+          --tw-gradient-to: #5268e8;
+        }
+        .hover\\:from-felix-600:hover {
+          --tw-gradient-from: #5268e8;
+          --tw-gradient-to: rgba(82, 104, 232, 0);
+          --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        }
+        .hover\\:to-felix-700:hover {
+          --tw-gradient-to: #4055d6;
+        }
+        
+        /* Copilot markdown styles for assistant messages */
+        .copilot-markdown {
+          line-height: 1.5;
+          word-wrap: break-word;
+        }
+        .copilot-markdown p {
+          margin: 0 0 0.5em 0;
+        }
+        .copilot-markdown p:last-child {
+          margin-bottom: 0;
+        }
+        .copilot-markdown strong {
+          font-weight: 600;
+          color: inherit;
+        }
+        .copilot-markdown em {
+          font-style: italic;
+        }
+        .copilot-markdown code {
+          font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+          font-size: 0.85em;
+          background-color: rgba(0, 0, 0, 0.2);
+          padding: 0.15em 0.35em;
+          border-radius: 4px;
+        }
+        .copilot-markdown pre {
+          background-color: rgba(0, 0, 0, 0.3);
+          border-radius: 6px;
+          padding: 0.75em 1em;
+          margin: 0.5em 0;
+          overflow-x: auto;
+        }
+        .copilot-markdown pre code {
+          background: none;
+          padding: 0;
+          font-size: 0.8em;
+        }
+        .copilot-markdown ul, .copilot-markdown ol {
+          margin: 0.5em 0;
+          padding-left: 1.5em;
+        }
+        .copilot-markdown li {
+          margin: 0.25em 0;
+        }
+        .copilot-markdown a {
+          color: #738ef1;
+          text-decoration: underline;
+        }
+        .copilot-markdown a:hover {
+          color: #9db4f7;
+        }
+        .copilot-markdown blockquote {
+          border-left: 3px solid #738ef1;
+          margin: 0.5em 0;
+          padding-left: 0.75em;
+          color: rgba(255, 255, 255, 0.7);
+        }
+        .copilot-markdown h1, .copilot-markdown h2, .copilot-markdown h3 {
+          font-weight: 600;
+          margin: 0.75em 0 0.5em 0;
+        }
+        .copilot-markdown h1:first-child, .copilot-markdown h2:first-child, .copilot-markdown h3:first-child {
+          margin-top: 0;
+        }
+        .copilot-markdown h1 { font-size: 1.25em; }
+        .copilot-markdown h2 { font-size: 1.1em; }
+        .copilot-markdown h3 { font-size: 1em; }
+        .copilot-markdown hr {
+          border: none;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          margin: 0.75em 0;
+        }
+        .copilot-markdown table {
+          border-collapse: collapse;
+          margin: 0.5em 0;
+          font-size: 0.9em;
+        }
+        .copilot-markdown th, .copilot-markdown td {
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 0.35em 0.65em;
+        }
+        .copilot-markdown th {
+          background-color: rgba(0, 0, 0, 0.2);
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default CopilotChatPanel;

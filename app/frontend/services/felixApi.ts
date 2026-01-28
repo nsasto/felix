@@ -101,7 +101,7 @@ export interface AgentStatus {
 export interface AgentEntry {
   pid: number;
   hostname: string;
-  status: 'active' | 'inactive' | 'stopped';
+  status: 'active' | 'inactive' | 'stopped' | 'stale' | 'not-started';
   current_run_id: string | null;
   started_at: string | null;
   last_heartbeat: string | null;
@@ -228,6 +228,136 @@ export interface CopilotStatus {
   api_key_present: boolean;
   provider: string | null;
   model: string | null;
+}
+
+// --- Agent Configuration Types (for S-0020: Consolidate Agent Settings) ---
+
+/**
+ * Agent configuration entry representing a saved agent preset.
+ * Different from AgentEntry which represents a running/registered agent instance.
+ */
+export interface AgentConfiguration {
+  id: number;
+  name: string;
+  executable: string;
+  args: string[];
+  working_directory: string;
+  environment: Record<string, string>;
+}
+
+export interface AgentConfigurationCreate {
+  name: string;
+  executable?: string;
+  args?: string[];
+  working_directory?: string;
+  environment?: Record<string, string>;
+}
+
+export interface AgentConfigurationUpdate {
+  name?: string;
+  executable?: string;
+  args?: string[];
+  working_directory?: string;
+  environment?: Record<string, string>;
+}
+
+export interface AgentConfigurationsResponse {
+  agents: AgentConfiguration[];
+  active_agent_id: number;
+}
+
+export interface AgentConfigurationResponse {
+  agent: AgentConfiguration;
+  message: string;
+}
+
+export interface SetActiveAgentRequest {
+  agent_id: number;
+}
+
+export interface SetActiveAgentResponse {
+  agent_id: number;
+  message: string;
+}
+
+// --- Agent Config List Types (for S-0021: Agent Orchestration Enhancement) ---
+
+/**
+ * Agent configuration entry from agents.json as returned by /api/agents/config.
+ * Used by the Agent Orchestration Dashboard to display all available agents.
+ */
+export interface AgentConfigEntry {
+  id: number;
+  name: string;
+  executable: string;
+  args: string[];
+  working_directory: string;
+  environment: Record<string, string>;
+}
+
+export interface AgentConfigsListResponse {
+  agents: AgentConfigEntry[];
+}
+
+/**
+ * Merged agent combining configuration from agents.json with runtime status from the registry.
+ * Used by the Agent Orchestration Dashboard to display complete agent information.
+ */
+export interface MergedAgent {
+  // From agents.json (configuration)
+  id: number;
+  name: string;
+  executable: string;
+  args: string[];
+  working_directory: string;
+  environment: Record<string, string>;
+  // From runtime registry (or derived status)
+  status: 'not-started' | 'active' | 'stale' | 'inactive' | 'stopped';
+  // Runtime data (optional - only present if agent has been started)
+  pid?: number;
+  hostname?: string;
+  current_run_id?: string | null;
+  last_heartbeat?: string | null;
+  started_at?: string | null;
+  stopped_at?: string | null;
+}
+
+// --- Copilot Chat Types (for S-0017: Felix Copilot Chat Assistant) ---
+
+export type AvatarState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+export interface CopilotChatRequest {
+  message: string;
+  history: Array<{ role: string; content: string }>;
+  project_path?: string;
+}
+
+export interface CopilotStreamEvent {
+  token?: string;
+  avatar_state?: AvatarState;
+  done?: boolean;
+  error?: string;
+}
+
+/**
+ * Interface for controlling the copilot chat stream
+ */
+export interface CopilotStreamController {
+  /** Subscribe to stream events */
+  onEvent: (callback: (event: CopilotStreamEvent) => void) => void;
+  /** Subscribe to errors */
+  onError: (callback: (error: Error) => void) => void;
+  /** Subscribe to completion */
+  onComplete: (callback: () => void) => void;
+  /** Cancel the stream */
+  cancel: () => void;
 }
 
 export interface FelixConfig {
@@ -476,6 +606,17 @@ class FelixApiService {
     });
   }
 
+  // --- Agent Config Endpoints (for S-0021: Agent Orchestration Enhancement) ---
+
+  /**
+   * Get all configured agents from agents.json.
+   * Returns the list of agent configurations for display in the Agent Orchestration Dashboard.
+   * This is different from getAgents() which returns runtime registry (running/stopped agents).
+   */
+  async getAgentsConfig(): Promise<AgentConfigsListResponse> {
+    return this.request<AgentConfigsListResponse>('/agents/config');
+  }
+
   // --- Global Settings Endpoints (project-independent) ---
 
   async getGlobalConfig(): Promise<ConfigContent> {
@@ -499,6 +640,182 @@ class FelixApiService {
 
   async getCopilotStatus(): Promise<CopilotStatus> {
     return this.request<CopilotStatus>('/copilot/status');
+  }
+
+  // --- Copilot Chat Endpoints (for S-0017: Felix Copilot Chat Assistant) ---
+
+  /**
+   * Stream copilot chat response via Server-Sent Events (SSE).
+   * Returns a controller object to manage the stream.
+   * 
+   * @param request - The chat request containing message, history, and optional project path
+   * @returns CopilotStreamController for managing the SSE stream
+   */
+  streamCopilotChat(request: CopilotChatRequest): CopilotStreamController {
+    let abortController: AbortController | null = new AbortController();
+    let eventCallback: ((event: CopilotStreamEvent) => void) | null = null;
+    let errorCallback: ((error: Error) => void) | null = null;
+    let completeCallback: (() => void) | null = null;
+
+    // Start the fetch request
+    const startStream = async () => {
+      try {
+        const response = await fetch(`${this.baseUrl}/copilot/chat/stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(request),
+          signal: abortController?.signal,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('Response body is not readable');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            completeCallback?.();
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          
+          // Keep the last incomplete line in the buffer
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6)) as CopilotStreamEvent;
+                eventCallback?.(data);
+                
+                // Check if stream is done
+                if (data.done) {
+                  completeCallback?.();
+                  return;
+                }
+                
+                // Check for errors
+                if (data.error) {
+                  errorCallback?.(new Error(data.error));
+                }
+              } catch (parseError) {
+                // Ignore JSON parse errors for malformed lines
+                console.warn('Failed to parse SSE data:', line);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Stream was cancelled, don't call error callback
+          return;
+        }
+        errorCallback?.(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+
+    // Start streaming immediately
+    startStream();
+
+    return {
+      onEvent: (callback) => {
+        eventCallback = callback;
+      },
+      onError: (callback) => {
+        errorCallback = callback;
+      },
+      onComplete: (callback) => {
+        completeCallback = callback;
+      },
+      cancel: () => {
+        abortController?.abort();
+        abortController = null;
+      },
+    };
+  }
+
+  // --- Agent Configuration Endpoints (for S-0020: Consolidate Agent Settings) ---
+
+  /**
+   * Get all agent configurations from agents.json.
+   * Returns the list of agent configurations along with the currently active agent ID.
+   */
+  async getAgentConfigurations(): Promise<AgentConfigurationsResponse> {
+    return this.request<AgentConfigurationsResponse>('/agent-configs');
+  }
+
+  /**
+   * Get a specific agent configuration by ID.
+   */
+  async getAgentConfiguration(agentId: number): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>(`/agent-configs/${agentId}`);
+  }
+
+  /**
+   * Create a new agent configuration.
+   * Automatically assigns the next available ID.
+   */
+  async createAgentConfiguration(config: AgentConfigurationCreate): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>('/agent-configs', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * Update an existing agent configuration.
+   * All fields are optional - only provided fields are updated.
+   */
+  async updateAgentConfiguration(agentId: number, config: AgentConfigurationUpdate): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>(`/agent-configs/${agentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * Delete an agent configuration.
+   * Agent ID 0 (system default) cannot be deleted.
+   * If deleting the currently active agent, switches to agent ID 0.
+   */
+  async deleteAgentConfiguration(agentId: number): Promise<{ status: string; agent_id: number; message: string }> {
+    return this.request<{ status: string; agent_id: number; message: string }>(`/agent-configs/${agentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Set the active agent by ID.
+   * Updates config.json to use the specified agent_id.
+   */
+  async setActiveAgent(agentId: number): Promise<SetActiveAgentResponse> {
+    return this.request<SetActiveAgentResponse>('/agent-configs/active', {
+      method: 'POST',
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+  }
+
+  /**
+   * Get the currently active agent configuration.
+   * Returns the full agent config for the active agent ID.
+   * Falls back to ID 0 if the active ID is invalid.
+   */
+  async getActiveAgentConfiguration(): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>('/agent-configs/active/current');
   }
 
   // --- Health Check ---
