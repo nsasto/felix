@@ -25,7 +25,8 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 class AgentRegistration(BaseModel):
     """Request body for agent registration"""
-    agent_name: str = Field(..., description="Unique agent name identifier")
+    agent_id: int = Field(..., description="Unique agent ID from config")
+    agent_name: str = Field(..., description="Agent display name (for logging)")
     pid: int = Field(..., description="Process ID of the agent")
     hostname: str = Field(..., description="Hostname where agent is running")
     started_at: Optional[str] = Field(None, description="ISO timestamp when agent started")
@@ -38,6 +39,8 @@ class AgentHeartbeat(BaseModel):
 
 class AgentEntry(BaseModel):
     """Agent entry in the registry"""
+    agent_id: int = Field(..., description="Agent ID from config (stable identifier)")
+    agent_name: str = Field(..., description="Agent display name")
     pid: int
     hostname: str
     status: str = Field(default="active", description="Agent status: active, inactive, stopped")
@@ -49,11 +52,12 @@ class AgentEntry(BaseModel):
 
 class AgentRegistryResponse(BaseModel):
     """Response containing all registered agents"""
-    agents: Dict[str, AgentEntry]
+    agents: Dict[int, AgentEntry]
 
 
 class AgentStatusResponse(BaseModel):
     """Response for a single agent status"""
+    agent_id: int
     agent_name: str
     status: str
     pid: int
@@ -67,6 +71,7 @@ class AgentStatusResponse(BaseModel):
 class AgentStopResponse(BaseModel):
     """Response for stopping an agent"""
     message: str
+    agent_id: int
     agent_name: str
     status: str
 
@@ -79,6 +84,7 @@ class AgentStartRequest(BaseModel):
 class AgentStartResponse(BaseModel):
     """Response for starting an agent"""
     message: str
+    agent_id: int
     agent_name: str
     requirement_id: str
     status: str
@@ -133,7 +139,7 @@ def get_agents_file_path() -> Path:
     return cwd / "felix" / "agents.json"
 
 
-def load_agents_registry() -> Dict[str, AgentEntry]:
+def load_agents_registry() -> Dict[int, AgentEntry]:
     """Load agents from felix/agents.json"""
     agents_file = get_agents_file_path()
     
@@ -147,10 +153,11 @@ def load_agents_registry() -> Dict[str, AgentEntry]:
         data = json.loads(agents_file.read_text(encoding='utf-8'))
         agents_dict = data.get("agents", {})
         
-        # Convert to AgentEntry objects
+        # Convert string keys to int and to AgentEntry objects
         result = {}
-        for name, entry_data in agents_dict.items():
-            result[name] = AgentEntry(**entry_data)
+        for id_str, entry_data in agents_dict.items():
+            agent_id = int(id_str)
+            result[agent_id] = AgentEntry(**entry_data)
         return result
     except (json.JSONDecodeError, ValueError) as e:
         # Return empty on parse error
@@ -158,7 +165,7 @@ def load_agents_registry() -> Dict[str, AgentEntry]:
         return {}
 
 
-def save_agents_registry(agents: Dict[str, AgentEntry]):
+def save_agents_registry(agents: Dict[int, AgentEntry]):
     """Save agents to felix/agents.json"""
     agents_file = get_agents_file_path()
     
@@ -169,8 +176,8 @@ def save_agents_registry(agents: Dict[str, AgentEntry]):
             detail="Felix directory not found. Cannot save agents registry."
         )
     
-    # Convert AgentEntry objects to dicts
-    agents_dict = {name: entry.model_dump() for name, entry in agents.items()}
+    # Convert int keys to strings and AgentEntry objects to dicts
+    agents_dict = {str(agent_id): entry.model_dump() for agent_id, entry in agents.items()}
     
     data = {"agents": agents_dict}
     agents_file.write_text(json.dumps(data, indent=2), encoding='utf-8')
@@ -221,12 +228,12 @@ def check_agent_liveness(agent: AgentEntry) -> str:
     return "active"
 
 
-def update_agent_statuses(agents: Dict[str, AgentEntry]) -> Dict[str, AgentEntry]:
+def update_agent_statuses(agents: Dict[int, AgentEntry]) -> Dict[int, AgentEntry]:
     """
     Update status of all agents based on liveness checks.
     Returns the updated agents dict.
     """
-    for name, agent in agents.items():
+    for agent_id, agent in agents.items():
         new_status = check_agent_liveness(agent)
         agent.status = new_status
     return agents
@@ -239,7 +246,7 @@ async def register_agent(request: AgentRegistration):
     """
     Register an agent with the registry.
     
-    If an agent with the same name exists:
+    If an agent with the same ID exists:
     - If status is 'stopped' or 'inactive', update the entry (allow restart)
     - If status is 'active', return 409 Conflict (duplicate active agent)
     
@@ -263,12 +270,12 @@ async def register_agent(request: AgentRegistration):
         )
     
     # Check if agent already exists and is active
-    if request.agent_name in agents:
-        existing = agents[request.agent_name]
+    if request.agent_id in agents:
+        existing = agents[request.agent_id]
         if existing.status == "active":
             raise HTTPException(
                 status_code=409, 
-                detail=f"Agent '{request.agent_name}' is already active (PID: {existing.pid}, Host: {existing.hostname})"
+                detail=f"Agent ID {request.agent_id} ('{existing.agent_name}') is already active (PID: {existing.pid}, Host: {existing.hostname})"
             )
     
     # Get current UTC timestamp
@@ -276,6 +283,8 @@ async def register_agent(request: AgentRegistration):
     
     # Create or update agent entry
     agent_entry = AgentEntry(
+        agent_id=request.agent_id,
+        agent_name=request.agent_name,
         pid=request.pid,
         hostname=request.hostname,
         status="active",
@@ -285,11 +294,12 @@ async def register_agent(request: AgentRegistration):
         stopped_at=None
     )
     
-    agents[request.agent_name] = agent_entry
+    agents[request.agent_id] = agent_entry
     save_agents_registry(agents)
     
     return AgentStatusResponse(
-        agent_name=request.agent_name,
+        agent_id=agent_entry.agent_id,
+        agent_name=agent_entry.agent_name,
         status=agent_entry.status,
         pid=agent_entry.pid,
         hostname=agent_entry.hostname,
@@ -300,8 +310,8 @@ async def register_agent(request: AgentRegistration):
     )
 
 
-@router.post("/{agent_name}/heartbeat", response_model=AgentStatusResponse)
-async def agent_heartbeat(agent_name: str, request: AgentHeartbeat):
+@router.post("/{agent_id}/heartbeat", response_model=AgentStatusResponse)
+async def agent_heartbeat(agent_id: int, request: AgentHeartbeat):
     """
     Update agent heartbeat and optionally the current run ID.
     
@@ -310,10 +320,10 @@ async def agent_heartbeat(agent_name: str, request: AgentHeartbeat):
     """
     agents = load_agents_registry()
     
-    if agent_name not in agents:
-        raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+    if agent_id not in agents:
+        raise HTTPException(status_code=404, detail=f"Agent ID {agent_id} not found")
     
-    agent = agents[agent_name]
+    agent = agents[agent_id]
     
     # Update heartbeat
     now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
@@ -327,11 +337,12 @@ async def agent_heartbeat(agent_name: str, request: AgentHeartbeat):
     # Clear stopped_at since agent is active again
     agent.stopped_at = None
     
-    agents[agent_name] = agent
+    agents[agent_id] = agent
     save_agents_registry(agents)
     
     return AgentStatusResponse(
-        agent_name=agent_name,
+        agent_id=agent.agent_id,
+        agent_name=agent.agent_name,
         status=agent.status,
         pid=agent.pid,
         hostname=agent.hostname,
@@ -418,13 +429,13 @@ async def get_agents_config():
         return AgentConfigsListResponse(agents=default_agents)
 
 
-@router.post("/{agent_name}/stop", response_model=AgentStopResponse)
-async def stop_agent(agent_name: str, mode: str = "graceful"):
+@router.post("/{agent_id}/stop", response_model=AgentStopResponse)
+async def stop_agent(agent_id: int, mode: str = "graceful"):
     """
     Stop an agent and mark it as stopped in the registry.
     
     Args:
-        agent_name: The name of the agent to stop
+        agent_id: The ID of the agent to stop
         mode: Stop mode - "graceful" (wait for current task) or "force" (terminate immediately)
     
     Graceful mode:
@@ -440,10 +451,10 @@ async def stop_agent(agent_name: str, mode: str = "graceful"):
     
     agents = load_agents_registry()
     
-    if agent_name not in agents:
-        raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+    if agent_id not in agents:
+        raise HTTPException(status_code=404, detail=f"Agent ID {agent_id} not found")
     
-    agent = agents[agent_name]
+    agent = agents[agent_id]
     
     # Validate mode
     if mode not in ["graceful", "force"]:
@@ -489,20 +500,21 @@ async def stop_agent(agent_name: str, mode: str = "graceful"):
     agent.stopped_at = now
     agent.current_run_id = None
     
-    agents[agent_name] = agent
+    agents[agent_id] = agent
     save_agents_registry(agents)
     
-    stop_message = f"Agent '{agent_name}' stopped ({mode} mode)"
+    stop_message = f"Agent ID {agent_id} ('{agent.agent_name}') stopped ({mode} mode)"
     
     return AgentStopResponse(
         message=stop_message,
-        agent_name=agent_name,
+        agent_id=agent.agent_id,
+        agent_name=agent.agent_name,
         status="stopped"
     )
 
 
-@router.post("/{agent_name}/start", response_model=AgentStartResponse)
-async def start_agent(agent_name: str, request: AgentStartRequest):
+@router.post("/{agent_id}/start", response_model=AgentStartResponse)
+async def start_agent(agent_id: int, request: AgentStartRequest):
     """
     Start an agent to work on a specific requirement.
     
@@ -518,7 +530,7 @@ async def start_agent(agent_name: str, request: AgentStartRequest):
     POST /api/projects/{project_id}/runs/start
     
     Args:
-        agent_name: The name of the agent to assign work to
+        agent_id: The ID of the agent to assign work to
         request: Contains requirement_id to work on
     
     Returns:
@@ -531,10 +543,10 @@ async def start_agent(agent_name: str, request: AgentStartRequest):
     """
     agents = load_agents_registry()
     
-    if agent_name not in agents:
-        raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+    if agent_id not in agents:
+        raise HTTPException(status_code=404, detail=f"Agent ID {agent_id} not found")
     
-    agent = agents[agent_name]
+    agent = agents[agent_id]
     
     # Validate requirement_id format (e.g., "S-0012")
     import re
@@ -548,7 +560,7 @@ async def start_agent(agent_name: str, request: AgentStartRequest):
     if agent.status == "active" and agent.current_run_id:
         raise HTTPException(
             status_code=409,
-            detail=f"Agent '{agent_name}' is already working on requirement '{agent.current_run_id}'"
+            detail=f"Agent ID {agent_id} ('{agent.agent_name}') is already working on requirement '{agent.current_run_id}'"
         )
     
     # Update agent's current_run_id (this signals what the agent should work on)
@@ -559,17 +571,18 @@ async def start_agent(agent_name: str, request: AgentStartRequest):
     # If agent was stopped or inactive, note that it needs to be started externally
     was_active = agent.status == "active"
     
-    agents[agent_name] = agent
+    agents[agent_id] = agent
     save_agents_registry(agents)
     
     if was_active:
-        message = f"Agent '{agent_name}' assigned to work on requirement '{request.requirement_id}'"
+        message = f"Agent ID {agent_id} ('{agent.agent_name}') assigned to work on requirement '{request.requirement_id}'"
     else:
-        message = f"Agent '{agent_name}' assigned requirement '{request.requirement_id}'. Note: Agent is {agent.status}, start the agent process separately."
+        message = f"Agent ID {agent_id} ('{agent.agent_name}') assigned requirement '{request.requirement_id}'. Note: Agent is {agent.status}, start the agent process separately."
     
     return AgentStartResponse(
         message=message,
-        agent_name=agent_name,
+        agent_id=agent.agent_id,
+        agent_name=agent.agent_name,
         requirement_id=request.requirement_id,
         status=agent.status
     )
@@ -640,15 +653,15 @@ async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]
         return f"[Error reading file: {e}]", last_position
 
 
-@router.websocket("/{agent_name}/console")
-async def agent_console_stream(websocket: WebSocket, agent_name: str):
+@router.websocket("/{agent_id}/console")
+async def agent_console_stream(websocket: WebSocket, agent_id: int):
     """
     WebSocket endpoint for streaming agent console output.
     
     Tails the current run's output.log and streams new lines in real-time.
     
     Messages sent to client:
-    - {"type": "connected", "agent_name": "...", "message": "..."}
+    - {"type": "connected", "agent_id": 0, "agent_name": "...", "message": "..."}
     - {"type": "output", "content": "...", "run_id": "..."}
     - {"type": "run_changed", "run_id": "...", "message": "..."}
     - {"type": "idle", "message": "..."}
@@ -664,22 +677,23 @@ async def agent_console_stream(websocket: WebSocket, agent_name: str):
     agents = load_agents_registry()
     agents = update_agent_statuses(agents)
     
-    if agent_name not in agents:
+    if agent_id not in agents:
         await websocket.send_json({
             "type": "error",
-            "message": f"Agent not found: {agent_name}"
+            "message": f"Agent ID {agent_id} not found"
         })
         await websocket.close(code=4004, reason="Agent not found")
         return
     
-    agent = agents[agent_name]
+    agent = agents[agent_id]
     
     # Send connected message
     await websocket.send_json({
         "type": "connected",
-        "agent_name": agent_name,
+        "agent_id": agent_id,
+        "agent_name": agent.agent_name,
         "status": agent.status,
-        "message": f"Connected to console stream for agent: {agent_name}"
+        "message": f"Connected to console stream for agent ID {agent_id} ('{agent.agent_name}')"
     })
     
     # Get project path
