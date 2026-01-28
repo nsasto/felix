@@ -120,6 +120,8 @@ Brief description of what needs to be implemented for this requirement.
 - Technical decisions or constraints to keep in mind
 ```
 
+**Backticks in Tasks:** Only use backticks for actual executable commands (e.g., `pytest`, `npm test`, `curl http://...`). Do NOT use backticks for file paths, URLs, placeholders, or configuration values. Use **bold** or plain text for those instead.
+
 ## Allowed File Modifications
 
 You may ONLY modify:
