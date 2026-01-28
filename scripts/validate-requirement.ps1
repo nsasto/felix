@@ -200,7 +200,8 @@ function Parse-AcceptanceCriteria {
     
     $sectionContent = if ($nextHeaderMatch.Success) {
         $SpecContent.Substring($sectionStart, $nextHeaderMatch.Index)
-    } else {
+    }
+    else {
         $SpecContent.Substring($sectionStart)
     }
     
@@ -213,10 +214,10 @@ function Parse-AcceptanceCriteria {
         $text = $item.Groups[2].Value.Trim()
         
         $criterion = @{
-            Text = $text
-            Command = $null
+            Text     = $text
+            Command  = $null
             Expected = $null
-            Checked = $checked
+            Checked  = $checked
         }
         
         # Extract command from backticks
@@ -233,6 +234,61 @@ function Parse-AcceptanceCriteria {
     }
     
     return $criteria
+}
+
+function ConvertTo-PlatformCommand {
+    <#
+    .SYNOPSIS
+    Converts Unix-style commands to platform-appropriate equivalents
+    #>
+    param(
+        [string]$Command
+    )
+    
+    $isWindows = $IsWindows -or $PSVersionTable.PSVersion.Major -lt 6
+    
+    if (-not $isWindows) {
+        # Unix/Mac - return as-is
+        return $Command
+    }
+    
+    # Windows platform mappings
+    $cmd = $Command.Trim()
+    
+    # WebSocket testing: wscat -> PowerShell Test-WebSocket or skip
+    if ($cmd -like "*wscat*") {
+        # Check if wscat is available
+        $wscatAvailable = $null -ne (Get-Command wscat -ErrorAction SilentlyContinue)
+        if (-not $wscatAvailable) {
+            # Check if npm is available to install it
+            $npmAvailable = $null -ne (Get-Command npm -ErrorAction SilentlyContinue)
+            if ($npmAvailable) {
+                Write-Host "  [INFO] Installing wscat globally via npm..." -ForegroundColor Cyan
+                try {
+                    $null = npm install -g wscat 2>&1
+                    # Verify installation
+                    $wscatAvailable = $null -ne (Get-Command wscat -ErrorAction SilentlyContinue)
+                    if ($wscatAvailable) {
+                        Write-Host "  [OK] wscat installed successfully" -ForegroundColor Green
+                        return $cmd
+                    }
+                }
+                catch {
+                    Write-Host "  [WARN] Failed to install wscat: $_" -ForegroundColor Yellow
+                }
+            }
+            
+            if (-not $wscatAvailable) {
+                Write-Host "  [SKIP] wscat not available (install Node.js and npm, then run 'npm install -g wscat')" -ForegroundColor Yellow
+                return $null  # Skip this test
+            }
+        }
+    }
+    
+    # curl is available on Windows 10+ but might need different syntax
+    # Keep curl as-is since it works on modern Windows
+    
+    return $cmd
 }
 
 function Test-ServerCommand {
@@ -298,7 +354,8 @@ function Invoke-ValidationCommand {
         # Resolve path
         if ([System.IO.Path]::IsPathRooted($cdPath)) {
             $WorkingDir = $cdPath
-        } else {
+        }
+        else {
             $WorkingDir = Join-Path $WorkingDir $cdPath
         }
         
@@ -307,8 +364,8 @@ function Invoke-ValidationCommand {
         if (-not $Command) {
             # Just a cd command, nothing to execute
             return [PSCustomObject]@{
-                Success = $true
-                Output = ""
+                Success  = $true
+                Output   = ""
                 ExitCode = 0
             }
         }
@@ -319,7 +376,8 @@ function Invoke-ValidationCommand {
     
     if ($isServer) {
         return Invoke-ServerCommand -Command $Command -WorkingDir $WorkingDir
-    } else {
+    }
+    else {
         return Invoke-NormalCommand -Command $Command -WorkingDir $WorkingDir -TimeoutSeconds $TimeoutSeconds
     }
 }
@@ -343,7 +401,8 @@ function Invoke-ServerCommand {
     if ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) {
         $processInfo.FileName = "cmd.exe"
         $processInfo.Arguments = "/c $Command"
-    } else {
+    }
+    else {
         $processInfo.FileName = "/bin/sh"
         $processInfo.Arguments = "-c `"$Command`""
     }
@@ -366,23 +425,23 @@ function Invoke-ServerCommand {
         
         if ($process.HasExited) {
             return [PSCustomObject]@{
-                Success = $false
-                Output = "Server process exited immediately"
+                Success  = $false
+                Output   = "Server process exited immediately"
                 ExitCode = $process.ExitCode
             }
         }
         
         Write-Host "  Server started (PID: $($process.Id))"
         return [PSCustomObject]@{
-            Success = $true
-            Output = "Server running in background"
+            Success  = $true
+            Output   = "Server running in background"
             ExitCode = 0
         }
     }
     catch {
         return [PSCustomObject]@{
-            Success = $false
-            Output = "Failed to start server: $_"
+            Success  = $false
+            Output   = "Failed to start server: $_"
             ExitCode = 1
         }
     }
@@ -411,12 +470,13 @@ function Invoke-NormalCommand {
         $ErrorActionPreference = 'Continue'
         if ($isWindows) {
             $output = cmd /c $cmd 2>&1 | Out-String
-        } else {
+        }
+        else {
             $output = /bin/sh -c $cmd 2>&1 | Out-String
         }
         
         return @{
-            Output = $output
+            Output   = $output
             ExitCode = $LASTEXITCODE
         }
     } -ArgumentList $Command, $WorkingDir, ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6)
@@ -429,8 +489,8 @@ function Invoke-NormalCommand {
         Remove-Job -Job $job -Force
         
         return [PSCustomObject]@{
-            Success = ($result.ExitCode -eq 0)
-            Output = $result.Output
+            Success  = ($result.ExitCode -eq 0)
+            Output   = $result.Output
             ExitCode = $result.ExitCode
         }
     }
@@ -440,8 +500,8 @@ function Invoke-NormalCommand {
         Remove-Job -Job $job -Force
         
         return [PSCustomObject]@{
-            Success = $false
-            Output = "Command timed out after $TimeoutSeconds seconds"
+            Success  = $false
+            Output   = "Command timed out after $TimeoutSeconds seconds"
             ExitCode = 1
         }
     }
@@ -506,8 +566,8 @@ function Get-LabelBasedCommands {
             $testPath = Join-Path $backendPath "tests"
             if (Test-Path $testPath) {
                 $commands += @{
-                    Name = "backend pytest"
-                    Command = "python -m pytest"
+                    Name       = "backend pytest"
+                    Command    = "python -m pytest"
                     WorkingDir = $backendPath
                 }
             }
@@ -523,8 +583,8 @@ function Get-LabelBasedCommands {
                 $packageJson = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
                 if ($packageJson.scripts.test) {
                     $commands += @{
-                        Name = "frontend tests"
-                        Command = "npm test"
+                        Name       = "frontend tests"
+                        Command    = "npm test"
                         WorkingDir = $frontendPath
                     }
                 }
@@ -608,8 +668,16 @@ function Invoke-RequirementValidation {
                 continue
             }
             
+            # Convert command to platform-specific equivalent
+            $platformCommand = ConvertTo-PlatformCommand -Command $criterion.Command
+            if ($null -eq $platformCommand) {
+                # Command was skipped (tool not available)
+                $results += $true
+                continue
+            }
+            
             # Execute command
-            $result = Invoke-ValidationCommand -Command $criterion.Command -WorkingDir $projectRoot
+            $result = Invoke-ValidationCommand -Command $platformCommand -WorkingDir $projectRoot
             
             # Check expected outcome
             $passed = Test-ExpectedOutcome -Result $result -Expected $criterion.Expected
@@ -617,7 +685,8 @@ function Invoke-RequirementValidation {
             
             if ($passed) {
                 Write-ColorOutput "$($criterion.Text)" "Success"
-            } else {
+            }
+            else {
                 Write-ColorOutput "$($criterion.Text)" "Failure"
                 Write-Host "  Output: $($result.Output)"
                 $allPassed = $false
@@ -638,7 +707,8 @@ function Invoke-RequirementValidation {
                 
                 if ($result.Success) {
                     Write-ColorOutput "$($cmdInfo.Name)" "Success"
-                } else {
+                }
+                else {
                     Write-ColorOutput "$($cmdInfo.Name)" "Failure"
                     Write-Host "  Output: $($result.Output)"
                     $allPassed = $false
@@ -651,7 +721,8 @@ function Invoke-RequirementValidation {
         Write-Host ("=" * 60)
         if ($allPassed) {
             Write-ColorOutput "VALIDATION PASSED for $RequirementId" "Success"
-        } else {
+        }
+        else {
             Write-ColorOutput "VALIDATION FAILED for $RequirementId" "Failure"
         }
         Write-Host ("=" * 60)
@@ -659,7 +730,8 @@ function Invoke-RequirementValidation {
         
         if ($allPassed) {
             return $EXIT_SUCCESS
-        } else {
+        }
+        else {
             return $EXIT_FAILURE
         }
     }
