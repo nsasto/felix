@@ -1,11 +1,21 @@
 {
-    "current_requirement_id":  "S-0022",
-    "last_run_id":  null,
-    "last_mode":  "building",
-    "last_iteration_outcome":  "complete",
-    "updated_at":  "2026-01-28T17:28:28.8755810+00:00",
-    "current_iteration":  5,
-    "status":  "complete",
-    "validation_retry_count":  0,
-    "blocked_task":  null
+    "current_requirement_id": "S-0021",
+    "last_run_id": null,
+    "last_mode": "building",
+    "last_iteration_outcome": "complete",
+    "updated_at": "2026-01-28T10:04:52.1016162+00:00",
+    "current_iteration": 4,
+    "status": "complete",
+    "validation_retry_count": 0,
+    "blocked_task": {
+        "iteration": 2,
+        "description": "Task 2.1 - Update `felixApi.ts` with new types and API method",
+        "retry_count": 1,
+        "max_retries": 3,
+        "blocked_at": "2026-01-28T09:50:43.7347668+00:00",
+        "reason": "validation_failed",
+        "failed_commands": [
+            "[test] powershell -File .\\scripts\\test-frontend.ps1 (exit: 1)"
+        ]
+    }
 }
