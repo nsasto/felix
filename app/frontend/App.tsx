@@ -59,30 +59,6 @@ const INITIAL_TASKS: Task[] = [
   },
 ];
 
-const INITIAL_ASSETS: MarkdownAsset[] = [
-  {
-    id: "a1",
-    name: "README.md",
-    content:
-      "# Project Felix\n\nFelix is a high-performance workspace orchestrator designed to bridge the gap between high-level project management and code execution.\n\n## Features\n- **AI Orchestration**: Built with Gemini 3 for deep reasoning.\n- **Kanban Board**: Real-time status tracking.\n- **Asset Management**: Integrated Markdown orchestration.\n\n```javascript\nconst felix = new Orchestrator();\nfelix.sync();\n```",
-    lastEdited: Date.now(),
-  },
-  {
-    id: "a2",
-    name: "ROADMAP.md",
-    content:
-      "# Product Roadmap\n\n### Current Milestone: Alpha\n- [x] Base architecture definition\n- [x] Initial UI styling system\n- [ ] Multi-document orchestration\n- [ ] Native audio feedback engine\n\n### Upcoming: Beta\n- [ ] Real-time collaborative sessions\n- [ ] Third-party plugin SDK",
-    lastEdited: Date.now(),
-  },
-  {
-    id: "a3",
-    name: "ARCH.md",
-    content:
-      '# Architecture Overview\n\n| Component | Responsibility | Tech |\n| :--- | :--- | :--- |\n| UI Layer | React / Tailwind | Frontend |\n| Reasoning | Gemini 3 Pro | Intelligence |\n| Storage | Cloud Sync | Data |\n\n> "Felix is not just a tool, it is a collaborator in the engineering process."',
-    lastEdited: Date.now(),
-  },
-];
-
 // Extended UI state to include projects, config, plan, settings, and orchestration views
 type ExtendedUIState =
   | UIState
@@ -94,15 +70,7 @@ type ExtendedUIState =
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
-  const [assets, setAssets] = useState<MarkdownAsset[]>(INITIAL_ASSETS);
   const [uiState, setUiState] = useState<ExtendedUIState>("projects"); // Start with projects view
-  const [selectedAssetId, setSelectedAssetId] = useState<string>(
-    INITIAL_ASSETS[0].id,
-  );
-  const [assetViewMode, setAssetViewMode] = useState<
-    "edit" | "preview" | "split"
-  >("split");
-  const [parsedHtml, setParsedHtml] = useState<string>("");
 
   // Project management state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -145,6 +113,28 @@ const App: React.FC = () => {
     }
   };
 
+  // Assets state for markdown editor
+  const [assets, setAssets] = useState<MarkdownAsset[]>([
+    {
+      id: "asset1",
+      name: "Project Overview",
+      content:
+        "# Project Overview\n\nThis is a sample markdown document for the assets view.",
+      lastEdited: Date.now(),
+    },
+    {
+      id: "asset2",
+      name: "Architecture",
+      content: "# Architecture\n\nDescribe your system architecture here.",
+      lastEdited: Date.now(),
+    },
+  ]);
+  const [selectedAssetId, setSelectedAssetId] = useState<string>("asset1");
+  const [assetViewMode, setAssetViewMode] = useState<
+    "edit" | "split" | "preview"
+  >("split");
+  const [parsedHtml, setParsedHtml] = useState<string>("");
+
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const activeAsset = useMemo(
     () => assets.find((a) => a.id === selectedAssetId) || assets[0],
@@ -157,7 +147,7 @@ const App: React.FC = () => {
     const parseMarkdown = async () => {
       try {
         // marked.parse can be sync or async depending on options; await handles both
-        const result = await marked.parse(activeAsset.content || "");
+        const result = await marked.parse(activeAsset?.content || "");
         if (isMounted) setParsedHtml(result);
       } catch (err) {
         console.error("Markdown rendering error:", err);
@@ -173,7 +163,7 @@ const App: React.FC = () => {
       isMounted = false;
       clearTimeout(timeout);
     };
-  }, [activeAsset.content]);
+  }, [activeAsset?.content]);
 
   const updateAssetContent = (id: string, newContent: string) => {
     setAssets((prev) =>
@@ -1226,26 +1216,6 @@ export const executeTask = (taskId: string) => {
             )}
           </button>
           <button
-            onClick={() => setUiState("canvas")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "canvas" ? "text-felix-400 shadow-md" : ""}`}
-            style={{
-              backgroundColor:
-                uiState === "canvas" ? "var(--bg-surface)" : "transparent",
-              color:
-                uiState === "canvas"
-                  ? "var(--accent-primary)"
-                  : "var(--text-muted)",
-              borderWidth: uiState === "canvas" ? "1px" : "0",
-              borderColor: "var(--border-muted)",
-            }}
-            title="Code Canvas"
-          >
-            <IconFileCode className="w-5 h-5" />
-            {uiState === "canvas" && (
-              <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
-            )}
-          </button>
-          <button
             onClick={() => setUiState("assets")}
             className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "assets" ? "text-felix-400 shadow-md" : ""}`}
             style={{
@@ -1391,17 +1361,15 @@ export const executeTask = (taskId: string) => {
                   ? "System Board"
                   : uiState === "orchestration"
                     ? "Agent Dashboard"
-                    : uiState === "canvas"
-                      ? "Orchestration Canvas"
-                      : uiState === "assets"
-                        ? "Specifications"
-                        : uiState === "config"
-                          ? "Configuration"
-                          : uiState === "plan"
-                            ? "Project README"
-                            : uiState === "settings"
-                              ? "Settings"
-                              : "Workspace Assets"}
+                    : uiState === "assets"
+                      ? "Specifications"
+                      : uiState === "config"
+                        ? "Configuration"
+                        : uiState === "plan"
+                          ? "Project README"
+                          : uiState === "settings"
+                            ? "Settings"
+                            : "Workspace Assets"}
             </h2>
             <div
               className="h-4 w-[1px] mx-2"
@@ -1485,8 +1453,6 @@ export const executeTask = (taskId: string) => {
               </button>
             </div>
           )
-        ) : uiState === "canvas" ? (
-          renderCanvas()
         ) : uiState === "assets" ? (
           selectedProjectId ? (
             <SpecsEditor
@@ -1561,7 +1527,20 @@ export const executeTask = (taskId: string) => {
             onBack={() => setUiState("projects")}
           />
         ) : (
-          renderAssets()
+          <div
+            className="flex-1 flex flex-col items-center justify-center text-center"
+            style={{ backgroundColor: "var(--bg-deepest)" }}
+          >
+            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Unknown view state
+            </span>
+            <button
+              onClick={() => setUiState("projects")}
+              className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+            >
+              Go to Projects
+            </button>
+          </div>
         )}
       </div>
 

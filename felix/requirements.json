@@ -306,6 +306,26 @@
             "depends_on": [],
             "updated_at": "2026-01-28",
             "last_run_id": "2026-01-28T09-57-16"
+        },
+        {
+            "id": "S-0023",
+            "title": "Live Polling Onoff",
+            "spec_path": "specs/S-0023-live-polling-onoff.md",
+            "status": "draft",
+            "priority": "medium",
+            "labels": [],
+            "depends_on": [],
+            "updated_at": "2026-01-28"
+        },
+        {
+            "id": "S-0024",
+            "title": "Sleeker Toolbar Buttons",
+            "spec_path": "specs/S-0024-sleeker-toolbar-buttons.md",
+            "status": "draft",
+            "priority": "medium",
+            "labels": [],
+            "depends_on": [],
+            "updated_at": "2026-01-28"
         }
     ]
 }
