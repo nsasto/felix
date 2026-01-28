@@ -51,10 +51,11 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
     ],
   };
 
-  // Mock runtime agents registry
+  // Mock runtime agents registry - keyed by agent ID (number), not name
   const mockRuntimeAgents = {
     agents: {
-      'felix-primary': {
+      0: {
+        agent_name: 'felix-primary',
         pid: 12345,
         hostname: 'localhost',
         status: 'active',
@@ -124,8 +125,10 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
       renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
 
       await waitFor(() => {
-        // test-agent has no runtime entry, should show "Ready to start" text
-        expect(screen.getByText('Ready to start')).toBeInTheDocument();
+        // test-agent (id: 1) has no runtime entry, should show "Ready to start" text
+        // Only one agent (test-agent) should show this since felix-primary has runtime entry
+        const readyElements = screen.getAllByText('Ready to start');
+        expect(readyElements.length).toBe(1);
       });
     });
   });
@@ -156,7 +159,9 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
 
       await waitFor(() => {
         // Should show the gray dot (⚫) for not-started status
-        expect(screen.getByTitle('Not Started')).toBeInTheDocument();
+        // Only test-agent (id: 1) should show this, so expect exactly one
+        const notStartedIcons = screen.getAllByTitle('Not Started');
+        expect(notStartedIcons.length).toBe(1);
       });
     });
 
@@ -165,7 +170,9 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
 
       await waitFor(() => {
         // Should show the green dot (🟢) for active status
-        expect(screen.getByTitle('Active')).toBeInTheDocument();
+        // Only felix-primary (id: 0) should show this, so expect exactly one
+        const activeIcons = screen.getAllByTitle('Active');
+        expect(activeIcons.length).toBe(1);
       });
     });
   });

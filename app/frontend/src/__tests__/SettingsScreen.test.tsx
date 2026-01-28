@@ -170,9 +170,10 @@ describe("SettingsScreen", () => {
 
       await waitFor(() => {
         expect(screen.getByText("General")).toBeInTheDocument();
-        expect(screen.getByText("Agent")).toBeInTheDocument();
         expect(screen.getByText("Paths")).toBeInTheDocument();
+        expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
         expect(screen.getByText("Advanced")).toBeInTheDocument();
+        expect(screen.getByText("Agents")).toBeInTheDocument();
       });
     });
 
@@ -314,49 +315,9 @@ describe("SettingsScreen", () => {
     });
   });
 
-  describe("Agent Settings", () => {
-    it("displays agent executable path", async () => {
-      vi.mocked(felixApi.getConfig).mockResolvedValue(
-        mockConfigResponse(createMockConfig()),
-      );
-
-      renderWithTheme(
-        <SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />,
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText("General")).toBeInTheDocument();
-      });
-
-      const agentButtons = screen.getAllByText("Agent");
-      fireEvent.click(agentButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByDisplayValue("droid")).toBeInTheDocument();
-      });
-    });
-
-    it("displays agent arguments", async () => {
-      vi.mocked(felixApi.getConfig).mockResolvedValue(
-        mockConfigResponse(createMockConfig()),
-      );
-
-      renderWithTheme(
-        <SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />,
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText("General")).toBeInTheDocument();
-      });
-
-      const agentButtons = screen.getAllByText("Agent");
-      fireEvent.click(agentButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByDisplayValue("exec --")).toBeInTheDocument();
-      });
-    });
-  });
+  // Note: The old "Agent" category was removed. Agent configuration is now done through
+  // the "Agents" category which manages agent configurations globally.
+  // See "Agent Configuration Settings (S-0020)" tests below for the new agent management tests.
 
   describe("Paths Settings (Read-Only)", () => {
     it("displays paths as read-only values", async () => {
@@ -991,31 +952,16 @@ describe("SettingsScreen", () => {
 
         await waitFor(() => {
           expect(screen.getByText("General")).toBeInTheDocument();
-          expect(screen.getByText("Agent")).toBeInTheDocument();
           expect(screen.getByText("Paths")).toBeInTheDocument();
+          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
           expect(screen.getByText("Advanced")).toBeInTheDocument();
+          expect(screen.getByText("Agents")).toBeInTheDocument();
         });
       });
 
-      it("can navigate to Agent settings without projectId", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("General Settings")).toBeInTheDocument();
-        });
-
-        const agentButtons = screen.getAllByText("Agent");
-        fireEvent.click(agentButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agent Settings")).toBeInTheDocument();
-          expect(screen.getByDisplayValue("droid")).toBeInTheDocument();
-        });
-      });
+      // Note: The old "Agent" (singular) category was removed. Agent configuration is now done through
+      // the "Agents" category which manages agent configurations globally.
+      // See "Agent Configuration Settings (S-0020)" tests for the new agent management tests.
 
       it("can navigate to Advanced settings without projectId", async () => {
         vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
@@ -1393,9 +1339,15 @@ describe("SettingsScreen", () => {
         fireEvent.click(copilotButtons[0]);
 
         await waitFor(() => {
-          // The component shows "API Key" as the label
+          // The component shows "API Key" as the label for the API key section
           expect(screen.getByText("API Key")).toBeInTheDocument();
-          expect(screen.getByText(/FELIX_COPILOT_API_KEY/)).toBeInTheDocument();
+        });
+
+        // Also verify the API key input instructions text is visible
+        // Note: The .env reference only appears in a warning message when connection test fails,
+        // so we check for the "Enter API Key" or "Update API Key" label instead
+        await waitFor(() => {
+          expect(screen.getByText("Enter API Key")).toBeInTheDocument();
         });
       });
 
@@ -1730,10 +1682,21 @@ describe("SettingsScreen", () => {
           fireEvent.click(agentsButton);
         }
 
+        // First wait for agent configurations to be fetched
         await waitFor(() => {
-          // Executable info should be visible
-          expect(screen.getByText(/droid/i)).toBeInTheDocument();
-          expect(screen.getByText(/claude/i)).toBeInTheDocument();
+          expect(felixApi.getAgentConfigurations).toHaveBeenCalled();
+        });
+
+        // Then wait for agent names to appear
+        await waitFor(() => {
+          expect(screen.getByText("felix-primary")).toBeInTheDocument();
+        });
+
+        // Finally check executables are visible
+        await waitFor(() => {
+          // Executable info should be visible in code elements
+          expect(screen.getByText("droid")).toBeInTheDocument();
+          expect(screen.getByText("claude")).toBeInTheDocument();
         });
       });
     });
@@ -1889,14 +1852,9 @@ describe("SettingsScreen", () => {
           fireEvent.change(executableInput, { target: { value: "new-exec" } });
         }
 
-        // Submit form - find Save button
-        const saveButtons = screen.getAllByText(/save/i);
-        const formSaveButton = saveButtons.find(
-          (btn) => btn.closest("button") && !btn.closest("button")?.disabled,
-        );
-        if (formSaveButton) {
-          fireEvent.click(formSaveButton);
-        }
+        // Submit form - find Create Agent button
+        const createButton = screen.getByText("Create Agent");
+        fireEvent.click(createButton);
 
         await waitFor(() => {
           expect(felixApi.createAgentConfiguration).toHaveBeenCalled();
@@ -1982,15 +1940,9 @@ describe("SettingsScreen", () => {
           fireEvent.change(nameInput, { target: { value: "updated-name" } });
         }
 
-        // Submit form
-        const saveButtons = screen.getAllByText(/save/i);
-        const formSaveButton = saveButtons.find((btn) => {
-          const button = btn.closest("button");
-          return button && !button.disabled;
-        });
-        if (formSaveButton) {
-          fireEvent.click(formSaveButton);
-        }
+        // Submit form - find Update Agent button (when editing)
+        const updateButton = screen.getByText("Update Agent");
+        fireEvent.click(updateButton);
 
         await waitFor(() => {
           expect(felixApi.updateAgentConfiguration).toHaveBeenCalled();
@@ -2072,6 +2024,13 @@ describe("SettingsScreen", () => {
         if (enabledDeleteButton) {
           fireEvent.click(enabledDeleteButton);
         }
+
+        // Wait for confirmation dialog and click Confirm Delete
+        await waitFor(() => {
+          expect(screen.getByText("Confirm Delete")).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByText("Confirm Delete"));
 
         await waitFor(() => {
           expect(felixApi.deleteAgentConfiguration).toHaveBeenCalled();

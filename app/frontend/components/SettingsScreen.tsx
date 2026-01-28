@@ -2144,7 +2144,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Copilot API key state (stored in localStorage)
   const [copilotApiKeyInput, setCopilotApiKeyInput] = useState<string>("");
-  const [copilotApiKeyHasValue, setCopilotApiKeyHasValue] = useState<boolean>(false);
+  const [copilotApiKeyHasValue, setCopilotApiKeyHasValue] =
+    useState<boolean>(false);
   const [copilotApiKeySaving, setCopilotApiKeySaving] = useState(false);
   const [copilotApiKeySaved, setCopilotApiKeySaved] = useState(false);
 
@@ -2407,6 +2408,53 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </p>
         </div>
 
+        {/* Info about BYOK */}
+        <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <svg
+              className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <p className="text-xs text-[var(--status-info)]/80">
+              <strong>Bring Your Own Key (BYOK):</strong> Felix{" "}
+              <strong>never</strong> stores your API remotely, or manages your
+              API billing. Your API key stays in your local storage and is used
+              only for direct API calls.{" "}
+              <span className="text-[11px] theme-text-muted">
+                {provider === "openai" && (
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--accent-primary)] hover:underline"
+                  >
+                    Get your OpenAI API key here →
+                  </a>
+                )}
+                {provider === "anthropic" && (
+                  <a
+                    href="https://console.anthropic.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--accent-primary)] hover:underline"
+                  >
+                    Get your Anthropic API key here →
+                  </a>
+                )}
+              </span>
+            </p>
+          </div>
+        </div>
+
         {/* API Key Configuration */}
         <div
           className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? "opacity-50" : ""}`}
@@ -2414,7 +2462,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <label className="block text-sm font-bold theme-text-secondary mb-3">
             API Key
           </label>
-          
+
           {/* API Key Status */}
           {copilotApiKeyHasValue && (
             <div className="flex items-center gap-2 mb-4 p-3 bg-[var(--status-success)]/10 border border-[var(--status-success)]/20 rounded-lg">
@@ -2456,7 +2504,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   value={copilotApiKeyInput}
                   onChange={(e) => setCopilotApiKeyInput(e.target.value)}
                   disabled={!isEnabled}
-                  placeholder={copilotApiKeyHasValue ? "••••••••••••••••" : "sk-proj-..."}
+                  placeholder={
+                    copilotApiKeyHasValue ? "••••••••••••••••" : "sk-proj-..."
+                  }
                   className={`flex-1 theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all ${
                     isEnabled
                       ? "focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
@@ -2465,9 +2515,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 />
                 <button
                   onClick={handleSaveCopilotApiKey}
-                  disabled={!isEnabled || !copilotApiKeyInput.trim() || copilotApiKeySaving}
+                  disabled={
+                    !isEnabled ||
+                    !copilotApiKeyInput.trim() ||
+                    copilotApiKeySaving
+                  }
                   className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                    isEnabled && copilotApiKeyInput.trim() && !copilotApiKeySaving
+                    isEnabled &&
+                    copilotApiKeyInput.trim() &&
+                    !copilotApiKeySaving
                       ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
                       : "theme-bg-surface theme-text-muted cursor-not-allowed"
                   }`}
@@ -2483,7 +2539,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </button>
               </div>
               <p className="mt-1.5 text-[10px] theme-text-muted">
-                Your API key is stored in your browser's localStorage (not sent to any server)
+                Your API key is stored in your browser's localStorage (not sent
+                to any server)
               </p>
             </div>
 
@@ -2512,7 +2569,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <div className="flex items-center gap-3 mb-4">
             <button
               onClick={handleTestCopilotConnection}
-              disabled={!isEnabled || copilotTestLoading || !copilotApiKeyHasValue}
+              disabled={
+                !isEnabled || copilotTestLoading || !copilotApiKeyHasValue
+              }
               className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
                 isEnabled && !copilotTestLoading && copilotApiKeyHasValue
                   ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
@@ -2550,39 +2609,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             )}
           </div>
 
-          {/* Fallback info for local development */}
-          <div className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4 mb-4">
-            <p className="text-xs theme-text-tertiary mb-2">
-              <strong>Local Development Fallback:</strong> If no browser API key is set, the backend will check for{" "}
-              <code className="bg-[var(--hover-bg)] px-1.5 py-0.5 rounded font-mono">
-                FELIX_COPILOT_API_KEY
-              </code>{" "}
-              in your .env file.
-            </p>
-          </div>
-
-          <p className="text-[11px] theme-text-muted">
-            {provider === "openai" && (
-              <a
-                href="https://platform.openai.com/api-keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--accent-primary)] hover:underline"
-              >
-                Get OpenAI API key →
-              </a>
-            )}
-            {provider === "anthropic" && (
-              <a
-                href="https://console.anthropic.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--accent-primary)] hover:underline"
-              >
-                Get Anthropic API key →
-              </a>
-            )}
-          </p>
+          {/* Fallback info for local development If no browser API key is set, the backend will check for .env*/}
         </div>
 
         {/* Model Selection */}
@@ -2797,30 +2824,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
             </div>
           )}
-
-        {/* Info about BYOK */}
-        <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <svg
-              className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <p className="text-xs text-[var(--status-info)]/80">
-              <strong>Bring Your Own Key (BYOK):</strong> Felix never stores,
-              transmits, or manages API billing. Your API key stays in your
-              local .env file and is used only for direct API calls.
-            </p>
-          </div>
-        </div>
       </div>
     );
   };
