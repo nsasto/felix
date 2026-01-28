@@ -211,7 +211,7 @@
                              "id":  "S-0014",
                              "title":  "Agent Orchestration Dashboard",
                              "spec_path":  "specs/S-0014-agent-orchestration-dashboard.md",
-                             "status":  "complete",
+                             "status":  "blocked",
                              "priority":  "medium",
                              "labels":  [
 
@@ -219,8 +219,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-28",
-                             "last_run_id":  "2026-01-28T11-36-18"
+                             "updated_at":  "2026-01-28"
                          },
                          {
                              "id":  "S-0015",
@@ -324,7 +323,7 @@
                              "id":  "S-0021",
                              "title":  "Agent Orchestration Enhancement",
                              "spec_path":  "specs/S-0021-agent-orchestration-enhancement.md",
-                             "status":  "complete",
+                             "status":  "in_progress",
                              "priority":  "medium",
                              "labels":  [
 
@@ -332,7 +331,8 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-01-28"
+                             "updated_at":  "2026-01-28",
+                             "last_run_id":  "2026-01-28T14-59-36"
                          }
                      ]
 }
