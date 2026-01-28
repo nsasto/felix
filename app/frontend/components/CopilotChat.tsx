@@ -477,6 +477,55 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
     setIsOpen(false);
   }, []);
 
+  /**
+   * Handle quick draft action - prompts user to describe what spec to draft.
+   */
+  const handleQuickDraft = useCallback(() => {
+    setInputValue('Draft a spec for: ');
+    // Focus will be handled by the panel's auto-focus
+  }, []);
+
+  /**
+   * Handle help command - shows available commands and features.
+   */
+  const handleHelpCommand = useCallback(() => {
+    const helpMessage: ChatMessage = {
+      id: generateMessageId(),
+      role: 'assistant',
+      content: `## Available Commands
+
+**Quick Actions:**
+- **✨ Draft Spec** - Click to start drafting a new specification
+- **❓ Help** - Show this help message
+
+**Text Commands:**
+- Type \`/draft <description>\` to quickly draft a spec
+- Type \`/help\` to show this help message
+
+**Features:**
+- **Spec Generation** - Ask me to draft specifications following your project conventions
+- **Context Awareness** - I know your project structure from AGENTS.md, LEARNINGS.md, and other specs
+- **Insert to Editor** - Click "Insert Spec" on generated specs to add them to the editor
+- **Multi-turn Chat** - I remember our conversation context for follow-up questions
+
+**Tips:**
+- Be specific about what you need (e.g., "Draft a spec for user authentication with OAuth")
+- Ask me to add sections like validation criteria or technical notes
+- I can help review and improve existing specs`,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, helpMessage]);
+  }, [generateMessageId]);
+
+  /**
+   * Handle inserting spec content into the editor.
+   */
+  const handleInsertSpec = useCallback((content: string) => {
+    if (onInsertSpec) {
+      onInsertSpec(content);
+    }
+  }, [onInsertSpec]);
+
   return (
     <>
       {/* Floating Chat Button */}
@@ -499,6 +548,9 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
         onCancelStream={handleCancelStream}
         onClearHistory={handleClearHistory}
         contextSourceCount={contextSourceCount}
+        onInsertSpec={handleInsertSpec}
+        onQuickDraft={handleQuickDraft}
+        onHelpCommand={handleHelpCommand}
       />
     </>
   );
