@@ -7,7 +7,7 @@ Write-Host ""
 
 # Start Backend in new terminal
 Write-Host "Starting Backend (http://localhost:8080)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\app\backend'; python main.py"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\app\backend'; if (Test-Path .venv\Scripts\Activate.ps1) { & .\.venv\Scripts\Activate.ps1 }; python main.py"
 
 # Wait a moment for backend to start
 Start-Sleep -Seconds 3
