@@ -230,6 +230,56 @@ export interface CopilotStatus {
   model: string | null;
 }
 
+// --- Agent Configuration Types (for S-0020: Consolidate Agent Settings) ---
+
+/**
+ * Agent configuration entry representing a saved agent preset.
+ * Different from AgentEntry which represents a running/registered agent instance.
+ */
+export interface AgentConfiguration {
+  id: number;
+  name: string;
+  executable: string;
+  args: string[];
+  working_directory: string;
+  environment: Record<string, string>;
+}
+
+export interface AgentConfigurationCreate {
+  name: string;
+  executable?: string;
+  args?: string[];
+  working_directory?: string;
+  environment?: Record<string, string>;
+}
+
+export interface AgentConfigurationUpdate {
+  name?: string;
+  executable?: string;
+  args?: string[];
+  working_directory?: string;
+  environment?: Record<string, string>;
+}
+
+export interface AgentConfigurationsResponse {
+  agents: AgentConfiguration[];
+  active_agent_id: number;
+}
+
+export interface AgentConfigurationResponse {
+  agent: AgentConfiguration;
+  message: string;
+}
+
+export interface SetActiveAgentRequest {
+  agent_id: number;
+}
+
+export interface SetActiveAgentResponse {
+  agent_id: number;
+  message: string;
+}
+
 // --- Copilot Chat Types (for S-0017: Felix Copilot Chat Assistant) ---
 
 export type AvatarState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
@@ -643,6 +693,76 @@ class FelixApiService {
         abortController = null;
       },
     };
+  }
+
+  // --- Agent Configuration Endpoints (for S-0020: Consolidate Agent Settings) ---
+
+  /**
+   * Get all agent configurations from agents.json.
+   * Returns the list of agent configurations along with the currently active agent ID.
+   */
+  async getAgentConfigurations(): Promise<AgentConfigurationsResponse> {
+    return this.request<AgentConfigurationsResponse>('/agent-configs');
+  }
+
+  /**
+   * Get a specific agent configuration by ID.
+   */
+  async getAgentConfiguration(agentId: number): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>(`/agent-configs/${agentId}`);
+  }
+
+  /**
+   * Create a new agent configuration.
+   * Automatically assigns the next available ID.
+   */
+  async createAgentConfiguration(config: AgentConfigurationCreate): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>('/agent-configs', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * Update an existing agent configuration.
+   * All fields are optional - only provided fields are updated.
+   */
+  async updateAgentConfiguration(agentId: number, config: AgentConfigurationUpdate): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>(`/agent-configs/${agentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * Delete an agent configuration.
+   * Agent ID 0 (system default) cannot be deleted.
+   * If deleting the currently active agent, switches to agent ID 0.
+   */
+  async deleteAgentConfiguration(agentId: number): Promise<{ status: string; agent_id: number; message: string }> {
+    return this.request<{ status: string; agent_id: number; message: string }>(`/agent-configs/${agentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Set the active agent by ID.
+   * Updates config.json to use the specified agent_id.
+   */
+  async setActiveAgent(agentId: number): Promise<SetActiveAgentResponse> {
+    return this.request<SetActiveAgentResponse>('/agent-configs/active', {
+      method: 'POST',
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+  }
+
+  /**
+   * Get the currently active agent configuration.
+   * Returns the full agent config for the active agent ID.
+   * Falls back to ID 0 if the active ID is invalid.
+   */
+  async getActiveAgentConfiguration(): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>('/agent-configs/active/current');
   }
 
   // --- Health Check ---
