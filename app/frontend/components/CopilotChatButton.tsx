@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { felixApi, CopilotConfig } from '../services/felixApi';
+import React, { useEffect, useState } from "react";
+import { felixApi, CopilotConfig } from "../services/felixApi";
 
 interface CopilotChatButtonProps {
   /** Whether the chat panel is currently open */
@@ -30,10 +30,19 @@ const CopilotChatButton: React.FC<CopilotChatButtonProps> = ({
     const checkCopilotEnabled = async () => {
       try {
         const result = await felixApi.getGlobalConfig();
-        const copilotConfig = result.config.copilot as CopilotConfig | undefined;
-        setIsEnabled(copilotConfig?.enabled ?? false);
+        const copilotConfig = result.config.copilot as
+          | CopilotConfig
+          | undefined;
+        const enabled = copilotConfig?.enabled ?? false;
+        console.log(
+          "[CopilotChatButton] Copilot enabled:",
+          enabled,
+          "Config:",
+          copilotConfig,
+        );
+        setIsEnabled(enabled);
       } catch (error) {
-        console.error('Failed to check copilot status:', error);
+        console.error("Failed to check copilot status:", error);
         setIsEnabled(false);
       } finally {
         setIsLoading(false);
@@ -42,6 +51,13 @@ const CopilotChatButton: React.FC<CopilotChatButtonProps> = ({
 
     checkCopilotEnabled();
   }, []);
+
+  console.log(
+    "[CopilotChatButton] Render state - isLoading:",
+    isLoading,
+    "isEnabled:",
+    isEnabled,
+  );
 
   // Don't render if copilot is not enabled or still loading
   if (isLoading || !isEnabled) {
@@ -52,22 +68,24 @@ const CopilotChatButton: React.FC<CopilotChatButtonProps> = ({
     <button
       onClick={onClick}
       className={`
-        fixed bottom-4 right-4 z-50
+        fixed bottom-12 right-4 z-50
         w-14 h-14 rounded-full
         bg-gradient-to-br from-felix-500 to-felix-600
         text-white shadow-lg
         hover:scale-105 transition-all duration-200
         flex items-center justify-center
         focus:outline-none focus:ring-2 focus:ring-felix-500/50 focus:ring-offset-2 focus:ring-offset-transparent
-        ${isOpen ? 'scale-95 shadow-md' : 'hover:shadow-xl'}
+        ${isOpen ? "scale-95 shadow-md" : "hover:shadow-xl"}
       `}
-      aria-label={isOpen ? 'Close Felix Copilot chat' : 'Open Felix Copilot chat'}
-      title={isOpen ? 'Close chat' : 'Chat with Felix Copilot'}
+      aria-label={
+        isOpen ? "Close Felix Copilot chat" : "Open Felix Copilot chat"
+      }
+      title={isOpen ? "Close chat" : "Chat with Felix Copilot"}
     >
       {/* Sparkle emoji with pulse animation */}
-      <span 
-        className={`text-2xl ${!isOpen ? 'animate-pulse' : ''}`}
-        role="img" 
+      <span
+        className={`text-2xl ${!isOpen ? "animate-pulse" : ""}`}
+        role="img"
         aria-hidden="true"
       >
         ✨
@@ -88,7 +106,7 @@ const CopilotChatButton: React.FC<CopilotChatButtonProps> = ({
           "
           aria-label={`${unreadCount} unread messages`}
         >
-          {unreadCount > 99 ? '99+' : unreadCount}
+          {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       )}
 
