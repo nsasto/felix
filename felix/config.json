@@ -28,9 +28,13 @@
   },
   "plugins": {
     "enabled": true,
-    "discovery_path": "felix/plugins",
+    "discovery_path": "felix/plugins", 
     "api_version": "v1",
-    "disabled": [],
+    "disabled": [
+      "prompt-enhancer",
+      "metrics-collector", 
+      "slack-notifier"
+    ],
     "state_retention_days": 7,
     "circuit_breaker_max_failures": 3,
     "commands": []
