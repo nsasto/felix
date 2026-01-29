@@ -113,6 +113,48 @@ class AgentConfigsListResponse(BaseModel):
     agents: List[AgentConfigEntry]
 
 
+# --- Workflow Configuration Models (for S-0030: Agent Workflow Visualization) ---
+
+class WorkflowStage(BaseModel):
+    """A single workflow stage definition"""
+    id: str = Field(..., description="Unique stage identifier")
+    name: str = Field(..., description="Short display name")
+    icon: str = Field(..., description="Icon name for the stage")
+    description: str = Field(..., description="Full description of what this stage does")
+    order: int = Field(..., description="Order in the workflow sequence")
+    conditional: Optional[str] = Field(None, description="Condition when this stage applies (e.g., 'planning_mode')")
+
+
+class WorkflowConfigResponse(BaseModel):
+    """Response containing workflow configuration"""
+    version: str = Field(..., description="Workflow config version")
+    layout: str = Field(default="horizontal", description="Layout direction: horizontal or vertical")
+    stages: List[WorkflowStage] = Field(..., description="List of workflow stages in order")
+
+
+# Default workflow configuration (fallback when felix/workflow.json is missing or invalid)
+DEFAULT_WORKFLOW_CONFIG = WorkflowConfigResponse(
+    version="1.0",
+    layout="horizontal",
+    stages=[
+        WorkflowStage(id="select_requirement", name="Select Req", icon="target", description="Select next planned requirement", order=1),
+        WorkflowStage(id="start_iteration", name="Start", icon="play", description="Begin new agent iteration", order=2),
+        WorkflowStage(id="determine_mode", name="Mode", icon="git-branch", description="Determine planning vs building mode", order=3),
+        WorkflowStage(id="gather_context", name="Context", icon="folder", description="Load specs, requirements, git state", order=4),
+        WorkflowStage(id="build_prompt", name="Prompt", icon="file-text", description="Construct full prompt with context", order=5),
+        WorkflowStage(id="execute_llm", name="LLM", icon="cpu", description="Execute droid with prompt", order=6),
+        WorkflowStage(id="process_output", name="Output", icon="file-code", description="Parse and process LLM response", order=7),
+        WorkflowStage(id="check_guardrails", name="Guardrails", icon="shield", description="Planning mode safety checks", order=8, conditional="planning_mode"),
+        WorkflowStage(id="detect_task", name="Task Check", icon="check-square", description="Check for task completion signal", order=9),
+        WorkflowStage(id="run_backpressure", name="Tests", icon="flask", description="Run validation tests/build/lint", order=10),
+        WorkflowStage(id="commit_changes", name="Commit", icon="git-commit", description="Git add and commit changes", order=11),
+        WorkflowStage(id="validate_requirement", name="Validate", icon="check-circle", description="Run requirement validation", order=12),
+        WorkflowStage(id="update_status", name="Status", icon="bar-chart", description="Update requirement status", order=13),
+        WorkflowStage(id="iteration_complete", name="Done", icon="flag", description="Iteration complete, check continue", order=14),
+    ]
+)
+
+
 # --- Agent Registry File Operations ---
 
 def get_agents_file_path() -> Path:
@@ -427,6 +469,77 @@ async def get_agents_config():
             )
         ]
         return AgentConfigsListResponse(agents=default_agents)
+
+
+@router.get("/workflow-config", response_model=WorkflowConfigResponse)
+async def get_workflow_config(project_id: Optional[str] = None):
+    """
+    Get workflow configuration for the agent workflow visualization.
+    
+    Loads felix/workflow.json from the project directory to define the workflow
+    stages displayed in the Agent Workflow Visualization panel.
+    
+    Args:
+        project_id: Optional project ID. If provided, loads workflow.json from that project.
+                   If not provided, uses the first registered project.
+    
+    Returns:
+        WorkflowConfigResponse with version, layout, and stages array
+    
+    Falls back to DEFAULT_WORKFLOW_CONFIG if:
+    - No projects are registered
+    - Project not found
+    - workflow.json is missing or invalid
+    """
+    # Get project path
+    project_path: Optional[Path] = None
+    
+    if project_id:
+        # Load specific project
+        project = storage.get_project_by_id(project_id)
+        if project:
+            project_path = Path(project.path)
+    else:
+        # Use first registered project
+        projects = storage.get_all_projects()
+        if projects:
+            project_path = Path(projects[0].path)
+    
+    if not project_path:
+        # No project available, return default
+        return DEFAULT_WORKFLOW_CONFIG
+    
+    # Try to load workflow.json from project
+    workflow_file = project_path / "felix" / "workflow.json"
+    
+    if not workflow_file.exists():
+        # File doesn't exist, return default
+        return DEFAULT_WORKFLOW_CONFIG
+    
+    try:
+        data = json.loads(workflow_file.read_text(encoding='utf-8'))
+        
+        # Validate required fields
+        version = data.get("version", "1.0")
+        layout = data.get("layout", "horizontal")
+        stages_data = data.get("stages", [])
+        
+        if not stages_data:
+            # No stages defined, return default
+            return DEFAULT_WORKFLOW_CONFIG
+        
+        # Convert to WorkflowStage objects
+        stages = [WorkflowStage(**stage) for stage in stages_data]
+        
+        return WorkflowConfigResponse(
+            version=version,
+            layout=layout,
+            stages=stages
+        )
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        # Parse error, return default
+        print(f"Warning: Failed to parse workflow.json: {e}")
+        return DEFAULT_WORKFLOW_CONFIG
 
 
 @router.post("/{agent_id}/stop", response_model=AgentStopResponse)
