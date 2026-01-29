@@ -575,7 +575,8 @@ function Invoke-BackpressureValidation {
     }
     
     Write-Host ""
-    Write-Host "[BACKPRESSURE] Running validation commands..."
+    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
+    Write-Host "Running validation commands..."
     Write-Host ""
     
     $allOutput = @()
