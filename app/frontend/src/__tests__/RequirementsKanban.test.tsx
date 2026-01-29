@@ -500,3 +500,179 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
     });
   });
 });
+
+describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
+  const mockProjectId = 'test-project';
+
+  // Mock requirements with one in Done status to verify column visibility
+  const mockRequirementsWithDone: Requirement[] = [
+    {
+      id: 'S-0001',
+      title: 'Test Requirement 1',
+      spec_path: 'specs/S-0001.md',
+      status: 'planned',
+      priority: 'high',
+      labels: ['frontend'],
+      depends_on: [],
+      updated_at: '2026-01-15',
+    },
+    {
+      id: 'S-0002',
+      title: 'Test Requirement 2',
+      spec_path: 'specs/S-0002.md',
+      status: 'done',
+      priority: 'medium',
+      labels: [],
+      depends_on: [],
+      updated_at: '2026-01-20',
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(COMPACT_VIEW_STORAGE_KEY);
+    
+    vi.mocked(felixApi.getRequirements).mockResolvedValue({
+      requirements: mockRequirementsWithDone,
+    });
+    vi.mocked(felixApi.updateRequirements).mockResolvedValue(undefined);
+    vi.mocked(felixApi.getRequirementStatus).mockResolvedValue({
+      id: 'S-0001',
+      status: 'planned',
+      title: 'Test Requirement 1',
+      has_plan: false,
+      plan_path: null,
+      plan_modified_at: null,
+      spec_modified_at: null,
+    });
+  });
+
+  afterEach(() => {
+    localStorage.removeItem(COMPACT_VIEW_STORAGE_KEY);
+  });
+
+  describe('Done Dropzone Visibility', () => {
+    it('shows Done dropzone in StickyDropZones when showDone is false and dragging', async () => {
+      renderWithTheme(<RequirementsKanban projectId={mockProjectId} />);
+
+      // Wait for requirements to load
+      await waitFor(() => {
+        expect(screen.getByText('S-0001')).toBeInTheDocument();
+      });
+
+      // Verify showDone checkbox is unchecked (default)
+      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      expect(showDoneCheckbox).not.toBeChecked();
+
+      // Start dragging the planned requirement card
+      const cardId = screen.getByText('S-0001');
+      const card = cardId.closest('.kanban-card');
+      expect(card).toBeInTheDocument();
+
+      // Start drag
+      fireEvent.dragStart(card!, {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn(),
+        },
+      });
+
+      // The StickyDropZones should appear and contain a Done dropzone
+      // Look for the sticky container with all column labels including Done
+      await waitFor(() => {
+        // The sticky zones should show Done column label regardless of showDone state
+        const stickyDoneLabels = screen.getAllByText('Done');
+        // Should have at least one Done label in the sticky dropzones
+        expect(stickyDoneLabels.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('main kanban Done column is hidden when showDone is false', async () => {
+      renderWithTheme(<RequirementsKanban projectId={mockProjectId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('S-0001')).toBeInTheDocument();
+      });
+
+      // Verify showDone is unchecked
+      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      expect(showDoneCheckbox).not.toBeChecked();
+
+      // Main kanban should NOT have Done column header (there are column headers with text matching labels)
+      // The kanban columns have headers with uppercase text like "DRAFT", "PLANNED", "DONE"
+      const kanbanContainer = document.querySelector('.overflow-x-auto');
+      expect(kanbanContainer).toBeInTheDocument();
+
+      // Check that Done column header does NOT exist in main kanban area
+      // Column headers are h3 elements with uppercase text
+      const columnHeaders = kanbanContainer!.querySelectorAll('h3');
+      const doneHeaders = Array.from(columnHeaders).filter(h => h.textContent?.toUpperCase() === 'DONE');
+      
+      // Should NOT have Done column in main kanban when showDone is false
+      expect(doneHeaders.length).toBe(0);
+    });
+
+    it('main kanban Done column is visible when showDone is true', async () => {
+      renderWithTheme(<RequirementsKanban projectId={mockProjectId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('S-0001')).toBeInTheDocument();
+      });
+
+      // Check the showDone checkbox
+      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      fireEvent.click(showDoneCheckbox);
+      expect(showDoneCheckbox).toBeChecked();
+
+      // Main kanban should now have Done column header
+      const kanbanContainer = document.querySelector('.overflow-x-auto');
+      expect(kanbanContainer).toBeInTheDocument();
+
+      // Check that Done column header EXISTS in main kanban area
+      const columnHeaders = kanbanContainer!.querySelectorAll('h3');
+      const doneHeaders = Array.from(columnHeaders).filter(h => h.textContent?.toUpperCase() === 'DONE');
+      
+      // Should have Done column in main kanban when showDone is true
+      expect(doneHeaders.length).toBe(1);
+    });
+
+    it('StickyDropZones shows all columns including Done regardless of showDone filter', async () => {
+      renderWithTheme(<RequirementsKanban projectId={mockProjectId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('S-0001')).toBeInTheDocument();
+      });
+
+      // Verify showDone is unchecked (Done column hidden in main kanban)
+      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      expect(showDoneCheckbox).not.toBeChecked();
+
+      // Start dragging a card
+      const cardId = screen.getByText('S-0001');
+      const card = cardId.closest('.kanban-card');
+      
+      fireEvent.dragStart(card!, {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn(),
+        },
+      });
+
+      // StickyDropZones should appear with all 6 columns: Draft, Planned, In Progress, Complete, Blocked, Done
+      await waitFor(() => {
+        // Check for presence of all column labels in sticky zones
+        // The fixed sticky container should show all columns
+        const fixedContainer = document.querySelector('.fixed');
+        expect(fixedContainer).toBeInTheDocument();
+
+        // All expected column labels should be present
+        expect(screen.getByText('Draft', { selector: '.fixed h3' })).toBeInTheDocument();
+        expect(screen.getByText('Planned', { selector: '.fixed h3' })).toBeInTheDocument();
+        expect(screen.getByText('In Progress', { selector: '.fixed h3' })).toBeInTheDocument();
+        expect(screen.getByText('Complete', { selector: '.fixed h3' })).toBeInTheDocument();
+        expect(screen.getByText('Blocked', { selector: '.fixed h3' })).toBeInTheDocument();
+        expect(screen.getByText('Done', { selector: '.fixed h3' })).toBeInTheDocument();
+      });
+    });
+  });
+});
