@@ -1,16 +1,27 @@
 # FelixTrayApp
 
-A modern .NET 8 WPF tray application with Fluent Design and Mica backdrop.
+A modern .NET 8 WPF tray application with Fluent Design and Mica backdrop for managing Felix agents.
 
 ## Features
 
 - System tray application with context menu
 - Modern Fluent UI with Mica/Acrylic backdrop
 - Rounded corners and custom window chrome
-- Left navigation panel
-- Transfer management with progress indicators
+- Left navigation panel (Agents, Logs, Settings)
+- Multi-agent management dashboard
 - Dark theme by default
 - High-DPI aware
+
+## Agent Management
+
+- View all configured agents in a modern DataGrid
+- Columns: Name, Status (Idle/Busy/Error), Last Run, Last Feature Name, Operations
+- Add new agents with the "Add Agent" button
+- Configure agent settings (Settings button per row)
+- Toggle agent active/inactive status
+- Remove agents with delete button
+- Search/filter agents by name or feature
+- Real-time status indicators with icons
 
 ## Build and Run
 

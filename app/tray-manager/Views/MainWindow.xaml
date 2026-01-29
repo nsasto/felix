@@ -47,9 +47,11 @@
 
                 <!-- Navigation Items -->
                 <StackPanel Grid.Row="1" Margin="0,20,0,0">
-                    <ui:NavigationViewItem Content="Phone Assistant" Icon="{ui:SymbolIcon Phone24}" 
+                    <ui:NavigationViewItem Content="Agents" Icon="{ui:SymbolIcon Computer24}" 
                                           Margin="8,2" IsActive="True" />
-                    <ui:NavigationViewItem Content="Bluetooth" Icon="{ui:SymbolIcon Bluetooth24}" 
+                    <ui:NavigationViewItem Content="Logs" Icon="{ui:SymbolIcon Document24}" 
+                                          Margin="8,2" />
+                    <ui:NavigationViewItem Content="Settings" Icon="{ui:SymbolIcon Settings24}" 
                                           Margin="8,2" />
                 </StackPanel>
 
@@ -57,7 +59,8 @@
                 <Border Grid.Row="2" Margin="12" Padding="12" Background="#20FFFFFF" CornerRadius="8">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Person24" FontSize="20" Foreground="White" />
-                        <TextBlock Text="Alireza" Margin="12,0,0,0" VerticalAlignment="Center" 
+                        <TextBlock Text="{Binding Path=(local:App.Current).User, FallbackValue='User'}" 
+                                   Margin="12,0,0,0" VerticalAlignment="Center" 
                                    Foreground="White" FontSize="14" />
                     </StackPanel>
                 </Border>
@@ -77,29 +80,23 @@
                     BorderThickness="0,0,0,1" Padding="20,12">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <!-- Primary Actions -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal">
-                        <ui:Button Content="Transfer" Icon="{ui:SymbolIcon ArrowDownload24}" 
-                                  Appearance="Primary" Command="{Binding TransferCommand}" Margin="0,0,8,0" />
-                        <ui:Button Content="Send to phone" Icon="{ui:SymbolIcon Send24}" 
-                                  Command="{Binding SendToPhoneCommand}" />
-                    </StackPanel>
+                    <!-- Title -->
+                    <TextBlock Grid.Column="0" Text="Felix Agent Manager" 
+                              FontSize="16" FontWeight="SemiBold" Foreground="White"
+                              VerticalAlignment="Center" />
 
-                    <!-- Device Selector and Controls -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <ComboBox Width="180" SelectedItem="{Binding SelectedDevice}" 
-                                  VerticalAlignment="Center" Margin="0,0,8,0">
-                            <ComboBoxItem Content="iPhone 13 Pro" IsSelected="True" />
-                            <ComboBoxItem Content="iPhone 14 Pro" />
-                            <ComboBoxItem Content="Samsung Galaxy" />
-                        </ComboBox>
-                        <ui:Button Icon="{ui:SymbolIcon ArrowDownload24}" Appearance="Secondary" Margin="0,0,8,0" />
-                        <ui:Button Icon="{ui:SymbolIcon Settings24}" Appearance="Secondary" />
+                    <!-- Controls -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <ui:Button Icon="{ui:SymbolIcon Document24}" 
+                                  ToolTip="View Logs"
+                                  Appearance="Secondary" Margin="0,0,8,0" />
+                        <ui:Button Icon="{ui:SymbolIcon Settings24}" 
+                                  ToolTip="Settings"
+                                  Appearance="Secondary" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -112,19 +109,23 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <ui:TextBox Grid.Column="0" PlaceholderText="search transfer history" 
-                               Icon="{ui:SymbolIcon Search24}" MaxWidth="400" 
-                               HorizontalAlignment="Left"
-                               Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <ui:TextBox PlaceholderText="search agents" 
+                                   Icon="{ui:SymbolIcon Search24}" Width="300" 
+                                   Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" 
+                                   Margin="0,0,12,0" />
+                        <ui:Button Content="Add Agent" Icon="{ui:SymbolIcon Add24}" 
+                                  Appearance="Primary" Command="{Binding AddAgentCommand}" />
+                    </StackPanel>
 
                     <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="#B0FFFFFF">
-                        <Run Text="{Binding FilteredTransfers.Count, Mode=OneWay}" />
-                        <Run Text="file in total" />
+                        <Run Text="{Binding FilteredAgents.Count, Mode=OneWay}" />
+                        <Run Text="agent(s) configured" />
                     </TextBlock>
                 </Grid>
             </Border>
 
-            <!-- Transfer Table -->
+            <!-- Agents Table -->
             <Grid Grid.Row="2" Margin="20">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -132,12 +133,12 @@
                 </Grid.RowDefinitions>
 
                 <!-- Section Title -->
-                <TextBlock Grid.Row="0" Text="Transfer" FontSize="18" FontWeight="SemiBold" 
+                <TextBlock Grid.Row="0" Text="Agents" FontSize="18" FontWeight="SemiBold" 
                            Foreground="White" Margin="0,0,0,12" />
 
                 <!-- DataGrid -->
                 <DataGrid Grid.Row="1" 
-                          ItemsSource="{Binding FilteredTransfers}"
+                          ItemsSource="{Binding FilteredAgents}"
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
                           CanUserDeleteRows="False"
@@ -191,48 +192,77 @@
 
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-                        <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="100" />
-                        <DataGridTextColumn Header="Last modified" Width="150">
-                            <DataGridTextColumn.Binding>
-                                <Binding Path="LastModified" StringFormat="MMM d, yyyy" />
-                            </DataGridTextColumn.Binding>
-                        </DataGridTextColumn>
-
-                        <!-- Status Column with Progress Bar -->
-                        <DataGridTemplateColumn Header="Status" Width="200">
+                        
+                        <!-- Status Column with Icon -->
+                        <DataGridTemplateColumn Header="Status" Width="120">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Text="{Binding Status}" 
-                                                   Foreground="White" FontSize="12" />
-                                        <ProgressBar Grid.Row="1" Value="{Binding Progress}" 
-                                                     Maximum="100" Height="4" Margin="0,4,0,0"
-                                                     Foreground="#4CAF50" Background="#30FFFFFF" 
-                                                     BorderThickness="0" />
-                                    </Grid>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon FontSize="16" Margin="0,0,8,0">
+                                            <ui:SymbolIcon.Style>
+                                                <Style TargetType="ui:SymbolIcon">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Idle">
+                                                            <Setter Property="Symbol" Value="Circle24" />
+                                                            <Setter Property="Foreground" Value="#9E9E9E" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Busy">
+                                                            <Setter Property="Symbol" Value="ArrowSync24" />
+                                                            <Setter Property="Foreground" Value="#4CAF50" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Error">
+                                                            <Setter Property="Symbol" Value="ErrorCircle24" />
+                                                            <Setter Property="Foreground" Value="#F44336" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ui:SymbolIcon.Style>
+                                        </ui:SymbolIcon>
+                                        <TextBlock Text="{Binding Status}" Foreground="White" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <!-- Operation Column with Buttons -->
-                        <DataGridTemplateColumn Header="Operation" Width="120">
+                        <DataGridTextColumn Header="Last Run" Binding="{Binding LastRunFormatted}" Width="160" />
+                        <DataGridTextColumn Header="Last Feature Name" Binding="{Binding LastFeatureName}" Width="250" />
+
+                        <!-- Operations Column with Buttons -->
+                        <DataGridTemplateColumn Header="Operations" Width="200">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
-                                        <ui:Button Icon="{ui:SymbolIcon Copy24}" 
+                                        <ui:Button Icon="{ui:SymbolIcon Settings24}" 
                                                   Appearance="Secondary"
-                                                  ToolTip="Copy"
-                                                  Command="{Binding DataContext.CopyItemCommand, 
+                                                  ToolTip="Configure Agent"
+                                                  Command="{Binding DataContext.ConfigureAgentCommand, 
                                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                   CommandParameter="{Binding}" Margin="0,0,8,0" />
+                                        <ui:Button ToolTip="Toggle Active Status" 
+                                                  Appearance="Secondary"
+                                                  Command="{Binding DataContext.ToggleAgentActiveCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" Margin="0,0,8,0">
+                                            <ui:Button.Content>
+                                                <ui:SymbolIcon Symbol="{Binding IsActive, Converter={StaticResource BoolToToggleIconConverter}}" />
+                                            </ui:Button.Content>
+                                            <ui:Button.Style>
+                                                <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter Property="Icon" Value="{ui:SymbolIcon Checkmark24}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                            <Setter Property="Icon" Value="{ui:SymbolIcon Dismiss24}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ui:Button.Style>
+                                        </ui:Button>
                                         <ui:Button Icon="{ui:SymbolIcon Delete24}" 
                                                   Appearance="Secondary"
-                                                  ToolTip="Delete"
-                                                  Command="{Binding DataContext.DeleteItemCommand, 
+                                                  ToolTip="Remove Agent"
+                                                  Command="{Binding DataContext.RemoveAgentCommand, 
                                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                   CommandParameter="{Binding}" />
                                     </StackPanel>
