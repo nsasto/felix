@@ -139,6 +139,13 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
   // Reference to the stream controller for cancellation
   const streamControllerRef = useRef<CopilotStreamController | null>(null);
   
+  // Track current streaming message to prevent race conditions
+  const streamingMessageRef = useRef<{
+    id: string;
+    content: string;
+    tokenCount: number;
+  } | null>(null);
+  
   // Context source count (for display in header)
   const [contextSourceCount, setContextSourceCount] = useState(0);
   
@@ -257,6 +264,13 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
     };
     setMessages(prev => [...prev, assistantMessage]);
 
+    // Initialize streaming tracker
+    streamingMessageRef.current = {
+      id: assistantMessageId,
+      content: '',
+      tokenCount: 0,
+    };
+
     try {
       // Build conversation history for context (last 10 messages, excluding the new ones)
       const historyForApi = messages.slice(-10).map(msg => ({
@@ -274,23 +288,39 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
       // Store controller for cancellation
       streamControllerRef.current = streamController;
 
-      // Handle stream events
+      // Handle stream events with atomic updates
       streamController.onEvent((event: CopilotStreamEvent) => {
         // Update avatar state if provided
         if (event.avatar_state) {
           setAvatarState(event.avatar_state);
         }
 
-        // Append token to assistant message
-        if (event.token) {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastMsg = updated[updated.length - 1];
-            if (lastMsg && lastMsg.id === assistantMessageId) {
-              lastMsg.content += event.token;
-            }
-            return updated;
-          });
+        // Handle tokens with deduplication
+        if (event.token && streamingMessageRef.current) {
+          const streamingMsg = streamingMessageRef.current;
+
+          // Verify this is still the current streaming message
+          if (streamingMsg.id === assistantMessageId) {
+            // Append token to tracked content
+            streamingMsg.content += event.token;
+            streamingMsg.tokenCount++;
+
+            // Atomic state update using the tracked content
+            setMessages(prev => {
+              const updated = [...prev];
+              const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+              if (targetMsg) {
+                // Create new message object to ensure React detects the change
+                const newMsg: ChatMessage = {
+                  ...targetMsg,
+                  content: streamingMsg.content, // Use tracked content, not concatenation
+                };
+                const index = updated.findIndex(msg => msg.id === assistantMessageId);
+                updated[index] = newMsg;
+              }
+              return updated;
+            });
+          }
         }
 
         // Handle completion
@@ -298,6 +328,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
           setIsStreaming(false);
           setAvatarState('idle');
           streamControllerRef.current = null;
+          streamingMessageRef.current = null;
           
           // Increment unread count if panel is closed
           if (!isOpen) {
@@ -311,23 +342,39 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
           setLastError(event.error);
           setLastFailedMessage(trimmedInput);
           
-          // Update assistant message with error indicator
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastMsg = updated[updated.length - 1];
-            if (lastMsg && lastMsg.id === assistantMessageId && !lastMsg.content) {
-              lastMsg.content = `❌ Error: ${event.error}`;
-            } else if (lastMsg && lastMsg.id === assistantMessageId) {
-              // Partial message - add interruption indicator
-              lastMsg.content += '\n\n⚠️ Stream interrupted';
-            }
-            return updated;
-          });
+          // Clean error handling
+          if (streamingMessageRef.current && streamingMessageRef.current.content === '') {
+            // No content received yet - show error message
+            setMessages(prev => {
+              const updated = [...prev];
+              const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+              if (targetMsg) {
+                const errorMsg = { ...targetMsg, content: `❌ Error: ${event.error}` };
+                const index = updated.findIndex(msg => msg.id === assistantMessageId);
+                updated[index] = errorMsg;
+              }
+              return updated;
+            });
+          } else if (streamingMessageRef.current) {
+            // Partial content received - add interruption notice
+            const finalContent = streamingMessageRef.current.content + '\n\n⚠️ Stream interrupted';
+            setMessages(prev => {
+              const updated = [...prev];
+              const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+              if (targetMsg) {
+                const finalMsg = { ...targetMsg, content: finalContent };
+                const index = updated.findIndex(msg => msg.id === assistantMessageId);
+                updated[index] = finalMsg;
+              }
+              return updated;
+            });
+          }
           
           // Avatar will be set to error by the event, then we reset to idle
           setTimeout(() => setAvatarState('idle'), 2000);
           setIsStreaming(false);
           streamControllerRef.current = null;
+          streamingMessageRef.current = null;
         }
       });
 
@@ -338,21 +385,36 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
         setLastFailedMessage(trimmedInput);
         
         // Update assistant message with error
-        setMessages(prev => {
-          const updated = [...prev];
-          const lastMsg = updated[updated.length - 1];
-          if (lastMsg && lastMsg.id === assistantMessageId && !lastMsg.content) {
-            lastMsg.content = `❌ Connection lost. ${error.message}`;
-          } else if (lastMsg && lastMsg.id === assistantMessageId) {
-            lastMsg.content += '\n\n⚠️ Stream interrupted';
-          }
-          return updated;
-        });
+        if (streamingMessageRef.current && streamingMessageRef.current.content === '') {
+          setMessages(prev => {
+            const updated = [...prev];
+            const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+            if (targetMsg) {
+              const errorMsg = { ...targetMsg, content: `❌ Connection lost. ${error.message}` };
+              const index = updated.findIndex(msg => msg.id === assistantMessageId);
+              updated[index] = errorMsg;
+            }
+            return updated;
+          });
+        } else if (streamingMessageRef.current) {
+          const finalContent = streamingMessageRef.current.content + '\n\n⚠️ Stream interrupted';
+          setMessages(prev => {
+            const updated = [...prev];
+            const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+            if (targetMsg) {
+              const finalMsg = { ...targetMsg, content: finalContent };
+              const index = updated.findIndex(msg => msg.id === assistantMessageId);
+              updated[index] = finalMsg;
+            }
+            return updated;
+          });
+        }
         
         setAvatarState('error');
         setTimeout(() => setAvatarState('idle'), 2000);
         setIsStreaming(false);
         streamControllerRef.current = null;
+        streamingMessageRef.current = null;
       });
 
       // Handle stream completion
@@ -360,6 +422,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
         setIsStreaming(false);
         setAvatarState('idle');
         streamControllerRef.current = null;
+        streamingMessageRef.current = null;
       });
 
     } catch (err) {
@@ -367,6 +430,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setLastError(errorMessage);
       setLastFailedMessage(trimmedInput);
+      streamingMessageRef.current = null;
       
       // Update assistant message with error
       setMessages(prev => {
@@ -392,23 +456,38 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
       streamControllerRef.current.cancel();
       streamControllerRef.current = null;
       
-      // Mark the last message as interrupted
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastMsg = updated[updated.length - 1];
-        if (lastMsg && lastMsg.role === 'assistant') {
-          if (lastMsg.content) {
-            lastMsg.content += '\n\n⚠️ Stream cancelled';
-          } else {
-            lastMsg.content = '⚠️ Response cancelled';
+      // Finalize the streaming message
+      if (streamingMessageRef.current) {
+        const finalContent = streamingMessageRef.current.content +
+          (streamingMessageRef.current.content ? '\n\n⚠️ Stream cancelled' : '⚠️ Response cancelled');
+
+        setMessages(prev => {
+          const updated = [...prev];
+          const targetMsg = updated.find(msg => msg.id === streamingMessageRef.current!.id);
+          if (targetMsg) {
+            const finalMsg = { ...targetMsg, content: finalContent };
+            const index = updated.findIndex(msg => msg.id === streamingMessageRef.current!.id);
+            updated[index] = finalMsg;
           }
-        }
-        return updated;
-      });
+          return updated;
+        });
+
+        streamingMessageRef.current = null;
+      }
     }
     
     setIsStreaming(false);
     setAvatarState('idle');
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (streamControllerRef.current) {
+        streamControllerRef.current.cancel();
+      }
+      streamingMessageRef.current = null;
+    };
   }, []);
 
   /**

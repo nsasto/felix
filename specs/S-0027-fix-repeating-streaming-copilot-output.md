@@ -69,7 +69,7 @@ This fix implements proper token deduplication, atomic state updates, robust SSE
 
 ### Root Cause Analysis
 
-The repeating output bug has several contributing factors identified in the codebase:
+The repeating output bug has several contributing factors identified in the codebase. The proposed suggestions are just that, you should still do a full analysis as part of your planning:
 
 1. **SSE Buffer Race Condition** (felixApi.ts lines 1190-1220):
 
