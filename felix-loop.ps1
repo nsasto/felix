@@ -1,9 +1,11 @@
 #!/usr/bin/env pwsh
 # Felix Loop - Autonomous Multi-Requirement Executor
-# Usage: .\felix-loop.ps1 <ProjectPath> [-MaxRequirements <N>]
+# Usage: .\felix-loop.ps1 <ProjectPath> [-MaxRequirements <N>] [-NoCommit]
 #
 # Continuously selects and processes planned/in_progress requirements
 # until none remain or max requirements limit is reached.
+#
+# Use -NoCommit flag for testing without git commits
 
 param(
     [Parameter(Mandatory = $true)]
@@ -13,7 +15,7 @@ param(
     [int]$MaxRequirements = 999,
     
     [Parameter(Mandatory = $false)]
-    [switch]$NoCommit
+    [switch]$NoCommit   # Use this flag for testing to prevent git commits
 )
 
 $ErrorActionPreference = "Stop"
