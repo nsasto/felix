@@ -1,5 +1,7 @@
 using System;
 using System.Drawing;
+using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Forms;
 using Application = System.Windows.Application;
@@ -14,7 +16,7 @@ public class TrayService : IDisposable
     {
         _notifyIcon = new NotifyIcon
         {
-            Icon = CreateDefaultIcon(),
+            Icon = LoadAppIcon(),
             Visible = true,
             Text = "Felix Tray App"
         };
@@ -29,9 +31,32 @@ public class TrayService : IDisposable
         _notifyIcon.DoubleClick += (s, e) => OnOpen(s, e);
     }
 
-    private Icon CreateDefaultIcon()
+    private Icon LoadAppIcon()
     {
-        // Create a simple colored square as default icon
+        try
+        {
+            // Try to load from Assets folder relative to executable
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var iconPath = Path.Combine(baseDir, "Assets", "app.ico");
+            
+            if (File.Exists(iconPath))
+            {
+                return new Icon(iconPath);
+            }
+            
+            // Try alternate location (for development)
+            iconPath = Path.Combine(baseDir, @"..\..\..\Assets\app.ico");
+            if (File.Exists(Path.GetFullPath(iconPath)))
+            {
+                return new Icon(Path.GetFullPath(iconPath));
+            }
+        }
+        catch
+        {
+            // Fallback to default icon if loading fails
+        }
+        
+        // Create a simple colored square as fallback
         using var bitmap = new Bitmap(32, 32);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.Clear(Color.DodgerBlue);
@@ -70,5 +95,10 @@ public class TrayService : IDisposable
     {
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+    }
+
+    public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.Info)
+    {
+        _notifyIcon.ShowBalloonTip(3000, title, message, icon);
     }
 }

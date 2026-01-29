@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -12,6 +13,7 @@ namespace FelixTrayApp.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly AgentStorageService _storageService;
+    private readonly DispatcherTimer _connectionCheckTimer;
 
     [ObservableProperty]
     private ObservableCollection<AgentItem> _agents;
@@ -44,17 +46,25 @@ public partial class MainViewModel : ObservableObject
     private RunHistoryItem? _selectedRun;
 
     [ObservableProperty]
+    private string _planContent = string.Empty;
+
+    [ObservableProperty]
+    private string _outputContent = string.Empty;
+
+    [ObservableProperty]
     private string _reportContent = string.Empty;
 
     [ObservableProperty]
-    private string _outputLogContent = string.Empty;
-
-    [ObservableProperty]
-    private string _planSnapshotContent = string.Empty;
+    private double _runHistorySplitterPosition = 300;
 
     public MainViewModel()
     {
         _storageService = new AgentStorageService();
+        
+        // Load window settings including splitter position
+        var windowSettingsService = new WindowSettingsService();
+        var settings = windowSettingsService.LoadSettings();
+        RunHistorySplitterPosition = settings.RunHistorySplitterPosition;
         
         // Load agents from file
         var loadedAgents = _storageService.LoadAgents();
@@ -105,6 +115,23 @@ public partial class MainViewModel : ObservableObject
 
         _agents = new ObservableCollection<AgentItem>(loadedAgents);
         _filteredAgents = new ObservableCollection<AgentItem>(_agents);
+        
+        // Update run info for all agents from their /runs folders
+        foreach (var agent in _agents)
+        {
+            UpdateAgentRunInfo(agent);
+        }
+        
+        // Setup periodic connection checking
+        _connectionCheckTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(10)
+        };
+        _connectionCheckTimer.Tick += async (s, e) => await CheckAllConnectionsAsync();
+        _connectionCheckTimer.Start();
+        
+        // Initial connection check
+        _ = CheckAllConnectionsAsync();
     }
 
     partial void OnSearchTextChanged(string value)
@@ -242,10 +269,177 @@ public partial class MainViewModel : ObservableObject
         
         // Save to file
         _storageService.SaveAgents(Agents);
-        // Save to file
-        _storageService.SaveAgents(Agents);
         
         System.Diagnostics.Debug.WriteLine($"Agent {agent.Name} is now {(agent.IsActive ? "active" : "inactive")}");
+    }
+
+    [RelayCommand]
+    private async void TestConnection()
+    {
+        if (SelectedAgent == null) return;
+
+        var trayService = ((App)System.Windows.Application.Current).TrayService;
+
+        try
+        {
+            using var httpClient = new System.Net.Http.HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(5);
+            
+            var response = await httpClient.GetAsync(SelectedAgent.ServerAddress + "/health");
+            SelectedAgent.IsConnected = response.IsSuccessStatusCode;
+            
+            if (response.IsSuccessStatusCode)
+            {
+                trayService?.ShowNotification(
+                    "Connection Test",
+                    $"Connected successfully to {SelectedAgent.ServerAddress}",
+                    System.Windows.Forms.ToolTipIcon.Info);
+            }
+            else
+            {
+                trayService?.ShowNotification(
+                    "Connection Test",
+                    $"Server responded with status: {response.StatusCode}",
+                    System.Windows.Forms.ToolTipIcon.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            SelectedAgent.IsConnected = false;
+            trayService?.ShowNotification(
+                "Connection Test",
+                $"Connection failed: {ex.Message}",
+                System.Windows.Forms.ToolTipIcon.Error);
+        }
+        
+        // Save connection status
+        _storageService.SaveAgents(Agents);
+    }
+
+    private async System.Threading.Tasks.Task CheckAllConnectionsAsync()
+    {
+        foreach (var agent in Agents)
+        {
+            if (!agent.IsActive || string.IsNullOrWhiteSpace(agent.ServerAddress))
+            {
+                agent.IsConnected = false;
+                continue;
+            }
+
+            try
+            {
+                using var httpClient = new System.Net.Http.HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(3);
+                
+                var response = await httpClient.GetAsync(agent.ServerAddress + "/health");
+                agent.IsConnected = response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                agent.IsConnected = false;
+            }
+            
+            // Update run info from /runs folder
+            UpdateAgentRunInfo(agent);
+        }
+        
+        // Save updated connection statuses
+        _storageService.SaveAgents(Agents);
+    }
+    
+    private void UpdateAgentRunInfo(AgentItem agent)
+    {
+        if (string.IsNullOrWhiteSpace(agent.ProjectFolder))
+        {
+            agent.LastRun = null;
+            agent.LastFeatureName = "";
+            return;
+        }
+
+        var runsFolder = System.IO.Path.Combine(agent.ProjectFolder, "runs");
+        
+        if (!System.IO.Directory.Exists(runsFolder))
+        {
+            agent.LastRun = null;
+            agent.LastFeatureName = "";
+            return;
+        }
+
+        try
+        {
+            var runDirs = System.IO.Directory.GetDirectories(runsFolder)
+                .OrderByDescending(d => d)
+                .FirstOrDefault();
+
+            if (runDirs == null)
+            {
+                agent.LastRun = null;
+                agent.LastFeatureName = "";
+                return;
+            }
+
+            var dirName = System.IO.Path.GetFileName(runDirs);
+            
+            // Parse timestamp from folder name (format: 2026-01-28T09-22-23)
+            if (DateTime.TryParseExact(dirName, "yyyy-MM-ddTHH-mm-ss", 
+                System.Globalization.CultureInfo.InvariantCulture, 
+                System.Globalization.DateTimeStyles.None, out var startTime))
+            {
+                agent.LastRun = startTime;
+            }
+            else
+            {
+                agent.LastRun = null;
+            }
+
+            // Try to extract feature name from plan-*.md file
+            var planFiles = System.IO.Directory.GetFiles(runDirs, "plan-*.md");
+            string featureName = "";
+            
+            if (planFiles.Length > 0)
+            {
+                // Extract plan ID from filename (e.g., plan-S-0021.md -> S-0021)
+                var planFileName = System.IO.Path.GetFileNameWithoutExtension(planFiles[0]);
+                var planId = planFileName.Replace("plan-", "");
+                
+                // Read first line to get the full plan name
+                var firstLine = System.IO.File.ReadLines(planFiles[0]).FirstOrDefault() ?? "";
+                var planName = firstLine.Replace("# Implementation Plan:", "").Trim();
+                
+                // Combine ID and name
+                featureName = string.IsNullOrWhiteSpace(planName) ? planId : planName;
+            }
+            else
+            {
+                // Fallback: Try report.md
+                var reportPath = System.IO.Path.Combine(runDirs, "report.md");
+                if (System.IO.File.Exists(reportPath))
+                {
+                    var reportLines = System.IO.File.ReadLines(reportPath).Take(10);
+                    foreach (var line in reportLines)
+                    {
+                        // Look for requirement ID pattern (S-XXXX)
+                        if (line.Contains("S-", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var match = System.Text.RegularExpressions.Regex.Match(line, @"S-\d+[^\n]*");
+                            if (match.Success)
+                            {
+                                featureName = match.Value.Trim();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            agent.LastFeatureName = featureName;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error updating agent run info: {ex.Message}");
+            agent.LastRun = null;
+            agent.LastFeatureName = "";
+        }
     }
 
     [RelayCommand]
@@ -314,9 +508,9 @@ public partial class MainViewModel : ObservableObject
     {
         if (value == null)
         {
+            PlanContent = string.Empty;
+            OutputContent = string.Empty;
             ReportContent = string.Empty;
-            OutputLogContent = string.Empty;
-            PlanSnapshotContent = string.Empty;
             return;
         }
 
@@ -327,26 +521,42 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            // Find plan file (plan-*.md)
+            var planFiles = System.IO.Directory.GetFiles(run.FolderPath, "plan-*.md");
+            if (planFiles.Length > 0)
+            {
+                var planContent = System.IO.File.ReadAllText(planFiles[0]);
+                var planFileName = System.IO.Path.GetFileNameWithoutExtension(planFiles[0]);
+                var planId = planFileName.Replace("plan-", "");
+                
+                // Extract plan name from first line (after "# Implementation Plan:")
+                var firstLine = planContent.Split('\n').FirstOrDefault() ?? "";
+                var planName = firstLine.Replace("# Implementation Plan:", "").Trim();
+                
+                // Add header with plan ID and name
+                //PlanContent = $"# Plan: {planId}\n## {planName}\n\n{planContent}";
+                PlanContent = planContent;
+            }
+            else
+            {
+                PlanContent = "No plan found.";
+            }
+
+            var outputPath = System.IO.Path.Combine(run.FolderPath, "output.log");
+            OutputContent = System.IO.File.Exists(outputPath) 
+                ? System.IO.File.ReadAllText(outputPath) 
+                : "No output log found.";
+
             var reportPath = System.IO.Path.Combine(run.FolderPath, "report.md");
             ReportContent = System.IO.File.Exists(reportPath) 
                 ? System.IO.File.ReadAllText(reportPath) 
                 : "No report found.";
-
-            var outputPath = System.IO.Path.Combine(run.FolderPath, "output.log");
-            OutputLogContent = System.IO.File.Exists(outputPath) 
-                ? System.IO.File.ReadAllText(outputPath) 
-                : "No output log found.";
-
-            var planPath = System.IO.Path.Combine(run.FolderPath, "plan.snapshot.md");
-            PlanSnapshotContent = System.IO.File.Exists(planPath) 
-                ? System.IO.File.ReadAllText(planPath) 
-                : "No plan snapshot found.";
         }
         catch (Exception ex)
         {
+            PlanContent = $"Error loading plan: {ex.Message}";
+            OutputContent = $"Error loading output: {ex.Message}";
             ReportContent = $"Error loading report: {ex.Message}";
-            OutputLogContent = $"Error loading output log: {ex.Message}";
-            PlanSnapshotContent = $"Error loading plan snapshot: {ex.Message}";
         }
     }
 

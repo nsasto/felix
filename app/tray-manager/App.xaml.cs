@@ -9,6 +9,8 @@ public partial class App : Application
 {
     private TrayService? _trayService;
 
+    public TrayService? TrayService => _trayService;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
