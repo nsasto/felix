@@ -141,6 +141,8 @@ const App: React.FC = () => {
   const handleSelectProject = (projectId: string, details: ProjectDetails) => {
     setSelectedProjectId(projectId);
     setSelectedProject(details);
+    // Save the selected project ID to localStorage for auto-load on next visit
+    saveLastProjectId(projectId);
     // Switch to kanban view after selecting a project
     if (uiState === "projects") {
       setUiState("kanban");

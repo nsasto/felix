@@ -1470,9 +1470,6 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Capture state before execution for planning mode guardrails
     $beforeState = if ($mode -eq "planning") { Get-GitState -WorkingDir $ProjectPath } else { $null }
 
-    # Write prompt to run directory for debugging
-    Set-Content (Join-Path $runDir "prompt.md") $fullPrompt -Encoding UTF8
-
     # Execute agent
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
     Write-Host "Executing droid in $mode mode..." -ForegroundColor White
