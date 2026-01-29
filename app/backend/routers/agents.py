@@ -48,6 +48,9 @@ class AgentEntry(BaseModel):
     started_at: Optional[str] = None
     last_heartbeat: Optional[str] = None
     stopped_at: Optional[str] = None
+    # Workflow stage fields (S-0030: Agent Workflow Visualization)
+    current_workflow_stage: Optional[str] = Field(None, description="Current workflow stage ID from state.json")
+    workflow_stage_timestamp: Optional[str] = Field(None, description="ISO timestamp when workflow stage was set")
 
 
 class AgentRegistryResponse(BaseModel):
@@ -66,6 +69,9 @@ class AgentStatusResponse(BaseModel):
     started_at: Optional[str] = None
     last_heartbeat: Optional[str] = None
     stopped_at: Optional[str] = None
+    # Workflow stage fields (S-0030: Agent Workflow Visualization)
+    current_workflow_stage: Optional[str] = None
+    workflow_stage_timestamp: Optional[str] = None
 
 
 class AgentStopResponse(BaseModel):
@@ -281,6 +287,77 @@ def update_agent_statuses(agents: Dict[int, AgentEntry]) -> Dict[int, AgentEntry
     return agents
 
 
+def _load_project_state(project_path: Path) -> Optional[dict]:
+    """
+    Load felix/state.json from a project directory.
+    
+    Returns:
+        dict: State data if successfully loaded, None otherwise
+    """
+    state_file = project_path / "felix" / "state.json"
+    
+    if not state_file.exists():
+        return None
+    
+    try:
+        return json.loads(state_file.read_text(encoding='utf-8-sig'))
+    except (json.JSONDecodeError, ValueError, IOError) as e:
+        print(f"Warning: Failed to parse state.json at {state_file}: {e}")
+        return None
+
+
+def populate_workflow_stage_fields(agents: Dict[int, AgentEntry]) -> Dict[int, AgentEntry]:
+    """
+    Populate workflow stage fields from state.json for active agents.
+    
+    This function reads felix/state.json from registered projects and populates
+    the current_workflow_stage and workflow_stage_timestamp fields on agents
+    that are currently working on requirements in those projects.
+    
+    The association is determined by:
+    1. Get all registered projects
+    2. For each project, read felix/state.json
+    3. Match the current_requirement_id from state.json to agent.current_run_id
+    4. Populate workflow stage fields from state.json
+    
+    Returns:
+        Updated agents dict with workflow stage fields populated
+    """
+    # Get all registered projects
+    projects = storage.get_all_projects()
+    
+    if not projects:
+        return agents
+    
+    # Build a map of current_requirement_id -> project state data
+    req_to_state_map: Dict[str, dict] = {}
+    
+    for project in projects:
+        project_path = Path(project.path)
+        state_data = _load_project_state(project_path)
+        
+        if state_data and "current_requirement_id" in state_data:
+            req_id = state_data.get("current_requirement_id")
+            if req_id:
+                req_to_state_map[req_id] = state_data
+    
+    # Populate workflow stage fields for matching agents
+    for agent_id, agent in agents.items():
+        # Reset workflow fields (they're not persisted in agents.json)
+        agent.current_workflow_stage = None
+        agent.workflow_stage_timestamp = None
+        
+        # Check if agent is working on a requirement that matches a project state
+        if agent.current_run_id and agent.status == "active":
+            state_data = req_to_state_map.get(agent.current_run_id)
+            
+            if state_data:
+                agent.current_workflow_stage = state_data.get("current_workflow_stage")
+                agent.workflow_stage_timestamp = state_data.get("workflow_stage_timestamp")
+    
+    return agents
+
+
 # --- API Endpoints ---
 
 @router.post("/register", response_model=AgentStatusResponse)
@@ -348,7 +425,9 @@ async def register_agent(request: AgentRegistration):
         current_run_id=agent_entry.current_run_id,
         started_at=agent_entry.started_at,
         last_heartbeat=agent_entry.last_heartbeat,
-        stopped_at=agent_entry.stopped_at
+        stopped_at=agent_entry.stopped_at,
+        current_workflow_stage=agent_entry.current_workflow_stage,
+        workflow_stage_timestamp=agent_entry.workflow_stage_timestamp
     )
 
 
@@ -391,7 +470,9 @@ async def agent_heartbeat(agent_id: int, request: AgentHeartbeat):
         current_run_id=agent.current_run_id,
         started_at=agent.started_at,
         last_heartbeat=agent.last_heartbeat,
-        stopped_at=agent.stopped_at
+        stopped_at=agent.stopped_at,
+        current_workflow_stage=agent.current_workflow_stage,
+        workflow_stage_timestamp=agent.workflow_stage_timestamp
     )
 
 
@@ -403,13 +484,19 @@ async def get_agents():
     Automatically updates status based on heartbeat staleness:
     - Agents with heartbeat > 10s old are marked 'inactive'
     - Stopped agents remain 'stopped'
+    
+    Also populates workflow stage fields from felix/state.json for active agents
+    (S-0030: Agent Workflow Visualization).
     """
     agents = load_agents_registry()
     
     # Update statuses based on liveness
     agents = update_agent_statuses(agents)
     
-    # Save updated statuses
+    # Populate workflow stage fields from state.json
+    agents = populate_workflow_stage_fields(agents)
+    
+    # Save updated statuses (but not workflow fields - they come from state.json)
     save_agents_registry(agents)
     
     return AgentRegistryResponse(agents=agents)

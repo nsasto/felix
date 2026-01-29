@@ -477,3 +477,425 @@ class TestGetAgentsConfig:
             assert isinstance(agent["args"], list)
             assert isinstance(agent["working_directory"], str)
             assert isinstance(agent["environment"], dict)
+
+
+class TestGetWorkflowConfig:
+    """Tests for GET /api/agents/workflow-config endpoint (S-0030: Agent Workflow Visualization)"""
+
+    @pytest.fixture
+    def mock_project_with_workflow(self, tmp_path):
+        """Create a temporary project with workflow.json"""
+        project_path = tmp_path / "test-project"
+        project_path.mkdir(parents=True, exist_ok=True)
+        
+        # Create required Felix structure
+        (project_path / "felix").mkdir(exist_ok=True)
+        (project_path / "specs").mkdir(exist_ok=True)
+        
+        # Create workflow.json
+        workflow_data = {
+            "version": "2.0",
+            "layout": "vertical",
+            "stages": [
+                {
+                    "id": "custom_stage_1",
+                    "name": "Custom 1",
+                    "icon": "star",
+                    "description": "Custom stage one",
+                    "order": 1
+                },
+                {
+                    "id": "custom_stage_2",
+                    "name": "Custom 2",
+                    "icon": "circle",
+                    "description": "Custom stage two",
+                    "order": 2,
+                    "conditional": "some_mode"
+                }
+            ]
+        }
+        workflow_file = project_path / "felix" / "workflow.json"
+        workflow_file.write_text(json.dumps(workflow_data, indent=2), encoding='utf-8')
+        
+        return project_path
+
+    @pytest.fixture
+    def mock_project_registration(self, mock_project_with_workflow):
+        """Mock storage functions to return our test project"""
+        from models import Project
+        test_project = Project(
+            id="test-project-id",
+            path=str(mock_project_with_workflow),
+            name="Test Project"
+        )
+        
+        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+            with patch('routers.agents.storage.get_project_by_id', return_value=test_project):
+                yield test_project
+
+    def test_get_workflow_config_returns_custom_config(self, client, mock_project_registration):
+        """Returns workflow configuration from workflow.json"""
+        response = client.get("/api/agents/workflow-config")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["version"] == "2.0"
+        assert data["layout"] == "vertical"
+        assert len(data["stages"]) == 2
+        
+        # Verify first custom stage
+        stage_1 = data["stages"][0]
+        assert stage_1["id"] == "custom_stage_1"
+        assert stage_1["name"] == "Custom 1"
+        assert stage_1["icon"] == "star"
+        assert stage_1["description"] == "Custom stage one"
+        assert stage_1["order"] == 1
+        
+        # Verify second custom stage with conditional
+        stage_2 = data["stages"][1]
+        assert stage_2["id"] == "custom_stage_2"
+        assert stage_2["conditional"] == "some_mode"
+
+    def test_get_workflow_config_with_project_id(self, client, mock_project_registration):
+        """Returns workflow configuration for specified project_id"""
+        response = client.get("/api/agents/workflow-config?project_id=test-project-id")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["version"] == "2.0"
+        assert len(data["stages"]) == 2
+
+    def test_get_workflow_config_returns_default_when_no_projects(self, client):
+        """Returns default workflow config when no projects registered"""
+        with patch('routers.agents.storage.get_all_projects', return_value=[]):
+            response = client.get("/api/agents/workflow-config")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should return default config
+        assert data["version"] == "1.0"
+        assert data["layout"] == "horizontal"
+        assert len(data["stages"]) == 14  # Default has 14 stages
+        
+        # Verify some default stages exist
+        stage_ids = [s["id"] for s in data["stages"]]
+        assert "select_requirement" in stage_ids
+        assert "execute_llm" in stage_ids
+        assert "commit_changes" in stage_ids
+        assert "iteration_complete" in stage_ids
+
+    def test_get_workflow_config_returns_default_when_file_missing(self, client, tmp_path):
+        """Returns default workflow config when workflow.json doesn't exist"""
+        # Create project without workflow.json
+        project_path = tmp_path / "no-workflow-project"
+        (project_path / "felix").mkdir(parents=True)
+        (project_path / "specs").mkdir()
+        
+        from models import Project
+        test_project = Project(
+            id="no-workflow-id",
+            path=str(project_path),
+            name="No Workflow Project"
+        )
+        
+        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+            response = client.get("/api/agents/workflow-config")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should return default config
+        assert data["version"] == "1.0"
+        assert data["layout"] == "horizontal"
+        assert len(data["stages"]) == 14
+
+    def test_get_workflow_config_handles_malformed_json(self, client, tmp_path):
+        """Returns default workflow config when workflow.json is malformed"""
+        project_path = tmp_path / "malformed-workflow-project"
+        (project_path / "felix").mkdir(parents=True)
+        (project_path / "specs").mkdir()
+        
+        # Create malformed workflow.json
+        workflow_file = project_path / "felix" / "workflow.json"
+        workflow_file.write_text("not valid json {{{", encoding='utf-8')
+        
+        from models import Project
+        test_project = Project(
+            id="malformed-id",
+            path=str(project_path),
+            name="Malformed Project"
+        )
+        
+        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+            response = client.get("/api/agents/workflow-config")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should return default config on parse error
+        assert data["version"] == "1.0"
+        assert len(data["stages"]) == 14
+
+    def test_get_workflow_config_handles_empty_stages(self, client, tmp_path):
+        """Returns default workflow config when workflow.json has empty stages"""
+        project_path = tmp_path / "empty-stages-project"
+        (project_path / "felix").mkdir(parents=True)
+        (project_path / "specs").mkdir()
+        
+        # Create workflow.json with empty stages
+        workflow_file = project_path / "felix" / "workflow.json"
+        workflow_file.write_text(json.dumps({"version": "1.0", "stages": []}), encoding='utf-8')
+        
+        from models import Project
+        test_project = Project(
+            id="empty-stages-id",
+            path=str(project_path),
+            name="Empty Stages Project"
+        )
+        
+        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+            response = client.get("/api/agents/workflow-config")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should return default config when stages array is empty
+        assert len(data["stages"]) == 14
+
+
+class TestWorkflowStageFields:
+    """Tests for workflow stage field parsing from state.json (S-0030: Agent Workflow Visualization)"""
+
+    @pytest.fixture
+    def mock_project_with_state(self, tmp_path):
+        """Create a temporary project with state.json containing workflow stage"""
+        project_path = tmp_path / "state-test-project"
+        project_path.mkdir(parents=True, exist_ok=True)
+        
+        # Create required Felix structure
+        (project_path / "felix").mkdir(exist_ok=True)
+        (project_path / "specs").mkdir(exist_ok=True)
+        
+        # Create state.json with workflow stage
+        state_data = {
+            "current_requirement_id": "S-0030",
+            "last_run_id": "S-0030-20260129-120000-it1",
+            "last_mode": "building",
+            "status": "running",
+            "current_workflow_stage": "execute_llm",
+            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
+        }
+        state_file = project_path / "felix" / "state.json"
+        state_file.write_text(json.dumps(state_data, indent=2), encoding='utf-8')
+        
+        return project_path
+
+    def test_get_agents_includes_workflow_stage_fields(self, client, mock_agents_file, tmp_path):
+        """GET /api/agents includes workflow stage fields from state.json"""
+        # Create project with state.json
+        project_path = tmp_path / "workflow-project"
+        (project_path / "felix").mkdir(parents=True)
+        (project_path / "specs").mkdir()
+        
+        state_data = {
+            "current_requirement_id": "S-0030",
+            "current_workflow_stage": "execute_llm",
+            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
+        }
+        (project_path / "felix" / "state.json").write_text(json.dumps(state_data), encoding='utf-8')
+        
+        from models import Project
+        test_project = Project(id="test-id", path=str(project_path), name="Test")
+        
+        # Create agent registry with active agent working on S-0030
+        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        agents_data = {
+            "agents": {
+                "50": {
+                    "agent_id": 50,
+                    "agent_name": "workflow-agent",
+                    "pid": 12345,
+                    "hostname": "host",
+                    "status": "active",
+                    "current_run_id": "S-0030",
+                    "started_at": now,
+                    "last_heartbeat": now,
+                    "stopped_at": None
+                }
+            }
+        }
+        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
+        
+        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
+            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+                response = client.get("/api/agents")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        agent = data["agents"]["50"]
+        assert agent["current_workflow_stage"] == "execute_llm"
+        assert agent["workflow_stage_timestamp"] == "2026-01-29T12:00:00Z"
+
+    def test_workflow_stage_fields_null_when_no_state(self, client, mock_agents_file, tmp_path):
+        """Workflow stage fields are null when state.json doesn't exist"""
+        # Create project without state.json
+        project_path = tmp_path / "no-state-project"
+        (project_path / "felix").mkdir(parents=True)
+        (project_path / "specs").mkdir()
+        
+        from models import Project
+        test_project = Project(id="no-state-id", path=str(project_path), name="No State")
+        
+        # Create agent registry
+        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        agents_data = {
+            "agents": {
+                "51": {
+                    "agent_id": 51,
+                    "agent_name": "no-state-agent",
+                    "pid": 12345,
+                    "hostname": "host",
+                    "status": "active",
+                    "current_run_id": "S-0999",
+                    "started_at": now,
+                    "last_heartbeat": now,
+                    "stopped_at": None
+                }
+            }
+        }
+        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
+        
+        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
+            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+                response = client.get("/api/agents")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        agent = data["agents"]["51"]
+        assert agent["current_workflow_stage"] is None
+        assert agent["workflow_stage_timestamp"] is None
+
+    def test_workflow_stage_fields_null_for_inactive_agent(self, client, mock_agents_file, tmp_path):
+        """Workflow stage fields are null for inactive agents"""
+        # Create project with state.json
+        project_path = tmp_path / "inactive-agent-project"
+        (project_path / "felix").mkdir(parents=True)
+        (project_path / "specs").mkdir()
+        
+        state_data = {
+            "current_requirement_id": "S-0030",
+            "current_workflow_stage": "execute_llm",
+            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
+        }
+        (project_path / "felix" / "state.json").write_text(json.dumps(state_data), encoding='utf-8')
+        
+        from models import Project
+        test_project = Project(id="inactive-id", path=str(project_path), name="Inactive")
+        
+        # Create agent with stale heartbeat (will become inactive)
+        stale_time = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat().replace('+00:00', 'Z')
+        agents_data = {
+            "agents": {
+                "52": {
+                    "agent_id": 52,
+                    "agent_name": "inactive-agent",
+                    "pid": 12345,
+                    "hostname": "host",
+                    "status": "active",
+                    "current_run_id": "S-0030",
+                    "started_at": stale_time,
+                    "last_heartbeat": stale_time,
+                    "stopped_at": None
+                }
+            }
+        }
+        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
+        
+        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
+            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+                response = client.get("/api/agents")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        agent = data["agents"]["52"]
+        # Agent becomes inactive due to stale heartbeat
+        assert agent["status"] == "inactive"
+        # Workflow stage fields should be null for inactive agents
+        assert agent["current_workflow_stage"] is None
+        assert agent["workflow_stage_timestamp"] is None
+
+    def test_workflow_stage_fields_null_when_no_matching_run(self, client, mock_agents_file, tmp_path):
+        """Workflow stage fields are null when agent's run doesn't match state"""
+        # Create project with state.json
+        project_path = tmp_path / "no-match-project"
+        (project_path / "felix").mkdir(parents=True)
+        (project_path / "specs").mkdir()
+        
+        state_data = {
+            "current_requirement_id": "S-0030",
+            "current_workflow_stage": "execute_llm",
+            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
+        }
+        (project_path / "felix" / "state.json").write_text(json.dumps(state_data), encoding='utf-8')
+        
+        from models import Project
+        test_project = Project(id="no-match-id", path=str(project_path), name="No Match")
+        
+        # Create agent working on different requirement
+        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        agents_data = {
+            "agents": {
+                "53": {
+                    "agent_id": 53,
+                    "agent_name": "no-match-agent",
+                    "pid": 12345,
+                    "hostname": "host",
+                    "status": "active",
+                    "current_run_id": "S-0999",  # Different requirement
+                    "started_at": now,
+                    "last_heartbeat": now,
+                    "stopped_at": None
+                }
+            }
+        }
+        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
+        
+        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
+            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+                response = client.get("/api/agents")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        agent = data["agents"]["53"]
+        # Agent is working on different requirement, so no workflow stage
+        assert agent["current_workflow_stage"] is None
+        assert agent["workflow_stage_timestamp"] is None
+
+    def test_agent_entry_model_has_workflow_fields(self):
+        """AgentEntry model includes workflow stage fields"""
+        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        agent = AgentEntry(
+            agent_id=54,
+            agent_name="model-test-agent",
+            pid=12345,
+            hostname="host",
+            status="active",
+            current_run_id="S-0030",
+            started_at=now,
+            last_heartbeat=now,
+            current_workflow_stage="build_prompt",
+            workflow_stage_timestamp="2026-01-29T12:00:00Z"
+        )
+        
+        assert agent.current_workflow_stage == "build_prompt"
+        assert agent.workflow_stage_timestamp == "2026-01-29T12:00:00Z"
+        
+        # Test model_dump includes these fields
+        dumped = agent.model_dump()
+        assert "current_workflow_stage" in dumped
+        assert "workflow_stage_timestamp" in dumped
