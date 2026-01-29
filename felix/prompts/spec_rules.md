@@ -7,7 +7,14 @@
 2. **Acceptance & Validation Criteria**
    - Include `## Acceptance Criteria` with Markdown checkboxes detailing expected behavior.
    - When applicable, add `## Validation Criteria` (or equivalent) listing concrete commands/observables required for verification.
-   - **IMPORTANT**: Only use backticks for executable commands (e.g., `python -m pytest`, `curl http://localhost:8080/health`). Do NOT use backticks for file paths or manual test descriptions (e.g., "verify felix/config.json updated" not "verify `felix/config.json` updated").
+   - **CRITICAL - Backtick Usage**: Only use backticks for complete, executable commands that can be run in a terminal:
+     - ✅ CORRECT: `curl http://localhost:8080/api/agents` (full executable command)
+     - ✅ CORRECT: `python -m pytest tests/` (full executable command)
+     - ❌ WRONG: Check `felix/agents.json` file (file path - will be executed as command)
+     - ❌ WRONG: Verify `config.json` updated (partial text - will be executed)
+     - ✅ CORRECT: Check felix/agents.json file (no backticks for file paths)
+     - ✅ CORRECT: Manual verification - verify config.json updated (no backticks)
+   - If a validation step cannot be automated with a single shell command, mark it as "Manual verification" without backticks.
 
 3. **Technical Guidance**
    - Provide sections such as `## Technical Notes`, `## Solution`, or `## Technical Details` to capture implementation direction, architecture constraints, or workflow expectations. Do NOT Instruct the developers how to implement.

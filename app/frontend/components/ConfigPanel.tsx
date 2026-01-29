@@ -131,23 +131,24 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
-        <div className="h-14 border-b border-slate-800/60 flex items-center px-6 justify-between bg-[#0d1117]/95 backdrop-blur">
+      <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
+        <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
           <div className="flex items-center gap-4">
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+              className="p-2 hover:theme-bg-elevated rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
+              style={{ backgroundColor: 'var(--hover-bg)' }}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h2 className="text-sm font-bold text-slate-200">Configuration</h2>
+            <h2 className="text-sm font-bold theme-text-primary">Configuration</h2>
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
-          <span className="text-xs font-mono text-slate-600 uppercase">Loading configuration...</span>
+          <div className="w-8 h-8 border-2 theme-border border-t-felix-500 rounded-full animate-spin mb-4" />
+          <span className="text-xs font-mono theme-text-muted uppercase">Loading configuration...</span>
         </div>
       </div>
     );
@@ -155,26 +156,29 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
 
   if (error && !config) {
     return (
-      <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
-        <div className="h-14 border-b border-slate-800/60 flex items-center px-6 justify-between bg-[#0d1117]/95 backdrop-blur">
+      <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
+        <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
           <div className="flex items-center gap-4">
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+              className="p-2 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
+              style={{ backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h2 className="text-sm font-bold text-slate-200">Configuration</h2>
+            <h2 className="text-sm font-bold theme-text-primary">Configuration</h2>
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-            <IconFileText className="w-8 h-8 text-slate-600" />
+          <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
+            <IconFileText className="w-8 h-8 theme-text-muted" />
           </div>
-          <h3 className="text-sm font-bold text-slate-400 mb-2">Failed to Load Configuration</h3>
-          <p className="text-xs text-slate-600 max-w-md">{error}</p>
+          <h3 className="text-sm font-bold theme-text-tertiary mb-2">Failed to Load Configuration</h3>
+          <p className="text-xs theme-text-muted max-w-md">{error}</p>
         </div>
       </div>
     );
@@ -183,21 +187,24 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
   if (!config) return null;
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
+    <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
       {/* Header */}
-      <div className="h-14 border-b border-slate-800/60 flex items-center px-6 justify-between bg-[#0d1117]/95 backdrop-blur">
+      <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+            className="p-2 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
+            style={{ backgroundColor: 'transparent' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <div>
-            <h2 className="text-sm font-bold text-slate-200">Configuration</h2>
-            <p className="text-[10px] font-mono text-slate-600">felix/config.json</p>
+            <h2 className="text-sm font-bold theme-text-primary">Configuration</h2>
+            <p className="text-[10px] font-mono theme-text-muted">felix/config.json</p>
           </div>
         </div>
 
@@ -206,7 +213,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           {hasChanges && (
             <button
               onClick={handleReset}
-              className="px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+              className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
             >
               Reset
             </button>
@@ -217,7 +224,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
             className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
               hasChanges && Object.keys(validationErrors).length === 0
                 ? 'bg-felix-600 text-white hover:bg-felix-500'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                : 'theme-bg-surface theme-text-muted cursor-not-allowed'
             }`}
           >
             {saving ? (
@@ -245,21 +252,21 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
       <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
         <div className="max-w-2xl mx-auto space-y-8">
           {/* Executor Settings */}
-          <section className="bg-[#161b22] border border-slate-800/60 rounded-2xl p-6">
+          <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-felix-500/10 rounded-xl flex items-center justify-center">
                 <IconFelix className="w-5 h-5 text-felix-400" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-200">Executor Settings</h3>
-                <p className="text-[10px] text-slate-600">Agent execution configuration</p>
+                <h3 className="text-sm font-bold theme-text-primary">Executor Settings</h3>
+                <p className="text-[10px] theme-text-muted">Agent execution configuration</p>
               </div>
             </div>
 
             <div className="space-y-5">
               {/* Max Iterations */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2">
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Max Iterations
                 </label>
                 <input
@@ -267,32 +274,32 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   min="1"
                   value={config.executor.max_iterations}
                   onChange={(e) => handleExecutorChange('max_iterations', parseInt(e.target.value) || 0)}
-                  className={`w-full bg-[#0d1117] border rounded-xl px-4 py-3 text-sm text-slate-300 outline-none transition-all ${
+                  className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all ${
                     validationErrors.max_iterations 
                       ? 'border-red-500/50 focus:border-red-500'
-                      : 'border-slate-700/50 focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+                      : 'theme-border-muted focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
                   }`}
                 />
                 {validationErrors.max_iterations && (
                   <p className="mt-1 text-[10px] text-red-400">{validationErrors.max_iterations}</p>
                 )}
-                <p className="mt-1 text-[10px] text-slate-600">
+                <p className="mt-1 text-[10px] theme-text-muted">
                   Maximum number of iterations the agent will run
                 </p>
               </div>
 
               {/* Default Mode */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2">
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Default Mode
                 </label>
                 <select
                   value={config.executor.default_mode}
                   onChange={(e) => handleExecutorChange('default_mode', e.target.value)}
-                  className={`w-full bg-[#0d1117] border rounded-xl px-4 py-3 text-sm text-slate-300 outline-none transition-all cursor-pointer ${
+                  className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all cursor-pointer ${
                     validationErrors.default_mode
                       ? 'border-red-500/50'
-                      : 'border-slate-700/50 focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+                      : 'theme-border-muted focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
                   }`}
                 >
                   <option value="planning">Planning</option>
@@ -301,7 +308,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 {validationErrors.default_mode && (
                   <p className="mt-1 text-[10px] text-red-400">{validationErrors.default_mode}</p>
                 )}
-                <p className="mt-1 text-[10px] text-slate-600">
+                <p className="mt-1 text-[10px] theme-text-muted">
                   Mode the agent starts in when a run begins
                 </p>
               </div>
@@ -309,10 +316,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
               {/* Auto Transition */}
               <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400">
+                  <label className="block text-xs font-bold theme-text-tertiary">
                     Auto Transition
                   </label>
-                  <p className="text-[10px] text-slate-600">
+                  <p className="text-[10px] theme-text-muted">
                     Automatically switch from planning to building mode
                   </p>
                 </div>
@@ -321,7 +328,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   className={`w-12 h-6 rounded-full transition-all relative ${
                     config.executor.auto_transition 
                       ? 'bg-felix-600' 
-                      : 'bg-slate-700'
+                      : 'theme-bg-surface'
                   }`}
                 >
                   <div
@@ -335,7 +342,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           </section>
 
           {/* Backpressure Settings */}
-          <section className="bg-[#161b22] border border-slate-800/60 rounded-2xl p-6">
+          <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center">
                 <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -343,8 +350,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-200">Backpressure</h3>
-                <p className="text-[10px] text-slate-600">Build validation between iterations</p>
+                <h3 className="text-sm font-bold theme-text-primary">Backpressure</h3>
+                <p className="text-[10px] theme-text-muted">Build validation between iterations</p>
               </div>
             </div>
 
@@ -352,10 +359,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
               {/* Backpressure Enabled */}
               <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400">
+                  <label className="block text-xs font-bold theme-text-tertiary">
                     Enable Backpressure
                   </label>
-                  <p className="text-[10px] text-slate-600">
+                  <p className="text-[10px] theme-text-muted">
                     Run lint/test/build commands between agent iterations
                   </p>
                 </div>
@@ -364,7 +371,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   className={`w-12 h-6 rounded-full transition-all relative ${
                     config.backpressure.enabled 
                       ? 'bg-felix-600' 
-                      : 'bg-slate-700'
+                      : 'theme-bg-surface'
                   }`}
                 >
                   <div
@@ -378,18 +385,18 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
               {/* Backpressure Commands (read-only display) */}
               {config.backpressure.enabled && config.backpressure.commands.length > 0 && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-2">
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
                     Validation Commands
                   </label>
-                  <div className="bg-[#0d1117] border border-slate-700/50 rounded-xl p-4 space-y-2">
+                  <div className="theme-bg-base border theme-border-muted rounded-xl p-4 space-y-2">
                     {config.backpressure.commands.map((cmd, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono text-slate-600 w-4">{index + 1}.</span>
-                        <code className="text-xs font-mono text-slate-400">{cmd}</code>
+                        <span className="text-[9px] font-mono theme-text-muted w-4">{index + 1}.</span>
+                        <code className="text-xs font-mono theme-text-tertiary">{cmd}</code>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1 text-[10px] text-slate-600">
+                  <p className="mt-1 text-[10px] theme-text-muted">
                     Edit felix/config.json directly to modify commands
                   </p>
                 </div>
@@ -398,7 +405,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           </section>
 
           {/* Paths Settings (read-only) */}
-          <section className="bg-[#161b22] border border-slate-800/60 rounded-2xl p-6">
+          <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
                 <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -406,33 +413,33 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-200">Project Paths</h3>
-                <p className="text-[10px] text-slate-600">File and directory locations (read-only)</p>
+                <h3 className="text-sm font-bold theme-text-primary">Project Paths</h3>
+                <p className="text-[10px] theme-text-muted">File and directory locations (read-only)</p>
               </div>
             </div>
 
             <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b border-slate-800/40">
-                <span className="text-xs text-slate-500">Specs Directory</span>
-                <code className="text-xs font-mono text-slate-400">{config.paths.specs}</code>
+              <div className="flex justify-between items-center py-2 border-b theme-border-subtle">
+                <span className="text-xs theme-text-muted">Specs Directory</span>
+                <code className="text-xs font-mono theme-text-tertiary">{config.paths.specs}</code>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-800/40">
-                <span className="text-xs text-slate-500">Plan File</span>
-                <code className="text-xs font-mono text-slate-400">{config.paths.plan}</code>
+              <div className="flex justify-between items-center py-2 border-b theme-border-subtle">
+                <span className="text-xs theme-text-muted">Plan File</span>
+                <code className="text-xs font-mono theme-text-tertiary">{config.paths.plan}</code>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-800/40">
-                <span className="text-xs text-slate-500">AGENTS.md</span>
-                <code className="text-xs font-mono text-slate-400">{config.paths.agents}</code>
+              <div className="flex justify-between items-center py-2 border-b theme-border-subtle">
+                <span className="text-xs theme-text-muted">AGENTS.md</span>
+                <code className="text-xs font-mono theme-text-tertiary">{config.paths.agents}</code>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-xs text-slate-500">Runs Directory</span>
-                <code className="text-xs font-mono text-slate-400">{config.paths.runs}</code>
+                <span className="text-xs theme-text-muted">Runs Directory</span>
+                <code className="text-xs font-mono theme-text-tertiary">{config.paths.runs}</code>
               </div>
             </div>
           </section>
 
           {/* Config Version */}
-          <div className="text-center text-[10px] font-mono text-slate-700">
+          <div className="text-center text-[10px] font-mono theme-text-faint">
             Config Version: {config.version}
           </div>
         </div>

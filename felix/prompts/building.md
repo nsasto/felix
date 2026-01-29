@@ -13,10 +13,12 @@ You are operating in **building mode**.
 ## Rules
 
 1. **One task per iteration** - implement ONLY one item, then exit
-2. **Investigate before implementing** - search codebase for existing implementations
-3. **Update plan after implementing** - change `- [ ]` to `- [x]` for completed items
-4. **Update requirements status** - if completing a requirement, set status to `complete`
-5. **Exit cleanly** - output a run report summarizing what was done
+2. **CRITICAL: Backtick Usage** - Only use backticks for actual executable commands (e.g., `pytest`, `npm test`, `curl http://...`). Do NOT use backticks for file paths, URLs, placeholders, configuration values, or localStorage keys. Use **bold** or plain text for those instead.
+3. **Investigate before implementing** - search codebase for existing implementations
+4. **Check for reusable components** - before creating new components, search for existing ones that serve the same purpose. Reuse or extend existing components rather than duplicating functionality. Maintain clean, consistent code by consolidating similar implementations.
+5. **Update plan after implementing** - change `- [ ]` to `- [x]` for completed items
+6. **Update requirements status** - if completing a requirement, set status to `complete`
+7. **Exit cleanly** - output a run report summarizing what was done
 
 ## Test Implementation
 
@@ -37,7 +39,11 @@ When implementing features:
 2. Read the implementation plan from context (loaded from `runs/<run-id>/plan-<requirement-id>.md`)
 3. Select the FIRST incomplete task (`- [ ]`) in priority order
 4. Read relevant context from specs and AGENTS.md
-5. Search codebase for existing implementations (use Grep/Glob tools)
+5. **Search for existing components/implementations** - use semantic search, grep, and file search to find similar functionality that already exists. If found, evaluate whether to:
+   - Reuse the existing component as-is
+   - Extend/amend the existing component to support your use case
+   - Extract common functionality into a shared component
+   - Only create new components when existing ones don't meet the need
 6. Implement the task (create/edit files as needed)
 7. After implementation, update the plan at the path specified in context:
    - Change `- [ ] <task>` to `- [x] <task>` using the Edit tool

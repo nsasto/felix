@@ -1,23 +1,21 @@
 {
-    "current_requirement_id":  "S-0001",
+    "current_requirement_id":  "S-0024",
     "last_run_id":  null,
     "last_mode":  "building",
-    "last_iteration_outcome":  "success",
-    "updated_at":  "2026-01-26T21:24:51.7195243+00:00",
-    "current_iteration":  20,
-    "status":  "running",
+    "last_iteration_outcome":  "complete",
+    "updated_at":  "2026-01-28T23:53:57.8625215+00:00",
+    "current_iteration":  1,
+    "status":  "complete",
+    "validation_retry_count":  0,
     "blocked_task":  {
-                         "iteration":  2,
-                         "description":  "Unknown task",
-                         "retry_count":  2,
+                         "iteration":  1,
+                         "description":  "Fix validation failure for Task 2.1 - WebSocket mock for test setup",
+                         "retry_count":  1,
                          "max_retries":  3,
-                         "blocked_at":  "2026-01-26T20:50:50.0411186+00:00",
+                         "blocked_at":  "2026-01-28T23:23:35.9804818+00:00",
                          "reason":  "validation_failed",
                          "failed_commands":  [
-                                                 "[test] pytest tests/ -v (exit: -1)",
-                                                 "[test] npm test (exit: -4058)",
-                                                 "[build] cd app/frontend (exit: -4058)",
-                                                 "[build] npm run build (exit: -4058)"
+                                                 "[test] powershell -File .\\scripts\\test-backend.ps1 (exit: 1)"
                                              ]
                      }
 }

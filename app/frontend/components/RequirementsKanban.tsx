@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { felixApi, Requirement, RequirementsData, RequirementStatusResponse } from '../services/felixApi';
 import { IconPlus, IconFileText } from './Icons';
+import RequirementDetailSlideOut from './RequirementDetailSlideOut';
+import { 
+  hasIncompleteDependencies, 
+  getIncompleteDependencies,
+  formatIncompleteDependenciesTooltip
+} from '../utils/dependencies';
 
 // Requirement status columns matching the felix/requirements.json schema
-type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked';
+type RequirementStatus = 'draft' | 'planned' | 'in_progress' | 'complete' | 'blocked' | 'done';
 
 interface Column {
   status: RequirementStatus;
@@ -19,6 +25,7 @@ const COLUMNS: Column[] = [
   { status: 'in_progress', label: 'In Progress', color: 'bg-amber-500', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/20' },
   { status: 'complete', label: 'Complete', color: 'bg-emerald-500', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20' },
   { status: 'blocked', label: 'Blocked', color: 'bg-red-500', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/20' },
+  { status: 'done', label: 'Done', color: 'bg-purple-500', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/20' },
 ];
 
 const PRIORITY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -43,10 +50,14 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [showDone, setShowDone] = useState(false);
 
   // Requirement status info for each requirement (maps requirement id -> status info)
   // This includes plan info and spec modification timestamps for drift detection
   const [requirementStatusMap, setRequirementStatusMap] = useState<Record<string, RequirementStatusResponse>>({});
+
+  // Selected requirement for slide-out detail view
+  const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
 
   // Fetch requirement status for all requirements that might have plans
   // This includes both plan info and spec modification times for drift detection
@@ -129,6 +140,11 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
     });
   }, [requirements, priorityFilter, labelFilter]);
 
+  // Visible columns based on showDone filter
+  const visibleColumns = React.useMemo(() => {
+    return COLUMNS.filter(col => showDone || col.status !== 'done');
+  }, [showDone]);
+
   // Get requirements for a specific column
   const getColumnRequirements = (status: RequirementStatus) => {
     return filteredRequirements.filter(req => req.status === status);
@@ -191,12 +207,14 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   };
 
   // Check if a requirement is blocked due to incomplete dependencies
-  const isBlockedByDependency = (requirement: Requirement): boolean => {
-    if (!requirement.depends_on || requirement.depends_on.length === 0) return false;
-    return requirement.depends_on.some(depId => {
-      const dep = requirements.find(r => r.id === depId);
-      return dep && dep.status !== 'complete';
-    });
+  // Uses the dependency utility that correctly recognizes both 'done' and 'complete' as valid states
+  const checkBlockedByDependency = (requirement: Requirement): boolean => {
+    return hasIncompleteDependencies(requirement, requirements);
+  };
+  
+  // Get incomplete dependencies for a requirement (memoized per requirement)
+  const getIncompleteDepsList = (requirement: Requirement): Requirement[] => {
+    return getIncompleteDependencies(requirement, requirements);
   };
 
   // Format a Unix timestamp (seconds since epoch) to a readable date string
@@ -249,10 +267,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#050608]">
+      <div className="flex-1 flex items-center justify-center theme-bg-deepest">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
-          <span className="text-xs font-mono text-slate-500 uppercase tracking-widest">Loading requirements...</span>
+          <span className="text-xs font-mono theme-text-muted uppercase tracking-widest">Loading requirements...</span>
         </div>
       </div>
     );
@@ -260,7 +278,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
 
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#050608]">
+      <div className="flex-1 flex items-center justify-center theme-bg-deepest">
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-6 py-4 text-center max-w-md">
           <span className="text-xs font-bold text-red-400 uppercase">Error Loading Requirements</span>
           <p className="text-sm text-red-300 mt-2">{error}</p>
@@ -276,16 +294,16 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#050608] overflow-hidden">
+    <div className="flex-1 flex flex-col theme-bg-deepest overflow-hidden">
       {/* Filter bar */}
-      <div className="h-12 border-b border-slate-800/60 flex items-center px-6 gap-4 bg-[#0d1117]/50 flex-shrink-0">
-        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Filters:</span>
+      <div className="h-12 border-b theme-border flex items-center px-6 gap-4 theme-bg-base/50 flex-shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-base) 50%, transparent)' }}>
+        <span className="text-[10px] font-bold theme-text-muted uppercase tracking-widest">Filters:</span>
         
         {/* Priority filter */}
         <select
           value={priorityFilter || ''}
           onChange={(e) => setPriorityFilter(e.target.value || null)}
-          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-felix-500/50 cursor-pointer"
+          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-felix-500/50 cursor-pointer"
         >
           <option value="">All Priorities</option>
           {allPriorities.map(priority => (
@@ -299,7 +317,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
         <select
           value={labelFilter || ''}
           onChange={(e) => setLabelFilter(e.target.value || null)}
-          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-felix-500/50 cursor-pointer"
+          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-felix-500/50 cursor-pointer"
         >
           <option value="">All Labels</option>
           {allLabels.map(label => (
@@ -311,23 +329,36 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
         {(priorityFilter || labelFilter) && (
           <button
             onClick={() => { setPriorityFilter(null); setLabelFilter(null); }}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
           >
             Clear
           </button>
         )}
 
+        {/* Show Done toggle */}
+        <label className="flex items-center gap-2 cursor-pointer ml-4">
+          <input
+            type="checkbox"
+            checked={showDone}
+            onChange={(e) => setShowDone(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border theme-border bg-transparent checked:bg-purple-500 checked:border-purple-500 cursor-pointer accent-purple-500"
+          />
+          <span className="text-[10px] font-bold theme-text-muted uppercase tracking-widest" title="Done = reviewed and accepted, ready for production">
+            Show Done
+          </span>
+        </label>
+
         <div className="flex-1" />
         
         {/* Requirements count */}
-        <span className="text-[10px] font-mono text-slate-600">
+        <span className="text-[10px] font-mono theme-text-tertiary">
           {filteredRequirements.length} / {requirements.length} requirements
         </span>
       </div>
 
       {/* Kanban columns */}
       <div className="flex-1 flex gap-6 p-6 overflow-x-auto custom-scrollbar">
-        {COLUMNS.map(column => {
+        {visibleColumns.map(column => {
           const columnRequirements = getColumnRequirements(column.status);
           const isDropTarget = dragOverColumn === column.status;
 
@@ -343,9 +374,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${column.color} ${column.status === 'in_progress' ? 'animate-pulse' : ''}`} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">{column.label}</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest theme-text-tertiary">{column.label}</h3>
                 </div>
-                <span className="text-[10px] font-mono text-slate-600 bg-slate-900 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-mono theme-text-tertiary theme-bg-elevated px-1.5 py-0.5 rounded">
                   {columnRequirements.length}
                 </span>
               </div>
@@ -353,14 +384,19 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
               {/* Cards container */}
               <div 
                 className={`flex-1 space-y-3 min-h-[200px] rounded-xl transition-colors ${
-                  isDropTarget ? 'bg-slate-800/30 border-2 border-dashed border-felix-500/30' : ''
+                  isDropTarget ? 'theme-bg-surface border-2 border-dashed border-felix-500/30' : ''
                 }`}
+                style={isDropTarget ? { backgroundColor: 'color-mix(in srgb, var(--bg-surface) 30%, transparent)' } : undefined}
               >
                 {columnRequirements.map(requirement => {
                   const priorityStyle = PRIORITY_STYLES[requirement.priority] || PRIORITY_STYLES.medium;
-                  const hasBlockedDeps = isBlockedByDependency(requirement);
+                  const incompleteDeps = getIncompleteDepsList(requirement);
+                  const hasBlockedDeps = incompleteDeps.length > 0;
                   const isDragging = draggedItem?.id === requirement.id;
                   const planTimestampInfo = getPlanTimestampInfo(requirement.id);
+                  const depsTooltip = hasBlockedDeps 
+                    ? `Incomplete dependencies:\n${formatIncompleteDependenciesTooltip(incompleteDeps)}`
+                    : '';
 
                   return (
                     <div
@@ -368,14 +404,17 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                       draggable
                       onDragStart={(e) => handleDragStart(e, requirement)}
                       onDragEnd={handleDragEnd}
-                      onClick={() => onSelectRequirement?.(requirement)}
+                      onClick={() => {
+                        setSelectedRequirement(requirement);
+                        onSelectRequirement?.(requirement);
+                      }}
                       className={`
-                        bg-[#0d1117] border border-slate-800/60 p-4 rounded-xl 
+                        theme-bg-base border theme-border p-4 rounded-xl 
                         hover:border-felix-600/40 transition-all cursor-grab group 
-                        shadow-lg shadow-black/20
                         ${isDragging ? 'opacity-50 scale-95' : ''}
                         ${hasBlockedDeps && requirement.status !== 'blocked' ? 'border-l-2 border-l-amber-500/50' : ''}
                       `}
+                      style={{ boxShadow: 'var(--shadow-lg)' }}
                     >
                       {/* Header row: ID + Priority + In-Progress Indicator */}
                       <div className="flex justify-between items-start mb-2">
@@ -397,17 +436,20 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                       </div>
 
                       {/* Title */}
-                      <h4 className="text-sm font-semibold text-slate-200 mb-2 group-hover:text-felix-400 transition-colors line-clamp-2">
+                      <h4 className="text-sm font-semibold theme-text-primary mb-2 group-hover:text-felix-400 transition-colors line-clamp-2">
                         {requirement.title}
                       </h4>
 
-                      {/* Dependencies warning */}
+                      {/* Dependencies warning with hover tooltip showing incomplete deps */}
                       {hasBlockedDeps && requirement.status !== 'blocked' && (
-                        <div className="flex items-center gap-1.5 mb-2 text-[9px] text-amber-400">
+                        <div 
+                          className="flex items-center gap-1.5 mb-2 text-[9px] text-amber-400 cursor-help"
+                          title={depsTooltip}
+                        >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
-                          <span>Has incomplete dependencies</span>
+                          <span>⚠️ {incompleteDeps.length} incomplete {incompleteDeps.length === 1 ? 'dependency' : 'dependencies'}</span>
                         </div>
                       )}
 
@@ -417,7 +459,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                           {requirement.labels.map(label => (
                             <span 
                               key={label} 
-                              className="text-[9px] font-mono text-slate-600 border border-slate-800 px-1.5 py-0.5 rounded hover:text-slate-400 transition-colors"
+                              className="text-[9px] font-mono theme-text-tertiary border theme-border-muted px-1.5 py-0.5 rounded hover:theme-text-secondary transition-colors"
                             >
                               #{label}
                             </span>
@@ -452,13 +494,17 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                       )}
 
                       {/* Footer: Updated date + view spec link */}
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
-                        <span className="text-[9px] font-mono text-slate-600">
+                      <div className="flex justify-between items-center pt-2 border-t theme-border-muted">
+                        <span className="text-[9px] font-mono theme-text-tertiary">
                           Updated: {requirement.updated_at}
                         </span>
                         <button 
-                          onClick={(e) => { e.stopPropagation(); onSelectRequirement?.(requirement); }}
-                          className="text-[9px] font-bold text-slate-500 hover:text-felix-400 transition-colors flex items-center gap-1"
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setSelectedRequirement(requirement);
+                            onSelectRequirement?.(requirement); 
+                          }}
+                          className="text-[9px] font-bold theme-text-muted hover:text-felix-400 transition-colors flex items-center gap-1"
                         >
                           <IconFileText className="w-3 h-3" />
                           View Spec
@@ -473,9 +519,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
                   <div className={`
                     flex flex-col items-center justify-center py-8 text-center
                     border border-dashed rounded-xl
-                    ${isDropTarget ? 'border-felix-500/50 bg-felix-500/5' : 'border-slate-800/50'}
+                    ${isDropTarget ? 'border-felix-500/50 bg-felix-500/5' : 'theme-border-muted'}
                   `}>
-                    <span className="text-[10px] font-mono text-slate-600 uppercase">
+                    <span className="text-[10px] font-mono theme-text-tertiary uppercase">
                       {isDropTarget ? 'Drop here' : 'No requirements'}
                     </span>
                   </div>
@@ -485,6 +531,13 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({ projectId, onSe
           );
         })}
       </div>
+
+      {/* Requirement Detail Slide-Out */}
+      <RequirementDetailSlideOut
+        projectId={projectId}
+        requirement={selectedRequirement}
+        onClose={() => setSelectedRequirement(null)}
+      />
     </div>
   );
 };

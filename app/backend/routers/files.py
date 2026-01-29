@@ -86,6 +86,7 @@ class ExecutorConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     """Agent configuration from felix/config.json"""
+    name: str = Field(default="felix-primary", description="Unique agent name identifier")
     executable: str = Field(default="droid", description="Agent executable name")
     args: List[str] = Field(default_factory=lambda: ["exec", "--skip-permissions-unsafe"], description="Agent arguments")
     working_directory: str = Field(default=".", description="Working directory for agent")
@@ -105,6 +106,47 @@ class BackpressureConfig(BaseModel):
     commands: List[str] = Field(default_factory=list, description="Backpressure commands to run")
 
 
+class UIConfig(BaseModel):
+    """UI configuration from felix/config.json"""
+    theme: str = Field(default="dark", description="Theme setting: 'dark', 'light', or 'system'")
+
+
+class CopilotContextSourcesConfig(BaseModel):
+    """Context sources configuration for copilot"""
+    agents_md: bool = Field(default=True, description="Include AGENTS.md in context")
+    learnings_md: bool = Field(default=True, description="Include LEARNINGS.md in context")
+    prompt_md: bool = Field(default=True, description="Include prompt.md in context")
+    requirements: bool = Field(default=True, description="Include requirements.json in context")
+    other_specs: bool = Field(default=True, description="Include other spec files in context")
+
+
+class CopilotFeaturesConfig(BaseModel):
+    """Feature toggles for copilot"""
+    streaming: bool = Field(default=True, description="Enable streaming responses")
+    auto_suggest: bool = Field(default=True, description="Auto-suggest spec titles")
+    context_aware: bool = Field(default=True, description="Use project context in responses")
+
+
+class CopilotConfig(BaseModel):
+    """Copilot configuration from felix/config.json"""
+    enabled: bool = Field(default=False, description="Whether copilot is enabled")
+    provider: str = Field(default="openai", description="LLM provider: 'openai', 'anthropic', or 'custom'")
+    model: str = Field(default="gpt-4o", description="Model name to use")
+    context_sources: CopilotContextSourcesConfig = Field(default_factory=CopilotContextSourcesConfig)
+    features: CopilotFeaturesConfig = Field(default_factory=CopilotFeaturesConfig)
+
+
+class AgentEntry(BaseModel):
+    """Agent entry for felix/agents.json registry"""
+    pid: int = Field(..., description="Process ID of the agent")
+    hostname: str = Field(..., description="Hostname where agent is running")
+    status: str = Field(default="active", description="Agent status: active, inactive, stopped")
+    current_run_id: Optional[str] = Field(None, description="Current requirement ID being worked on")
+    started_at: Optional[str] = Field(None, description="ISO timestamp when agent started")
+    last_heartbeat: Optional[str] = Field(None, description="ISO timestamp of last heartbeat")
+    stopped_at: Optional[str] = Field(None, description="ISO timestamp when agent was stopped")
+
+
 class FelixConfig(BaseModel):
     """Full felix/config.json configuration"""
     version: str = Field(default="0.1.0", description="Config version")
@@ -112,6 +154,8 @@ class FelixConfig(BaseModel):
     agent: AgentConfig = Field(default_factory=AgentConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     backpressure: BackpressureConfig = Field(default_factory=BackpressureConfig)
+    ui: UIConfig = Field(default_factory=UIConfig)
+    copilot: Optional[CopilotConfig] = Field(default=None, description="Copilot configuration")
 
 
 class ConfigContent(BaseModel):
@@ -580,13 +624,30 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
         agent_data = data.get("agent", {})
         paths_data = data.get("paths", {})
         backpressure_data = data.get("backpressure", {})
+        ui_data = data.get("ui", {})
+        copilot_data = data.get("copilot", None)
+        
+        # Parse copilot config if present
+        copilot_config = None
+        if copilot_data:
+            context_sources_data = copilot_data.get("context_sources", {})
+            features_data = copilot_data.get("features", {})
+            copilot_config = CopilotConfig(
+                enabled=copilot_data.get("enabled", False),
+                provider=copilot_data.get("provider", "openai"),
+                model=copilot_data.get("model", "gpt-4o"),
+                context_sources=CopilotContextSourcesConfig(**context_sources_data) if context_sources_data else CopilotContextSourcesConfig(),
+                features=CopilotFeaturesConfig(**features_data) if features_data else CopilotFeaturesConfig()
+            )
         
         config = FelixConfig(
             version=data.get("version", "0.1.0"),
             executor=ExecutorConfig(**executor_data) if executor_data else ExecutorConfig(),
             agent=AgentConfig(**agent_data) if agent_data else AgentConfig(),
             paths=PathsConfig(**paths_data) if paths_data else PathsConfig(),
-            backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig()
+            backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig(),
+            ui=UIConfig(**ui_data) if ui_data else UIConfig(),
+            copilot=copilot_config
         )
         
         return ConfigContent(
@@ -640,6 +701,13 @@ async def update_config(
             detail="default_mode must be 'planning' or 'building'"
         )
     
+    # Validate ui.theme
+    if config.ui.theme not in ("dark", "light", "system"):
+        raise HTTPException(
+            status_code=400,
+            detail="ui.theme must be 'dark', 'light', or 'system'"
+        )
+    
     try:
         # Convert to dict for JSON serialization
         config_data = config.model_dump()
@@ -669,7 +737,7 @@ class RequirementStatusResponse(BaseModel):
 
 class RequirementStatusUpdate(BaseModel):
     """Request body for updating requirement status"""
-    status: str = Field(..., description="New status: draft, planned, in_progress, complete, blocked")
+    status: str = Field(..., description="New status: draft, planned, in_progress, complete, blocked, done")
 
 
 class PlanInfo(BaseModel):
@@ -789,10 +857,11 @@ async def update_requirement_status(
     """
     Update the status of a specific requirement.
     
-    Used to set requirement to 'blocked' status when user chooses to block and edit.
-    Valid status values: draft, planned, in_progress, complete, blocked
+    Used to set requirement to 'blocked' status when user chooses to block and edit,
+    or 'done' when a user manually marks a requirement as accepted/reviewed.
+    Valid status values: draft, planned, in_progress, complete, blocked, done
     """
-    valid_statuses = {"draft", "planned", "in_progress", "complete", "blocked"}
+    valid_statuses = {"draft", "planned", "in_progress", "complete", "blocked", "done"}
     if request.status not in valid_statuses:
         raise HTTPException(
             status_code=400, 
