@@ -192,7 +192,7 @@ export interface BackpressureConfig {
 }
 
 export interface UIConfig {
-  theme: "dark" | "light" | "system";
+  // Currently empty - theme is now a local-only setting
 }
 
 // --- Copilot Config Types (for S-0016: Felix Copilot Settings) ---

@@ -240,12 +240,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           : await felixApi.getGlobalConfig();
         setConfig(result.config);
         setOriginalConfig(result.config);
-
-        // Sync theme from backend config to context and localStorage
-        // This ensures the backend config is the source of truth for theme
-        if (result.config.ui?.theme) {
-          setTheme(result.config.ui.theme as ThemeValue);
-        }
       } catch (err) {
         console.error("Failed to fetch config:", err);
         setError(
@@ -473,11 +467,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     setConfig(newConfig);
     setValidationErrors(validateConfig(newConfig));
-
-    // Apply theme change immediately for instant feedback
-    if (field === "theme") {
-      setTheme(value as ThemeValue);
-    }
   };
 
   // Handle save
@@ -573,25 +562,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </button>
         </div>
 
-        {/* Theme Selection */}
-        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
-          <label className="block text-sm font-bold theme-text-secondary mb-2">
-            Theme
-          </label>
+        {/* Appearance Section - Theme (Local Only, not saved to backend config) */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">🎨</span>
+            <div>
+              <label className="block text-sm font-bold theme-text-secondary">
+                Appearance
+              </label>
+              <p className="text-[10px] theme-text-muted">
+                This setting is saved locally and not synced across devices
+              </p>
+            </div>
+          </div>
           <select
-            value={config.ui?.theme || "dark"}
-            onChange={(e) =>
-              handleUIChange("theme", e.target.value as ThemeValue)
-            }
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as ThemeValue)}
             className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
           >
             <option value="dark">Dark</option>
             <option value="light">Light</option>
-            <option value="system">System</option>
+            <option value="system">System (Auto)</option>
           </select>
           <p className="mt-2 text-[11px] theme-text-muted">
-            Choose your preferred color theme. "System" follows your operating
-            system preference.
+            Choose your preferred color theme. "System" automatically follows
+            your operating system preference.
           </p>
         </div>
 
@@ -2813,7 +2808,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </svg>
               <p className="text-xs text-[var(--status-warning)]/80">
                 Copilot is enabled but no API key is configured. Enter your{" "}
-                {provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : ""}{" "}
+                {provider === "openai"
+                  ? "OpenAI"
+                  : provider === "anthropic"
+                    ? "Anthropic"
+                    : ""}{" "}
                 API key above to use copilot features.
               </p>
             </div>
