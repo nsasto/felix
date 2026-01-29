@@ -350,7 +350,7 @@
       "id": "S-0026",
       "title": "Remember Last Project",
       "spec_path": "specs/S-0026-remember-last-project.md",
-      "status": "in_progress",
+      "status": "complete",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
