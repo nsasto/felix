@@ -1185,13 +1185,15 @@ function Invoke-PluginHook {
     
     foreach ($plugin in $applicablePlugins) {
         try {
+            Write-Verbose "[PLUGINS] Executing plugin: $($plugin.Name) for hook: $HookName"
+            
             # Check permissions
             $hasAllPermissions = $true
             $permissions = if ($plugin.Permissions) { $plugin.Permissions } else { @() }
             
             # Debug: Check if PluginPermissions is initialized
             if (-not $script:PluginPermissions) {
-                Write-Warning "Plugin permissions not initialized!"
+                Write-Warning "Plugin permissions not initialized for plugin: $($plugin.Name)"
                 $hasAllPermissions = $false
             }
             else {
@@ -1248,6 +1250,9 @@ function Invoke-PluginHook {
         }
         catch {
             Write-Warning "Plugin $($plugin.Name) hook $HookName failed: $_"
+            Write-Warning "Plugin details: Name=$($plugin.Name), Path=$($plugin.Path), Priority=$($plugin.Priority)"
+            Write-Warning "Error details: $($_.Exception.GetType().FullName): $($_.Exception.Message)"
+            Write-Warning "Stack trace: $($_.ScriptStackTrace)"
             
             # Update circuit breaker
             if (-not $script:PluginCircuitBreaker[$plugin.Name]) {
