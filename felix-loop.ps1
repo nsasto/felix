@@ -10,7 +10,10 @@ param(
     [string]$ProjectPath,
     
     [Parameter(Mandatory = $false)]
-    [int]$MaxRequirements = 999
+    [int]$MaxRequirements = 999,
+    
+    [Parameter(Mandatory = $false)]
+    [switch]$NoCommit
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,7 +72,12 @@ while ($requirementsProcessed -lt $MaxRequirements) {
     Write-Host ""
     
     # Execute felix-agent for this specific requirement
-    & $AgentScript $ProjectPath -RequirementId $nextReq.id
+    if ($NoCommit) {
+        & $AgentScript $ProjectPath -RequirementId $nextReq.id -NoCommit
+    }
+    else {
+        & $AgentScript $ProjectPath -RequirementId $nextReq.id
+    }
     $exitCode = $LASTEXITCODE
     
     Write-Host ""

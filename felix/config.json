@@ -4,7 +4,8 @@
     "mode": "local",
     "max_iterations": 100,
     "default_mode": "planning",
-    "auto_transition": true
+    "auto_transition": true,
+    "commit_on_complete": true
   },
   "agent": {
     "name": "felix-primary",
