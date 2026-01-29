@@ -1181,7 +1181,9 @@ if (-not (Test-Path $RequirementsFile)) {
     exit 1
 }
 
+Write-Host "[DEBUG] Loading requirements from: $RequirementsFile" -ForegroundColor DarkGray
 $requirements = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
+Write-Host "[DEBUG] Total requirements loaded: $($requirements.requirements.Count)" -ForegroundColor DarkGray
 $currentReq = $null
 
 if ($RequirementId) {
@@ -1190,6 +1192,10 @@ if ($RequirementId) {
         Write-Host "ERROR: Requirement $RequirementId not found." -ForegroundColor Red
         exit 1
     }
+    
+    # Debug: Show requirement details
+    Write-Host "[DEBUG] Found requirement: $($currentReq.id) - $($currentReq.title)" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Status: $($currentReq.status)" -ForegroundColor DarkGray
     
     # Check if requirement is already complete
     if ($currentReq.status -in @("complete", "done")) {
