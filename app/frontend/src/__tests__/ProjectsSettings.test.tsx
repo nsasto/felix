@@ -15,6 +15,10 @@ vi.mock('../../services/felixApi', () => ({
     unregisterProject: vi.fn(),
     updateProject: vi.fn(),
   },
+  // Standalone localStorage functions for Copilot API key (S-0022)
+  getCopilotApiKey: vi.fn(() => null),
+  setCopilotApiKey: vi.fn(),
+  clearCopilotApiKey: vi.fn(),
 }));
 
 // Helper to render with ThemeProvider

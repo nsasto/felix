@@ -334,6 +334,7 @@
                              "updated_at":  "2026-01-28"
                          },
                          {
+<<<<<<< HEAD
                              "id":  "S-0022",
                              "title":  "Windows Tray Manager - Remote Agent Management",
                              "spec_path":  "specs/S-0022-windows-tray-remote-enhancements.md",
@@ -350,6 +351,51 @@
                                             ],
                              "updated_at":  "2026-01-28",
                              "last_run_id":  "2026-01-28T14-47-37"
+=======
+                             "id":  "S-0023",
+                             "title":  "Live Polling Onoff",
+                             "spec_path":  "specs/S-0023-live-polling-onoff.md",
+                             "status":  "planned",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-29",
+                             "last_run_id":  "2026-01-29T12-23-54"
+                         },
+                         {
+                             "id":  "S-0024",
+                             "title":  "Sleeker Toolbar Buttons",
+                             "spec_path":  "specs/S-0024-sleeker-toolbar-buttons.md",
+                             "status":  "complete",
+                             "priority":  "medium",
+                             "labels":  [
+
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-28"
+                         },
+                         {
+                             "id":  "S-0999",
+                             "title":  "Test Dummy Spec",
+                             "spec_path":  "specs/S-0999-test-dummy.md",
+                             "status":  "complete",
+                             "priority":  "low",
+                             "labels":  [
+                                            "testing",
+                                            "dummy"
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-29",
+                             "last_run_id":  "2026-01-29T12-03-54"
+>>>>>>> origin/main
                          }
                      ]
 }
