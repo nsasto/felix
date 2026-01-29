@@ -1460,6 +1460,38 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   // Track whether polling is actively running (first successful fetch completed in live mode)
   const [isPollingActive, setIsPollingActive] = useState(false);
   
+  // Debounce timer ref for animation start (prevents visual glitches from rapid mode switching)
+  const animationDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Debounced setter for isPollingActive to prevent animation glitches during rapid mode switches
+  const setIsPollingActiveDebounced = useCallback((active: boolean) => {
+    // Clear any pending debounce timer
+    if (animationDebounceRef.current) {
+      clearTimeout(animationDebounceRef.current);
+      animationDebounceRef.current = null;
+    }
+    
+    if (active) {
+      // Debounce activation by 150ms to prevent glitchy animation starts
+      animationDebounceRef.current = setTimeout(() => {
+        setIsPollingActive(true);
+        animationDebounceRef.current = null;
+      }, 150);
+    } else {
+      // Deactivation is immediate (no delay when stopping animation)
+      setIsPollingActive(false);
+    }
+  }, []);
+  
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (animationDebounceRef.current) {
+        clearTimeout(animationDebounceRef.current);
+      }
+    };
+  }, []);
+  
   // Persist polling mode to localStorage whenever it changes
   useEffect(() => {
     storePollingMode(pollingMode);
@@ -1470,7 +1502,13 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     setPollingMode((prev) => {
       const newMode = prev === 'live' ? 'manual' : 'live';
       // When switching to manual mode, immediately set isPollingActive to false
+      // (no debounce needed for deactivation)
       if (newMode === 'manual') {
+        // Clear any pending animation activation
+        if (animationDebounceRef.current) {
+          clearTimeout(animationDebounceRef.current);
+          animationDebounceRef.current = null;
+        }
         setIsPollingActive(false);
       }
       return newMode;
@@ -1567,9 +1605,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   useEffect(() => {
     const initFetch = async () => {
       const success = await fetchAgents();
-      // If in live mode and fetch succeeded, activate polling animation
+      // If in live mode and fetch succeeded, activate polling animation (debounced)
       if (pollingMode === 'live' && success) {
-        setIsPollingActive(true);
+        setIsPollingActiveDebounced(true);
       }
       initialFetchDoneRef.current = true;
     };
@@ -1583,20 +1621,20 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     if (pollingMode !== 'live') return;
     
     // When switching to live mode (after initial fetch has been done), 
-    // activate polling immediately without waiting for first interval
+    // activate polling immediately without waiting for first interval (debounced)
     if (initialFetchDoneRef.current && !isPollingActive) {
-      setIsPollingActive(true);
+      setIsPollingActiveDebounced(true);
     }
     
     const agentInterval = setInterval(async () => {
       const success = await fetchAgents();
-      // Ensure polling stays active on successful fetches
+      // Ensure polling stays active on successful fetches (debounced)
       if (success && !isPollingActive) {
-        setIsPollingActive(true);
+        setIsPollingActiveDebounced(true);
       }
     }, 5000);
     return () => clearInterval(agentInterval);
-  }, [fetchAgents, pollingMode, isPollingActive]);
+  }, [fetchAgents, pollingMode, isPollingActive, setIsPollingActiveDebounced]);
   
   // Requirements polling - always runs (not affected by polling mode toggle)
   useEffect(() => {
