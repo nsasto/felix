@@ -277,27 +277,27 @@
       "id": "S-0019",
       "title": "Settings Not Project Dependent",
       "spec_path": "specs/S-0019-settings-not-project-dependent.md",
-      "status": "complete",
+      "status": "done",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
-      "updated_at": "2026-01-27"
+      "updated_at": "2026-01-29"
     },
     {
       "id": "S-0020",
       "title": "Consolidate Agent Settings",
       "spec_path": "specs/S-0020-consolidate-agent-settings.md",
-      "status": "complete",
+      "status": "done",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
-      "updated_at": "2026-01-28"
+      "updated_at": "2026-01-29"
     },
     {
       "id": "S-0021",
       "title": "Agent Orchestration Enhancement",
       "spec_path": "specs/S-0021-agent-orchestration-enhancement.md",
-      "status": "complete",
+      "status": "done",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
@@ -317,17 +317,17 @@
       "id": "S-0024",
       "title": "Sleeker Toolbar Buttons",
       "spec_path": "specs/S-0024-sleeker-toolbar-buttons.md",
-      "status": "complete",
+      "status": "done",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
-      "updated_at": "2026-01-28"
+      "updated_at": "2026-01-29"
     },
     {
       "id": "S-0000",
       "title": "Test Dummy Spec",
       "spec_path": "specs/S-0000-test-dummy.md",
-      "status": "complete",
+      "status": "done",
       "priority": "low",
       "labels": [
         "testing",
