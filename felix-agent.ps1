@@ -1286,6 +1286,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         New-Item -ItemType Directory -Path $runDir -Force | Out-Null
     }
     
+    # Write requirement ID to run directory for tracking
+    Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id -Encoding UTF8
+    
     # Initialize the plugin system for this run
     Write-Host "[DEBUG] Initializing plugin system with runId: $runId" -ForegroundColor DarkGray
     Initialize-PluginSystem -Config $config -RunId $runId
@@ -1304,6 +1307,11 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $planContent = Get-Content $latestPlanPath -Raw
         $mode = "building"
         Write-Host "[MODE] Found existing plan, using BUILDING mode" -ForegroundColor Yellow
+        
+        # Copy plan to current run directory for audit trail
+        $planSnapshotPath = Join-Path $runDir "plan-$($currentReq.id).md"
+        Copy-Item $latestPlanPath $planSnapshotPath -Force
+        Write-Host "[ARTIFACTS] Plan snapshot saved to run directory" -ForegroundColor DarkGray
     }
     else {
         # No plan found - use planning mode (or default)
@@ -1490,7 +1498,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $duration = (Get-Date) - $startTime
 
     # Write raw output to run directory
-    Set-Content (Join-Path $runDir "output.txt") $output -Encoding UTF8
+    Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
     Write-Host "Execution complete (Duration: $($duration.TotalSeconds.ToString("F1"))s)" -ForegroundColor White
 
@@ -1505,6 +1513,46 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $violations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $beforeState -RunId $runId
         if ($violations.HasViolations) {
             Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $beforeState -Violations $violations
+            
+            # Document guardrail violations
+            $violationReport = @"
+# Planning Mode Guardrail Violation
+
+**Timestamp:** $(Get-Date -Format "o")
+**Iteration:** $iteration
+
+## Violations Detected
+
+"@
+            
+            if ($violations.CommitMade) {
+                $violationReport += "`n### Unauthorized Commit`n`nA commit was made during planning mode and has been reverted.`n"
+            }
+            
+            if ($violations.UnauthorizedFiles.Count -gt 0) {
+                $violationReport += "`n### Unauthorized File Modifications`n`nThe following files were modified outside allowed paths:`n`n"
+                foreach ($file in $violations.UnauthorizedFiles) {
+                    $violationReport += "- $file`n"
+                }
+                $violationReport += "`nThese changes have been reverted.`n"
+            }
+            
+            $violationReport += @"
+
+## Allowed Modifications in Planning Mode
+
+- runs/ directory (plan files)
+- felix/state.json (execution state)
+- felix/requirements.json (requirement status)
+
+## What This Means
+
+The LLM attempted to modify code files during planning mode, which is not allowed.
+Planning mode is for creating/refining plans only.
+"@
+            
+            Set-Content (Join-Path $runDir "guardrail-violation.md") $violationReport -Encoding UTF8
+            Write-Host "[ARTIFACTS] Guardrail violation report saved" -ForegroundColor DarkGray
             
             # Update state to reflect failure
             $state.last_iteration_outcome = "guardrail_violation"
@@ -1563,6 +1611,28 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
             if ($state.blocked_task -and $state.blocked_task.description -eq $blockedTaskDesc) {
                 $retryCount = $state.blocked_task.retry_count + 1
             }
+            
+            # Write blocked task details
+            $blockedTaskReport = @"
+# Blocked Task
+
+**Task:** $blockedTaskDesc
+**Blocked At:** $(Get-Date -Format "o")
+**Reason:** Validation failed (backpressure)
+**Retry Attempt:** $retryCount of $maxRetries
+
+## Failed Commands
+
+$($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
+
+## Next Steps
+
+Review the backpressure.log for detailed error output.
+Fix the failing tests/builds before the agent can proceed.
+"@
+
+            Set-Content (Join-Path $runDir "blocked-task.md") $blockedTaskReport -Encoding UTF8
+            Write-Host "[ARTIFACTS] Blocked task report saved" -ForegroundColor DarkGray
 
             if ($retryCount -gt $maxRetries) {
                 # Max retries exceeded
@@ -1662,6 +1732,22 @@ This task requires manual intervention.
     $state.last_iteration_outcome = "success"
     $state.updated_at = Get-Date -Format "o"
     $state | ConvertTo-Json | Set-Content $StateFile
+    
+    # Create structured iteration report
+    $reportContent = @"
+# Run Report
+
+**Mode:** $mode
+**Iteration:** $iteration
+**Success:** $($state.last_iteration_outcome -eq 'success')
+**Timestamp:** $(Get-Date -Format "o")
+
+## Output
+
+$output
+"@
+
+    Set-Content (Join-Path $runDir "report.md") $reportContent -Encoding UTF8
 
     # Hook: OnPostIteration
     $hookResult = Invoke-PluginHookSafely -HookName "OnPostIteration" -RunId $runId -HookData @{
