@@ -516,9 +516,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
   return (
     <div className="flex-1 flex flex-col theme-bg-deepest overflow-hidden">
-      {/* Sticky Drop Zones */}
+      {/* Sticky Drop Zones - Always show all columns including Done */}
       <StickyDropZones
-        visibleColumns={visibleColumns}
+        visibleColumns={COLUMNS}
         draggedItem={draggedItem}
         dragOverColumn={dragOverColumn}
         scrollOffset={scrollOffset}

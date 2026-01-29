@@ -158,3 +158,45 @@
 
 - **Remove**: Single developer, no automation, manual execution only
 - **Strengthen**: CI/CD pipelines, multiple developers, shared environments, automated scheduling
+
+## TODO: Remove State and Requirements.json from Repo History
+
+**Current behavior:**
+
+- `felix/state.json` and `felix/requirements.json` are tracked in git
+- Contain runtime state, agent progress, and generated metadata
+- History pollutes repository with transient data
+- Merge conflicts on state files during parallel development
+
+**Proposed behavior:**
+
+- Remove both files from git history completely
+- Add to `.gitignore` to prevent future tracking
+- Treat as local runtime artifacts only
+
+**Benefits:**
+
+- Cleaner repository history
+- No merge conflicts on state files
+- Each developer/agent maintains independent state
+- State becomes truly local and disposable
+
+**Implementation notes:**
+
+- Use `git filter-branch` or `git filter-repo` to remove from history
+- Add to `.gitignore`:
+    ```
+    felix/state.json
+    felix/requirements.json
+    ```
+- Document in README that these files are generated on first run
+- Consider adding template files (`state.template.json`) if needed for initialization
+- Update CI/CD to generate fresh state files per environment
+
+**Migration steps:**
+
+1. Back up current state files if needed
+2. Remove from git history: `git filter-repo --path felix/state.json --path felix/requirements.json --invert-paths`
+3. Update `.gitignore`
+4. Commit and force push (coordinate with team)
+5. All developers re-clone or manually delete tracked files
