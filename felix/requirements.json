@@ -380,7 +380,7 @@
       "id": "S-0029",
       "title": "Connect Live Polling",
       "spec_path": "specs/S-0029-connect-live-polling.md",
-      "status": "in_progress",
+      "status": "complete",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
