@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "layout": "horizontal",
+  "stages": [
+    {
+      "id": "select_requirement",
+      "name": "Select Req",
+      "icon": "target",
+      "description": "felix-loop.ps1 selects next planned/in_progress requirement",
+      "order": 1
+    },
+    {
+      "id": "start_iteration",
+      "name": "Start",
+      "icon": "play",
+      "description": "Begin new agent iteration",
+      "order": 2
+    },
+    {
+      "id": "determine_mode",
+      "name": "Mode",
+      "icon": "git-branch",
+      "description": "Determine planning vs building mode",
+      "order": 3
+    },
+    {
+      "id": "gather_context",
+      "name": "Context",
+      "icon": "folder",
+      "description": "Load specs, requirements, git state",
+      "order": 4
+    },
+    {
+      "id": "build_prompt",
+      "name": "Prompt",
+      "icon": "file-text",
+      "description": "Construct full prompt with context",
+      "order": 5
+    },
+    {
+      "id": "execute_llm",
+      "name": "LLM",
+      "icon": "cpu",
+      "description": "Execute droid with prompt",
+      "order": 6
+    },
+    {
+      "id": "process_output",
+      "name": "Output",
+      "icon": "file-code",
+      "description": "Parse and process LLM response",
+      "order": 7
+    },
+    {
+      "id": "check_guardrails",
+      "name": "Guardrails",
+      "icon": "shield",
+      "description": "Planning mode safety checks",
+      "order": 8,
+      "conditional": "planning_mode"
+    },
+    {
+      "id": "detect_task",
+      "name": "Task Check",
+      "icon": "check-square",
+      "description": "Check for task completion signal",
+      "order": 9
+    },
+    {
+      "id": "run_backpressure",
+      "name": "Tests",
+      "icon": "flask",
+      "description": "Run validation tests/build/lint",
+      "order": 10
+    },
+    {
+      "id": "commit_changes",
+      "name": "Commit",
+      "icon": "git-commit",
+      "description": "Git add and commit changes",
+      "order": 11
+    },
+    {
+      "id": "validate_requirement",
+      "name": "Validate",
+      "icon": "check-circle",
+      "description": "Run requirement validation",
+      "order": 12
+    },
+    {
+      "id": "update_status",
+      "name": "Status",
+      "icon": "bar-chart",
+      "description": "Update requirement status",
+      "order": 13
+    },
+    {
+      "id": "iteration_complete",
+      "name": "Done",
+      "icon": "flag",
+      "description": "Iteration complete, check continue",
+      "order": 14
+    }
+  ]
+}

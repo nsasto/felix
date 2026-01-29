@@ -385,6 +385,16 @@
       "labels": [],
       "depends_on": [],
       "updated_at": "2026-01-29"
+    },
+    {
+      "id": "S-0030",
+      "title": "Agent Trace",
+      "spec_path": "specs/S-0030-agent-trace.md",
+      "status": "in_progress",
+      "priority": "medium",
+      "labels": [],
+      "depends_on": [],
+      "updated_at": "2026-01-29"
     }
   ]
 }
