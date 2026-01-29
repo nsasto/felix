@@ -1188,10 +1188,18 @@ function Invoke-PluginHook {
             # Check permissions
             $hasAllPermissions = $true
             $permissions = if ($plugin.Permissions) { $plugin.Permissions } else { @() }
-            foreach ($perm in $permissions) {
-                if (-not $script:PluginPermissions[$perm]) {
-                    Write-Warning "Plugin $($plugin.Name) requests unknown permission: $perm"
-                    $hasAllPermissions = $false
+            
+            # Debug: Check if PluginPermissions is initialized
+            if (-not $script:PluginPermissions) {
+                Write-Warning "Plugin permissions not initialized!"
+                $hasAllPermissions = $false
+            }
+            else {
+                foreach ($perm in $permissions) {
+                    if (-not $script:PluginPermissions[$perm]) {
+                        Write-Warning "Plugin $($plugin.Name) requests unknown permission: $perm"
+                        $hasAllPermissions = $false
+                    }
                 }
             }
             
