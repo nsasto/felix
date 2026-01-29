@@ -11,6 +11,8 @@ import {
   IconKanban,
   IconPlus,
 } from "./components/Icons";
+import felixLogo from "./img/felix_logo_small.png";
+import felixLogoHammer from "./img/felix_logo_hammer_small.png";
 import ProjectSelector from "./components/ProjectSelector";
 import RequirementsKanban from "./components/RequirementsKanban";
 import AgentControls from "./components/AgentControls";
@@ -123,6 +125,7 @@ type ExtendedUIState =
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [uiState, setUiState] = useState<ExtendedUIState>("projects"); // Start with projects view
+  const [logoHovered, setLogoHovered] = useState(false);
 
   // Project management state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -1244,10 +1247,23 @@ export const executeTask = (taskId: string) => {
       >
         <div
           onClick={() => setUiState("projects")}
-          className="p-2 bg-felix-600 rounded-2xl shadow-xl shadow-felix-900/50 transform hover:scale-110 transition-transform cursor-pointer group"
+          onMouseEnter={() => setLogoHovered(true)}
+          onMouseLeave={() => setLogoHovered(false)}
+          className="p-2 rounded-2xl transform hover:scale-110 transition-transform cursor-pointer relative"
           title="Projects"
         >
-          <IconFelix className="w-6 h-6 text-white group-hover:rotate-45 transition-transform duration-500" />
+          <img
+            src={felixLogo}
+            alt="Felix"
+            className="w-[45px] h-[45px] transition-opacity duration-300"
+            style={{ opacity: logoHovered ? 0 : 1 }}
+          />
+          <img
+            src={felixLogoHammer}
+            alt="Felix with hammer"
+            className="w-[45px] h-[45px] absolute top-2 left-2 transition-opacity duration-300"
+            style={{ opacity: logoHovered ? 1 : 0 }}
+          />
         </div>
         <div className="flex-1 flex flex-col items-center gap-4 w-full px-2">
           {/* Projects button */}
