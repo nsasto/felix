@@ -28,7 +28,7 @@
         </Grid.Background>
 
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="260" />
+            <ColumnDefinition Width="60" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -42,27 +42,30 @@
                 </Grid.RowDefinitions>
 
                 <!-- App Title -->
-                <TextBlock Grid.Row="0" Text="Felix" FontSize="20" FontWeight="SemiBold" 
-                           Foreground="White" VerticalAlignment="Center" Margin="20,0" />
+                <TextBlock Grid.Row="0" Text="F" FontSize="20" FontWeight="SemiBold" 
+                           Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" />
 
                 <!-- Navigation Items -->
-                <StackPanel Grid.Row="1" Margin="0,20,0,0">
-                    <ui:NavigationViewItem Content="Agents" Icon="{ui:SymbolIcon Desktop24}" 
-                                          Margin="8,2" IsActive="True" />
-                    <ui:NavigationViewItem Content="Logs" Icon="{ui:SymbolIcon DocumentText24}" 
-                                          Margin="8,2" />
-                    <ui:NavigationViewItem Content="Settings" Icon="{ui:SymbolIcon Settings24}" 
-                                          Margin="8,2" />
+                <StackPanel Grid.Row="1" Margin="0,20,0,0" HorizontalAlignment="Center">
+                    <ui:Button Icon="{ui:SymbolIcon Desktop24}" 
+                              Appearance="Secondary"
+                              ToolTip="Agents"
+                              Margin="0,4" />
+                    <ui:Button Icon="{ui:SymbolIcon DocumentText24}" 
+                              Appearance="Secondary"
+                              ToolTip="Logs"
+                              Margin="0,4" />
+                    <ui:Button Icon="{ui:SymbolIcon Settings24}" 
+                              Appearance="Secondary"
+                              ToolTip="Settings"
+                              Margin="0,4" />
                 </StackPanel>
 
                 <!-- Footer with User Info -->
-                <Border Grid.Row="2" Margin="12" Padding="12" Background="#20FFFFFF" CornerRadius="8">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="Person24" FontSize="20" Foreground="White" />
-                        <TextBlock Text="{Binding Path=UserName, FallbackValue='User'}" 
-                                   Margin="12,0,0,0" VerticalAlignment="Center" 
-                                   Foreground="White" FontSize="14" />
-                    </StackPanel>
+                <Border Grid.Row="2" Margin="8" Padding="8" Background="#20FFFFFF" CornerRadius="8">
+                    <ui:SymbolIcon Symbol="Person24" FontSize="20" Foreground="White" 
+                                  HorizontalAlignment="Center"
+                                  ToolTip="{Binding Path=UserName, FallbackValue='User'}" />
                 </Border>
             </Grid>
         </Border>
