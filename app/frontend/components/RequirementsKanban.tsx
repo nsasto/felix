@@ -697,22 +697,23 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         onSelectRequirement?.(requirement);
                       }}
                       className={`
-                        theme-bg-base border theme-border p-4 rounded-xl 
-                        hover:border-felix-600/40 transition-all cursor-grab group 
+                        kanban-card theme-bg-base border theme-border rounded-xl 
+                        hover:border-felix-600/40 cursor-grab group 
+                        ${isCompactView ? "kanban-card-compact p-3" : "p-4"}
                         ${isDragging ? "opacity-50 scale-95" : ""}
                         ${hasBlockedDeps && requirement.status !== "blocked" ? "border-l-2 border-l-amber-500/50" : ""}
                       `}
                       style={{ boxShadow: "var(--shadow-lg)" }}
                     >
                       {/* Header row: ID + Priority + In-Progress Indicator */}
-                      <div className="flex justify-between items-start mb-2">
+                      <div className={`flex justify-between items-start ${isCompactView ? "mb-1" : "mb-2"}`}>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-mono font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded border border-felix-500/20">
                             {requirement.id}
                           </span>
                           {/* In-progress indicator for actively worked on requirements */}
                           {requirement.status === "in_progress" && (
-                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                            <div className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 ${isCompactView ? "scale-90" : ""}`}>
                               <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-lg shadow-amber-500/50" />
                               <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wide">
                                 Active
@@ -721,21 +722,22 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                           )}
                         </div>
                         <span
-                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border}`}
+                          className={`font-bold px-1.5 py-0.5 rounded uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border} ${isCompactView ? "text-[8px] scale-90" : "text-[9px]"}`}
                         >
                           {requirement.priority}
                         </span>
                       </div>
 
                       {/* Title */}
-                      <h4 className="text-sm font-semibold theme-text-primary mb-2 group-hover:text-felix-400 transition-colors line-clamp-2">
+                      <h4 className={`font-semibold theme-text-primary group-hover:text-felix-400 ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}>
                         {requirement.title}
                       </h4>
 
                       {/* Dependencies warning with hover tooltip showing incomplete deps */}
+                      {/* In compact mode: icon + count only; in normal mode: full text */}
                       {hasBlockedDeps && requirement.status !== "blocked" && (
                         <div
-                          className="flex items-center gap-1.5 mb-2 text-[9px] text-amber-400 cursor-help"
+                          className={`flex items-center gap-1.5 text-amber-400 cursor-help ${isCompactView ? "mb-0 text-[8px]" : "mb-2 text-[9px]"}`}
                           title={depsTooltip}
                         >
                           <svg
@@ -751,17 +753,21 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                             />
                           </svg>
-                          <span>
-                            ⚠️ {incompleteDeps.length} incomplete{" "}
-                            {incompleteDeps.length === 1
-                              ? "dependency"
-                              : "dependencies"}
-                          </span>
+                          {isCompactView ? (
+                            <span>⚠️ {incompleteDeps.length}</span>
+                          ) : (
+                            <span>
+                              ⚠️ {incompleteDeps.length} incomplete{" "}
+                              {incompleteDeps.length === 1
+                                ? "dependency"
+                                : "dependencies"}
+                            </span>
+                          )}
                         </div>
                       )}
 
-                      {/* Labels */}
-                      {requirement.labels && requirement.labels.length > 0 && (
+                      {/* Labels - Hidden in compact mode */}
+                      {!isCompactView && requirement.labels && requirement.labels.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-2">
                           {requirement.labels.map((label) => (
                             <span
@@ -774,8 +780,8 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Plan timestamp indicator with drift detection */}
-                      {planTimestampInfo.hasPlan && (
+                      {/* Plan timestamp indicator with drift detection - Hidden in compact mode */}
+                      {!isCompactView && planTimestampInfo.hasPlan && (
                         <div className="flex items-center gap-2 mb-2 text-[9px]">
                           {/* Drift warning indicator - spec modified after plan */}
                           {planTimestampInfo.specModifiedAfterPlan ? (
@@ -821,23 +827,25 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Footer: Updated date + view spec link */}
-                      <div className="flex justify-between items-center pt-2 border-t theme-border-muted">
-                        <span className="text-[9px] font-mono theme-text-tertiary">
-                          Updated: {requirement.updated_at}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedRequirement(requirement);
-                            onSelectRequirement?.(requirement);
-                          }}
-                          className="text-[9px] font-bold theme-text-muted hover:text-felix-400 transition-colors flex items-center gap-1"
-                        >
-                          <IconFileText className="w-3 h-3" />
-                          View Spec
-                        </button>
-                      </div>
+                      {/* Footer: Updated date + view spec link - Hidden in compact mode */}
+                      {!isCompactView && (
+                        <div className="flex justify-between items-center pt-2 border-t theme-border-muted">
+                          <span className="text-[9px] font-mono theme-text-tertiary">
+                            Updated: {requirement.updated_at}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedRequirement(requirement);
+                              onSelectRequirement?.(requirement);
+                            }}
+                            className="text-[9px] font-bold theme-text-muted hover:text-felix-400 transition-colors flex items-center gap-1"
+                          >
+                            <IconFileText className="w-3 h-3" />
+                            View Spec
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
