@@ -766,9 +766,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Labels - Hidden in compact mode */}
-                      {!isCompactView && requirement.labels && requirement.labels.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
+                      {/* Labels - Animated hide/show with compact mode transition */}
+                      {requirement.labels && requirement.labels.length > 0 && (
+                        <div className={`kanban-card-section kanban-card-section-hideable flex flex-wrap gap-1.5 ${isCompactView ? "" : "mb-2"}`}>
                           {requirement.labels.map((label) => (
                             <span
                               key={label}
@@ -780,9 +780,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Plan timestamp indicator with drift detection - Hidden in compact mode */}
-                      {!isCompactView && planTimestampInfo.hasPlan && (
-                        <div className="flex items-center gap-2 mb-2 text-[9px]">
+                      {/* Plan timestamp indicator with drift detection - Animated hide/show */}
+                      {planTimestampInfo.hasPlan && (
+                        <div className={`kanban-card-section kanban-card-section-hideable flex items-center gap-2 text-[9px] ${isCompactView ? "" : "mb-2"}`}>
                           {/* Drift warning indicator - spec modified after plan */}
                           {planTimestampInfo.specModifiedAfterPlan ? (
                             <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/30">
@@ -827,25 +827,23 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Footer: Updated date + view spec link - Hidden in compact mode */}
-                      {!isCompactView && (
-                        <div className="flex justify-between items-center pt-2 border-t theme-border-muted">
-                          <span className="text-[9px] font-mono theme-text-tertiary">
-                            Updated: {requirement.updated_at}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRequirement(requirement);
-                              onSelectRequirement?.(requirement);
-                            }}
-                            className="text-[9px] font-bold theme-text-muted hover:text-felix-400 transition-colors flex items-center gap-1"
-                          >
-                            <IconFileText className="w-3 h-3" />
-                            View Spec
-                          </button>
-                        </div>
-                      )}
+                      {/* Footer: Updated date + view spec link - Animated hide/show */}
+                      <div className={`kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t theme-border-muted ${isCompactView ? "" : ""}`}>
+                        <span className="text-[9px] font-mono theme-text-tertiary">
+                          Updated: {requirement.updated_at}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRequirement(requirement);
+                            onSelectRequirement?.(requirement);
+                          }}
+                          className="text-[9px] font-bold theme-text-muted hover:text-felix-400 transition-colors flex items-center gap-1"
+                        >
+                          <IconFileText className="w-3 h-3" />
+                          View Spec
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
