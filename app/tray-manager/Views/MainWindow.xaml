@@ -47,9 +47,9 @@
 
                 <!-- Navigation Items -->
                 <StackPanel Grid.Row="1" Margin="0,20,0,0">
-                    <ui:NavigationViewItem Content="Agents" Icon="{ui:SymbolIcon Computer24}" 
+                    <ui:NavigationViewItem Content="Agents" Icon="{ui:SymbolIcon Desktop24}" 
                                           Margin="8,2" IsActive="True" />
-                    <ui:NavigationViewItem Content="Logs" Icon="{ui:SymbolIcon Document24}" 
+                    <ui:NavigationViewItem Content="Logs" Icon="{ui:SymbolIcon DocumentText24}" 
                                           Margin="8,2" />
                     <ui:NavigationViewItem Content="Settings" Icon="{ui:SymbolIcon Settings24}" 
                                           Margin="8,2" />
@@ -59,7 +59,7 @@
                 <Border Grid.Row="2" Margin="12" Padding="12" Background="#20FFFFFF" CornerRadius="8">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Person24" FontSize="20" Foreground="White" />
-                        <TextBlock Text="{Binding Path=(local:App.Current).User, FallbackValue='User'}" 
+                        <TextBlock Text="{Binding Path=UserName, FallbackValue='User'}" 
                                    Margin="12,0,0,0" VerticalAlignment="Center" 
                                    Foreground="White" FontSize="14" />
                     </StackPanel>
@@ -90,19 +90,16 @@
                               VerticalAlignment="Center" />
 
                     <!-- Controls -->
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <ui:Button Icon="{ui:SymbolIcon Document24}" 
-                                  ToolTip="View Logs"
-                                  Appearance="Secondary" Margin="0,0,8,0" />
-                        <ui:Button Icon="{ui:SymbolIcon Settings24}" 
-                                  ToolTip="Settings"
-                                  Appearance="Secondary" />
-                    </StackPanel>
+                    <ui:Button Grid.Column="1" 
+                              Icon="{ui:SymbolIcon Dismiss24}" 
+                              ToolTip="Close Window"
+                              Appearance="Secondary"
+                              Click="CloseButton_Click" />
                 </Grid>
             </Border>
 
             <!-- Search and Filter Bar -->
-            <Border Grid.Row="1" Background="#08000000" Padding="20,12">
+            <Border Grid.Row="1" Background="#08000000" Padding="20,12" Visibility="{Binding ShowAgentsList, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -114,7 +111,7 @@
                                    Icon="{ui:SymbolIcon Search24}" Width="300" 
                                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" 
                                    Margin="0,0,12,0" />
-                        <ui:Button Content="Add Agent" Icon="{ui:SymbolIcon Add24}" 
+                        <ui:Button Content="Add Agent" Icon="{ui:SymbolIcon AddCircle24}" 
                                   Appearance="Primary" Command="{Binding AddAgentCommand}" />
                     </StackPanel>
 
@@ -126,7 +123,7 @@
             </Border>
 
             <!-- Agents Table -->
-            <Grid Grid.Row="2" Margin="20">
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowAgentsList, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -191,7 +188,7 @@
                     </DataGrid.CellStyle>
 
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="*" />
                         
                         <!-- Status Column with Icon -->
                         <DataGridTemplateColumn Header="Status" Width="120">
@@ -202,15 +199,19 @@
                                             <ui:SymbolIcon.Style>
                                                 <Style TargetType="ui:SymbolIcon">
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Status}" Value="Idle">
-                                                            <Setter Property="Symbol" Value="Circle24" />
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Disabled">
+                                                            <Setter Property="Symbol" Value="Dismiss24" />
+                                                            <Setter Property="Foreground" Value="#757575" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Idle">
+                                                            <Setter Property="Symbol" Value="Record24" />
                                                             <Setter Property="Foreground" Value="#9E9E9E" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="Busy">
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Busy">
                                                             <Setter Property="Symbol" Value="ArrowSync24" />
                                                             <Setter Property="Foreground" Value="#4CAF50" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="Error">
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Error">
                                                             <Setter Property="Symbol" Value="ErrorCircle24" />
                                                             <Setter Property="Foreground" Value="#F44336" />
                                                         </DataTrigger>
@@ -218,7 +219,7 @@
                                                 </Style>
                                             </ui:SymbolIcon.Style>
                                         </ui:SymbolIcon>
-                                        <TextBlock Text="{Binding Status}" Foreground="White" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding DisplayStatus}" Foreground="White" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -228,7 +229,7 @@
                         <DataGridTextColumn Header="Last Feature Name" Binding="{Binding LastFeatureName}" Width="250" />
 
                         <!-- Operations Column with Buttons -->
-                        <DataGridTemplateColumn Header="Operations" Width="200">
+                        <DataGridTemplateColumn Header="Operations" Width="250">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
@@ -238,14 +239,17 @@
                                                   Command="{Binding DataContext.ConfigureAgentCommand, 
                                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                   CommandParameter="{Binding}" Margin="0,0,8,0" />
+                                        <ui:Button Icon="{ui:SymbolIcon History24}" 
+                                                  Appearance="Secondary"
+                                                  ToolTip="View Run History"
+                                                  Command="{Binding DataContext.ShowRunHistoryCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" Margin="0,0,8,0" />
                                         <ui:Button ToolTip="Toggle Active Status" 
                                                   Appearance="Secondary"
                                                   Command="{Binding DataContext.ToggleAgentActiveCommand, 
                                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                   CommandParameter="{Binding}" Margin="0,0,8,0">
-                                            <ui:Button.Content>
-                                                <ui:SymbolIcon Symbol="{Binding IsActive, Converter={StaticResource BoolToToggleIconConverter}}" />
-                                            </ui:Button.Content>
                                             <ui:Button.Style>
                                                 <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
                                                     <Style.Triggers>
@@ -271,6 +275,219 @@
                         </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
+            </Grid>
+
+            <!-- Agent Settings Form -->
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowAgentSettings, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Section Title -->
+                <TextBlock Grid.Row="0" Text="Agent Settings" FontSize="18" FontWeight="SemiBold" 
+                           Foreground="White" Margin="0,0,0,20" />
+
+                <!-- Settings Form -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="600" HorizontalAlignment="Left">
+                        
+                        <!-- Name (Auto) -->
+                        <TextBlock Text="Name (auto-generated)" Foreground="#B0FFFFFF" Margin="0,0,0,8" />
+                        <ui:TextBox Text="{Binding SelectedAgent.Name}" 
+                                   IsReadOnly="True"
+                                   Margin="0,0,0,20" />
+
+                        <!-- Friendly Name -->
+                        <TextBlock Text="Friendly Name" Foreground="#B0FFFFFF" Margin="0,0,0,8" />
+                        <ui:TextBox Text="{Binding SelectedAgent.FriendlyName, UpdateSourceTrigger=PropertyChanged}" 
+                                   PlaceholderText="Enter a custom display name"
+                                   Margin="0,0,0,20" />
+
+                        <!-- Path to Agent -->
+                        <TextBlock Text="Path to Agent Script" Foreground="#B0FFFFFF" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" 
+                                       Text="{Binding SelectedAgent.AgentPath, UpdateSourceTrigger=PropertyChanged}" 
+                                       PlaceholderText="C:\path\to\felix-agent.ps1"
+                                       Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="1" 
+                                      Content="Browse..." 
+                                      Command="{Binding BrowseAgentPathCommand}" />
+                        </Grid>
+
+                        <!-- Project Folder -->
+                        <TextBlock Text="Project Folder" Foreground="#B0FFFFFF" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" 
+                                       Text="{Binding SelectedAgent.ProjectFolder, UpdateSourceTrigger=PropertyChanged}" 
+                                       PlaceholderText="C:\projects\roboza\felix"
+                                       Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="1" 
+                                      Content="Browse..." 
+                                      Command="{Binding BrowseProjectFolderCommand}" />
+                        </Grid>
+
+                        <!-- Enabled Toggle -->
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Enabled" Foreground="White" VerticalAlignment="Center" />
+                            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SelectedAgent.IsActive}" />
+                        </Grid>
+
+                        <!-- Enable Logging Toggle -->
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Enable Logging" Foreground="White" VerticalAlignment="Center" />
+                            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SelectedAgent.EnableLogging}" />
+                        </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Action Buttons -->
+                <Border Grid.Row="2" BorderBrush="#30FFFFFF" BorderThickness="0,1,0,0" Padding="0,20,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:Button Grid.Column="0" 
+                                  Content="Delete" 
+                                  Icon="{ui:SymbolIcon Delete24}"
+                                  Appearance="Danger"
+                                  Command="{Binding DeleteAgentCommand}" />
+
+                        <ui:Button Grid.Column="2" 
+                                  Content="Cancel" 
+                                  Appearance="Secondary"
+                                  Command="{Binding CancelSettingsCommand}"
+                                  Margin="0,0,12,0" />
+
+                        <ui:Button Grid.Column="3" 
+                                  Content="Save" 
+                                  Icon="{ui:SymbolIcon Save24}"
+                                  Appearance="Primary"
+                                  Command="{Binding SaveAgentCommand}" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Run History View -->
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowRunHistoryView, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Header with Back Button -->
+                <Grid Grid.Row="0" Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:Button Grid.Column="0" 
+                              Content="Back to Agents" 
+                              Icon="{ui:SymbolIcon ArrowLeft24}"
+                              Command="{Binding BackToAgentsListCommand}"
+                              Margin="0,0,20,0" />
+                    
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Run History" FontSize="18" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="{Binding SelectedAgent.DisplayName}" FontSize="14" Foreground="#B0FFFFFF" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Split View: Runs List and Details -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Runs List -->
+                    <Border Grid.Column="0" Background="#10FFFFFF" CornerRadius="8" Margin="0,0,10,0" Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="Recent Runs" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,12" />
+                            
+                            <ListBox Grid.Row="1" 
+                                    ItemsSource="{Binding RunHistoryItems}"
+                                    SelectedItem="{Binding SelectedRun}"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="White" Padding="8,4" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Run Details with Tabs -->
+                    <Border Grid.Column="1" Background="#10FFFFFF" CornerRadius="8" Padding="12">
+                        <TabControl>
+                            <TabItem Header="Report">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding ReportContent, Mode=OneWay}" 
+                                            TextWrapping="Wrap" 
+                                            IsReadOnly="True"
+                                            Background="Transparent"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Padding="12" />
+                                </ScrollViewer>
+                            </TabItem>
+                            <TabItem Header="Output Log">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding OutputLogContent, Mode=OneWay}" 
+                                            TextWrapping="Wrap" 
+                                            IsReadOnly="True"
+                                            Background="Transparent"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            FontFamily="Consolas"
+                                            Padding="12" />
+                                </ScrollViewer>
+                            </TabItem>
+                            <TabItem Header="Plan Snapshot">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding PlanSnapshotContent, Mode=OneWay}" 
+                                            TextWrapping="Wrap" 
+                                            IsReadOnly="True"
+                                            Background="Transparent"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Padding="12" />
+                                </ScrollViewer>
+                            </TabItem>
+                        </TabControl>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
     </Grid>
