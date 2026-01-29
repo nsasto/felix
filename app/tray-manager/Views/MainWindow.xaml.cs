@@ -18,9 +18,27 @@ public partial class MainWindow
 
         _settingsService = new WindowSettingsService();
 
+        var settings = _settingsService.LoadSettings();
+        // Apply WPF-UI theme for controls
+        Wpf.Ui.Appearance.ApplicationTheme wpfUiTheme;
+
+        if (settings.Theme == "System")
+        {
+            var systemTheme = Wpf.Ui.Appearance.ApplicationThemeManager.GetSystemTheme();
+            wpfUiTheme = systemTheme == Wpf.Ui.Appearance.SystemTheme.Light 
+                ? Wpf.Ui.Appearance.ApplicationTheme.Light 
+                : Wpf.Ui.Appearance.ApplicationTheme.Dark;
+        }
+        else
+        {
+            wpfUiTheme = settings.Theme == "Light" 
+                ? Wpf.Ui.Appearance.ApplicationTheme.Light 
+                : Wpf.Ui.Appearance.ApplicationTheme.Dark;
+        }
+
         // Apply theme
         SystemThemeWatcher.Watch(this);
-        ApplicationThemeManager.Apply(ApplicationTheme.Dark, Wpf.Ui.Controls.WindowBackdropType.Mica);
+        ApplicationThemeManager.Apply(wpfUiTheme);
 
         // Load window settings
         LoadWindowSettings();
@@ -79,15 +97,14 @@ public partial class MainWindow
 
     private void SaveWindowSettings()
     {
-        var settings = new WindowSettings
-        {
-            Width = WindowState == WindowState.Normal ? Width : RestoreBounds.Width,
-            Height = WindowState == WindowState.Normal ? Height : RestoreBounds.Height,
-            Left = WindowState == WindowState.Normal ? Left : RestoreBounds.Left,
-            Top = WindowState == WindowState.Normal ? Top : RestoreBounds.Top,
-            IsMaximized = WindowState == WindowState.Maximized,
-            RunHistorySplitterPosition = (DataContext as ViewModels.MainViewModel)?.RunHistorySplitterPosition ?? 300
-        };
+        var settings = _settingsService.LoadSettings();
+        settings.Width = WindowState == WindowState.Normal ? Width : RestoreBounds.Width;
+        settings.Height = WindowState == WindowState.Normal ? Height : RestoreBounds.Height;
+        settings.Left = WindowState == WindowState.Normal ? Left : RestoreBounds.Left;
+        settings.Top = WindowState == WindowState.Normal ? Top : RestoreBounds.Top;
+        settings.IsMaximized = WindowState == WindowState.Maximized;
+        settings.RunHistorySplitterPosition = (DataContext as ViewModels.MainViewModel)?.RunHistorySplitterPosition ?? 300;
+            
         
         // Save DataGrid column widths
         if (AgentsDataGrid != null && AgentsDataGrid.Columns.Count >= 6)
