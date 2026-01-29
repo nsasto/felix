@@ -1268,14 +1268,7 @@ if ($registrationSucceeded) {
     Start-HeartbeatJob -AgentId $agentConfig.id -BaseUrl $script:BackendBaseUrl
 }
 
-# Ensure cleanup on exit
-$exitHandler = {
-    Stop-HeartbeatJob
-    Unregister-Agent -AgentId $agentConfig.id
-}
-
-# Register cleanup handler for graceful shutdown
-# Note: PowerShell doesn't have direct cleanup hooks, but we'll call these at normal exit points
+# Cleanup is handled by Exit-FelixAgent function which stops heartbeat and unregisters agent
 # The agent will be marked inactive automatically after heartbeat timeout if abruptly terminated
 
 # Main iteration loop

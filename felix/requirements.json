@@ -355,6 +355,16 @@
             "labels": [],
             "depends_on": [],
             "updated_at": "2026-01-29"
+        },
+        {
+            "id": "S-0027",
+            "title": "Fix Repeating Streaming Copilot Output",
+            "spec_path": "specs/S-0027-fix-repeating-streaming-copilot-output.md",
+            "status": "draft",
+            "priority": "medium",
+            "labels": [],
+            "depends_on": [],
+            "updated_at": "2026-01-29"
         }
     ]
 }
