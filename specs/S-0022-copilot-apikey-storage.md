@@ -13,7 +13,7 @@ As a Felix user, I need to provide my own OpenAI API key through the Settings UI
 ### Core Functionality
 
 - [ ] Settings UI has an input field for OpenAI API key in the Copilot section
-- [ ] API key is stored in browser localStorage (key: `felix_copilot_api_key`)
+- [ ] API key is stored in browser localStorage (key: felix_copilot_api_key)
 - [ ] API key is sent to backend via `X-Copilot-API-Key` HTTP header on copilot requests
 - [ ] Backend validates the API key header and uses it for OpenAI API calls
 - [ ] Backend returns 401 Unauthorized if no API key is provided
@@ -34,7 +34,7 @@ As a Felix user, I need to provide my own OpenAI API key through the Settings UI
 **Frontend (React + localStorage):**
 
 - Add API key input to Settings → Copilot section
-- Store in localStorage: `localStorage.setItem('felix_copilot_api_key', key)`
+- Store in localStorage: localStorage.setItem('felix_copilot_api_key', key)
 - Inject header when making copilot requests
 - Show "API key required" message if missing
 
@@ -125,5 +125,5 @@ X-Copilot-API-Key: sk-proj-...
 - [ ] Copilot chat works with user-provided API key
 - [ ] Backend returns 401 when no key provided
 - [ ] Backend falls back to env var when header is missing (local dev)
-- [ ] `.env` file is in `.gitignore`
+- [ ] .env file is in .gitignore
 - [ ] Tests verify header validation logic

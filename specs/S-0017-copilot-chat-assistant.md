@@ -105,8 +105,8 @@ The copilot appears as a **bottom-right floating chat button** in the specs edit
 
 ### Conversation Persistence
 
-- [ ] Chat history saved to `localStorage` per project
-- [ ] Storage key: `felix_copilot_chat_${projectId}`
+- [ ] Chat history saved to localStorage per project
+- [ ] Storage key: felix*copilot_chat*${projectId}
 - [ ] History includes: messages (user + assistant), timestamps, avatar states
 - [ ] Maximum 50 messages stored (FIFO when exceeded)
 - [ ] History survives page refresh, browser restart, navigation
