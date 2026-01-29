@@ -120,6 +120,9 @@ const App: React.FC = () => {
   // Run artifact viewer state
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
+  // Ref to ensure auto-load only happens once on initial app load
+  const hasAttemptedAutoLoad = useRef<boolean>(false);
+
   // Check backend status on mount
   useEffect(() => {
     const checkBackend = async () => {
@@ -136,6 +139,38 @@ const App: React.FC = () => {
     // Periodically check backend status
     const interval = setInterval(checkBackend, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Auto-load last selected project on app startup
+  useEffect(() => {
+    // Only attempt auto-load once on initial mount
+    if (hasAttemptedAutoLoad.current) {
+      return;
+    }
+    hasAttemptedAutoLoad.current = true;
+
+    const autoLoadLastProject = async () => {
+      const savedProjectId = getLastProjectId();
+      if (!savedProjectId) {
+        return;
+      }
+
+      try {
+        const projectDetails = await felixApi.getProject(savedProjectId);
+        if (projectDetails) {
+          setSelectedProjectId(savedProjectId);
+          setSelectedProject(projectDetails);
+          // Switch to kanban view after auto-loading
+          setUiState("kanban");
+        }
+      } catch (error) {
+        // Project no longer exists or API error - clear the saved ID
+        clearLastProjectId();
+        console.warn("Auto-load failed, clearing saved project ID:", error);
+      }
+    };
+
+    autoLoadLastProject();
   }, []);
 
   const handleSelectProject = (projectId: string, details: ProjectDetails) => {
