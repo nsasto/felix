@@ -167,13 +167,13 @@ while ($requirementsProcessed -lt $MaxRequirements) {
             $completedReq = $updatedReqs.requirements | Where-Object { $_.id -eq $nextReq.id }
             
             if ($completedReq -and ($completedReq.status -eq "complete" -or $completedReq.status -eq "done")) {
-                Write-Host "âœ… Status verified: $($nextReq.id) marked as $($completedReq.status)" -ForegroundColor Green
+                Write-Host "✅ Status verified: $($nextReq.id) marked as $($completedReq.status)" -ForegroundColor Green
             }
-            elseif ($nextReq.status -in @("complete", "done")) {
-                Write-Host "âœ… Requirement was already complete before processing" -ForegroundColor Cyan
+            elseif ($completedReq -and $completedReq.status -in @("in_progress", "planned")) {
+                Write-Host "⚠️  Warning: $($nextReq.id) still has status '$($completedReq.status)' after processing" -ForegroundColor Yellow
             }
             else {
-                Write-Host "â ï¸  Warning: $($nextReq.id) status is '$($completedReq.status)' (expected 'complete')" -ForegroundColor Yellow
+                Write-Host "⚠️  Warning: $($nextReq.id) status is '$($completedReq.status)' (expected 'complete')" -ForegroundColor Yellow
             }
             
             $requirementsProcessed++
