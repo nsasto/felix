@@ -18,6 +18,7 @@
     <Color x:Key="DataGridSelectedRowColor">#FFFFFF</Color>
     <Color x:Key="FormLabelColor">#B0FFFFFF</Color>
     <Color x:Key="SectionCardBackgroundColor">#FFFFFF</Color>
+    <Color x:Key="AccentColor">#2196F3</Color>
     
     <!-- Brush Resources -->
     <SolidColorBrush x:Key="PrimaryTextBrush" Color="{StaticResource PrimaryTextColor}" />
@@ -37,6 +38,7 @@
     <SolidColorBrush x:Key="DataGridSelectedRowBrush" Color="{StaticResource DataGridSelectedRowColor}" Opacity="0.3" />
     <SolidColorBrush x:Key="SectionCardBackgroundBrush" Color="{StaticResource SectionCardBackgroundColor}" Opacity="0.1" />
     <SolidColorBrush x:Key="FooterBackgroundBrush" Color="#FFFFFF" Opacity="0.2" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     
     <LinearGradientBrush x:Key="MainBackgroundBrush" StartPoint="0,0" EndPoint="0,1" Opacity="0.3">
         <GradientStop Color="#1a1a2e" Offset="0"/>
