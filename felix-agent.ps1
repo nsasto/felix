@@ -1289,6 +1289,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Write requirement ID to run directory for tracking
     Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id -Encoding UTF8
     
+    # Update state with current run ID
+    $state.last_run_id = $runId
+    
     # Initialize the plugin system for this run
     Write-Host "[DEBUG] Initializing plugin system with runId: $runId" -ForegroundColor DarkGray
     Initialize-PluginSystem -Config $config -RunId $runId
