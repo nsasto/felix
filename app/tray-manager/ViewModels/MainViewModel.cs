@@ -10,85 +10,101 @@ namespace FelixTrayApp.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     [ObservableProperty]
-    private ObservableCollection<TransferItem> _transfers;
+    private ObservableCollection<AgentItem> _agents;
 
     [ObservableProperty]
-    private ObservableCollection<TransferItem> _filteredTransfers;
+    private ObservableCollection<AgentItem> _filteredAgents;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
 
-    [ObservableProperty]
-    private string _selectedDevice = "iPhone 13 Pro";
-
     public MainViewModel()
     {
-        // Initialize with sample data
-        _transfers = new ObservableCollection<TransferItem>
+        // Initialize with sample agent data
+        _agents = new ObservableCollection<AgentItem>
         {
-            new TransferItem
+            new AgentItem
             {
-                Name = "IMG_3644819.MOV",
-                Size = "175 MB",
-                LastModified = new DateTime(2024, 6, 29),
-                Status = "Done",
-                Progress = 100
+                Name = "DESKTOP-PC",
+                Status = "Idle",
+                LastRun = new DateTime(2026, 1, 29, 10, 30, 0),
+                LastFeatureName = "S-0023: Tray Manager UI",
+                IsActive = true
             },
-            new TransferItem
+            new AgentItem
             {
-                Name = "IMG_3544220.MOV",
-                Size = "25.4 MB",
-                LastModified = new DateTime(2024, 6, 29),
-                Status = "Copying",
-                Progress = 19
+                Name = "LAPTOP-2",
+                Status = "Busy",
+                LastRun = new DateTime(2026, 1, 29, 11, 15, 0),
+                LastFeatureName = "S-0022: Windows Tray Enhancements",
+                IsActive = true
+            },
+            new AgentItem
+            {
+                Name = "WORKSTATION-3",
+                Status = "Error",
+                LastRun = new DateTime(2026, 1, 28, 15, 45, 0),
+                LastFeatureName = "S-0021: Agent Orchestration",
+                IsActive = false
             }
         };
 
-        _filteredTransfers = new ObservableCollection<TransferItem>(_transfers);
+        _filteredAgents = new ObservableCollection<AgentItem>(_agents);
     }
 
     partial void OnSearchTextChanged(string value)
     {
-        FilterTransfers();
+        FilterAgents();
     }
 
-    private void FilterTransfers()
+    private void FilterAgents()
     {
         if (string.IsNullOrWhiteSpace(SearchText))
         {
-            FilteredTransfers = new ObservableCollection<TransferItem>(Transfers);
+            FilteredAgents = new ObservableCollection<AgentItem>(Agents);
         }
         else
         {
-            var filtered = Transfers.Where(t => 
-                t.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
-            FilteredTransfers = new ObservableCollection<TransferItem>(filtered);
+            var filtered = Agents.Where(a => 
+                a.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                a.LastFeatureName.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            FilteredAgents = new ObservableCollection<AgentItem>(filtered);
         }
     }
 
     [RelayCommand]
-    private void CopyItem(TransferItem item)
+    private void AddAgent()
     {
-        // Stub: Show notification or toast
-        System.Diagnostics.Debug.WriteLine($"Copy: {item.Name}");
+        var newAgent = new AgentItem
+        {
+            Name = $"MACHINE-{Agents.Count + 1}",
+            Status = "Idle",
+            LastRun = null,
+            LastFeatureName = "",
+            IsActive = true
+        };
+        Agents.Add(newAgent);
+        FilterAgents();
     }
 
     [RelayCommand]
-    private void DeleteItem(TransferItem item)
+    private void ConfigureAgent(AgentItem agent)
     {
-        Transfers.Remove(item);
-        FilteredTransfers.Remove(item);
+        // Stub: Open settings dialog for this agent
+        System.Diagnostics.Debug.WriteLine($"Configure agent: {agent.Name}");
     }
 
     [RelayCommand]
-    private void Transfer()
+    private void ToggleAgentActive(AgentItem agent)
     {
-        System.Diagnostics.Debug.WriteLine("Transfer clicked");
+        agent.IsActive = !agent.IsActive;
+        System.Diagnostics.Debug.WriteLine($"Agent {agent.Name} is now {(agent.IsActive ? "active" : "inactive")}");
     }
 
     [RelayCommand]
-    private void SendToPhone()
+    private void RemoveAgent(AgentItem agent)
     {
-        System.Diagnostics.Debug.WriteLine("Send to phone clicked");
+        Agents.Remove(agent);
+        FilterAgents();
     }
 }

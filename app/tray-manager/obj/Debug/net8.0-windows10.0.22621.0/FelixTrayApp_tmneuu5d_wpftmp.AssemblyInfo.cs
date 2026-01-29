@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FelixTrayApp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0566d3eda25ca50d0e9145ddafeff8be24aaa943")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a94d036a505eaa861b92855b730f56971b7cdb5a")]
 [assembly: System.Reflection.AssemblyProductAttribute("FelixTrayApp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FelixTrayApp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
