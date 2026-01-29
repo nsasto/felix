@@ -1455,7 +1455,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Initialize-PluginSystem -Config $config -RunId $runId
     
     # Hook: OnPostModeSelection
-    $hookResult = Invoke-PluginHookSafely -HookName "OnPostModeSelection" -RunId $runId -HookData @{
+    $hookResult = Invoke-PluginHook -HookName "OnPostModeSelection" -RunId $runId -HookData @{
         Mode               = $mode
         CurrentRequirement = $currentReq
         PlanPath           = if ($latestPlanPath) { $latestPlanPath } else { "" }
