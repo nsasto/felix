@@ -34,6 +34,9 @@ public partial class MainViewModel : ObservableObject
     private bool _showAgentSettings = false;
 
     [ObservableProperty]
+    private bool _showGlobalSettings = false;
+
+    [ObservableProperty]
     private AgentItem? _selectedAgent;
 
     [ObservableProperty]
@@ -57,14 +60,33 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double _runHistorySplitterPosition = 300;
 
+    [ObservableProperty]
+    private string _selectedTheme = "Dark";
+
+    [ObservableProperty]
+    private bool _isLightTheme = false;
+
+    [ObservableProperty]
+    private bool _isDarkTheme = true;
+
+    [ObservableProperty]
+    private bool _isSystemTheme = false;
+
     public MainViewModel()
     {
         _storageService = new AgentStorageService();
         
-        // Load window settings including splitter position
+        // Load window settings including splitter position and theme
         var windowSettingsService = new WindowSettingsService();
         var settings = windowSettingsService.LoadSettings();
         RunHistorySplitterPosition = settings.RunHistorySplitterPosition;
+        
+        // Apply saved theme
+        SelectedTheme = settings.Theme;
+        IsLightTheme = settings.Theme == "Light";
+        IsDarkTheme = settings.Theme == "Dark";
+        IsSystemTheme = settings.Theme == "System";
+        ApplyTheme(settings.Theme);
         
         // Load agents from file
         var loadedAgents = _storageService.LoadAgents();
@@ -501,7 +523,51 @@ public partial class MainViewModel : ObservableObject
         SelectedRun = null;
         ShowRunHistoryView = false;
         ShowAgentSettings = false;
+        ShowGlobalSettings = false;
         ShowAgentsList = true;
+    }
+
+    [RelayCommand]
+    private void ShowGlobalSettingsView()
+    {
+        ShowGlobalSettings = true;
+        ShowAgentsList = false;
+        ShowAgentSettings = false;
+        ShowRunHistoryView = false;
+    }
+
+    [RelayCommand]
+    private void ApplyTheme(string theme)
+    {
+        SelectedTheme = theme;
+        IsLightTheme = theme == "Light";
+        IsDarkTheme = theme == "Dark";
+        IsSystemTheme = theme == "System";
+
+        // Save theme preference
+        var windowSettingsService = new WindowSettingsService();
+        var settings = windowSettingsService.LoadSettings();
+        settings.Theme = theme;
+        windowSettingsService.SaveSettings(settings);
+
+        // Apply theme to application
+        Wpf.Ui.Appearance.ApplicationTheme themeToApply;
+        
+        if (theme == "System")
+        {
+            var systemTheme = Wpf.Ui.Appearance.ApplicationThemeManager.GetSystemTheme();
+            themeToApply = systemTheme == Wpf.Ui.Appearance.SystemTheme.Light 
+                ? Wpf.Ui.Appearance.ApplicationTheme.Light 
+                : Wpf.Ui.Appearance.ApplicationTheme.Dark;
+        }
+        else
+        {
+            themeToApply = theme == "Light" 
+                ? Wpf.Ui.Appearance.ApplicationTheme.Light 
+                : Wpf.Ui.Appearance.ApplicationTheme.Dark;
+        }
+        
+        Wpf.Ui.Appearance.ApplicationThemeManager.Apply(themeToApply);
     }
 
     partial void OnSelectedRunChanged(RunHistoryItem? value)

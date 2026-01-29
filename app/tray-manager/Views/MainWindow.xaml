@@ -25,7 +25,7 @@
         <!-- Markdown Style for Dark Theme -->
         <Style x:Key="MarkdownStyle" TargetType="FlowDocument">
             <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontFamily" Value="Segoe UI Emoji, Segoe UI Symbol, Segoe UI" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Background" Value="Transparent" />
         </Style>
@@ -39,6 +39,22 @@
                 <GradientStop Color="#0f3460" Offset="1" />
             </LinearGradientBrush>
         </Grid.Background>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
+                        <Setter Property="Background">
+                            <Setter.Value>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" Opacity="0.6">
+                                    <GradientStop Color="#F5F5F5" Offset="0" />
+                                    <GradientStop Color="#FFFFFF" Offset="1" />
+                                </LinearGradientBrush>
+                            </Setter.Value>
+                        </Setter>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
 
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="60" />
@@ -47,6 +63,16 @@
 
         <!-- Left Navigation Panel -->
         <Border Grid.Column="0" Background="#15000000" BorderBrush="#20FFFFFF" BorderThickness="0,0,1,0">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
+                            <Setter Property="Background" Value="#15FFFFFF" />
+                            <Setter Property="BorderBrush" Value="#30000000" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="50" />
@@ -71,15 +97,35 @@
                               Margin="0,4" />
                     <ui:Button Icon="{ui:SymbolIcon Settings24}" 
                               Appearance="Secondary"
-                              ToolTip="Settings"
+                              ToolTip="Global Settings"
+                              Command="{Binding ShowGlobalSettingsViewCommand}"
                               Margin="0,4" />
                 </StackPanel>
 
                 <!-- Footer with User Info -->
                 <Border Grid.Row="2" Margin="8" Padding="8" Background="#20FFFFFF" CornerRadius="8">
-                    <ui:SymbolIcon Symbol="Person24" FontSize="20" Foreground="White" 
-                                  HorizontalAlignment="Center"
-                                  ToolTip="{Binding Path=UserName, FallbackValue='User'}" />
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
+                                    <Setter Property="Background" Value="#30000000" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <ui:SymbolIcon Symbol="Person24" FontSize="20" HorizontalAlignment="Center"
+                                  ToolTip="{Binding Path=UserName, FallbackValue='User'}">
+                        <ui:SymbolIcon.Style>
+                            <Style TargetType="ui:SymbolIcon">
+                                <Setter Property="Foreground" Value="White" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
+                                        <Setter Property="Foreground" Value="#333333" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SymbolIcon.Style>
+                    </ui:SymbolIcon>
                 </Border>
             </Grid>
         </Border>
@@ -95,6 +141,16 @@
             <!-- Top Toolbar -->
             <Border Grid.Row="0" Background="#10000000" BorderBrush="#20FFFFFF" 
                     BorderThickness="0,0,0,1" Padding="20,12">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
+                                <Setter Property="Background" Value="#15FFFFFF" />
+                                <Setter Property="BorderBrush" Value="#30000000" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -103,8 +159,19 @@
 
                     <!-- Title -->
                     <TextBlock Grid.Column="0" Text="Felix Agent Manager" 
-                              FontSize="16" FontWeight="SemiBold" Foreground="White"
-                              VerticalAlignment="Center" />
+                              FontSize="16" FontWeight="SemiBold"
+                              VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="White" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
+                                        <Setter Property="Foreground" Value="#1a1a1a" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
                     <!-- Controls -->
                     <ui:Button Grid.Column="1" 
@@ -117,6 +184,15 @@
 
             <!-- Search and Filter Bar -->
             <Border Grid.Row="1" Background="#08000000" Padding="20,12" Visibility="{Binding ShowAgentsList, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
+                                <Setter Property="Background" Value="#08FFFFFF" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -539,6 +615,85 @@
                         </TabControl>
                     </Border>
                 </Grid>
+            </Grid>
+
+            <!-- Global Settings View -->
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowGlobalSettings, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Grid Grid.Row="0" Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:Button Grid.Column="0" 
+                              Content="Back to Agents" 
+                              Icon="{ui:SymbolIcon ArrowLeft24}"
+                              Command="{Binding BackToAgentsListCommand}"
+                              Margin="0,0,20,0" />
+                    
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Global Settings" FontSize="18" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Application preferences and configuration" FontSize="14" Foreground="#B0FFFFFF" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Settings Content -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="600" HorizontalAlignment="Left">
+                        
+                        <!-- Theme Section -->
+                        <Border Background="#10FFFFFF" CornerRadius="8" Padding="20" Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,12" />
+                                <TextBlock Text="Choose your preferred theme" Foreground="#B0FFFFFF" Margin="0,0,0,16" />
+                                
+                                <!-- Theme Options -->
+                                <StackPanel>
+                                    <RadioButton GroupName="Theme" 
+                                               Content="Light" 
+                                               IsChecked="{Binding IsLightTheme}"
+                                               Command="{Binding ApplyThemeCommand}"
+                                               CommandParameter="Light"
+                                               Foreground="White"
+                                               Margin="0,0,0,12" />
+                                    
+                                    <RadioButton GroupName="Theme" 
+                                               Content="Dark" 
+                                               IsChecked="{Binding IsDarkTheme}"
+                                               Command="{Binding ApplyThemeCommand}"
+                                               CommandParameter="Dark"
+                                               Foreground="White"
+                                               Margin="0,0,0,12" />
+                                    
+                                    <RadioButton GroupName="Theme" 
+                                               Content="System (Use Windows theme)" 
+                                               IsChecked="{Binding IsSystemTheme}"
+                                               Command="{Binding ApplyThemeCommand}"
+                                               CommandParameter="System"
+                                               Foreground="White" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Additional Settings Placeholder -->
+                        <Border Background="#10FFFFFF" CornerRadius="8" Padding="20">
+                            <StackPanel>
+                                <TextBlock Text="About" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,12" />
+                                <TextBlock Text="Felix Tray App" Foreground="#B0FFFFFF" Margin="0,0,0,4" />
+                                <TextBlock Text="Version 1.0.0" Foreground="#B0FFFFFF" Margin="0,0,0,4" />
+                                <TextBlock Text="Agent management and monitoring" Foreground="#B0FFFFFF" />
+                            </StackPanel>
+                        </Border>
+                        
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Grid>
     </Grid>

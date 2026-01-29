@@ -19,6 +19,9 @@ public class WindowSettings
     public double AgentLastRunColumnWidth { get; set; } = 160;
     public double AgentLastFeatureColumnWidth { get; set; } = 250;
     public double AgentOperationsColumnWidth { get; set; } = 250;
+    
+    // Global Settings
+    public string Theme { get; set; } = "Dark"; // Light, Dark, System
 }
 
 public class WindowSettingsService
