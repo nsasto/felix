@@ -24,6 +24,40 @@ import AgentDashboard from "./components/AgentDashboard";
 import CopilotChat from "./components/CopilotChat";
 import { marked } from "marked";
 
+// localStorage key for remembering the last selected project
+const LAST_PROJECT_KEY = "felix-last-project-id";
+
+// Helper functions for safe localStorage operations
+const saveLastProjectId = (projectId: string): void => {
+  try {
+    localStorage.setItem(LAST_PROJECT_KEY, projectId);
+  } catch {
+    // Silently fail if localStorage is unavailable (e.g., private browsing)
+  }
+};
+
+const getLastProjectId = (): string | null => {
+  try {
+    const stored = localStorage.getItem(LAST_PROJECT_KEY);
+    // Validate that the stored value is a non-empty string
+    if (stored && typeof stored === "string" && stored.trim().length > 0) {
+      return stored;
+    }
+    return null;
+  } catch {
+    // Silently fail if localStorage is unavailable
+    return null;
+  }
+};
+
+const clearLastProjectId = (): void => {
+  try {
+    localStorage.removeItem(LAST_PROJECT_KEY);
+  } catch {
+    // Silently fail if localStorage is unavailable
+  }
+};
+
 const INITIAL_TASKS: Task[] = [
   {
     id: "t1",
