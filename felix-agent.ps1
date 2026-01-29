@@ -1473,6 +1473,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Capture state before execution for planning mode guardrails
     $beforeState = if ($mode -eq "planning") { Get-GitState -WorkingDir $ProjectPath } else { $null }
 
+    # Capture commit hash before execution to detect agent-created commits
+    $beforeCommitHash = git rev-parse HEAD 2>&1
+
     # Execute agent
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
     Write-Host "Executing droid in $mode mode..." -ForegroundColor White
@@ -1672,32 +1675,44 @@ This task requires manual intervention.
         # Clear blocked status on success
         $state.blocked_task = $null
 
-        # Capture git diff after staging
-        Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
-        try {
+        # Check if agent already committed changes
+        $afterCommitHash = git rev-parse HEAD 2>&1
+        if ($beforeCommitHash -ne $afterCommitHash) {
+            # Agent created commit - capture diff from the commit
+            $commitHash = git rev-parse --short HEAD 2>&1
+            $commitMsg = git log -1 --pretty=%B 2>&1
+            Write-Host "[COMMIT] ✅ $commitHash - $commitMsg"
+            
+            Write-Host "[ARTIFACTS] Capturing git diff from commit..."
+            $diffOutput = git show HEAD --no-color 2>&1
+            $diffPath = Join-Path $runDir "diff.patch"
+            Set-Content $diffPath $diffOutput -Encoding UTF8
+            Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
+        }
+        else {
+            # PowerShell handles staging and commit
+            Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
+            git add -A 2>&1 | Out-Null
             $diffOutput = git diff --cached 2>&1
             if ($diffOutput) {
                 $diffPath = Join-Path $runDir "diff.patch"
                 Set-Content $diffPath $diffOutput -Encoding UTF8
                 Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
             }
-        }
-        catch {
-            Write-Host "[ARTIFACTS] Warning: Failed to capture git diff"
-        }
-
-        # Commit changes (if enabled)
-        $shouldCommit = $config.executor.commit_on_complete -and -not $NoCommit
-        if ($shouldCommit) {
-            $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
-            $commitOutput = git commit -m $commitMsg 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $commitHash = git rev-parse --short HEAD 2>&1
-                Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
-            }
-            else {
-                Write-Host "[COMMIT] ❌ Failed to commit changes:" -ForegroundColor Red
-                Write-Host $commitOutput -ForegroundColor Red
+            
+            # Commit changes (if enabled)
+            $shouldCommit = $config.executor.commit_on_complete -and -not $NoCommit
+            if ($shouldCommit) {
+                $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
+                $commitOutput = git commit -m $commitMsg 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $commitHash = git rev-parse --short HEAD 2>&1
+                    Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
+                }
+                else {
+                    Write-Host "[COMMIT] ❌ Failed to commit changes:" -ForegroundColor Red
+                    Write-Host $commitOutput -ForegroundColor Red
+                }
             }
         }
         
