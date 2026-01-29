@@ -36,12 +36,30 @@ const saveLastProjectId = (projectId: string): void => {
   }
 };
 
+/**
+ * Validate that a project ID has the expected format.
+ * Project IDs are 12-character hexadecimal strings (MD5 hash prefix).
+ * @param projectId - The project ID to validate
+ * @returns true if valid, false otherwise
+ */
+const isValidProjectId = (projectId: string): boolean => {
+  // Project IDs must be exactly 12 hex characters (a-f, 0-9)
+  return /^[a-f0-9]{12}$/i.test(projectId);
+};
+
 const getLastProjectId = (): string | null => {
   try {
     const stored = localStorage.getItem(LAST_PROJECT_KEY);
     // Validate that the stored value is a non-empty string
     if (stored && typeof stored === "string" && stored.trim().length > 0) {
-      return stored;
+      const trimmed = stored.trim();
+      // Validate project ID format (12-char hex string)
+      if (isValidProjectId(trimmed)) {
+        return trimmed;
+      }
+      // Invalid format - clear corrupted data
+      clearLastProjectId();
+      return null;
     }
     return null;
   } catch {
@@ -122,6 +140,9 @@ const App: React.FC = () => {
 
   // Ref to ensure auto-load only happens once on initial app load
   const hasAttemptedAutoLoad = useRef<boolean>(false);
+  // Ref to track if user has manually interacted (selected project, navigated)
+  // Used to prevent auto-load from overriding user actions
+  const hasUserInteracted = useRef<boolean>(false);
 
   // Check backend status on mount
   useEffect(() => {
@@ -149,6 +170,9 @@ const App: React.FC = () => {
     }
     hasAttemptedAutoLoad.current = true;
 
+    // Track if component is still mounted
+    let isMounted = true;
+
     const autoLoadLastProject = async () => {
       const savedProjectId = getLastProjectId();
       if (!savedProjectId) {
@@ -157,7 +181,10 @@ const App: React.FC = () => {
 
       try {
         const projectDetails = await felixApi.getProject(savedProjectId);
-        if (projectDetails) {
+        // Only apply auto-load if:
+        // 1. Component is still mounted
+        // 2. User hasn't manually interacted (selected project, navigated)
+        if (isMounted && projectDetails && !hasUserInteracted.current) {
           setSelectedProjectId(savedProjectId);
           setSelectedProject(projectDetails);
           // Switch to kanban view after auto-loading
@@ -165,15 +192,25 @@ const App: React.FC = () => {
         }
       } catch (error) {
         // Project no longer exists or API error - clear the saved ID
-        clearLastProjectId();
-        console.warn("Auto-load failed, clearing saved project ID:", error);
+        // Only clear if we're still mounted to avoid state updates on unmounted component
+        if (isMounted) {
+          clearLastProjectId();
+          console.warn("Auto-load failed, clearing saved project ID:", error);
+        }
       }
     };
 
     autoLoadLastProject();
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSelectProject = (projectId: string, details: ProjectDetails) => {
+    // Mark that user has manually interacted (prevents auto-load from overriding)
+    hasUserInteracted.current = true;
     setSelectedProjectId(projectId);
     setSelectedProject(details);
     // Save the selected project ID to localStorage for auto-load on next visit
