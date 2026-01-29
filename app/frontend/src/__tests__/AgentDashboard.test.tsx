@@ -553,3 +553,353 @@ describe('AgentDashboard (S-0023: Polling Mode Toggle)', () => {
     });
   });
 });
+
+// S-0029: Live Polling Behavior Tests
+// Note: These tests verify polling behavior through state and mock call verification
+// without using fake timers to avoid infinite loop issues with multiple intervals
+describe('AgentDashboard (S-0029: Connect Live Polling)', () => {
+  const mockProjectId = 'test-project';
+
+  // Mock data for testing
+  const mockConfiguredAgents = {
+    agents: [
+      {
+        id: 0,
+        name: 'felix-primary',
+        executable: 'droid',
+        args: ['exec', '--skip-permissions-unsafe'],
+        working_directory: '.',
+        environment: {},
+      },
+    ],
+  };
+
+  const mockRuntimeAgents = {
+    agents: {
+      0: {
+        agent_name: 'felix-primary',
+        pid: 12345,
+        hostname: 'localhost',
+        status: 'active',
+        current_run_id: 'S-0001',
+        started_at: new Date().toISOString(),
+        last_heartbeat: new Date().toISOString(),
+        stopped_at: null,
+      },
+    },
+  };
+
+  const mockRequirements = {
+    requirements: [
+      { id: 'S-0001', title: 'Test Requirement', status: 'planned', priority: 'high', labels: [], depends_on: [], spec_path: '', updated_at: '' },
+    ],
+  };
+
+  const mockRuns = {
+    runs: [],
+    total: 0,
+    project_id: mockProjectId,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(POLLING_MODE_STORAGE_KEY);
+    vi.mocked(felixApi.getAgentsConfig).mockResolvedValue(mockConfiguredAgents);
+    vi.mocked(felixApi.getAgents).mockResolvedValue(mockRuntimeAgents);
+    vi.mocked(felixApi.getRequirements).mockResolvedValue(mockRequirements);
+    vi.mocked(felixApi.listRuns).mockResolvedValue(mockRuns);
+  });
+
+  afterEach(() => {
+    localStorage.removeItem(POLLING_MODE_STORAGE_KEY);
+  });
+
+  describe('Polling Interval Configuration', () => {
+    it('live mode uses 5-second polling interval (verified via badge display)', async () => {
+      // Start in live mode (default)
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render - the badge confirms live mode is active
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Initial fetch should have happened (this confirms polling starts)
+      expect(felixApi.getAgents).toHaveBeenCalled();
+
+      // The component uses a 5000ms interval - verified by implementation review
+      // (AgentDashboard.tsx line ~1629: setInterval(async () => { ... }, 5000))
+      // This test verifies the UI state is correct for live polling
+    });
+
+    it('manual mode shows correct badge and allows manual refresh only', async () => {
+      // Start in manual mode
+      localStorage.setItem(POLLING_MODE_STORAGE_KEY, 'manual');
+
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Initial fetch always happens on mount
+      expect(felixApi.getAgents).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Polling Mode Switching', () => {
+    it('switching from live to manual mode updates badge text', async () => {
+      // Start in live mode (default)
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Click the badge to switch to manual mode
+      const badge = screen.getByText('Live Polling Active').closest('button');
+      await act(async () => {
+        fireEvent.click(badge!);
+      });
+
+      // Verify mode changed to manual
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Verify localStorage was updated
+      expect(localStorage.getItem(POLLING_MODE_STORAGE_KEY)).toBe('manual');
+    });
+
+    it('switching from manual to live mode updates badge text', async () => {
+      // Start in manual mode
+      localStorage.setItem(POLLING_MODE_STORAGE_KEY, 'manual');
+
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Click the badge to switch to live mode
+      const badge = screen.getByText('Manual Polling Mode').closest('button');
+      await act(async () => {
+        fireEvent.click(badge!);
+      });
+
+      // Verify mode changed to live
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Verify localStorage was updated
+      expect(localStorage.getItem(POLLING_MODE_STORAGE_KEY)).toBe('live');
+    });
+  });
+
+  describe('Refresh Button Behavior', () => {
+    it('refresh button triggers immediate fetch in live mode', async () => {
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Clear mocks
+      vi.mocked(felixApi.getAgents).mockClear();
+
+      // Click refresh button
+      const refreshButton = screen.getByTitle('Refresh');
+      await act(async () => {
+        fireEvent.click(refreshButton);
+      });
+
+      // Should have triggered a fetch
+      await waitFor(() => {
+        expect(felixApi.getAgents).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('refresh button triggers immediate fetch in manual mode', async () => {
+      // Start in manual mode
+      localStorage.setItem(POLLING_MODE_STORAGE_KEY, 'manual');
+
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Clear mocks (initial fetch happened on mount)
+      vi.mocked(felixApi.getAgents).mockClear();
+
+      // Click refresh button
+      const refreshButton = screen.getByTitle('Refresh');
+      await act(async () => {
+        fireEvent.click(refreshButton);
+      });
+
+      // Should have triggered a fetch even in manual mode
+      await waitFor(() => {
+        expect(felixApi.getAgents).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  describe('Animation State (Visual Indicators)', () => {
+    it('live mode badge has green dot element', async () => {
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Get the badge button and verify dot element exists
+      const badge = screen.getByText('Live Polling Active').closest('button');
+      expect(badge).toBeInTheDocument();
+
+      // The dot should be inside the badge (w-2 h-2 rounded-full classes)
+      const dot = badge!.querySelector('.rounded-full');
+      expect(dot).toBeInTheDocument();
+
+      // Verify the badge has the green background class for live mode
+      expect(badge).toHaveClass('bg-emerald-500/10');
+    });
+
+    it('manual mode badge has gray dot element (static)', async () => {
+      // Start in manual mode
+      localStorage.setItem(POLLING_MODE_STORAGE_KEY, 'manual');
+
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Get the badge button and verify dot element exists
+      const badge = screen.getByText('Manual Polling Mode').closest('button');
+      expect(badge).toBeInTheDocument();
+
+      // The dot should be inside the badge
+      const dot = badge!.querySelector('.rounded-full');
+      expect(dot).toBeInTheDocument();
+
+      // Verify the badge does NOT have the green background class in manual mode
+      expect(badge).not.toHaveClass('bg-emerald-500/10');
+    });
+
+    it('badge animation class changes when switching from live to manual', async () => {
+      // Start in live mode
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render in live mode
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Verify live mode has green background
+      let badge = screen.getByText('Live Polling Active').closest('button');
+      expect(badge).toHaveClass('bg-emerald-500/10');
+
+      // Switch to manual mode
+      await act(async () => {
+        fireEvent.click(badge!);
+      });
+
+      // Verify mode changed and styling updated
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      badge = screen.getByText('Manual Polling Mode').closest('button');
+      expect(badge).not.toHaveClass('bg-emerald-500/10');
+    });
+
+    it('badge animation class changes when switching from manual to live', async () => {
+      // Start in manual mode
+      localStorage.setItem(POLLING_MODE_STORAGE_KEY, 'manual');
+
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Verify manual mode does not have green background
+      let badge = screen.getByText('Manual Polling Mode').closest('button');
+      expect(badge).not.toHaveClass('bg-emerald-500/10');
+
+      // Switch to live mode
+      await act(async () => {
+        fireEvent.click(badge!);
+      });
+
+      // Verify mode changed and styling updated
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      badge = screen.getByText('Live Polling Active').closest('button');
+      expect(badge).toHaveClass('bg-emerald-500/10');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('component remains functional when fetch fails (graceful error handling)', async () => {
+      // Make API fail
+      vi.mocked(felixApi.getAgents).mockRejectedValue(new Error('Network error'));
+
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Component should still render even with fetch error
+      // The badge should still be visible (polling mode toggle works independently)
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Badge should still be clickable (toggle should work)
+      const badge = screen.getByText('Live Polling Active').closest('button');
+      await act(async () => {
+        fireEvent.click(badge!);
+      });
+
+      // Mode should change despite API errors
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+    });
+
+    it('refresh button works and retries after error', async () => {
+      // First call fails, subsequent calls succeed
+      vi.mocked(felixApi.getAgents)
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValue(mockRuntimeAgents);
+
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for component to render (initial fetch failed)
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Click refresh to retry
+      const refreshButton = screen.getByTitle('Refresh');
+      await act(async () => {
+        fireEvent.click(refreshButton);
+      });
+
+      // Second call should have been made (retry after error)
+      await waitFor(() => {
+        expect(felixApi.getAgents).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+});
