@@ -337,7 +337,7 @@
                              "id":  "S-0023",
                              "title":  "Live Polling Onoff",
                              "spec_path":  "specs/S-0023-live-polling-onoff.md",
-                             "status":  "complete",
+                             "status":  "planned",
                              "priority":  "medium",
                              "labels":  [
 
@@ -361,6 +361,22 @@
 
                                             ],
                              "updated_at":  "2026-01-28"
+                         },
+                         {
+                             "id":  "S-0999",
+                             "title":  "Test Dummy Spec",
+                             "spec_path":  "specs/S-0999-test-dummy.md",
+                             "status":  "complete",
+                             "priority":  "low",
+                             "labels":  [
+                                            "testing",
+                                            "dummy"
+                                        ],
+                             "depends_on":  [
+
+                                            ],
+                             "updated_at":  "2026-01-29",
+                             "last_run_id":  "2026-01-29T11-40-07"
                          }
                      ]
 }
