@@ -979,7 +979,7 @@ function Initialize-PluginSystem {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [hashtable]$Config,
+        [PSCustomObject]$Config,
         
         [Parameter(Mandatory = $true)]
         [string]$RunId
@@ -1008,10 +1008,9 @@ function Initialize-PluginSystem {
     }
     
     # Discover plugins
-    $plugins = @()
     $disabledPlugins = if ($Config.plugins.disabled) { $Config.plugins.disabled } else { @() }
     
-    Get-ChildItem $pluginDir -Directory | ForEach-Object {
+    $plugins = Get-ChildItem $pluginDir -Directory | ForEach-Object {
         $pluginName = $_.Name
         $manifestPath = Join-Path $_.FullName "plugin.json"
         
@@ -1061,7 +1060,8 @@ function Initialize-PluginSystem {
                 }
             }
             
-            $plugins += @{
+            # Return plugin object (will be collected into array)
+            [PSCustomObject]@{
                 Name        = $pluginName
                 Manifest    = $manifest
                 Path        = $_.FullName
@@ -1072,17 +1072,20 @@ function Initialize-PluginSystem {
             }
         }
         catch {
-            Write-Warning "Failed to load plugin $pluginName: $_"
+            Write-Warning "Failed to load plugin ${pluginName}: $($_.Exception.Message)"
         }
     }
     
+    # Filter out null values
+    $plugins = $plugins | Where-Object { $_ -ne $null }
+    
     # Topological sort for dependency resolution
-    $sorted = @()
+    $sorted = [System.Collections.ArrayList]::new()
     $visited = @{}
     $visiting = @{}
     
     function Visit-Plugin {
-        param([hashtable]$Plugin)
+        param([PSCustomObject]$Plugin)
         
         if ($visited[$Plugin.Name]) { return }
         if ($visiting[$Plugin.Name]) {
@@ -1104,28 +1107,45 @@ function Initialize-PluginSystem {
         
         $visiting[$Plugin.Name] = $false
         $visited[$Plugin.Name] = $true
-        $script:sorted += $Plugin
+        $null = $sorted.Add($Plugin)
     }
     
     foreach ($plugin in $plugins) {
         Visit-Plugin -Plugin $plugin
     }
     
-    # Sort by priority within dependency order
-    $sorted = $sorted | Sort-Object Priority
+    # Sort by priority within dependency order and convert back to array
+    $sortedArray = @($sorted.ToArray() | Sort-Object Priority)
     
     # Cache plugins
     $script:PluginCache = @{
         Enabled    = $true
-        Plugins    = $sorted
+        Plugins    = $sortedArray
         RunId      = $RunId
         ApiVersion = if ($Config.plugins.api_version) { $Config.plugins.api_version } else { "v1" }
         Config     = $Config.plugins
     }
     
-    Write-Host "[PLUGINS] Loaded $($sorted.Count) plugins"
+    Write-Host "[PLUGINS] Loaded $($sortedArray.Count) plugins"
     
     return $script:PluginCache
+}
+
+function Invoke-PluginHookSafely {
+    param(
+        [string]$HookName,
+        [string]$RunId,
+        [hashtable]$HookData,
+        [hashtable]$DefaultResult = @{}
+    )
+    
+    try {
+        return Invoke-PluginHook -HookName $HookName -RunId $RunId -HookData $HookData
+    }
+    catch {
+        Write-Host "[PLUGINS] $HookName hook failed: $_" -ForegroundColor Yellow
+        return $DefaultResult
+    }
 }
 
 function Invoke-PluginHook {
@@ -1141,13 +1161,17 @@ function Invoke-PluginHook {
         [string]$RunId
     )
     
-    if (-not $script:PluginCache.Enabled) {
+    if (-not $script:PluginCache -or -not $script:PluginCache.Enabled) {
         return $HookData
     }
     
+    if (-not $script:PluginCache.Plugins) {
+        return $HookData
+    }
+
     $apiVersion = $script:PluginCache.ApiVersion
     $applicablePlugins = $script:PluginCache.Plugins | Where-Object {
-        $_.Hooks -contains $HookName
+        $_ -and $_.Hooks -contains $HookName
     }
     
     if ($applicablePlugins.Count -eq 0) {
@@ -1157,13 +1181,14 @@ function Invoke-PluginHook {
     Write-Verbose "[PLUGINS] Executing hook: $HookName ($($applicablePlugins.Count) plugins)"
     
     $chainData = $HookData
-    $executionLog = @()
+    $executionLog = [System.Collections.ArrayList]@()
     
     foreach ($plugin in $applicablePlugins) {
         try {
             # Check permissions
             $hasAllPermissions = $true
-            foreach ($perm in $plugin.Permissions) {
+            $permissions = if ($plugin.Permissions) { $plugin.Permissions } else { @() }
+            foreach ($perm in $permissions) {
                 if (-not $script:PluginPermissions[$perm]) {
                     Write-Warning "Plugin $($plugin.Name) requests unknown permission: $perm"
                     $hasAllPermissions = $false
@@ -1201,12 +1226,12 @@ function Invoke-PluginHook {
             }
             
             # Log successful execution
-            $executionLog += @{
-                Plugin   = $plugin.Name
-                Hook     = $HookName
-                Duration = $duration.TotalMilliseconds
-                Success  = $true
-            }
+            $null = $executionLog.Add(@{
+                    Plugin   = $plugin.Name
+                    Hook     = $HookName
+                    Duration = $duration.TotalMilliseconds
+                    Success  = $true
+                })
             
             # Reset circuit breaker on success
             if ($script:PluginCircuitBreaker[$plugin.Name]) {
@@ -1237,12 +1262,12 @@ function Invoke-PluginHook {
                 Write-Warning "Plugin $($plugin.Name) disabled by circuit breaker after $($cbState.FailureCount) failures"
             }
             
-            $executionLog += @{
-                Plugin  = $plugin.Name
-                Hook    = $HookName
-                Success = $false
-                Error   = $_.ToString()
-            }
+            $null = $executionLog.Add(@{
+                    Plugin  = $plugin.Name
+                    Hook    = $HookName
+                    Success = $false
+                    Error   = $_.ToString()
+                })
         }
     }
     
@@ -1251,15 +1276,18 @@ function Invoke-PluginHook {
     if (Test-Path $logDir) {
         $chainLogPath = Join-Path $logDir "plugin-chain-debug.json"
         $existingLog = if (Test-Path $chainLogPath) {
-            Get-Content $chainLogPath -Raw | ConvertFrom-Json
+            $jsonContent = Get-Content $chainLogPath -Raw | ConvertFrom-Json
+            [System.Collections.ArrayList]@($jsonContent)
         }
-        else { @() }
+        else { 
+            [System.Collections.ArrayList]@()
+        }
         
-        $existingLog += @{
-            Hook      = $HookName
-            Timestamp = Get-Date -Format "o"
-            Plugins   = $executionLog
-        }
+        $null = $existingLog.Add(@{
+                Hook      = $HookName
+                Timestamp = Get-Date -Format "o"
+                Plugins   = $executionLog
+            })
         
         $existingLog | ConvertTo-Json -Depth 10 | Set-Content $chainLogPath
     }
@@ -1270,15 +1298,6 @@ function Invoke-PluginHook {
 # ═══════════════════════════════════════════════════════════════════════════
 # End Plugin System Infrastructure
 # ═══════════════════════════════════════════════════════════════════════════
-
-# Initialize plugin system after config loading
-$pluginSystem = Initialize-PluginSystem -Config $config -RunId "init"
-if ($pluginSystem.Enabled) {
-    Write-Host "[PLUGINS] Plugin system initialized - $($pluginSystem.Plugins.Count) plugins loaded"
-    foreach ($plugin in $pluginSystem.Plugins) {
-        Write-Verbose "  - $($plugin.Name) v$($plugin.Manifest.version) (priority: $($plugin.Priority))"
-    }
-}
 
 Write-Host "Max iterations: $maxIterations"
 Write-Host ""
@@ -1419,8 +1438,16 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host "=============================================================" -ForegroundColor Cyan
     Write-Host ""
     
+    # Create run directory and ID before any hooks
+    $runId = Get-Date -Format "yyyy-MM-ddTHH-mm-ss"
+    $runDir = Join-Path $RunsDir $runId
+    New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+    
+    # Initialize the plugin system for this run
+    Initialize-PluginSystem -Config $config -RunId $runId
+    
     # Hook: OnPostModeSelection
-    $hookResult = Invoke-PluginHook -HookName "OnPostModeSelection" -RunId $runId -HookData @{
+    $hookResult = Invoke-PluginHookSafely -HookName "OnPostModeSelection" -RunId $runId -HookData @{
         Mode               = $mode
         CurrentRequirement = $currentReq
         PlanPath           = if ($latestPlanPath) { $latestPlanPath } else { "" }
@@ -1438,17 +1465,20 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $state.updated_at = Get-Date -Format "o"
     $state | ConvertTo-Json | Set-Content $StateFile
     
-    # Create run directory
-    $runId = Get-Date -Format "yyyy-MM-ddTHH-mm-ss"
-    $runDir = Join-Path $RunsDir $runId
-    New-Item -ItemType Directory -Path $runDir -Force | Out-Null
-    
     # Hook: OnPreIteration
-    $hookResult = Invoke-PluginHook -HookName "OnPreIteration" -RunId $runId -HookData @{
-        Iteration          = $iteration
-        MaxIterations      = $maxIterations
-        CurrentRequirement = $currentReq
-        State              = $state
+    try {
+        $hookResult = Invoke-PluginHook -HookName "OnPreIteration" -RunId $runId -HookData @{
+            Iteration          = $iteration
+            MaxIterations      = $maxIterations
+            CurrentRequirement = $currentReq
+            State              = $state
+        }
+    }
+    catch {
+        Write-Host "[PLUGINS] OnPreIteration hook failed: $_" -ForegroundColor Yellow
+        $hookResult = @{
+            ContinueIteration = $true
+        }
     }
     
     if ($hookResult.ContinueIteration -eq $false) {
@@ -1585,12 +1615,12 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     
     # Hook: OnContextGathering
     $gitDiff = if (Test-Path (Join-Path $ProjectPath ".git")) { git diff 2>$null } else { "" }
-    $hookResult = Invoke-PluginHook -HookName "OnContextGathering" -RunId $runId -HookData @{
+    $hookResult = Invoke-PluginHookSafely -HookName "OnContextGathering" -RunId $runId -HookData @{
         Mode               = $mode
         CurrentRequirement = $currentReq
         GitDiff            = $gitDiff
         PlanContent        = if ($mode -eq "building" -and $planContent) { $planContent } else { "" }
-        ContextFiles       = [System.Collections.ArrayList]@($contextParts)
+        ContextFiles       = $contextParts
     }
     
     if ($hookResult.AdditionalContext) {
@@ -1618,7 +1648,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host "Calling $executable $($args -join ' ')...`n"
     
     # Hook: OnPreLLM
-    $hookResult = Invoke-PluginHook -HookName "OnPreLLM" -RunId $runId -HookData @{
+    $hookResult = Invoke-PluginHookSafely -HookName "OnPreLLM" -RunId $runId -HookData @{
         Mode               = $mode
         CurrentRequirement = $currentReq
         PromptFile         = $promptFile
@@ -1684,7 +1714,7 @@ $_
     Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8
     
     # Hook: OnPostLLM
-    $hookResult = Invoke-PluginHook -HookName "OnPostLLM" -RunId $runId -HookData @{
+    $hookResult = Invoke-PluginHookSafely -HookName "OnPostLLM" -RunId $runId -HookData @{
         Mode               = $mode
         CurrentRequirement = $currentReq
         ExitCode           = if ($droidSuccess) { 0 } else { 1 }
@@ -1772,7 +1802,7 @@ $outputText
         Write-Host "[TASK DONE] Task completed"
         
         # Hook: OnPreBackpressure
-        $hookResult = Invoke-PluginHook -HookName "OnPreBackpressure" -RunId $runId -HookData @{
+        $hookResult = Invoke-PluginHookSafely -HookName "OnPreBackpressure" -RunId $runId -HookData @{
             CurrentRequirement = $currentReq
             Commands           = [System.Collections.ArrayList]@()
         }
@@ -1815,7 +1845,7 @@ $outputText
             }
             
             # Hook: OnBackpressureFailed
-            $hookResult = Invoke-PluginHook -HookName "OnBackpressureFailed" -RunId $runId -HookData @{
+            $hookResult = Invoke-PluginHookSafely -HookName "OnBackpressureFailed" -RunId $runId -HookData @{
                 CurrentRequirement = $currentReq
                 ValidationResult   = $backpressureResult
                 RetryCount         = $retryCount
@@ -1967,7 +1997,7 @@ Fix the validation issues to unblock progress.
             
             # Hook: OnPreCommit
             $stagedFiles = git diff --cached --name-only 2>&1
-            $hookResult = Invoke-PluginHook -HookName "OnPreCommit" -RunId $runId -HookData @{
+            $hookResult = Invoke-PluginHookSafely -HookName "OnPreCommit" -RunId $runId -HookData @{
                 CurrentRequirement = $currentReq
                 CommitMessage      = $commitMsg
                 StagedFiles        = [System.Collections.ArrayList]@($stagedFiles -split "`n" | Where-Object { $_ })
@@ -2198,7 +2228,7 @@ Fix the validation issues to unblock progress.
     $state | ConvertTo-Json | Set-Content $StateFile
     
     # Hook: OnPostIteration
-    $hookResult = Invoke-PluginHook -HookName "OnPostIteration" -RunId $runId -HookData @{
+    $hookResult = Invoke-PluginHookSafely -HookName "OnPostIteration" -RunId $runId -HookData @{
         Iteration          = $iteration
         MaxIterations      = $maxIterations
         CurrentRequirement = $currentReq
