@@ -1,10 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "Id1HafQ/F10=",
+  "dgSpecHash": "G6XWSHVEY9Q=",
   "success": true,
   "projectFilePath": "C:\\projects\\roboza\\felix\\app\\tray-manager\\FelixTrayApp.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\JC881TM\\.nuget\\packages\\avalonedit\\6.3.0.90\\avalonedit.6.3.0.90.nupkg.sha512",
     "C:\\Users\\JC881TM\\.nuget\\packages\\communitytoolkit.mvvm\\8.2.2\\communitytoolkit.mvvm.8.2.2.nupkg.sha512",
+    "C:\\Users\\JC881TM\\.nuget\\packages\\mdxaml\\1.27.0\\mdxaml.1.27.0.nupkg.sha512",
+    "C:\\Users\\JC881TM\\.nuget\\packages\\mdxaml.plugins\\1.27.0\\mdxaml.plugins.1.27.0.nupkg.sha512",
     "C:\\Users\\JC881TM\\.nuget\\packages\\microsoft.win32.systemevents\\8.0.0\\microsoft.win32.systemevents.8.0.0.nupkg.sha512",
     "C:\\Users\\JC881TM\\.nuget\\packages\\system.drawing.common\\8.0.0\\system.drawing.common.8.0.0.nupkg.sha512",
     "C:\\Users\\JC881TM\\.nuget\\packages\\wpf-ui\\3.0.5\\wpf-ui.3.0.5.nupkg.sha512",

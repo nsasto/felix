@@ -5,7 +5,6 @@ C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\F
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\Views\MainWindow.g.cs
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\GeneratedInternalTypeHelper.g.cs
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\FelixTrayApp_MarkupCompile.lref
-C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\Assets\app.ico
 C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\FelixTrayApp.exe
 C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\FelixTrayApp.deps.json
 C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\FelixTrayApp.runtimeconfig.json
@@ -27,3 +26,6 @@ C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\r
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\FelixTrayApp.pdb
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\FelixTrayApp.genruntimeconfig.cache
 C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\ref\FelixTrayApp.dll
+C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\ICSharpCode.AvalonEdit.dll
+C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\MdXaml.dll
+C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\MdXaml.Plugins.dll

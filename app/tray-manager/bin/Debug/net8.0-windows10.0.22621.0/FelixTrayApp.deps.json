@@ -9,6 +9,7 @@
       "FelixTrayApp/1.0.0": {
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.2.2",
+          "MdXaml": "1.27.0",
           "System.Drawing.Common": "8.0.0",
           "WPF-UI": "3.0.5",
           "runtimepack.Microsoft.Windows.SDK.NET.Ref": "10.0.22621.57"
@@ -29,11 +30,39 @@
           }
         }
       },
+      "AvalonEdit/6.3.0.90": {
+        "runtime": {
+          "lib/net7.0-windows7.0/ICSharpCode.AvalonEdit.dll": {
+            "assemblyVersion": "6.3.0.90",
+            "fileVersion": "6.3.0.90"
+          }
+        }
+      },
       "CommunityToolkit.Mvvm/8.2.2": {
         "runtime": {
           "lib/net6.0/CommunityToolkit.Mvvm.dll": {
             "assemblyVersion": "8.2.0.0",
             "fileVersion": "8.2.2.1"
+          }
+        }
+      },
+      "MdXaml/1.27.0": {
+        "dependencies": {
+          "AvalonEdit": "6.3.0.90",
+          "MdXaml.Plugins": "1.27.0"
+        },
+        "runtime": {
+          "lib/net6.0-windows7.0/MdXaml.dll": {
+            "assemblyVersion": "1.27.0.0",
+            "fileVersion": "1.27.0.0"
+          }
+        }
+      },
+      "MdXaml.Plugins/1.27.0": {
+        "runtime": {
+          "lib/net6.0-windows7.0/MdXaml.Plugins.dll": {
+            "assemblyVersion": "1.27.0.0",
+            "fileVersion": "1.27.0.0"
           }
         }
       },
@@ -64,12 +93,33 @@
       "serviceable": false,
       "sha512": ""
     },
+    "AvalonEdit/6.3.0.90": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-WVTb5MxwGqKdeasd3nG5udlV4t6OpvkFanziwI133K0/QJ5FvZmfzRQgpAjGTJhQfIA8GP7AzKQ3sTY9JOFk8Q==",
+      "path": "avalonedit/6.3.0.90",
+      "hashPath": "avalonedit.6.3.0.90.nupkg.sha512"
+    },
     "CommunityToolkit.Mvvm/8.2.2": {
       "type": "package",
       "serviceable": true,
       "sha512": "sha512-r0g0k9tGYdrnz8R7T3x5UiokDffeevzK/2P/9SBL6fqLgN8B157MIi/bVUWI1KAz6ZorZrK9AdABCWUeXZZsvA==",
       "path": "communitytoolkit.mvvm/8.2.2",
       "hashPath": "communitytoolkit.mvvm.8.2.2.nupkg.sha512"
+    },
+    "MdXaml/1.27.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-VWhqhCeKVkJe8vkPmXuGZlRX01WDrTugOLeUvJn18jH/8DrGGVBvtgIlJoELHD2f1DiEWqF3lxxjV55vnzE7Tg==",
+      "path": "mdxaml/1.27.0",
+      "hashPath": "mdxaml.1.27.0.nupkg.sha512"
+    },
+    "MdXaml.Plugins/1.27.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-We7LtBdoukRg9mqTfa1f5n8z/GQPMKBRj3URk9DiMuqzIHkW1lTgK5njVPSScxsRt4YzW22423tSnLWNm2MJKg==",
+      "path": "mdxaml.plugins/1.27.0",
+      "hashPath": "mdxaml.plugins.1.27.0.nupkg.sha512"
     },
     "Microsoft.Win32.SystemEvents/8.0.0": {
       "type": "package",

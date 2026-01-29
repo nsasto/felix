@@ -5,6 +5,7 @@
                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                 xmlns:vm="clr-namespace:FelixTrayApp.ViewModels"
+                xmlns:md="clr-namespace:MdXaml;assembly=MdXaml"
                 mc:Ignorable="d"
                 Title="Felix Tray App"
                 Width="1100"
@@ -17,6 +18,18 @@
     <Window.DataContext>
         <vm:MainViewModel />
     </Window.DataContext>
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        
+        <!-- Markdown Style for Dark Theme -->
+        <Style x:Key="MarkdownStyle" TargetType="FlowDocument">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </Window.Resources>
 
     <Grid>
         <!-- Gradient overlay for deeper color while showing Mica through -->
@@ -42,8 +55,9 @@
                 </Grid.RowDefinitions>
 
                 <!-- App Title -->
-                <TextBlock Grid.Row="0" Text="F" FontSize="20" FontWeight="SemiBold" 
-                           Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                <Image Grid.Row="0" Source="pack://application:,,,/Assets/app.ico" 
+                       Width="32" Height="32"
+                       VerticalAlignment="Center" HorizontalAlignment="Center" />
 
                 <!-- Navigation Items -->
                 <StackPanel Grid.Row="1" Margin="0,20,0,0" HorizontalAlignment="Center">
@@ -137,7 +151,7 @@
                            Foreground="White" Margin="0,0,0,12" />
 
                 <!-- DataGrid -->
-                <DataGrid Grid.Row="1" 
+                <DataGrid x:Name="AgentsDataGrid" Grid.Row="1" 
                           ItemsSource="{Binding FilteredAgents}"
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
@@ -191,10 +205,31 @@
                     </DataGrid.CellStyle>
 
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="*" />
+                        <!-- Connection Status Column -->
+                        <DataGridTemplateColumn Header="" Width="30">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Ellipse Width="8" Height="8" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="#4CAF50" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                                                        <Setter Property="Fill" Value="#F44336" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn x:Name="AgentNameColumn" Header="Name" Binding="{Binding DisplayName}" Width="*" />
                         
                         <!-- Status Column with Icon -->
-                        <DataGridTemplateColumn Header="Status" Width="120">
+                        <DataGridTemplateColumn x:Name="AgentStatusColumn" Header="Status" Width="120">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
@@ -228,11 +263,11 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTextColumn Header="Last Run" Binding="{Binding LastRunFormatted}" Width="160" />
-                        <DataGridTextColumn Header="Last Feature Name" Binding="{Binding LastFeatureName}" Width="250" />
+                        <DataGridTextColumn x:Name="AgentLastRunColumn" Header="Last Run" Binding="{Binding LastRunFormatted}" Width="160" />
+                        <DataGridTextColumn x:Name="AgentLastFeatureColumn" Header="Last Feature Name" Binding="{Binding LastFeatureName}" Width="250" />
 
                         <!-- Operations Column with Buttons -->
-                        <DataGridTemplateColumn Header="Operations" Width="250">
+                        <DataGridTemplateColumn x:Name="AgentOperationsColumn" Header="Operations" Width="250">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
@@ -340,6 +375,23 @@
                                       Command="{Binding BrowseProjectFolderCommand}" />
                         </Grid>
 
+                        <!-- Server Address -->
+                        <TextBlock Text="Server Address" Foreground="#B0FFFFFF" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" 
+                                       Text="{Binding SelectedAgent.ServerAddress, UpdateSourceTrigger=PropertyChanged}" 
+                                       PlaceholderText="http://localhost:8080"
+                                       Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="1" 
+                                      Content="Test" 
+                                      Icon="{ui:SymbolIcon CheckmarkCircle24}"
+                                      Command="{Binding TestConnectionCommand}" />
+                        </Grid>
+
                         <!-- Enabled Toggle -->
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
@@ -421,14 +473,15 @@
                 </Grid>
 
                 <!-- Split View: Runs List and Details -->
-                <Grid Grid.Row="1">
+                <Grid Grid.Row="1" x:Name="RunHistoryGrid">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="300" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="RunHistoryLeftColumn" Width="300" MinWidth="200" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" MinWidth="300" />
                     </Grid.ColumnDefinitions>
 
                     <!-- Runs List -->
-                    <Border Grid.Column="0" Background="#10FFFFFF" CornerRadius="8" Margin="0,0,10,0" Padding="12">
+                    <Border Grid.Column="0" Background="#10FFFFFF" CornerRadius="8" Margin="0,0,5,0" Padding="12">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -451,42 +504,37 @@
                         </Grid>
                     </Border>
 
+                    <!-- GridSplitter -->
+                    <GridSplitter Grid.Column="1" 
+                                 Width="10" 
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Stretch"
+                                 Background="#20FFFFFF"
+                                 ShowsPreview="False"
+                                 ResizeBehavior="PreviousAndNext"
+                                 ResizeDirection="Columns"
+                                 DragCompleted="GridSplitter_DragCompleted" />
+
                     <!-- Run Details with Tabs -->
-                    <Border Grid.Column="1" Background="#10FFFFFF" CornerRadius="8" Padding="12">
+                    <Border Grid.Column="2" Background="#10FFFFFF" CornerRadius="8" Margin="5,0,0,0" Padding="12">
                         <TabControl>
+                            <TabItem Header="Plan">
+                                <md:MarkdownScrollViewer Markdown="{Binding PlanContent, Mode=OneWay}"
+                                                        Background="Transparent"
+                                                        MarkdownStyle="{StaticResource MarkdownStyle}"
+                                                        Padding="12" />
+                            </TabItem>
+                            <TabItem Header="Output">
+                                <md:MarkdownScrollViewer Markdown="{Binding OutputContent, Mode=OneWay}"
+                                                        Background="Transparent"
+                                                        MarkdownStyle="{StaticResource MarkdownStyle}"
+                                                        Padding="12" />
+                            </TabItem>
                             <TabItem Header="Report">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <TextBox Text="{Binding ReportContent, Mode=OneWay}" 
-                                            TextWrapping="Wrap" 
-                                            IsReadOnly="True"
-                                            Background="Transparent"
-                                            Foreground="White"
-                                            BorderThickness="0"
-                                            Padding="12" />
-                                </ScrollViewer>
-                            </TabItem>
-                            <TabItem Header="Output Log">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <TextBox Text="{Binding OutputLogContent, Mode=OneWay}" 
-                                            TextWrapping="Wrap" 
-                                            IsReadOnly="True"
-                                            Background="Transparent"
-                                            Foreground="White"
-                                            BorderThickness="0"
-                                            FontFamily="Consolas"
-                                            Padding="12" />
-                                </ScrollViewer>
-                            </TabItem>
-                            <TabItem Header="Plan Snapshot">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <TextBox Text="{Binding PlanSnapshotContent, Mode=OneWay}" 
-                                            TextWrapping="Wrap" 
-                                            IsReadOnly="True"
-                                            Background="Transparent"
-                                            Foreground="White"
-                                            BorderThickness="0"
-                                            Padding="12" />
-                                </ScrollViewer>
+                                <md:MarkdownScrollViewer Markdown="{Binding ReportContent, Mode=OneWay}"
+                                                        Background="Transparent"
+                                                        MarkdownStyle="{StaticResource MarkdownStyle}"
+                                                        Padding="12" />
                             </TabItem>
                         </TabControl>
                     </Border>

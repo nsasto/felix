@@ -18,6 +18,12 @@ public partial class AgentItem : ObservableObject
     private string _projectFolder = string.Empty;
 
     [ObservableProperty]
+    private string _serverAddress = "http://localhost:8080";
+
+    [ObservableProperty]
+    private bool _isConnected = false;
+
+    [ObservableProperty]
     private string _status = "Idle"; // Idle, Busy, Error
 
     [ObservableProperty]

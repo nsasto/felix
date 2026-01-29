@@ -11,6 +11,14 @@ public class WindowSettings
     public double Left { get; set; } = double.NaN;
     public double Top { get; set; } = double.NaN;
     public bool IsMaximized { get; set; } = false;
+    public double RunHistorySplitterPosition { get; set; } = 300;
+    
+    // DataGrid column widths
+    public double AgentNameColumnWidth { get; set; } = double.NaN;
+    public double AgentStatusColumnWidth { get; set; } = 120;
+    public double AgentLastRunColumnWidth { get; set; } = 160;
+    public double AgentLastFeatureColumnWidth { get; set; } = 250;
+    public double AgentOperationsColumnWidth { get; set; } = 250;
 }
 
 public class WindowSettingsService

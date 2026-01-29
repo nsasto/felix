@@ -2,6 +2,22 @@
   "version": 3,
   "targets": {
     "net8.0-windows10.0.22621": {
+      "AvalonEdit/6.3.0.90": {
+        "type": "package",
+        "compile": {
+          "lib/net7.0-windows7.0/ICSharpCode.AvalonEdit.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net7.0-windows7.0/ICSharpCode.AvalonEdit.dll": {
+            "related": ".xml"
+          }
+        },
+        "frameworkReferences": [
+          "Microsoft.WindowsDesktop.App"
+        ]
+      },
       "CommunityToolkit.Mvvm/8.2.2": {
         "type": "package",
         "compile": {
@@ -17,6 +33,34 @@
         "build": {
           "buildTransitive/netstandard2.1/CommunityToolkit.Mvvm.targets": {}
         }
+      },
+      "MdXaml/1.27.0": {
+        "type": "package",
+        "dependencies": {
+          "AvalonEdit": "6.3.0.90",
+          "MdXaml.Plugins": "1.27.0"
+        },
+        "compile": {
+          "lib/net6.0-windows7.0/MdXaml.dll": {}
+        },
+        "runtime": {
+          "lib/net6.0-windows7.0/MdXaml.dll": {}
+        },
+        "frameworkReferences": [
+          "Microsoft.WindowsDesktop.App.WPF"
+        ]
+      },
+      "MdXaml.Plugins/1.27.0": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0-windows7.0/MdXaml.Plugins.dll": {}
+        },
+        "runtime": {
+          "lib/net6.0-windows7.0/MdXaml.Plugins.dll": {}
+        },
+        "frameworkReferences": [
+          "Microsoft.WindowsDesktop.App.WPF"
+        ]
       },
       "Microsoft.Win32.SystemEvents/8.0.0": {
         "type": "package",
@@ -78,6 +122,25 @@
     }
   },
   "libraries": {
+    "AvalonEdit/6.3.0.90": {
+      "sha512": "WVTb5MxwGqKdeasd3nG5udlV4t6OpvkFanziwI133K0/QJ5FvZmfzRQgpAjGTJhQfIA8GP7AzKQ3sTY9JOFk8Q==",
+      "type": "package",
+      "path": "avalonedit/6.3.0.90",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "PackageReadme.md",
+        "avalonedit.6.3.0.90.nupkg.sha512",
+        "avalonedit.nuspec",
+        "images/AvalonEditNuGetPackageIcon.png",
+        "lib/net462/ICSharpCode.AvalonEdit.dll",
+        "lib/net462/ICSharpCode.AvalonEdit.xml",
+        "lib/net6.0-windows7.0/ICSharpCode.AvalonEdit.dll",
+        "lib/net6.0-windows7.0/ICSharpCode.AvalonEdit.xml",
+        "lib/net7.0-windows7.0/ICSharpCode.AvalonEdit.dll",
+        "lib/net7.0-windows7.0/ICSharpCode.AvalonEdit.xml"
+      ]
+    },
     "CommunityToolkit.Mvvm/8.2.2": {
       "sha512": "r0g0k9tGYdrnz8R7T3x5UiokDffeevzK/2P/9SBL6fqLgN8B157MIi/bVUWI1KAz6ZorZrK9AdABCWUeXZZsvA==",
       "type": "package",
@@ -107,6 +170,37 @@
         "lib/netstandard2.1/CommunityToolkit.Mvvm.dll",
         "lib/netstandard2.1/CommunityToolkit.Mvvm.pdb",
         "lib/netstandard2.1/CommunityToolkit.Mvvm.xml"
+      ]
+    },
+    "MdXaml/1.27.0": {
+      "sha512": "VWhqhCeKVkJe8vkPmXuGZlRX01WDrTugOLeUvJn18jH/8DrGGVBvtgIlJoELHD2f1DiEWqF3lxxjV55vnzE7Tg==",
+      "type": "package",
+      "path": "mdxaml/1.27.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "MdXaml.md",
+        "lib/net45/MdXaml.dll",
+        "lib/net462/MdXaml.dll",
+        "lib/net6.0-windows7.0/MdXaml.dll",
+        "lib/netcoreapp3.0/MdXaml.dll",
+        "mdxaml.1.27.0.nupkg.sha512",
+        "mdxaml.nuspec"
+      ]
+    },
+    "MdXaml.Plugins/1.27.0": {
+      "sha512": "We7LtBdoukRg9mqTfa1f5n8z/GQPMKBRj3URk9DiMuqzIHkW1lTgK5njVPSScxsRt4YzW22423tSnLWNm2MJKg==",
+      "type": "package",
+      "path": "mdxaml.plugins/1.27.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/net45/MdXaml.Plugins.dll",
+        "lib/net462/MdXaml.Plugins.dll",
+        "lib/net6.0-windows7.0/MdXaml.Plugins.dll",
+        "lib/netcoreapp3.0/MdXaml.Plugins.dll",
+        "mdxaml.plugins.1.27.0.nupkg.sha512",
+        "mdxaml.plugins.nuspec"
       ]
     },
     "Microsoft.Win32.SystemEvents/8.0.0": {
@@ -221,6 +315,7 @@
   "projectFileDependencyGroups": {
     "net8.0-windows10.0.22621": [
       "CommunityToolkit.Mvvm >= 8.2.2",
+      "MdXaml >= 1.27.0",
       "System.Drawing.Common >= 8.0.0",
       "WPF-UI >= 3.0.5"
     ]
@@ -278,6 +373,10 @@
           "CommunityToolkit.Mvvm": {
             "target": "Package",
             "version": "[8.2.2, )"
+          },
+          "MdXaml": {
+            "target": "Package",
+            "version": "[1.27.0, )"
           },
           "System.Drawing.Common": {
             "target": "Package",
