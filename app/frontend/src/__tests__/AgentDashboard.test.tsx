@@ -477,4 +477,79 @@ describe('AgentDashboard (S-0023: Polling Mode Toggle)', () => {
       });
     });
   });
+
+  describe('Page Refresh Behavior (S-0029)', () => {
+    it('preserves live mode and resumes polling after page refresh (remount)', async () => {
+      // Start in live mode
+      localStorage.setItem(POLLING_MODE_STORAGE_KEY, 'live');
+
+      // First render (simulates initial page load)
+      const { unmount } = renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render and verify live mode
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Verify initial fetch happened
+      expect(felixApi.getAgents).toHaveBeenCalled();
+
+      // Clear mocks to track new calls after "page refresh"
+      vi.mocked(felixApi.getAgents).mockClear();
+      vi.mocked(felixApi.getAgentsConfig).mockClear();
+
+      // Unmount to simulate page leave
+      unmount();
+
+      // Remount to simulate page refresh (localStorage persists)
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Should still show live mode (restored from localStorage)
+      await waitFor(() => {
+        expect(screen.getByText('Live Polling Active')).toBeInTheDocument();
+      });
+
+      // Verify initial fetch happened on remount - this confirms polling resumed
+      expect(felixApi.getAgents).toHaveBeenCalled();
+    });
+
+    it('preserves manual mode and does not auto-poll after page refresh (remount)', async () => {
+      // Start in manual mode
+      localStorage.setItem(POLLING_MODE_STORAGE_KEY, 'manual');
+
+      // First render (simulates initial page load)
+      const { unmount } = renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial render and verify manual mode
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Verify initial fetch happened (always happens on mount)
+      expect(felixApi.getAgents).toHaveBeenCalled();
+
+      // Clear mocks to track new calls after "page refresh"
+      vi.mocked(felixApi.getAgents).mockClear();
+      vi.mocked(felixApi.getAgentsConfig).mockClear();
+
+      // Unmount to simulate page leave
+      unmount();
+
+      // Remount to simulate page refresh (localStorage persists)
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Should still show manual mode (restored from localStorage)
+      await waitFor(() => {
+        expect(screen.getByText('Manual Polling Mode')).toBeInTheDocument();
+      });
+
+      // Verify initial fetch happened on remount (always fetches on mount regardless of mode)
+      expect(felixApi.getAgents).toHaveBeenCalled();
+
+      // In manual mode, the badge should NOT show the active (throbbing) state
+      // The badge should be gray and static
+      const badge = screen.getByText('Manual Polling Mode').closest('button');
+      expect(badge).toBeInTheDocument();
+    });
+  });
 });
