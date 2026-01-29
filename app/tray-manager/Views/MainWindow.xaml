@@ -1,0 +1,247 @@
+<ui:FluentWindow x:Class="FelixTrayApp.Views.MainWindow"
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                xmlns:vm="clr-namespace:FelixTrayApp.ViewModels"
+                mc:Ignorable="d"
+                Title="Felix Tray App"
+                Width="1100"
+                Height="700"
+                WindowBackdropType="Mica"
+                WindowCornerPreference="Round"
+                ExtendsContentIntoTitleBar="True"
+                WindowStartupLocation="CenterScreen">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Grid>
+        <!-- Gradient overlay for deeper color while showing Mica through -->
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" Opacity="0.3">
+                <GradientStop Color="#1a1a2e" Offset="0" />
+                <GradientStop Color="#0f3460" Offset="1" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Navigation Panel -->
+        <Border Grid.Column="0" Background="#15000000" BorderBrush="#20FFFFFF" BorderThickness="0,0,1,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="50" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- App Title -->
+                <TextBlock Grid.Row="0" Text="Felix" FontSize="20" FontWeight="SemiBold" 
+                           Foreground="White" VerticalAlignment="Center" Margin="20,0" />
+
+                <!-- Navigation Items -->
+                <StackPanel Grid.Row="1" Margin="0,20,0,0">
+                    <ui:NavigationViewItem Content="Phone Assistant" Icon="{ui:SymbolIcon Phone24}" 
+                                          Margin="8,2" IsActive="True" />
+                    <ui:NavigationViewItem Content="Bluetooth" Icon="{ui:SymbolIcon Bluetooth24}" 
+                                          Margin="8,2" />
+                </StackPanel>
+
+                <!-- Footer with User Info -->
+                <Border Grid.Row="2" Margin="12" Padding="12" Background="#20FFFFFF" CornerRadius="8">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Person24" FontSize="20" Foreground="White" />
+                        <TextBlock Text="Alireza" Margin="12,0,0,0" VerticalAlignment="Center" 
+                                   Foreground="White" FontSize="14" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Top Toolbar -->
+            <Border Grid.Row="0" Background="#10000000" BorderBrush="#20FFFFFF" 
+                    BorderThickness="0,0,0,1" Padding="20,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Primary Actions -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <ui:Button Content="Transfer" Icon="{ui:SymbolIcon ArrowDownload24}" 
+                                  Appearance="Primary" Command="{Binding TransferCommand}" Margin="0,0,8,0" />
+                        <ui:Button Content="Send to phone" Icon="{ui:SymbolIcon Send24}" 
+                                  Command="{Binding SendToPhoneCommand}" />
+                    </StackPanel>
+
+                    <!-- Device Selector and Controls -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <ComboBox Width="180" SelectedItem="{Binding SelectedDevice}" 
+                                  VerticalAlignment="Center" Margin="0,0,8,0">
+                            <ComboBoxItem Content="iPhone 13 Pro" IsSelected="True" />
+                            <ComboBoxItem Content="iPhone 14 Pro" />
+                            <ComboBoxItem Content="Samsung Galaxy" />
+                        </ComboBox>
+                        <ui:Button Icon="{ui:SymbolIcon ArrowDownload24}" Appearance="Secondary" Margin="0,0,8,0" />
+                        <ui:Button Icon="{ui:SymbolIcon Settings24}" Appearance="Secondary" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Search and Filter Bar -->
+            <Border Grid.Row="1" Background="#08000000" Padding="20,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:TextBox Grid.Column="0" PlaceholderText="search transfer history" 
+                               Icon="{ui:SymbolIcon Search24}" MaxWidth="400" 
+                               HorizontalAlignment="Left"
+                               Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="#B0FFFFFF">
+                        <Run Text="{Binding FilteredTransfers.Count, Mode=OneWay}" />
+                        <Run Text="file in total" />
+                    </TextBlock>
+                </Grid>
+            </Border>
+
+            <!-- Transfer Table -->
+            <Grid Grid.Row="2" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Section Title -->
+                <TextBlock Grid.Row="0" Text="Transfer" FontSize="18" FontWeight="SemiBold" 
+                           Foreground="White" Margin="0,0,0,12" />
+
+                <!-- DataGrid -->
+                <DataGrid Grid.Row="1" 
+                          ItemsSource="{Binding FilteredTransfers}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserReorderColumns="False"
+                          CanUserResizeRows="False"
+                          CanUserSortColumns="True"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          SelectionMode="Single"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          RowBackground="#15FFFFFF"
+                          AlternatingRowBackground="#10FFFFFF"
+                          RowHeight="48">
+
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#20FFFFFF" />
+                            <Setter Property="Foreground" Value="#B0FFFFFF" />
+                            <Setter Property="Padding" Value="12,8" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                            <Setter Property="BorderBrush" Value="#30FFFFFF" />
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="Padding" Value="12,0" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="DataGridCell">
+                                        <Border Background="{TemplateBinding Background}" 
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter VerticalAlignment="Center" />
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#30FFFFFF" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.CellStyle>
+
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="100" />
+                        <DataGridTextColumn Header="Last modified" Width="150">
+                            <DataGridTextColumn.Binding>
+                                <Binding Path="LastModified" StringFormat="MMM d, yyyy" />
+                            </DataGridTextColumn.Binding>
+                        </DataGridTextColumn>
+
+                        <!-- Status Column with Progress Bar -->
+                        <DataGridTemplateColumn Header="Status" Width="200">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{Binding Status}" 
+                                                   Foreground="White" FontSize="12" />
+                                        <ProgressBar Grid.Row="1" Value="{Binding Progress}" 
+                                                     Maximum="100" Height="4" Margin="0,4,0,0"
+                                                     Foreground="#4CAF50" Background="#30FFFFFF" 
+                                                     BorderThickness="0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Operation Column with Buttons -->
+                        <DataGridTemplateColumn Header="Operation" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:Button Icon="{ui:SymbolIcon Copy24}" 
+                                                  Appearance="Secondary"
+                                                  ToolTip="Copy"
+                                                  Command="{Binding DataContext.CopyItemCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" Margin="0,0,8,0" />
+                                        <ui:Button Icon="{ui:SymbolIcon Delete24}" 
+                                                  Appearance="Secondary"
+                                                  ToolTip="Delete"
+                                                  Command="{Binding DataContext.DeleteItemCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>
