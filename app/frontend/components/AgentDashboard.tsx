@@ -1549,10 +1549,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   }, []); // Empty deps - run once on mount
   
   // Agent polling - only in live mode
+  // Interval set to 5000ms (5 seconds) to match agent heartbeat frequency
   useEffect(() => {
     if (pollingMode !== 'live') return;
     
-    const agentInterval = setInterval(fetchAgents, 2000);
+    const agentInterval = setInterval(fetchAgents, 5000);
     return () => clearInterval(agentInterval);
   }, [fetchAgents, pollingMode]);
   
