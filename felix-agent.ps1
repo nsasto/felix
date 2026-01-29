@@ -1390,7 +1390,11 @@ if ($null -eq $state.validation_retry_count) {
 if ($state.current_requirement_id -ne $currentReq.id) {
     $state.validation_retry_count = 0
     $state.current_requirement_id = $currentReq.id
-    Write-Host "[STATE] Starting new requirement, reset validation retry counter" -ForegroundColor Cyan
+    $state.current_iteration = 0
+    $state.status = "ready"
+    $state.last_iteration_outcome = $null
+    $state.blocked_task = $null
+    Write-Host "[STATE] Starting new requirement, reset all state counters" -ForegroundColor Cyan
 }
 
 # ============================================================================
