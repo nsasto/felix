@@ -115,3 +115,46 @@
 - If version mismatch, treat as fresh run (don't compare outputs)
 - Version format example: `1.2.0-a3f9d8` (script version + prompt hash)
 - Update validation scripts to be version-aware
+
+## TODO: Strengthen or Remove Loop Lock Mechanism
+
+**Current behavior:**
+
+- `felix-loop.ps1` creates a PID-based lock file (`felix/loop.lock`)
+- Lock file is only for tracking - doesn't prevent concurrent loops
+- No mutual exclusion: multiple loops can start simultaneously
+
+**Problem:**
+
+- In single-user dev environments, lock mechanism is unnecessary overhead
+- In multi-agent/CI environments, current lock provides false sense of safety
+- Lock file exists but doesn't actually lock anything
+
+**Proposed solutions:**
+
+**Option 1: Remove lock entirely (simple environments)**
+
+- Only run one felix-loop at a time manually
+- Single-user dev workflow
+- No automation/CI that could trigger overlapping loops
+- Benefits: Simpler code, less file I/O, no stale lock cleanup needed
+
+**Option 2: Strengthen to true mutual exclusion (shared environments)**
+
+- Check for existing lock on startup - abort if found
+- Validate lock PID is still running (handle stale locks)
+- Add timeout mechanism for abandoned locks
+- Benefits: Prevents concurrent loops in CI/CD, shared staging, automated workflows
+
+**Implementation notes (if strengthening):**
+
+- On startup: Check if `felix/loop.lock` exists and PID is active
+- If lock is stale (PID not running): claim it
+- If lock is active: exit with error code and message
+- On shutdown: Always clean up lock file
+- Add `--force` flag to override lock in emergency situations
+
+**Decision criteria:**
+
+- **Remove**: Single developer, no automation, manual execution only
+- **Strengthen**: CI/CD pipelines, multiple developers, shared environments, automated scheduling
