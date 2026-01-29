@@ -1,0 +1,134 @@
+<Window x:Class="FelixTrayManager.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="About Felix Tray Manager" 
+        Height="420" 
+        Width="500"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        ShowInTaskbar="True">
+
+    <Window.Resources>
+        <!-- Style for section headers -->
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,15,0,5"/>
+        </Style>
+
+        <!-- Style for hyperlinks -->
+        <Style x:Key="HyperlinkStyle" TargetType="Hyperlink">
+            <Setter Property="Foreground" Value="#0066CC"/>
+            <Setter Property="TextDecorations" Value="None"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="TextDecorations" Value="Underline"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Style for body text -->
+        <Style x:Key="BodyTextStyle" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header Section with Logo/Icon -->
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,10,0,20">
+            <!-- Application Icon -->
+            <Image Source="/Resources/felix-idle.ico" 
+                   Width="64" 
+                   Height="64" 
+                   Margin="0,0,0,10"/>
+            
+            <!-- Application Name -->
+            <TextBlock Text="Felix Tray Manager" 
+                       FontSize="24" 
+                       FontWeight="Bold" 
+                       HorizontalAlignment="Center"/>
+            
+            <!-- Version Number -->
+            <TextBlock x:Name="VersionTextBlock"
+                       Text="Version 1.0.0" 
+                       FontSize="12" 
+                       Foreground="Gray"
+                       HorizontalAlignment="Center"
+                       Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <!-- Content Section -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                
+                <!-- Description -->
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Description"/>
+                <TextBlock Style="{StaticResource BodyTextStyle}"
+                           Text="Windows system tray manager for Felix autonomous agent. Provides easy process control, status monitoring, and configuration management for the Felix plan-driven execution system."/>
+
+                <!-- Features -->
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Features"/>
+                <TextBlock Style="{StaticResource BodyTextStyle}">
+                    • Start/Stop Felix agent from system tray<LineBreak/>
+                    • Real-time status monitoring and visual indicators<LineBreak/>
+                    • Project path configuration and validation<LineBreak/>
+                    • Auto-start on Windows login<LineBreak/>
+                    • Background process management
+                </TextBlock>
+
+                <!-- Repository Link -->
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Repository"/>
+                <TextBlock Style="{StaticResource BodyTextStyle}">
+                    <Hyperlink NavigateUri="https://github.com/yourusername/felix" 
+                               RequestNavigate="OnHyperlinkClick"
+                               Style="{StaticResource HyperlinkStyle}">
+                        https://github.com/yourusername/felix
+                    </Hyperlink>
+                </TextBlock>
+
+                <!-- License -->
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="License"/>
+                <TextBlock Style="{StaticResource BodyTextStyle}"
+                           Text="MIT License - See LICENSE file in the repository for full details."/>
+
+                <!-- Credits -->
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Credits"/>
+                <TextBlock Style="{StaticResource BodyTextStyle}">
+                    <Run Text="Built with:"/><LineBreak/>
+                    • .NET 8.0 Windows Presentation Foundation (WPF)<LineBreak/>
+                    • Hardcodet.NotifyIcon.Wpf for system tray integration<LineBreak/>
+                    <LineBreak/>
+                    <Run Text="Part of the Felix autonomous software delivery system."/>
+                </TextBlock>
+
+                <!-- Copyright -->
+                <TextBlock Style="{StaticResource BodyTextStyle}"
+                           Text="© 2026 Felix Contributors"
+                           Foreground="Gray"
+                           Margin="0,15,0,0"/>
+                
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Close Button -->
+        <Button Grid.Row="2"
+                Content="Close"
+                Width="80"
+                Height="30"
+                HorizontalAlignment="Right"
+                Margin="0,15,0,0"
+                IsDefault="True"
+                Click="OnCloseClick"/>
+    </Grid>
+</Window>

@@ -159,3 +159,57 @@ def unregister_project(project_id: str) -> bool:
         save_projects(store)
         return True
     return False
+
+
+def update_project(project_id: str, name: Optional[str] = None, path: Optional[str] = None) -> Optional[Project]:
+    """Update a project's metadata"""
+    store = load_projects()
+    
+    for i, project in enumerate(store.projects):
+        if project.id == project_id:
+            new_path = project.path
+            new_id = project.id
+            
+            # If path is being updated, validate it
+            if path is not None and path.strip():
+                project_path = Path(path).resolve()
+                
+                if not project_path.exists():
+                    raise ValueError(f"Project path does not exist: {path}")
+                
+                if not project_path.is_dir():
+                    raise ValueError(f"Project path is not a directory: {path}")
+                
+                # Check for Felix structure
+                felix_dir = project_path / "felix"
+                specs_dir = project_path / "specs"
+                
+                if not felix_dir.exists() or not specs_dir.exists():
+                    raise ValueError(
+                        f"Invalid Felix project structure. "
+                        f"Missing: {[d for d in ['felix/', 'specs/'] if not (project_path / d.rstrip('/')).exists()]}"
+                    )
+                
+                new_path = str(project_path)
+                new_id = generate_project_id(new_path)
+                
+                # Check if new path is already registered by another project
+                for p in store.projects:
+                    if p.id == new_id and p.id != project_id:
+                        raise ValueError(f"Path is already registered as another project: {path}")
+            
+            # Update name if provided
+            new_name = project.name
+            if name is not None:
+                new_name = name if name.strip() else None
+            
+            store.projects[i] = Project(
+                id=new_id,
+                path=new_path,
+                name=new_name,
+                registered_at=project.registered_at
+            )
+            save_projects(store)
+            return store.projects[i]
+    
+    return None

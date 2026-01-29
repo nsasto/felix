@@ -19,6 +19,12 @@ class ProjectRegister(ProjectBase):
     pass
 
 
+class ProjectUpdate(BaseModel):
+    """Request body for updating a project"""
+    name: Optional[str] = Field(None, description="New project display name")
+    path: Optional[str] = Field(None, description="New project path")
+
+
 class Project(ProjectBase):
     """Full project model with computed fields"""
     id: str = Field(..., description="Unique project identifier (derived from path)")

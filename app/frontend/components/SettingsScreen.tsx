@@ -1,13 +1,31 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { felixApi, FelixConfig } from '../services/felixApi';
-import { IconFelix } from './Icons';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  felixApi,
+  FelixConfig,
+  Project,
+  AgentEntry,
+  AgentRegistryResponse,
+  AgentConfiguration,
+  AgentConfigurationsResponse,
+  getCopilotApiKey,
+  setCopilotApiKey,
+  clearCopilotApiKey,
+} from "../services/felixApi";
+import { IconFelix } from "./Icons";
+import { useTheme, ThemeValue } from "../hooks/ThemeProvider";
 
 interface SettingsScreenProps {
-  projectId: string;
+  projectId?: string; // Optional - when undefined, uses global settings API
   onBack: () => void;
 }
 
-type SettingsCategory = 'general' | 'agent' | 'paths' | 'advanced';
+type SettingsCategory =
+  | "general"
+  | "paths"
+  | "copilot"
+  | "advanced"
+  | "projects"
+  | "agents";
 
 interface CategoryInfo {
   id: SettingsCategory;
@@ -18,78 +36,304 @@ interface CategoryInfo {
 
 const CATEGORIES: CategoryInfo[] = [
   {
-    id: 'general',
-    label: 'General',
-    description: 'Basic Felix configuration',
+    id: "general",
+    label: "General",
+    description: "Basic Felix configuration",
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+        />
       </svg>
     ),
   },
   {
-    id: 'agent',
-    label: 'Agent',
-    description: 'Agent execution preferences',
+    id: "paths",
+    label: "Paths",
+    description: "File and directory locations",
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+        />
       </svg>
     ),
   },
   {
-    id: 'paths',
-    label: 'Paths',
-    description: 'File and directory locations',
+    id: "copilot",
+    label: "Felix Copilot",
+    description: "AI-powered spec writing assistant",
+    icon: <span className="text-lg">✨</span>,
+  },
+  {
+    id: "advanced",
+    label: "Advanced",
+    description: "Developer and debug options",
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+        />
       </svg>
     ),
   },
   {
-    id: 'advanced',
-    label: 'Advanced',
-    description: 'Developer and debug options',
+    id: "projects",
+    label: "Projects",
+    description: "Manage registered projects",
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "agents",
+    label: "Agents",
+    description: "Agent registry and status",
+    icon: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+        />
       </svg>
     ),
   },
 ];
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) => {
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
+const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  projectId,
+  onBack,
+}) => {
+  const { theme, setTheme } = useTheme();
+  const [activeCategory, setActiveCategory] =
+    useState<SettingsCategory>("general");
   const [config, setConfig] = useState<FelixConfig | null>(null);
-  const [originalConfig, setOriginalConfig] = useState<FelixConfig | null>(null);
+  const [originalConfig, setOriginalConfig] = useState<FelixConfig | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
-  // Fetch config on mount
+  // Projects state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [registerPath, setRegisterPath] = useState("");
+  const [registerName, setRegisterName] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [unregisteringId, setUnregisteringId] = useState<string | null>(null);
+  const [showUnregisterConfirm, setShowUnregisterConfirm] = useState<
+    string | null
+  >(null);
+  const [configuringProjectId, setConfiguringProjectId] = useState<
+    string | null
+  >(null);
+  const [configProjectName, setConfigProjectName] = useState("");
+  const [configProjectPath, setConfigProjectPath] = useState("");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  // Agents state (orchestration - running agents)
+  const [registeredAgents, setRegisteredAgents] = useState<
+    Record<string, AgentEntry>
+  >({});
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [agentNameInput, setAgentNameInput] = useState<string>("");
+  const [agentNameValidationError, setAgentNameValidationError] = useState<
+    string | null
+  >(null);
+
+  // Agent configurations state (from agents.json)
+  const [agentConfigurations, setAgentConfigurations] = useState<
+    AgentConfiguration[]
+  >([]);
+  const [activeAgentId, setActiveAgentId] = useState<number>(0);
+  const [agentConfigsLoading, setAgentConfigsLoading] = useState(false);
+  const [agentConfigsError, setAgentConfigsError] = useState<string | null>(
+    null,
+  );
+  const [settingActiveAgent, setSettingActiveAgent] = useState<number | null>(
+    null,
+  );
+  const [deletingAgentId, setDeletingAgentId] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(
+    null,
+  );
+
+  // Agent form state (for add/edit)
+  const [showAgentForm, setShowAgentForm] = useState(false);
+  const [editingAgentId, setEditingAgentId] = useState<number | null>(null);
+  const [agentFormName, setAgentFormName] = useState("");
+  const [agentFormExecutable, setAgentFormExecutable] = useState("");
+  const [agentFormArgs, setAgentFormArgs] = useState("");
+  const [agentFormWorkingDir, setAgentFormWorkingDir] = useState(".");
+  const [agentFormSaving, setAgentFormSaving] = useState(false);
+  const [agentFormError, setAgentFormError] = useState<string | null>(null);
+
+  // Fetch config on mount and sync theme
+  // Uses global settings API when no projectId is provided
   useEffect(() => {
     const fetchConfig = async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const result = await felixApi.getConfig(projectId);
+        // Use global settings API when no projectId, otherwise use project-specific API
+        const result = projectId
+          ? await felixApi.getConfig(projectId)
+          : await felixApi.getGlobalConfig();
         setConfig(result.config);
         setOriginalConfig(result.config);
+
+        // Sync theme from backend config to context and localStorage
+        // This ensures the backend config is the source of truth for theme
+        if (result.config.ui?.theme) {
+          setTheme(result.config.ui.theme as ThemeValue);
+        }
       } catch (err) {
-        console.error('Failed to fetch config:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load configuration');
+        console.error("Failed to fetch config:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load configuration",
+        );
       } finally {
         setLoading(false);
       }
     };
 
     fetchConfig();
-  }, [projectId]);
+  }, [projectId, setTheme]);
+
+  // Fetch projects when Projects category is selected
+  const fetchProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const projectsList = await felixApi.listProjects();
+      setProjects(projectsList);
+    } catch (err) {
+      console.error("Failed to fetch projects:", err);
+      setProjectsError(
+        err instanceof Error ? err.message : "Failed to load projects",
+      );
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeCategory === "projects") {
+      fetchProjects();
+    }
+  }, [activeCategory, fetchProjects]);
+
+  // Fetch agents when Agents category is selected
+  const fetchAgents = useCallback(async () => {
+    setAgentsLoading(true);
+    setAgentsError(null);
+    try {
+      const response = await felixApi.getAgents();
+      setRegisteredAgents(response.agents);
+    } catch (err) {
+      console.error("Failed to fetch agents:", err);
+      setAgentsError(
+        err instanceof Error ? err.message : "Failed to load agents",
+      );
+    } finally {
+      setAgentsLoading(false);
+    }
+  }, []);
+
+  // Fetch agent configurations from agents.json
+  const fetchAgentConfigurations = useCallback(async () => {
+    setAgentConfigsLoading(true);
+    setAgentConfigsError(null);
+    try {
+      const response = await felixApi.getAgentConfigurations();
+      setAgentConfigurations(response.agents);
+      setActiveAgentId(response.active_agent_id);
+    } catch (err) {
+      console.error("Failed to fetch agent configurations:", err);
+      setAgentConfigsError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load agent configurations",
+      );
+    } finally {
+      setAgentConfigsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeCategory === "agents") {
+      fetchAgents();
+      fetchAgentConfigurations();
+      // Also initialize agent name input from config
+      if (config?.agent?.name) {
+        setAgentNameInput(config.agent.name);
+      }
+    }
+  }, [
+    activeCategory,
+    fetchAgents,
+    fetchAgentConfigurations,
+    config?.agent?.name,
+  ]);
 
   // Clear success message after 3 seconds
   useEffect(() => {
@@ -100,31 +344,90 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   }, [successMessage]);
 
   // Validate config
-  const validateConfig = useCallback((cfg: FelixConfig): Record<string, string> => {
-    const errors: Record<string, string> = {};
+  const validateConfig = useCallback(
+    (cfg: FelixConfig): Record<string, string> => {
+      const errors: Record<string, string> = {};
 
-    // Validate max_iterations
-    if (!Number.isInteger(cfg.executor.max_iterations) || cfg.executor.max_iterations <= 0) {
-      errors.max_iterations = 'Must be a positive integer';
-    }
-
-    // Validate default_mode
-    if (!['planning', 'building'].includes(cfg.executor.default_mode)) {
-      errors.default_mode = 'Must be "planning" or "building"';
-    }
-
-    // Validate backpressure max_retries if present
-    if (cfg.backpressure.max_retries !== undefined) {
-      if (!Number.isInteger(cfg.backpressure.max_retries) || cfg.backpressure.max_retries < 0) {
-        errors.max_retries = 'Must be a non-negative integer';
+      // Validate max_iterations
+      if (
+        !Number.isInteger(cfg.executor.max_iterations) ||
+        cfg.executor.max_iterations <= 0
+      ) {
+        errors.max_iterations = "Must be a positive integer";
       }
-    }
 
-    return errors;
+      // Validate default_mode
+      if (!["planning", "building"].includes(cfg.executor.default_mode)) {
+        errors.default_mode = 'Must be "planning" or "building"';
+      }
+
+      // Validate backpressure max_retries if present
+      if (cfg.backpressure.max_retries !== undefined) {
+        if (
+          !Number.isInteger(cfg.backpressure.max_retries) ||
+          cfg.backpressure.max_retries < 0
+        ) {
+          errors.max_retries = "Must be a non-negative integer";
+        }
+      }
+
+      return errors;
+    },
+    [],
+  );
+
+  // Validate agent name
+  const validateAgentName = useCallback((name: string): string | null => {
+    if (!name || !name.trim()) {
+      return "Agent name cannot be empty";
+    }
+    // Agent name must be alphanumeric with hyphens and underscores only
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      return "Agent name must be alphanumeric with hyphens and underscores only";
+    }
+    return null;
   }, []);
 
+  // Handle agent name input change
+  const handleAgentNameInputChange = (value: string) => {
+    setAgentNameInput(value);
+    setAgentNameValidationError(validateAgentName(value));
+  };
+
+  // Get relative time string
+  const getRelativeTime = useCallback(
+    (timestamp: string | null | undefined): string => {
+      if (!timestamp) return "Never";
+
+      try {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffSec = Math.floor(diffMs / 1000);
+
+        if (diffSec < 5) return "Just now";
+        if (diffSec < 60) return `${diffSec}s ago`;
+
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return `${diffMin}m ago`;
+
+        const diffHour = Math.floor(diffMin / 60);
+        if (diffHour < 24) return `${diffHour}h ago`;
+
+        const diffDay = Math.floor(diffHour / 24);
+        return `${diffDay}d ago`;
+      } catch {
+        return "Unknown";
+      }
+    },
+    [],
+  );
+
   // Handle config field changes
-  const handleExecutorChange = (field: keyof FelixConfig['executor'], value: any) => {
+  const handleExecutorChange = (
+    field: keyof FelixConfig["executor"],
+    value: any,
+  ) => {
     if (!config) return;
 
     const newConfig = {
@@ -139,22 +442,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     setValidationErrors(validateConfig(newConfig));
   };
 
-  const handleAgentChange = (field: keyof FelixConfig['agent'], value: any) => {
-    if (!config) return;
-
-    const newConfig = {
-      ...config,
-      agent: {
-        ...config.agent,
-        [field]: value,
-      },
-    };
-
-    setConfig(newConfig);
-    setValidationErrors(validateConfig(newConfig));
-  };
-
-  const handleBackpressureChange = (field: keyof FelixConfig['backpressure'], value: any) => {
+  const handleBackpressureChange = (
+    field: keyof FelixConfig["backpressure"],
+    value: any,
+  ) => {
     if (!config) return;
 
     const newConfig = {
@@ -169,7 +460,28 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     setValidationErrors(validateConfig(newConfig));
   };
 
+  const handleUIChange = (field: keyof FelixConfig["ui"], value: any) => {
+    if (!config) return;
+
+    const newConfig = {
+      ...config,
+      ui: {
+        ...config.ui,
+        [field]: value,
+      },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+
+    // Apply theme change immediately for instant feedback
+    if (field === "theme") {
+      setTheme(value as ThemeValue);
+    }
+  };
+
   // Handle save
+  // Uses global settings API when no projectId, otherwise uses project-specific API
   const handleSave = async () => {
     if (!config) return;
 
@@ -184,20 +496,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     setSuccessMessage(null);
 
     try {
-      const result = await felixApi.updateConfig(projectId, config);
+      // Use global settings API when no projectId, otherwise use project-specific API
+      const result = projectId
+        ? await felixApi.updateConfig(projectId, config)
+        : await felixApi.updateGlobalConfig(config);
       setConfig(result.config);
       setOriginalConfig(result.config);
-      setSuccessMessage('Configuration saved successfully');
+      setSuccessMessage("Configuration saved successfully");
     } catch (err) {
-      console.error('Failed to save config:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save configuration');
+      console.error("Failed to save config:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to save configuration",
+      );
     } finally {
       setSaving(false);
     }
   };
 
   // Check if config has changes
-  const hasChanges = config && originalConfig && 
+  const hasChanges =
+    config &&
+    originalConfig &&
     JSON.stringify(config) !== JSON.stringify(originalConfig);
 
   // Reset to original config
@@ -211,22 +530,22 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   // Reset category to defaults
   const handleResetCategory = () => {
     if (!config || !originalConfig) return;
-    
+
     // Reset only the current category's settings
     const newConfig = { ...config };
     switch (activeCategory) {
-      case 'general':
+      case "general":
         newConfig.executor = { ...originalConfig.executor };
         break;
-      case 'agent':
+      case "agent":
         newConfig.agent = { ...originalConfig.agent };
         break;
-      case 'advanced':
+      case "advanced":
         newConfig.backpressure = { ...originalConfig.backpressure };
         break;
       // paths is read-only, no reset needed
     }
-    
+
     setConfig(newConfig);
     setValidationErrors(validateConfig(newConfig));
   };
@@ -239,162 +558,135 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-200">General Settings</h3>
-            <p className="text-xs text-slate-500 mt-1">Basic Felix configuration options</p>
+            <h3 className="text-lg font-bold theme-text-secondary">
+              General Settings
+            </h3>
+            <p className="text-xs theme-text-muted mt-1">
+              Basic Felix configuration options
+            </p>
           </div>
           <button
             onClick={handleResetCategory}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800/50"
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
           >
             Reset to Defaults
           </button>
         </div>
 
+        {/* Theme Selection */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
+            Theme
+          </label>
+          <select
+            value={config.ui?.theme || "dark"}
+            onChange={(e) =>
+              handleUIChange("theme", e.target.value as ThemeValue)
+            }
+            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="system">System</option>
+          </select>
+          <p className="mt-2 text-[11px] theme-text-muted">
+            Choose your preferred color theme. "System" follows your operating
+            system preference.
+          </p>
+        </div>
+
         {/* Max Iterations */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Max Iterations
           </label>
           <input
             type="number"
             min="1"
             value={config.executor.max_iterations}
-            onChange={(e) => handleExecutorChange('max_iterations', parseInt(e.target.value) || 0)}
-            className={`w-full bg-[#0d1117] border rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all ${
-              validationErrors.max_iterations 
-                ? 'border-red-500/50 focus:border-red-500'
-                : 'border-slate-700/50 focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+            onChange={(e) =>
+              handleExecutorChange(
+                "max_iterations",
+                parseInt(e.target.value) || 0,
+              )
+            }
+            className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+              validationErrors.max_iterations
+                ? "border-[var(--status-error)]/50 focus:border-[var(--status-error)]"
+                : "border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
             }`}
           />
           {validationErrors.max_iterations && (
-            <p className="mt-1.5 text-[10px] text-red-400">{validationErrors.max_iterations}</p>
+            <p className="mt-1.5 text-[10px] text-[var(--status-error)]">
+              {validationErrors.max_iterations}
+            </p>
           )}
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Maximum number of iterations the agent will run before stopping
           </p>
         </div>
 
         {/* Default Mode */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
             Default Mode
           </label>
           <select
             value={config.executor.default_mode}
-            onChange={(e) => handleExecutorChange('default_mode', e.target.value)}
-            className={`w-full bg-[#0d1117] border rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all cursor-pointer ${
+            onChange={(e) =>
+              handleExecutorChange("default_mode", e.target.value)
+            }
+            className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all cursor-pointer ${
               validationErrors.default_mode
-                ? 'border-red-500/50'
-                : 'border-slate-700/50 focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+                ? "border-[var(--status-error)]/50"
+                : "border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
             }`}
           >
             <option value="planning">Planning</option>
             <option value="building">Building</option>
           </select>
           {validationErrors.default_mode && (
-            <p className="mt-1.5 text-[10px] text-red-400">{validationErrors.default_mode}</p>
+            <p className="mt-1.5 text-[10px] text-[var(--status-error)]">
+              {validationErrors.default_mode}
+            </p>
           )}
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] theme-text-muted">
             Mode the agent starts in when a run begins
           </p>
         </div>
 
         {/* Auto Transition */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
-              <label className="block text-sm font-bold text-slate-300">
+              <label className="block text-sm font-bold theme-text-secondary">
                 Auto Transition
               </label>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Automatically switch from planning to building mode when plan is complete
+              <p className="text-[11px] theme-text-muted mt-1">
+                Automatically switch from planning to building mode when plan is
+                complete
               </p>
             </div>
             <button
-              onClick={() => handleExecutorChange('auto_transition', !config.executor.auto_transition)}
+              onClick={() =>
+                handleExecutorChange(
+                  "auto_transition",
+                  !config.executor.auto_transition,
+                )
+              }
               className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
-                config.executor.auto_transition 
-                  ? 'bg-felix-600' 
-                  : 'bg-slate-700'
+                config.executor.auto_transition
+                  ? "bg-[var(--accent-secondary)]"
+                  : "theme-bg-surface"
               }`}
             >
               <div
                 className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                  config.executor.auto_transition ? 'left-7' : 'left-1'
+                  config.executor.auto_transition ? "left-7" : "left-1"
                 }`}
               />
             </button>
           </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Render Agent settings
-  const renderAgentSettings = () => {
-    if (!config) return null;
-
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-lg font-bold text-slate-200">Agent Settings</h3>
-            <p className="text-xs text-slate-500 mt-1">Agent execution preferences and policies</p>
-          </div>
-          <button
-            onClick={handleResetCategory}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800/50"
-          >
-            Reset to Defaults
-          </button>
-        </div>
-
-        {/* Executable */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
-            Executable Path
-          </label>
-          <input
-            type="text"
-            value={config.agent.executable}
-            onChange={(e) => handleAgentChange('executable', e.target.value)}
-            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none transition-all focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
-          />
-          <p className="mt-2 text-[11px] text-slate-500">
-            Path to the agent executable (e.g., droid, python)
-          </p>
-        </div>
-
-        {/* Arguments */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
-            Arguments
-          </label>
-          <input
-            type="text"
-            value={config.agent.args.join(' ')}
-            onChange={(e) => handleAgentChange('args', e.target.value.split(' ').filter(Boolean))}
-            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none transition-all focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
-          />
-          <p className="mt-2 text-[11px] text-slate-500">
-            Command-line arguments passed to the agent executable (space-separated)
-          </p>
-        </div>
-
-        {/* Working Directory */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
-          <label className="block text-sm font-bold text-slate-300 mb-2">
-            Working Directory
-          </label>
-          <input
-            type="text"
-            value={config.agent.working_directory}
-            onChange={(e) => handleAgentChange('working_directory', e.target.value)}
-            className="w-full bg-[#0d1117] border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300 font-mono outline-none transition-all focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20"
-          />
-          <p className="mt-2 text-[11px] text-slate-500">
-            Working directory for agent execution (use "." for project root)
-          </p>
         </div>
       </div>
     );
@@ -407,43 +699,75 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
     return (
       <div className="space-y-6">
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-slate-200">Paths</h3>
-          <p className="text-xs text-slate-500 mt-1">File and directory locations (read-only)</p>
+          <h3 className="text-lg font-bold theme-text-secondary">Paths</h3>
+          <p className="text-xs theme-text-muted mt-1">
+            File and directory locations (read-only)
+          </p>
         </div>
 
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl overflow-hidden">
-          <div className="divide-y divide-slate-800/60">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl overflow-hidden">
+          <div className="divide-y divide-[var(--border-default)]">
             <div className="flex justify-between items-center px-5 py-4">
               <div>
-                <span className="text-sm text-slate-300">Specs Directory</span>
-                <p className="text-[10px] text-slate-600 mt-0.5">Location of specification files</p>
+                <span className="text-sm theme-text-secondary">
+                  Specs Directory
+                </span>
+                <p className="text-[10px] theme-text-muted mt-0.5">
+                  Location of specification files
+                </p>
               </div>
-              <code className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg">{config.paths.specs}</code>
+              <code className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg">
+                {config.paths.specs}
+              </code>
             </div>
             <div className="flex justify-between items-center px-5 py-4">
               <div>
-                <span className="text-sm text-slate-300">AGENTS.md</span>
-                <p className="text-[10px] text-slate-600 mt-0.5">Agent instructions file</p>
+                <span className="text-sm theme-text-secondary">AGENTS.md</span>
+                <p className="text-[10px] theme-text-muted mt-0.5">
+                  Agent instructions file
+                </p>
               </div>
-              <code className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg">{config.paths.agents}</code>
+              <code className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg">
+                {config.paths.agents}
+              </code>
             </div>
             <div className="flex justify-between items-center px-5 py-4">
               <div>
-                <span className="text-sm text-slate-300">Runs Directory</span>
-                <p className="text-[10px] text-slate-600 mt-0.5">Location of run artifacts</p>
+                <span className="text-sm theme-text-secondary">
+                  Runs Directory
+                </span>
+                <p className="text-[10px] theme-text-muted mt-0.5">
+                  Location of run artifacts
+                </p>
               </div>
-              <code className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg">{config.paths.runs}</code>
+              <code className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg">
+                {config.paths.runs}
+              </code>
             </div>
           </div>
         </div>
 
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
+        <div className="bg-[var(--status-warning)]/5 border border-[var(--status-warning)]/20 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <svg className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-4 h-4 text-[var(--status-warning)] mt-0.5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
-            <p className="text-xs text-amber-400/80">
-              Path settings are read-only. Edit <code className="bg-amber-500/10 px-1 rounded">felix/config.json</code> directly to modify these values.
+            <p className="text-xs text-[var(--status-warning)]/80">
+              Path settings are read-only. Edit{" "}
+              <code className="bg-[var(--status-warning)]/10 px-1 rounded">
+                felix/config.json
+              </code>{" "}
+              directly to modify these values.
             </p>
           </div>
         </div>
@@ -459,66 +783,82 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-200">Advanced Settings</h3>
-            <p className="text-xs text-slate-500 mt-1">Developer options and debug settings</p>
+            <h3 className="text-lg font-bold theme-text-secondary">
+              Advanced Settings
+            </h3>
+            <p className="text-xs theme-text-muted mt-1">
+              Developer options and debug settings
+            </p>
           </div>
           <button
             onClick={handleResetCategory}
-            className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800/50"
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
           >
             Reset to Defaults
           </button>
         </div>
 
         {/* Backpressure Section */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <label className="block text-sm font-bold text-slate-300">
+              <label className="block text-sm font-bold theme-text-secondary">
                 Enable Backpressure
               </label>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] theme-text-muted mt-1">
                 Run lint/test/build commands between agent iterations
               </p>
             </div>
             <button
-              onClick={() => handleBackpressureChange('enabled', !config.backpressure.enabled)}
+              onClick={() =>
+                handleBackpressureChange(
+                  "enabled",
+                  !config.backpressure.enabled,
+                )
+              }
               className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
-                config.backpressure.enabled 
-                  ? 'bg-felix-600' 
-                  : 'bg-slate-700'
+                config.backpressure.enabled
+                  ? "bg-[var(--accent-secondary)]"
+                  : "theme-bg-surface"
               }`}
             >
               <div
                 className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                  config.backpressure.enabled ? 'left-7' : 'left-1'
+                  config.backpressure.enabled ? "left-7" : "left-1"
                 }`}
               />
             </button>
           </div>
 
           {config.backpressure.enabled && (
-            <div className="space-y-4 pt-4 border-t border-slate-800/60">
+            <div className="space-y-4 pt-4 border-t border-[var(--border-default)]">
               {/* Max Retries */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2">
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Max Retries
                 </label>
                 <input
                   type="number"
                   min="0"
                   value={(config.backpressure as any).max_retries || 3}
-                  onChange={(e) => handleBackpressureChange('max_retries' as any, parseInt(e.target.value) || 0)}
-                  className={`w-full bg-[#0d1117] border rounded-lg px-4 py-2.5 text-sm text-slate-300 outline-none transition-all ${
+                  onChange={(e) =>
+                    handleBackpressureChange(
+                      "max_retries" as any,
+                      parseInt(e.target.value) || 0,
+                    )
+                  }
+                  className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
                     validationErrors.max_retries
-                      ? 'border-red-500/50 focus:border-red-500'
-                      : 'border-slate-700/50 focus:border-felix-500/50'
+                      ? "border-[var(--status-error)]/50 focus:border-[var(--status-error)]"
+                      : "border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50"
                   }`}
                 />
                 {validationErrors.max_retries && (
-                  <p className="mt-1 text-[10px] text-red-400">{validationErrors.max_retries}</p>
+                  <p className="mt-1 text-[10px] text-[var(--status-error)]">
+                    {validationErrors.max_retries}
+                  </p>
                 )}
-                <p className="mt-1.5 text-[10px] text-slate-600">
+                <p className="mt-1.5 text-[10px] theme-text-muted">
                   Number of retry attempts for failed backpressure commands
                 </p>
               </div>
@@ -526,18 +866,22 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               {/* Commands (read-only display) */}
               {config.backpressure.commands.length > 0 && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-2">
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
                     Validation Commands
                   </label>
-                  <div className="bg-[#0d1117] border border-slate-700/50 rounded-lg p-4 space-y-2">
+                  <div className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4 space-y-2">
                     {config.backpressure.commands.map((cmd, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono text-slate-600 w-4">{index + 1}.</span>
-                        <code className="text-xs font-mono text-slate-400">{cmd}</code>
+                        <span className="text-[9px] font-mono theme-text-muted w-4">
+                          {index + 1}.
+                        </span>
+                        <code className="text-xs font-mono theme-text-tertiary">
+                          {cmd}
+                        </code>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[10px] text-slate-600">
+                  <p className="mt-1.5 text-[10px] theme-text-muted">
                     Edit felix/config.json directly to modify commands
                   </p>
                 </div>
@@ -547,26 +891,1934 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
         </div>
 
         {/* Executor Mode (read-only info) */}
-        <div className="bg-[#161b22] border border-slate-800/60 rounded-xl p-5">
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <div className="flex justify-between items-center">
             <div>
-              <label className="block text-sm font-bold text-slate-300">
+              <label className="block text-sm font-bold theme-text-secondary">
                 Executor Mode
               </label>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] theme-text-muted mt-1">
                 How the agent executor runs (local or remote)
               </p>
             </div>
-            <span className="text-xs font-mono text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg uppercase">
+            <span className="text-xs font-mono theme-text-tertiary theme-bg-surface px-3 py-1.5 rounded-lg uppercase">
               {config.executor.mode}
             </span>
           </div>
         </div>
 
         {/* Config Version */}
-        <div className="text-center text-[10px] font-mono text-slate-600 pt-4">
+        <div className="text-center text-[10px] font-mono theme-text-muted pt-4">
           Config Version: {config.version}
         </div>
+      </div>
+    );
+  };
+
+  // Render Projects settings
+  const renderProjectsSettings = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold theme-text-secondary">Projects</h3>
+            <p className="text-xs theme-text-muted mt-1">
+              Manage registered Felix projects
+            </p>
+          </div>
+          <button
+            onClick={() => setShowRegisterForm(true)}
+            className="px-4 py-2 text-xs font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-colors flex items-center gap-2"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Register New Project
+          </button>
+        </div>
+
+        {/* Search/Filter */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search projects by name or path..."
+            value={projectSearchQuery}
+            onChange={(e) => setProjectSearchQuery(e.target.value)}
+            className="w-full theme-bg-elevated border border-[var(--border-default)] rounded-xl px-4 py-3 pl-10 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20 transition-all"
+          />
+          <svg
+            className="w-4 h-4 theme-text-muted absolute left-4 top-1/2 -translate-y-1/2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+        </div>
+
+        {/* Register Form Modal */}
+        {showRegisterForm && (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-bold theme-text-secondary">
+                Register New Project
+              </h4>
+              <button
+                onClick={() => {
+                  setShowRegisterForm(false);
+                  setRegisterPath("");
+                  setRegisterName("");
+                }}
+                className="theme-text-muted hover:theme-text-secondary transition-colors"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Project Path *
+                </label>
+                <input
+                  type="text"
+                  placeholder="C:\path\to\your\project"
+                  value={registerPath}
+                  onChange={(e) => setRegisterPath(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Full path to the project directory (must contain specs/ and
+                  felix/ directories)
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Project Name (optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="My Project"
+                  value={registerName}
+                  onChange={(e) => setRegisterName(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowRegisterForm(false);
+                    setRegisterPath("");
+                    setRegisterName("");
+                  }}
+                  className="px-4 py-2 text-xs font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!registerPath.trim()) return;
+                    setIsRegistering(true);
+                    try {
+                      await felixApi.registerProject({
+                        path: registerPath.trim(),
+                        name: registerName.trim() || undefined,
+                      });
+                      setShowRegisterForm(false);
+                      setRegisterPath("");
+                      setRegisterName("");
+                      setSuccessMessage("Project registered successfully");
+                      fetchProjects();
+                    } catch (err) {
+                      setProjectsError(
+                        err instanceof Error
+                          ? err.message
+                          : "Failed to register project",
+                      );
+                    } finally {
+                      setIsRegistering(false);
+                    }
+                  }}
+                  disabled={!registerPath.trim() || isRegistering}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                    registerPath.trim() && !isRegistering
+                      ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
+                      : "theme-bg-surface theme-text-muted cursor-not-allowed"
+                  }`}
+                >
+                  {isRegistering ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Registering...
+                    </>
+                  ) : (
+                    "Register Project"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {projectsLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-4" />
+            <span className="text-xs font-mono theme-text-muted uppercase">
+              Loading projects...
+            </span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {projectsError && !projectsLoading && (
+          <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div>
+                <p className="text-xs text-[var(--status-error)]">
+                  {projectsError}
+                </p>
+                <button
+                  onClick={fetchProjects}
+                  className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!projectsLoading && !projectsError && projects.length === 0 && (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
+            <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-6 h-6 theme-text-muted"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
+              </svg>
+            </div>
+            <h4 className="text-sm font-bold theme-text-tertiary mb-2">
+              No Projects Registered
+            </h4>
+            <p className="text-xs theme-text-muted max-w-sm mx-auto">
+              Register a Felix project to get started. Projects must have specs/
+              and felix/ directories.
+            </p>
+          </div>
+        )}
+
+        {/* Projects List */}
+        {!projectsLoading && !projectsError && projects.length > 0 && (
+          <div className="space-y-3">
+            {projects
+              .filter((project) => {
+                if (!projectSearchQuery.trim()) return true;
+                const query = projectSearchQuery.toLowerCase();
+                return (
+                  project.name?.toLowerCase().includes(query) ||
+                  false ||
+                  project.path.toLowerCase().includes(query) ||
+                  project.id.toLowerCase().includes(query)
+                );
+              })
+              .sort(
+                (a, b) =>
+                  new Date(b.registered_at).getTime() -
+                  new Date(a.registered_at).getTime(),
+              )
+              .map((project) => (
+                <div
+                  key={project.id}
+                  className={`theme-bg-elevated border rounded-xl p-5 transition-all ${
+                    project.id === projectId
+                      ? "border-[var(--accent-primary)]/40 bg-[var(--selected-bg)]"
+                      : "border-[var(--border-default)] hover:border-[var(--border-muted)]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-sm font-bold theme-text-secondary truncate">
+                          {project.name || project.id}
+                        </h4>
+                        {project.id === projectId && (
+                          <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full uppercase">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="text-[11px] font-mono theme-text-muted truncate block">
+                          {project.path}
+                        </code>
+                        <button
+                          onClick={() =>
+                            navigator.clipboard.writeText(project.path)
+                          }
+                          className="flex-shrink-0 theme-text-muted hover:theme-text-tertiary transition-colors"
+                          title="Copy path"
+                        >
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-[10px] theme-text-muted mt-2">
+                        Registered{" "}
+                        {new Date(project.registered_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => {
+                          // TODO: Open project action - requires callback from parent
+                        }}
+                        className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
+                      >
+                        Open
+                      </button>
+                      <button
+                        onClick={() => {
+                          setConfiguringProjectId(project.id);
+                          setConfigProjectName(project.name || "");
+                          setConfigProjectPath(project.path);
+                        }}
+                        className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
+                      >
+                        Configure
+                      </button>
+                      {project.id !== projectId && (
+                        <button
+                          onClick={() => setShowUnregisterConfirm(project.id)}
+                          className="px-3 py-1.5 text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] border border-[var(--status-error)]/20 rounded-lg hover:bg-[var(--status-error)]/10 transition-all"
+                        >
+                          Unregister
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Configuration Panel */}
+                  {configuringProjectId === project.id && (
+                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                            Project Name
+                          </label>
+                          <input
+                            type="text"
+                            value={configProjectName}
+                            onChange={(e) =>
+                              setConfigProjectName(e.target.value)
+                            }
+                            placeholder={
+                              project.path.split(/[/\\]/).pop() ||
+                              "Project name"
+                            }
+                            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                          />
+                          <p className="mt-1.5 text-[10px] theme-text-muted">
+                            Display name for this project (leave empty to use
+                            directory name)
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                            Project Folder
+                          </label>
+                          <input
+                            type="text"
+                            value={configProjectPath}
+                            onChange={(e) =>
+                              setConfigProjectPath(e.target.value)
+                            }
+                            placeholder="C:\path\to\your\project"
+                            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                          />
+                          <p className="mt-1.5 text-[10px] theme-text-muted">
+                            Full path to the project directory (must contain
+                            specs/ and felix/ directories)
+                          </p>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => {
+                              setConfiguringProjectId(null);
+                              setConfigProjectName("");
+                              setConfigProjectPath("");
+                            }}
+                            className="px-4 py-2 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setIsSavingConfig(true);
+                              try {
+                                // Only send path if it changed
+                                const pathChanged =
+                                  configProjectPath.trim() !== project.path;
+                                await felixApi.updateProject(project.id, {
+                                  name: configProjectName.trim() || undefined,
+                                  path: pathChanged
+                                    ? configProjectPath.trim()
+                                    : undefined,
+                                });
+                                setSuccessMessage(
+                                  "Project configuration saved",
+                                );
+                                setConfiguringProjectId(null);
+                                setConfigProjectName("");
+                                setConfigProjectPath("");
+                                fetchProjects();
+                              } catch (err) {
+                                setProjectsError(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to save project configuration",
+                                );
+                              } finally {
+                                setIsSavingConfig(false);
+                              }
+                            }}
+                            disabled={isSavingConfig}
+                            className={`px-4 py-2 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
+                              !isSavingConfig
+                                ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
+                                : "theme-bg-surface theme-text-muted cursor-not-allowed"
+                            }`}
+                          >
+                            {isSavingConfig ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save"
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unregister Confirmation */}
+                  {showUnregisterConfirm === project.id && (
+                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-[var(--status-warning)]">
+                          Remove this project from Felix? Files will remain on
+                          disk.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowUnregisterConfirm(null)}
+                            className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setUnregisteringId(project.id);
+                              try {
+                                await felixApi.unregisterProject(project.id);
+                                setSuccessMessage(
+                                  "Project unregistered successfully",
+                                );
+                                setShowUnregisterConfirm(null);
+                                fetchProjects();
+                              } catch (err) {
+                                setProjectsError(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to unregister project",
+                                );
+                              } finally {
+                                setUnregisteringId(null);
+                              }
+                            }}
+                            disabled={unregisteringId === project.id}
+                            className="px-3 py-1.5 text-[10px] font-bold bg-[var(--status-error)]/20 text-[var(--status-error)] rounded-lg hover:bg-[var(--status-error)]/30 transition-all flex items-center gap-2"
+                          >
+                            {unregisteringId === project.id ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-[var(--status-error)]/30 border-t-[var(--status-error)] rounded-full animate-spin" />
+                                Removing...
+                              </>
+                            ) : (
+                              "Confirm Unregister"
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render Agents settings
+  const renderAgentsSettings = () => {
+    if (!config) return null;
+
+    // Handle setting active agent
+    const handleSetActiveAgent = async (agentId: number) => {
+      setSettingActiveAgent(agentId);
+      try {
+        await felixApi.setActiveAgent(agentId);
+        setActiveAgentId(agentId);
+        setSuccessMessage(`Agent set as active successfully`);
+      } catch (err) {
+        console.error("Failed to set active agent:", err);
+        setAgentConfigsError(
+          err instanceof Error ? err.message : "Failed to set active agent",
+        );
+      } finally {
+        setSettingActiveAgent(null);
+      }
+    };
+
+    // Handle deleting agent
+    const handleDeleteAgent = async (agentId: number) => {
+      setDeletingAgentId(agentId);
+      try {
+        await felixApi.deleteAgentConfiguration(agentId);
+        setSuccessMessage("Agent deleted successfully");
+        setShowDeleteConfirm(null);
+        fetchAgentConfigurations();
+      } catch (err) {
+        console.error("Failed to delete agent:", err);
+        setAgentConfigsError(
+          err instanceof Error ? err.message : "Failed to delete agent",
+        );
+      } finally {
+        setDeletingAgentId(null);
+      }
+    };
+
+    // Reset agent form
+    const resetAgentForm = () => {
+      setShowAgentForm(false);
+      setEditingAgentId(null);
+      setAgentFormName("");
+      setAgentFormExecutable("");
+      setAgentFormArgs("");
+      setAgentFormWorkingDir(".");
+      setAgentFormError(null);
+    };
+
+    // Open add agent form
+    const openAddAgentForm = () => {
+      resetAgentForm();
+      setShowAgentForm(true);
+    };
+
+    // Open edit agent form
+    const openEditAgentForm = (agent: AgentConfiguration) => {
+      setEditingAgentId(agent.id);
+      setAgentFormName(agent.name);
+      setAgentFormExecutable(agent.executable);
+      setAgentFormArgs(agent.args.join(" "));
+      setAgentFormWorkingDir(agent.working_directory);
+      setAgentFormError(null);
+      setShowAgentForm(true);
+    };
+
+    // Handle agent form save
+    const handleAgentFormSave = async () => {
+      // Validate required fields
+      if (!agentFormName.trim()) {
+        setAgentFormError("Agent name is required");
+        return;
+      }
+      if (!agentFormExecutable.trim()) {
+        setAgentFormError("Executable path is required");
+        return;
+      }
+
+      setAgentFormSaving(true);
+      setAgentFormError(null);
+
+      try {
+        const agentData = {
+          name: agentFormName.trim(),
+          executable: agentFormExecutable.trim(),
+          args: agentFormArgs.trim() ? agentFormArgs.trim().split(/\s+/) : [],
+          working_directory: agentFormWorkingDir.trim() || ".",
+        };
+
+        if (editingAgentId !== null) {
+          // Update existing agent
+          await felixApi.updateAgentConfiguration(editingAgentId, agentData);
+          setSuccessMessage("Agent updated successfully");
+        } else {
+          // Create new agent
+          await felixApi.createAgentConfiguration(agentData);
+          setSuccessMessage("Agent created successfully");
+        }
+
+        resetAgentForm();
+        fetchAgentConfigurations();
+      } catch (err) {
+        console.error("Failed to save agent:", err);
+        setAgentFormError(
+          err instanceof Error ? err.message : "Failed to save agent",
+        );
+      } finally {
+        setAgentFormSaving(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold theme-text-secondary">
+              Agent Configurations
+            </h3>
+            <p className="text-xs theme-text-muted mt-1">
+              Manage saved agent presets from agents.json
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                fetchAgentConfigurations();
+                fetchAgents();
+              }}
+              disabled={agentConfigsLoading || agentsLoading}
+              className="px-4 py-2 text-xs font-bold theme-text-tertiary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex items-center gap-2"
+            >
+              <svg
+                className={`w-4 h-4 ${agentConfigsLoading || agentsLoading ? "animate-spin" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              {agentConfigsLoading || agentsLoading
+                ? "Refreshing..."
+                : "Refresh"}
+            </button>
+            <button
+              onClick={openAddAgentForm}
+              className="px-4 py-2 text-xs font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-colors flex items-center gap-2"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Add Agent
+            </button>
+          </div>
+        </div>
+
+        {/* Agent Form (Add/Edit) */}
+        {showAgentForm && (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-bold theme-text-secondary">
+                {editingAgentId !== null ? "Edit Agent" : "Add New Agent"}
+              </h4>
+              <button
+                onClick={resetAgentForm}
+                className="theme-text-muted hover:theme-text-secondary transition-colors"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Form Error */}
+            {agentFormError && (
+              <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-[var(--status-error)]">
+                  {agentFormError}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Agent Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="my-agent"
+                  value={agentFormName}
+                  onChange={(e) => setAgentFormName(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  A unique name for this agent configuration
+                </p>
+              </div>
+
+              {/* Executable */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Executable Path *
+                </label>
+                <input
+                  type="text"
+                  placeholder="droid"
+                  value={agentFormExecutable}
+                  onChange={(e) => setAgentFormExecutable(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Path to the agent executable (e.g., droid, python, npx)
+                </p>
+              </div>
+
+              {/* Arguments */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Arguments
+                </label>
+                <input
+                  type="text"
+                  placeholder="exec --no-interactive"
+                  value={agentFormArgs}
+                  onChange={(e) => setAgentFormArgs(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Command-line arguments passed to the executable
+                  (space-separated)
+                </p>
+              </div>
+
+              {/* Working Directory */}
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Working Directory
+                </label>
+                <input
+                  type="text"
+                  placeholder="."
+                  value={agentFormWorkingDir}
+                  onChange={(e) => setAgentFormWorkingDir(e.target.value)}
+                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Working directory for agent execution (use "." for project
+                  root)
+                </p>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={resetAgentForm}
+                  className="px-4 py-2 text-xs font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAgentFormSave}
+                  disabled={
+                    agentFormSaving ||
+                    !agentFormName.trim() ||
+                    !agentFormExecutable.trim()
+                  }
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                    agentFormName.trim() &&
+                    agentFormExecutable.trim() &&
+                    !agentFormSaving
+                      ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
+                      : "theme-bg-surface theme-text-muted cursor-not-allowed"
+                  }`}
+                >
+                  {agentFormSaving ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : editingAgentId !== null ? (
+                    "Update Agent"
+                  ) : (
+                    "Create Agent"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Agent Configurations List */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <h4 className="text-sm font-bold theme-text-secondary mb-4">
+            Saved Agents
+          </h4>
+
+          {/* Error State */}
+          {agentConfigsError && (
+            <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <div>
+                  <p className="text-xs text-[var(--status-error)]">
+                    {agentConfigsError}
+                  </p>
+                  <button
+                    onClick={fetchAgentConfigurations}
+                    className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {agentConfigsLoading && agentConfigurations.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-3" />
+              <span className="text-[10px] font-mono theme-text-muted uppercase">
+                Loading agent configurations...
+              </span>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!agentConfigsLoading &&
+            !agentConfigsError &&
+            agentConfigurations.length === 0 && (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-6 h-6 theme-text-muted"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                    />
+                  </svg>
+                </div>
+                <h4 className="text-sm font-bold theme-text-tertiary mb-2">
+                  No Agent Configurations
+                </h4>
+                <p className="text-xs theme-text-muted max-w-sm mx-auto">
+                  No saved agent configurations found. Add an agent to get
+                  started.
+                </p>
+              </div>
+            )}
+
+          {/* Agent Configurations List */}
+          {agentConfigurations.length > 0 && (
+            <div className="space-y-3">
+              {agentConfigurations
+                .sort((a, b) => a.id - b.id)
+                .map((agent) => {
+                  const isSystemDefault = agent.id === 0;
+                  const isActive = agent.id === activeAgentId;
+
+                  return (
+                    <div
+                      key={agent.id}
+                      className={`theme-bg-base border rounded-lg p-4 transition-all ${
+                        isActive
+                          ? "border-[var(--accent-primary)]/40 bg-[var(--selected-bg)]"
+                          : "border-[var(--border-muted)]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <h5 className="text-sm font-bold theme-text-secondary truncate">
+                              {agent.name}
+                            </h5>
+                            <span className="text-[9px] font-mono theme-text-muted">
+                              ID: {agent.id}
+                            </span>
+                            {isSystemDefault && (
+                              <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--status-warning)]/20 text-[var(--status-warning)] rounded-full flex items-center gap-1">
+                                🔒 System Default
+                              </span>
+                            )}
+                            {isActive && (
+                              <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full flex items-center gap-1">
+                                ✓ Active
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex items-center gap-2">
+                              <span className="theme-text-muted">
+                                Executable:
+                              </span>
+                              <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded">
+                                {agent.executable}
+                              </code>
+                            </div>
+                            {agent.args.length > 0 && (
+                              <div className="flex items-start gap-2">
+                                <span className="theme-text-muted">Args:</span>
+                                <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded break-all">
+                                  {agent.args.join(" ")}
+                                </code>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="theme-text-muted">
+                                Working Dir:
+                              </span>
+                              <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded">
+                                {agent.working_directory}
+                              </code>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!isActive && (
+                            <button
+                              onClick={() => handleSetActiveAgent(agent.id)}
+                              disabled={settingActiveAgent === agent.id}
+                              className="px-3 py-1.5 text-[10px] font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-all flex items-center gap-1"
+                            >
+                              {settingActiveAgent === agent.id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Setting...
+                                </>
+                              ) : (
+                                "Set Active"
+                              )}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openEditAgentForm(agent)}
+                            className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
+                          >
+                            Edit
+                          </button>
+                          {isSystemDefault ? (
+                            <button
+                              disabled
+                              className="px-3 py-1.5 text-[10px] font-bold theme-text-muted border border-[var(--border-muted)] rounded-lg cursor-not-allowed opacity-50"
+                              title="System default cannot be deleted"
+                            >
+                              Delete
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setShowDeleteConfirm(agent.id)}
+                              className="px-3 py-1.5 text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] border border-[var(--status-error)]/20 rounded-lg hover:bg-[var(--status-error)]/10 transition-all"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Delete Confirmation */}
+                      {showDeleteConfirm === agent.id && (
+                        <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-[var(--status-warning)]">
+                              Delete this agent configuration? This cannot be
+                              undone.
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setShowDeleteConfirm(null)}
+                                className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAgent(agent.id)}
+                                disabled={deletingAgentId === agent.id}
+                                className="px-3 py-1.5 text-[10px] font-bold bg-[var(--status-error)]/20 text-[var(--status-error)] rounded-lg hover:bg-[var(--status-error)]/30 transition-all flex items-center gap-2"
+                              >
+                                {deletingAgentId === agent.id ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-[var(--status-error)]/30 border-t-[var(--status-error)] rounded-full animate-spin" />
+                                    Deleting...
+                                  </>
+                                ) : (
+                                  "Confirm Delete"
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
+        {/* Running Agents (Orchestration) */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <h4 className="text-sm font-bold theme-text-secondary mb-4">
+            Running Agents
+          </h4>
+
+          {/* Error State */}
+          {agentsError && (
+            <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <div>
+                  <p className="text-xs text-[var(--status-error)]">
+                    {agentsError}
+                  </p>
+                  <button
+                    onClick={fetchAgents}
+                    className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {agentsLoading && Object.keys(registeredAgents).length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-3" />
+              <span className="text-[10px] font-mono theme-text-muted uppercase">
+                Loading running agents...
+              </span>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!agentsLoading &&
+            !agentsError &&
+            Object.keys(registeredAgents).length === 0 && (
+              <div className="text-center py-6">
+                <p className="text-xs theme-text-muted">
+                  No agents are currently running. Start an agent to see it
+                  here.
+                </p>
+              </div>
+            )}
+
+          {/* Agents List */}
+          {Object.keys(registeredAgents).length > 0 && (
+            <div className="space-y-3">
+              {Object.entries(registeredAgents)
+                .sort(([, a], [, b]) => {
+                  const statusOrder = { active: 0, inactive: 1, stopped: 2 };
+                  const aOrder =
+                    statusOrder[a.status as keyof typeof statusOrder] ?? 3;
+                  const bOrder =
+                    statusOrder[b.status as keyof typeof statusOrder] ?? 3;
+                  if (aOrder !== bOrder) return aOrder - bOrder;
+                  const aTime = a.last_heartbeat
+                    ? new Date(a.last_heartbeat).getTime()
+                    : 0;
+                  const bTime = b.last_heartbeat
+                    ? new Date(b.last_heartbeat).getTime()
+                    : 0;
+                  return bTime - aTime;
+                })
+                .map(([agentName, agent]) => (
+                  <div
+                    key={agentName}
+                    className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className="flex-shrink-0"
+                        title={`Status: ${agent.status}`}
+                      >
+                        {agent.status === "active" && (
+                          <span className="text-base">🟢</span>
+                        )}
+                        {agent.status === "inactive" && (
+                          <span className="text-base">⚪</span>
+                        )}
+                        {agent.status === "stopped" && (
+                          <span className="text-base">🔴</span>
+                        )}
+                      </span>
+                      <h5 className="text-sm font-bold theme-text-secondary truncate">
+                        {agentName}
+                      </h5>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <span className="theme-text-muted">Hostname:</span>
+                        <span className="theme-text-tertiary font-mono">
+                          {agent.hostname}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="theme-text-muted">PID:</span>
+                        <span className="theme-text-tertiary font-mono">
+                          {agent.pid}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="theme-text-muted">
+                          Last heartbeat:
+                        </span>
+                        <span className="theme-text-tertiary">
+                          {getRelativeTime(agent.last_heartbeat)}
+                        </span>
+                      </div>
+                      {agent.current_run_id && (
+                        <div className="flex items-center gap-2">
+                          <span className="theme-text-muted">Working on:</span>
+                          <span className="theme-text-secondary font-mono">
+                            {agent.current_run_id}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+
+        {/* Info Note */}
+        <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <svg
+              className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div className="text-xs text-[var(--status-info)]/80">
+              <p>
+                <strong>Agent Configurations</strong> are saved presets (from
+                agents.json). The <strong>active</strong> agent is used when
+                starting new runs.
+              </p>
+              <p className="mt-1">
+                <strong>Running Agents</strong> show currently registered agent
+                instances with heartbeats.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Copilot settings state
+  const [copilotTestLoading, setCopilotTestLoading] = useState(false);
+  const [copilotTestResult, setCopilotTestResult] = useState<{
+    success: boolean;
+    error?: string;
+  } | null>(null);
+
+  // Copilot API key state (stored in localStorage)
+  const [copilotApiKeyInput, setCopilotApiKeyInput] = useState<string>("");
+  const [copilotApiKeyHasValue, setCopilotApiKeyHasValue] =
+    useState<boolean>(false);
+  const [copilotApiKeySaving, setCopilotApiKeySaving] = useState(false);
+  const [copilotApiKeySaved, setCopilotApiKeySaved] = useState(false);
+
+  // Load Copilot API key status from localStorage on mount
+  useEffect(() => {
+    const savedKey = getCopilotApiKey();
+    setCopilotApiKeyHasValue(!!savedKey);
+    // Don't populate the input with the actual key for security
+    // Just show that a key exists
+  }, []);
+
+  // Clear API key saved message after 3 seconds
+  useEffect(() => {
+    if (copilotApiKeySaved) {
+      const timeout = setTimeout(() => setCopilotApiKeySaved(false), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [copilotApiKeySaved]);
+
+  // Save Copilot API key to localStorage
+  const handleSaveCopilotApiKey = () => {
+    if (!copilotApiKeyInput.trim()) return;
+    setCopilotApiKeySaving(true);
+    try {
+      setCopilotApiKey(copilotApiKeyInput.trim());
+      setCopilotApiKeyHasValue(true);
+      setCopilotApiKeyInput("");
+      setCopilotApiKeySaved(true);
+      // Also reset test result since key changed
+      setCopilotTestResult(null);
+    } finally {
+      setCopilotApiKeySaving(false);
+    }
+  };
+
+  // Clear Copilot API key from localStorage
+  const handleClearCopilotApiKey = () => {
+    clearCopilotApiKey();
+    setCopilotApiKeyHasValue(false);
+    setCopilotApiKeyInput("");
+    setCopilotTestResult(null);
+  };
+
+  // Model options by provider
+  const modelOptions: Record<string, { value: string; label: string }[]> = {
+    openai: [
+      { value: "gpt-4o", label: "GPT-4o" },
+      { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+      { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+    ],
+    anthropic: [
+      { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+      { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
+      { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" },
+    ],
+  };
+
+  // Default copilot config
+  const defaultCopilotConfig = {
+    enabled: false,
+    provider: "openai" as const,
+    model: "gpt-4o",
+    context_sources: {
+      agents_md: true,
+      learnings_md: true,
+      prompt_md: true,
+      requirements: true,
+      other_specs: true,
+    },
+    features: {
+      streaming: true,
+      auto_suggest: true,
+      context_aware: true,
+    },
+  };
+
+  // Handle copilot config changes
+  const handleCopilotChange = (field: string, value: any) => {
+    if (!config) return;
+
+    const currentCopilot = config.copilot || defaultCopilotConfig;
+
+    const newConfig = {
+      ...config,
+      copilot: {
+        ...currentCopilot,
+        [field]: value,
+      },
+    };
+
+    // Reset model when provider changes
+    if (field === "provider") {
+      const defaultModel =
+        value === "openai"
+          ? "gpt-4o"
+          : value === "anthropic"
+            ? "claude-3-5-sonnet-20241022"
+            : "";
+      newConfig.copilot = {
+        ...newConfig.copilot,
+        model: defaultModel,
+      };
+    }
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+  };
+
+  const handleCopilotContextChange = (field: string, value: boolean) => {
+    if (!config) return;
+
+    const currentCopilot = config.copilot || defaultCopilotConfig;
+
+    const newConfig = {
+      ...config,
+      copilot: {
+        ...currentCopilot,
+        context_sources: {
+          ...currentCopilot.context_sources,
+          [field]: value,
+        },
+      },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+  };
+
+  const handleCopilotFeatureChange = (field: string, value: boolean) => {
+    if (!config) return;
+
+    const currentCopilot = config.copilot || defaultCopilotConfig;
+
+    const newConfig = {
+      ...config,
+      copilot: {
+        ...currentCopilot,
+        features: {
+          ...currentCopilot.features,
+          [field]: value,
+        },
+      },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+  };
+
+  // Test copilot connection
+  const handleTestCopilotConnection = async () => {
+    setCopilotTestLoading(true);
+    setCopilotTestResult(null);
+
+    try {
+      const result = await felixApi.testCopilotConnection();
+      setCopilotTestResult({
+        success: result.success,
+        error: result.error,
+      });
+    } catch (err) {
+      setCopilotTestResult({
+        success: false,
+        error: err instanceof Error ? err.message : "Failed to test connection",
+      });
+    } finally {
+      setCopilotTestLoading(false);
+    }
+  };
+
+  // Reset copilot to defaults
+  const handleResetCopilot = () => {
+    if (!config) return;
+
+    const newConfig = {
+      ...config,
+      copilot: { ...defaultCopilotConfig },
+    };
+
+    setConfig(newConfig);
+    setValidationErrors(validateConfig(newConfig));
+    setCopilotTestResult(null);
+  };
+
+  // Render Copilot settings
+  const renderCopilotSettings = () => {
+    if (!config) return null;
+
+    const copilotConfig = config.copilot || defaultCopilotConfig;
+    const isEnabled = copilotConfig.enabled;
+    const provider = copilotConfig.provider || "openai";
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold theme-text-secondary">
+              Felix Copilot
+            </h3>
+            <p className="text-xs theme-text-muted mt-1">
+              AI-powered spec writing assistant
+            </p>
+          </div>
+          <button
+            onClick={handleResetCopilot}
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
+          >
+            Reset to Defaults
+          </button>
+        </div>
+
+        {/* Enable/Disable Toggle */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-sm font-bold theme-text-secondary">
+                Enable Copilot
+              </label>
+              <p className="text-[11px] theme-text-muted mt-1">
+                Turn on AI-powered assistance for spec writing
+              </p>
+            </div>
+            <button
+              onClick={() => handleCopilotChange("enabled", !isEnabled)}
+              className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
+                isEnabled ? "bg-[var(--accent-secondary)]" : "theme-bg-surface"
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
+                  isEnabled ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Provider Selection */}
+        <div
+          className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? "opacity-50" : ""}`}
+        >
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
+            Provider
+          </label>
+          <select
+            value={provider}
+            onChange={(e) => handleCopilotChange("provider", e.target.value)}
+            disabled={!isEnabled}
+            className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+              isEnabled
+                ? "cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+                : "cursor-not-allowed"
+            }`}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="custom">Custom</option>
+          </select>
+          <p className="mt-2 text-[11px] theme-text-muted">
+            Choose your LLM provider. Felix uses your API key from .env file.
+          </p>
+        </div>
+
+        {/* Info about BYOK */}
+        <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <svg
+              className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <p className="text-xs text-[var(--status-info)]/80">
+              <strong>Bring Your Own Key (BYOK):</strong> Felix{" "}
+              <strong>never</strong> stores your API remotely, or manages your
+              API billing. Your API key stays in your local storage and is used
+              only for direct API calls.{" "}
+              <span className="text-[11px] theme-text-muted">
+                {provider === "openai" && (
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--accent-primary)] hover:underline"
+                  >
+                    Get your OpenAI API key here →
+                  </a>
+                )}
+                {provider === "anthropic" && (
+                  <a
+                    href="https://console.anthropic.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--accent-primary)] hover:underline"
+                  >
+                    Get your Anthropic API key here →
+                  </a>
+                )}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* API Key Configuration */}
+        <div
+          className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? "opacity-50" : ""}`}
+        >
+          <label className="block text-sm font-bold theme-text-secondary mb-3">
+            API Key
+          </label>
+
+          {/* API Key Status */}
+          {copilotApiKeyHasValue && (
+            <div className="flex items-center gap-2 mb-4 p-3 bg-[var(--status-success)]/10 border border-[var(--status-success)]/20 rounded-lg">
+              <svg
+                className="w-4 h-4 text-[var(--status-success)]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              <span className="text-xs text-[var(--status-success)]">
+                API key configured
+              </span>
+              <button
+                onClick={handleClearCopilotApiKey}
+                disabled={!isEnabled}
+                className={`ml-auto text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] transition-colors ${!isEnabled ? "cursor-not-allowed opacity-50" : ""}`}
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
+          {/* API Key Input */}
+          <div className="space-y-3 mb-4">
+            <div>
+              <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                {copilotApiKeyHasValue ? "Update API Key" : "Enter API Key"}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={copilotApiKeyInput}
+                  onChange={(e) => setCopilotApiKeyInput(e.target.value)}
+                  disabled={!isEnabled}
+                  placeholder={
+                    copilotApiKeyHasValue ? "••••••••••••••••" : "sk-proj-..."
+                  }
+                  className={`flex-1 theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all ${
+                    isEnabled
+                      ? "focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+                      : "cursor-not-allowed opacity-50"
+                  }`}
+                />
+                <button
+                  onClick={handleSaveCopilotApiKey}
+                  disabled={
+                    !isEnabled ||
+                    !copilotApiKeyInput.trim() ||
+                    copilotApiKeySaving
+                  }
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                    isEnabled &&
+                    copilotApiKeyInput.trim() &&
+                    !copilotApiKeySaving
+                      ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
+                      : "theme-bg-surface theme-text-muted cursor-not-allowed"
+                  }`}
+                >
+                  {copilotApiKeySaving ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+              </div>
+              <p className="mt-1.5 text-[10px] theme-text-muted">
+                Your API key is stored in your browser's localStorage (not sent
+                to any server)
+              </p>
+            </div>
+
+            {/* Save Confirmation */}
+            {copilotApiKeySaved && (
+              <div className="flex items-center gap-2 text-xs text-[var(--status-success)]">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span>API key saved successfully</span>
+              </div>
+            )}
+          </div>
+
+          {/* Test Connection Button */}
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={handleTestCopilotConnection}
+              disabled={
+                !isEnabled || copilotTestLoading || !copilotApiKeyHasValue
+              }
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                isEnabled && !copilotTestLoading && copilotApiKeyHasValue
+                  ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
+                  : "theme-bg-surface theme-text-muted cursor-not-allowed"
+              }`}
+            >
+              {copilotTestLoading ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                "Test Connection"
+              )}
+            </button>
+
+            {copilotTestResult && (
+              <div
+                className={`flex items-center gap-2 text-xs ${copilotTestResult.success ? "text-[var(--status-success)]" : "text-[var(--status-error)]"}`}
+              >
+                {copilotTestResult.success ? (
+                  <>
+                    <span>✓</span>
+                    <span>Connected successfully</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✗</span>
+                    <span>
+                      {copilotTestResult.error || "Connection failed"}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Fallback info for local development If no browser API key is set, the backend will check for .env*/}
+        </div>
+
+        {/* Model Selection */}
+        <div
+          className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? "opacity-50" : ""}`}
+        >
+          <label className="block text-sm font-bold theme-text-secondary mb-2">
+            Model
+          </label>
+          {provider === "custom" ? (
+            <input
+              type="text"
+              value={copilotConfig.model}
+              onChange={(e) => handleCopilotChange("model", e.target.value)}
+              disabled={!isEnabled}
+              placeholder="Enter model name"
+              className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all ${
+                isEnabled
+                  ? "focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+                  : "cursor-not-allowed"
+              }`}
+            />
+          ) : (
+            <select
+              value={copilotConfig.model}
+              onChange={(e) => handleCopilotChange("model", e.target.value)}
+              disabled={!isEnabled}
+              className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+                isEnabled
+                  ? "cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+                  : "cursor-not-allowed"
+              }`}
+            >
+              {modelOptions[provider]?.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="mt-2 text-[11px] theme-text-muted">
+            Model used for spec generation and conversations
+          </p>
+        </div>
+
+        {/* Context Sources */}
+        <div
+          className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? "opacity-50" : ""}`}
+        >
+          <label className="block text-sm font-bold theme-text-secondary mb-4">
+            Context Sources
+          </label>
+          <div className="space-y-3">
+            {[
+              {
+                key: "agents_md",
+                label: "AGENTS.md",
+                description: "Operational instructions and validation",
+              },
+              {
+                key: "learnings_md",
+                label: "LEARNINGS.md",
+                description: "Technical knowledge and common pitfalls",
+              },
+              {
+                key: "prompt_md",
+                label: "prompt.md",
+                description: "Spec writing conventions",
+              },
+              {
+                key: "requirements",
+                label: "requirements.json",
+                description: "Project dependencies and status",
+              },
+              {
+                key: "other_specs",
+                label: "Other specs",
+                description: "Pattern consistency from existing specs",
+              },
+            ].map((source) => (
+              <div
+                key={source.key}
+                className="flex items-center justify-between py-2"
+              >
+                <div>
+                  <span className="text-sm theme-text-secondary">
+                    {source.label}
+                  </span>
+                  <p className="text-[10px] theme-text-muted">
+                    {source.description}
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    handleCopilotContextChange(
+                      source.key,
+                      !(copilotConfig.context_sources as any)[source.key],
+                    )
+                  }
+                  disabled={!isEnabled}
+                  className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${
+                    (copilotConfig.context_sources as any)[source.key]
+                      ? "bg-[var(--accent-secondary)]"
+                      : "theme-bg-surface"
+                  } ${!isEnabled ? "cursor-not-allowed" : ""}`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
+                      (copilotConfig.context_sources as any)[source.key]
+                        ? "left-5"
+                        : "left-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Feature Toggles */}
+        <div
+          className={`theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 transition-opacity ${!isEnabled ? "opacity-50" : ""}`}
+        >
+          <label className="block text-sm font-bold theme-text-secondary mb-4">
+            Features
+          </label>
+          <div className="space-y-3">
+            {[
+              {
+                key: "streaming",
+                label: "Streaming Responses",
+                description:
+                  "Enables token-by-token streaming for faster feedback",
+              },
+              {
+                key: "auto_suggest",
+                label: "Auto-suggest Spec Titles",
+                description: "Suggests titles based on your input",
+              },
+              {
+                key: "context_aware",
+                label: "Context-aware Completions",
+                description: "Uses project context in responses",
+              },
+            ].map((feature) => (
+              <div
+                key={feature.key}
+                className="flex items-center justify-between py-2"
+              >
+                <div>
+                  <span className="text-sm theme-text-secondary">
+                    {feature.label}
+                  </span>
+                  <p className="text-[10px] theme-text-muted">
+                    {feature.description}
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    handleCopilotFeatureChange(
+                      feature.key,
+                      !(copilotConfig.features as any)[feature.key],
+                    )
+                  }
+                  disabled={!isEnabled}
+                  className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${
+                    (copilotConfig.features as any)[feature.key]
+                      ? "bg-[var(--accent-secondary)]"
+                      : "theme-bg-surface"
+                  } ${!isEnabled ? "cursor-not-allowed" : ""}`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
+                      (copilotConfig.features as any)[feature.key]
+                        ? "left-5"
+                        : "left-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Warning when enabled but no API key in localStorage */}
+        {isEnabled && !copilotApiKeyHasValue && (
+          <div className="bg-[var(--status-warning)]/5 border border-[var(--status-warning)]/20 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-4 h-4 text-[var(--status-warning)] mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <p className="text-xs text-[var(--status-warning)]/80">
+                Copilot is enabled but no API key is configured. Enter your{" "}
+                {provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : ""}{" "}
+                API key above to use copilot features.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -574,14 +2826,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   // Render the active category's settings
   const renderActiveSettings = () => {
     switch (activeCategory) {
-      case 'general':
+      case "general":
         return renderGeneralSettings();
-      case 'agent':
-        return renderAgentSettings();
-      case 'paths':
+      case "paths":
         return renderPathsSettings();
-      case 'advanced':
+      case "copilot":
+        return renderCopilotSettings();
+      case "advanced":
         return renderAdvancedSettings();
+      case "projects":
+        return renderProjectsSettings();
+      case "agents":
+        return renderAgentsSettings();
       default:
         return null;
     }
@@ -590,10 +2846,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   // Loading state
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
+      <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
-          <span className="text-xs font-mono text-slate-600 uppercase">Loading settings...</span>
+          <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-felix-500 rounded-full animate-spin mb-4" />
+          <span className="text-xs font-mono theme-text-muted uppercase">
+            Loading settings...
+          </span>
         </div>
       </div>
     );
@@ -602,18 +2860,30 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   // Error state (no config)
   if (error && !config) {
     return (
-      <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden">
+      <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
+            <svg
+              className="w-8 h-8 text-[var(--status-error)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
           </div>
-          <h3 className="text-sm font-bold text-slate-400 mb-2">Failed to Load Settings</h3>
-          <p className="text-xs text-slate-600 max-w-md mb-4">{error}</p>
-          <button 
+          <h3 className="text-sm font-bold theme-text-tertiary mb-2">
+            Failed to Load Settings
+          </h3>
+          <p className="text-xs theme-text-muted max-w-md mb-4">{error}</p>
+          <button
             onClick={onBack}
-            className="px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+            className="px-4 py-2 text-xs font-bold text-[var(--accent-primary)] border border-[var(--accent-primary)]/20 rounded-lg hover:bg-[var(--accent-primary)]/10 transition-colors"
           >
             ← Back to Projects
           </button>
@@ -623,21 +2893,36 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
   }
 
   return (
-    <div className="flex-1 flex bg-[#0d1117] overflow-hidden">
+    <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Left Sidebar - Categories Navigation */}
-      <div className="w-64 border-r border-slate-800/60 flex flex-col bg-[#0a0c10]/40 flex-shrink-0">
+      <div
+        className="w-64 border-r border-[var(--border-default)] flex flex-col theme-bg-deep flex-shrink-0"
+        style={{ backgroundColor: "var(--bg-deep)" }}
+      >
         {/* Sidebar Header */}
-        <div className="h-14 border-b border-slate-800/60 flex items-center px-5">
+        <div className="h-14 border-b border-[var(--border-default)] flex items-center px-5">
           <button
             onClick={onBack}
-            className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300 mr-3"
+            className="p-1.5 hover:bg-[var(--hover-bg)] rounded-lg transition-all theme-text-muted hover:theme-text-secondary mr-3"
             title="Back to Projects"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </button>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Settings</span>
+          <span className="text-xs font-bold theme-text-tertiary uppercase tracking-widest">
+            Settings
+          </span>
         </div>
 
         {/* Categories List */}
@@ -648,25 +2933,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
               onClick={() => setActiveCategory(category.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
                 activeCategory === category.id
-                  ? 'bg-felix-600/10 text-felix-400 border border-felix-500/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+                  ? "bg-[var(--selected-bg)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/20"
+                  : "theme-text-tertiary hover:theme-text-secondary hover:bg-[var(--hover-bg)] border border-transparent"
               }`}
             >
-              <div className={`flex-shrink-0 ${activeCategory === category.id ? 'text-felix-400' : 'text-slate-500'}`}>
+              <div
+                className={`flex-shrink-0 ${activeCategory === category.id ? "text-[var(--accent-primary)]" : "theme-text-muted"}`}
+              >
                 {category.icon}
               </div>
               <div className="min-w-0">
-                <span className="block text-sm font-medium">{category.label}</span>
-                <span className="block text-[10px] text-slate-600 truncate">{category.description}</span>
+                <span className="block text-sm font-medium">
+                  {category.label}
+                </span>
+                <span className="block text-[10px] theme-text-muted truncate">
+                  {category.description}
+                </span>
               </div>
             </button>
           ))}
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-800/60">
-          <div className="flex items-center gap-2 text-[10px] text-slate-600">
-            <IconFelix className="w-4 h-4 text-felix-500/50" />
+        <div className="p-4 border-t border-[var(--border-default)]">
+          <div className="flex items-center gap-2 text-[10px] theme-text-muted">
+            <IconFelix className="w-4 h-4 text-[var(--accent-primary)]/50" />
             <span className="font-mono">felix/config.json</span>
           </div>
         </div>
@@ -675,11 +2966,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
       {/* Right Panel - Settings Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar with Save Controls */}
-        <div className="h-14 border-b border-slate-800/60 flex items-center px-6 justify-between bg-[#0d1117]/95 backdrop-blur flex-shrink-0">
+        <div
+          className="h-14 border-b border-[var(--border-default)] flex items-center px-6 justify-between backdrop-blur flex-shrink-0"
+          style={{ backgroundColor: "var(--bg-base)", opacity: 0.95 }}
+        >
           <div className="flex items-center gap-3">
             {hasChanges && (
-              <div className="flex items-center gap-2 text-[10px] text-amber-400">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <div className="flex items-center gap-2 text-[10px] text-[var(--status-warning)]">
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--status-warning)] animate-pulse" />
                 <span className="font-mono uppercase">Unsaved changes</span>
               </div>
             )}
@@ -689,18 +2983,22 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
             {hasChanges && (
               <button
                 onClick={handleReset}
-                className="px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
               >
                 Discard
               </button>
             )}
             <button
               onClick={handleSave}
-              disabled={saving || !hasChanges || Object.keys(validationErrors).length > 0}
+              disabled={
+                saving ||
+                !hasChanges ||
+                Object.keys(validationErrors).length > 0
+              }
               className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
                 hasChanges && Object.keys(validationErrors).length === 0
-                  ? 'bg-felix-600 text-white hover:bg-felix-500'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
+                  : "theme-bg-surface theme-text-muted cursor-not-allowed"
               }`}
             >
               {saving ? (
@@ -709,7 +3007,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
                   Saving...
                 </>
               ) : (
-                'Save Changes'
+                "Save Changes"
               )}
             </button>
           </div>
@@ -717,16 +3015,40 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
 
         {/* Success/Error Messages */}
         {(successMessage || error) && (
-          <div className={`px-6 py-3 text-xs flex items-center gap-2 ${
-            successMessage ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-          }`}>
+          <div
+            className={`px-6 py-3 text-xs flex items-center gap-2 ${
+              successMessage
+                ? "bg-[var(--status-success)]/10 text-[var(--status-success)]"
+                : "bg-[var(--status-error)]/10 text-[var(--status-error)]"
+            }`}
+          >
             {successMessage ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             )}
             {successMessage || error}
@@ -735,9 +3057,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ projectId, onBack }) =>
 
         {/* Settings Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-          <div className="max-w-2xl">
-            {renderActiveSettings()}
-          </div>
+          <div className="max-w-2xl">{renderActiveSettings()}</div>
         </div>
       </div>
     </div>

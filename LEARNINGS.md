@@ -305,6 +305,57 @@ if sys.platform == "win32":
 $env:PYTHONIOENCODING = "utf-8"
 ```
 
+### Issue 3: PowerShell Encoding Parameter Compatibility
+
+**Symptom**: Error when using `Set-Content` or `Out-File`: `Cannot bind parameter 'Encoding'. Cannot convert value "utf8NoBOM" to type "Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding"`
+
+**Root Cause**: PowerShell 5.1 (default on Windows) does not support the `utf8NoBOM` encoding parameter. This is only available in PowerShell 7+.
+
+**Version Differences**:
+
+PowerShell 5.1 (Windows PowerShell):
+
+- `UTF8` - UTF-8 with BOM (byte order mark)
+- `UTF7`, `UTF32`, `Unicode`, `ASCII`, etc.
+
+PowerShell 7+ (PowerShell Core):
+
+- `utf8NoBOM` - UTF-8 without BOM
+- `utf8BOM` - UTF-8 with BOM
+- All previous encodings
+
+**Anti-Pattern**:
+
+```powershell
+# ❌ WRONG - Fails in PowerShell 5.1
+Set-Content -Path "output.log" -Value $content -Encoding utf8NoBOM
+# Error: Cannot convert value "utf8NoBOM" to type...
+```
+
+**Pattern**:
+
+```powershell
+# ✅ CORRECT - Works in both PowerShell 5.1 and 7+
+Set-Content -Path "output.log" -Value $content -Encoding UTF8
+
+# For true UTF-8 without BOM in PowerShell 5.1, use .NET:
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($filePath, $content, $utf8NoBom)
+```
+
+**When It Matters**:
+
+- Writing markdown files (report.md, output.log, plan.md) - UTF-8 with BOM is generally fine
+- Writing JSON files - BOM can cause parsing issues, use .NET approach
+- Writing files for cross-platform tools - some tools expect no BOM
+- Most modern tools handle BOM correctly, so `UTF8` is safe default
+
+**Why This Happened**:
+
+- PowerShell 7 added `utf8NoBOM` as default encoding (breaking change from 5.1)
+- Copying code from PowerShell 7 examples breaks on Windows default install
+- Always test scripts on PowerShell 5.1 if supporting Windows users
+
 ---
 
 ## Silent Killers Gallery
@@ -656,6 +707,26 @@ When something hangs or fails mysteriously:
 | "python: command not found" on Windows                             | py.exe not in PATH                   | Install Python from python.org (includes launcher) |
 | Garbled unicode characters                                         | Console codepage mismatch            | Add UTF-8 reconfiguration to Python script         |
 
+### Exit Codes
+
+Felix uses distinct exit codes to indicate different completion states:
+
+| Exit Code | Meaning                | What Happened                                             |
+| --------- | ---------------------- | --------------------------------------------------------- |
+| 0         | Success                | Requirement complete and validated                        |
+| 1         | Error                  | General execution failure (droid errors, file I/O issues) |
+| 2         | Blocked (backpressure) | Backpressure failures exceeded max retries (default: 3)   |
+| 3         | Blocked (validation)   | Validation failures exceeded max retries (default: 2)     |
+
+**Blocked Requirements**: When exit code 2 or 3 occurs, the requirement is automatically marked as "blocked" in `felix/requirements.json`. The agent will skip blocked requirements and proceed with other planned work. To unblock, fix the underlying issues then manually change the status back to "planned" in `felix/requirements.json`.
+
+**Retry Configuration** (in `felix/config.json`):
+
+- Backpressure retries: `backpressure.max_retries` (default: 3)
+- Validation retries: `validation.max_validation_retries` (default: 1, allows 2 total attempts)
+- Blocking behavior: `validation.mark_blocked_on_failure` (default: true)
+- Exit on block: `validation.exit_on_blocked` (default: true)
+
 ### Best Practices Summary
 
 **PowerShell**:
@@ -800,7 +871,100 @@ def run_command(command: str, cwd: Path, timeout: int = 120) -> Tuple[bool, str,
 
 ---
 
-**Document Version**: 1.0  
+## Spec Writing Best Practices
+
+### Issue 6: Validation Criteria with Backticks Misinterpreted as Commands
+
+**Symptom**: Validation script tries to execute file paths or non-command text as shell commands, causing errors like `'felix' is not recognized as an internal or external command`.
+
+**Root Cause**: The validation script (`validate-requirement.ps1`) extracts text in backticks from acceptance criteria and attempts to execute it as a command. This is designed for criteria like:
+
+- `curl http://localhost:8080/health` (status 200)
+- `pytest tests/` (exit code 0)
+
+But fails when backticks are used for markdown formatting of file paths or technical terms:
+
+- Settings save successfully: Modify setting, save, verify `felix/config.json` updated ❌
+
+**Anti-Pattern**:
+
+```markdown
+## Validation Criteria
+
+- [ ] Settings save successfully: Modify setting, save, verify `felix/config.json` updated
+- [ ] Config loads from file: Check that `config.json` is read correctly
+```
+
+**Pattern**:
+
+```markdown
+## Validation Criteria
+
+<!-- For automated validation with executable commands -->
+
+- [ ] Backend starts: `python app/backend/main.py` (exit code 0)
+- [ ] Health check responds: `curl http://localhost:8080/health` (status 200)
+
+<!-- For manual/UI validation without executable commands -->
+
+- [x] Settings save successfully: Manual verification - modify setting, save, verify config.json updated
+- [x] Config loads from file: Manual verification - check that config.json is read correctly
+```
+
+**Rules for Validation Criteria**:
+
+1. **Backticks = Executable Command**: Only use backticks for shell commands that can be executed
+2. **Manual Checks**: Prefix with "Manual verification -" and mark as [X] to skip automation
+3. **UI/Interaction Tests**: These should always be manual verification (cannot be scripted easily)
+4. **File References**: Don't use backticks for file paths in descriptions
+5. **Exit Code/Status**: Include expected outcome in parentheses for automated checks
+6. **Use Actual Commands, Not REST Descriptions**: Write `curl http://localhost:8080/api/endpoint` instead of `GET /api/endpoint`. The validation script executes commands literally.
+
+**Why This Matters**:
+
+- Validation script parses criteria looking for executable commands in backticks
+- Non-executable text in backticks causes validation failures
+- This breaks the agent loop when all tasks are complete but validation fails
+- Manual verification items prevent this brittleness
+
+**Pattern Examples**:
+
+```markdown
+✅ GOOD - Executable command
+
+- [ ] Tests pass: `cd app/backend && pytest` (exit code 0)
+
+✅ GOOD - Executable API check
+
+- [ ] Endpoint responds: `curl -s http://localhost:8080/api/runs` (status 200)
+
+✅ GOOD - Manual verification
+
+- [x] UI displays correctly: Manual verification - open browser, verify layout
+
+❌ BAD - REST API description instead of command
+
+- [ ] Endpoint works: `GET /api/projects/{project_id}/runs?requirement_id=S-0011` returns matching runs
+
+❌ BAD - File path in backticks
+
+- [ ] Config persists: Check `felix/config.json` contains new settings
+
+❌ BAD - Non-command in backticks
+
+- [ ] Uses `ConfigPanel.tsx` patterns for consistency
+```
+
+**Migration Strategy**: If you have existing specs with non-command backticks:
+
+1. Remove backticks from file paths and technical terms
+2. Convert UI/interaction tests to manual verification
+3. Keep backticks only for actual executable commands
+4. Mark manual items as [X] to prevent validation attempts
+
+---
+
+**Document Version**: 1.1  
 **Last Updated**: January 26, 2026  
 **Maintainer**: Felix Development Team  
 **Applies To**: Felix Agent v0.1.0+, Windows 10/11, PowerShell 7+, Python 3.8+

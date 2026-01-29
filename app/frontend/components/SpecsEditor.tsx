@@ -1,48 +1,62 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { felixApi, SpecFile } from '../services/felixApi';
-import { marked } from 'marked';
-import { IconFileText, IconPlus } from './Icons';
-import SpecEditWarningModal, { WarningAction } from './SpecEditWarningModal';
-import { useRequirementStatus } from '../hooks/useRequirementStatus';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import {
+  felixApi,
+  SpecFile,
+  Requirement,
+  RequirementStatusResponse,
+} from "../services/felixApi";
+import { marked } from "marked";
+import { IconFileText, IconPlus } from "./Icons";
+import SpecEditWarningModal, { WarningAction } from "./SpecEditWarningModal";
+import { useRequirementStatus } from "../hooks/useRequirementStatus";
+import CopilotChat from "./CopilotChat";
 
 /**
  * Extract acceptance criteria and validation criteria sections from markdown content.
  * Returns the combined criteria sections for change detection.
- * 
+ *
  * Looks for sections starting with "## Acceptance Criteria" or "## Validation Criteria"
  * and captures content until the next heading of same or higher level.
  */
 function extractCriteriaSections(content: string): string {
-  if (!content) return '';
-  
+  if (!content) return "";
+
   const sections: string[] = [];
-  const lines = content.split('\n');
-  
+  const lines = content.split("\n");
+
   let inCriteriaSection = false;
   let currentSection: string[] = [];
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
-    
+
     // Check if this is a criteria heading (## Acceptance Criteria or ## Validation Criteria)
-    const isCriteriaHeading = /^##\s+(acceptance|validation)\s+criteria/i.test(trimmedLine);
-    
+    const isCriteriaHeading = /^##\s+(acceptance|validation)\s+criteria/i.test(
+      trimmedLine,
+    );
+
     // Check if this is a new section (any ## heading)
     const isHeading = /^##\s+/.test(trimmedLine);
-    
+
     if (isCriteriaHeading) {
       // Start capturing this criteria section
       if (inCriteriaSection && currentSection.length > 0) {
         // Save previous section before starting new one
-        sections.push(currentSection.join('\n'));
+        sections.push(currentSection.join("\n"));
       }
       inCriteriaSection = true;
       currentSection = [line];
     } else if (inCriteriaSection) {
       if (isHeading) {
         // End of criteria section - reached a new ## heading
-        sections.push(currentSection.join('\n'));
+        sections.push(currentSection.join("\n"));
         currentSection = [];
         inCriteriaSection = false;
       } else {
@@ -51,15 +65,15 @@ function extractCriteriaSections(content: string): string {
       }
     }
   }
-  
+
   // Don't forget the last section if we ended while in one
   if (inCriteriaSection && currentSection.length > 0) {
-    sections.push(currentSection.join('\n'));
+    sections.push(currentSection.join("\n"));
   }
-  
+
   // Return combined sections, normalized for comparison
   // Trim each section and join with a delimiter for comparison
-  return sections.map(s => s.trim()).join('\n---SECTION---\n');
+  return sections.map((s) => s.trim()).join("\n---SECTION---\n");
 }
 
 interface SpecsEditorProps {
@@ -68,13 +82,13 @@ interface SpecsEditorProps {
   onSelectSpec?: (filename: string) => void;
 }
 
-type ViewMode = 'edit' | 'preview' | 'split';
+type ViewMode = "edit" | "preview" | "split";
 
 // Spec templates
 const SPEC_TEMPLATES = {
   basic: {
-    name: 'Basic Spec',
-    description: 'A minimal spec template with essential sections',
+    name: "Basic Spec",
+    description: "A minimal spec template with essential sections",
     content: (id: string, title: string) => `# ${id}: ${title}
 
 ## Summary
@@ -102,8 +116,8 @@ Implementation details and considerations.
 `,
   },
   feature: {
-    name: 'Feature Spec',
-    description: 'Detailed feature specification with narrative',
+    name: "Feature Spec",
+    description: "Detailed feature specification with narrative",
     content: (id: string, title: string) => `# ${id}: ${title}
 
 ## Narrative
@@ -149,8 +163,8 @@ Describe any data model changes.
 `,
   },
   bugfix: {
-    name: 'Bug Fix Spec',
-    description: 'Template for documenting a bug fix',
+    name: "Bug Fix Spec",
+    description: "Template for documenting a bug fix",
     content: (id: string, title: string) => `# ${id}: ${title}
 
 ## Problem Statement
@@ -202,7 +216,15 @@ type TemplateType = keyof typeof SPEC_TEMPLATES;
 
 // Close icon component
 const IconX = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     <line x1="18" y1="6" x2="6" y2="18" />
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
@@ -218,43 +240,64 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const [specsLoading, setSpecsLoading] = useState(true);
   const [specsError, setSpecsError] = useState<string | null>(null);
 
+  // Requirements state (for S-0015: Spec Screen Enhancements - search filtering)
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+
   // Selected spec state
-  const [selectedFilename, setSelectedFilename] = useState<string | null>(initialSpecFilename || null);
-  const [specContent, setSpecContent] = useState<string>('');
-  const [originalContent, setOriginalContent] = useState<string>('');
-  const [originalCriteria, setOriginalCriteria] = useState<string>(''); // For S-0006: Track original acceptance/validation criteria
+  const [selectedFilename, setSelectedFilename] = useState<string | null>(
+    initialSpecFilename || null,
+  );
+  const [specContent, setSpecContent] = useState<string>("");
+  const [originalContent, setOriginalContent] = useState<string>("");
+  const [originalCriteria, setOriginalCriteria] = useState<string>(""); // For S-0006: Track original acceptance/validation criteria
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // View mode and parsed markdown
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
-  const [parsedHtml, setParsedHtml] = useState<string>('');
+  const [viewMode, setViewMode] = useState<ViewMode>("split");
+  const [parsedHtml, setParsedHtml] = useState<string>("");
 
   // New spec modal state
   const [isNewSpecOpen, setIsNewSpecOpen] = useState(false);
-  const [newSpecId, setNewSpecId] = useState('');
-  const [newSpecTitle, setNewSpecTitle] = useState('');
-  const [newSpecTemplate, setNewSpecTemplate] = useState<TemplateType>('basic');
+  const [newSpecId, setNewSpecId] = useState("");
+  const [newSpecTitle, setNewSpecTitle] = useState("");
+  const [newSpecTemplate, setNewSpecTemplate] = useState<TemplateType>("basic");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Warning modal state (for S-0006: Spec Edit Safety)
-  const [pendingSpecFilename, setPendingSpecFilename] = useState<string | null>(null);
+  const [pendingSpecFilename, setPendingSpecFilename] = useState<string | null>(
+    null,
+  );
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [isBlockingRequirement, setIsBlockingRequirement] = useState(false);
 
   // Reset Plan modal state (for S-0006: Manual Reset Plan Controls)
   const [isResetPlanModalOpen, setIsResetPlanModalOpen] = useState(false);
   const [isResettingPlan, setIsResettingPlan] = useState(false);
-  const [resetPlanMessage, setResetPlanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [resetPlanMessage, setResetPlanMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  // Search state (for S-0015: Spec Screen Enhancements)
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Requirement status cache for safety indicators (S-0015: Drift detection)
+  const [requirementStatuses, setRequirementStatuses] = useState<
+    Map<string, RequirementStatusResponse>
+  >(new Map());
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   // Hook to check requirement status for warning modal (S-0006)
-  const { 
-    status: pendingSpecStatus, 
+  const {
+    status: pendingSpecStatus,
     isInProgress: pendingSpecIsInProgress,
     requirementId: pendingRequirementId,
   } = useRequirementStatus(projectId, pendingSpecFilename);
@@ -269,10 +312,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
   // Check if content has been modified
   const hasChanges = specContent !== originalContent;
-  
+
   // S-0006: Check if acceptance/validation criteria have changed
   // This is used for plan invalidation detection on save
-  const currentCriteria = useMemo(() => extractCriteriaSections(specContent), [specContent]);
+  const currentCriteria = useMemo(
+    () => extractCriteriaSections(specContent),
+    [specContent],
+  );
   const hasCriteriaChanged = originalCriteria !== currentCriteria;
 
   // Fetch specs list on mount or when projectId changes
@@ -283,14 +329,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       try {
         const specList = await felixApi.listSpecs(projectId);
         setSpecs(specList);
-        
+
         // If no spec selected but we have specs, select the first one
         if (!selectedFilename && specList.length > 0) {
           setSelectedFilename(specList[0].filename);
         }
       } catch (err) {
-        console.error('Failed to fetch specs:', err);
-        setSpecsError(err instanceof Error ? err.message : 'Failed to load specs');
+        console.error("Failed to fetch specs:", err);
+        setSpecsError(
+          err instanceof Error ? err.message : "Failed to load specs",
+        );
       } finally {
         setSpecsLoading(false);
       }
@@ -299,12 +347,98 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     fetchSpecs();
   }, [projectId]);
 
+  // Fetch requirements on mount or when projectId changes (for S-0015: search filtering)
+  useEffect(() => {
+    const fetchRequirements = async () => {
+      try {
+        const reqData = await felixApi.getRequirements(projectId);
+        setRequirements(reqData.requirements);
+      } catch (err) {
+        // Don't fail the UI if requirements can't be fetched - search just won't work as well
+        console.error("Failed to fetch requirements for search:", err);
+        setRequirements([]);
+      }
+    };
+
+    fetchRequirements();
+  }, [projectId]);
+
+  // Fetch requirement statuses for drift detection (S-0015: Safety Indicators)
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      if (requirements.length === 0) return;
+
+      const statusMap = new Map<string, RequirementStatusResponse>();
+
+      // Fetch status for each requirement (limit to first 20 to avoid too many API calls)
+      const reqsToFetch = requirements.slice(0, 20);
+      await Promise.all(
+        reqsToFetch.map(async (req) => {
+          try {
+            const status = await felixApi.getRequirementStatus(
+              projectId,
+              req.id,
+            );
+            statusMap.set(req.id, status);
+          } catch (err) {
+            // Silently fail for individual status fetches
+            console.debug(`Failed to fetch status for ${req.id}:`, err);
+          }
+        }),
+      );
+
+      setRequirementStatuses(statusMap);
+    };
+
+    fetchStatuses();
+  }, [projectId, requirements]);
+
+  // Filter specs based on search query (S-0015: Spec Screen Enhancements)
+  const filteredSpecs = useMemo(() => {
+    if (!searchQuery.trim()) return specs;
+
+    const query = searchQuery.toLowerCase().trim();
+    return specs.filter((spec) => {
+      // Parse spec filename to get ID and title
+      const { id: specId, title: specTitle } = parseSpecFilename(spec.filename);
+
+      // Find matching requirement for this spec
+      const req = requirements.find(
+        (r) => r.spec_path.includes(spec.filename) || r.id === specId,
+      );
+
+      // Match on spec ID
+      if (specId.toLowerCase().includes(query)) return true;
+
+      // Match on spec title (derived from filename)
+      if (specTitle.toLowerCase().includes(query)) return true;
+
+      // Match on requirement data if available
+      if (req) {
+        // Match on requirement ID
+        if (req.id.toLowerCase().includes(query)) return true;
+
+        // Match on requirement title
+        if (req.title.toLowerCase().includes(query)) return true;
+
+        // Match on status
+        if (req.status.toLowerCase().includes(query)) return true;
+
+        // Match on labels
+        if (req.labels.some((label) => label.toLowerCase().includes(query)))
+          return true;
+      }
+
+      return false;
+    });
+  }, [specs, searchQuery, requirements]);
+
   // Fetch spec content when selection changes
   useEffect(() => {
     if (!selectedFilename) {
-      setSpecContent('');
-      setOriginalContent('');
-      setOriginalCriteria('');
+      setSpecContent("");
+      setOriginalContent("");
+      setOriginalCriteria("");
       return;
     }
 
@@ -318,11 +452,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         // S-0006: Extract and store original acceptance/validation criteria for change detection
         setOriginalCriteria(extractCriteriaSections(result.content));
       } catch (err) {
-        console.error('Failed to fetch spec content:', err);
-        setContentError(err instanceof Error ? err.message : 'Failed to load spec');
-        setSpecContent('');
-        setOriginalContent('');
-        setOriginalCriteria('');
+        console.error("Failed to fetch spec content:", err);
+        setContentError(
+          err instanceof Error ? err.message : "Failed to load spec",
+        );
+        setSpecContent("");
+        setOriginalContent("");
+        setOriginalCriteria("");
       } finally {
         setContentLoading(false);
       }
@@ -336,11 +472,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     let isMounted = true;
     const parseMarkdown = async () => {
       try {
-        const result = await marked.parse(specContent || '');
+        const result = await marked.parse(specContent || "");
         if (isMounted) setParsedHtml(result);
       } catch (err) {
-        console.error('Markdown rendering error:', err);
-        if (isMounted) setParsedHtml(`<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`);
+        console.error("Markdown rendering error:", err);
+        if (isMounted)
+          setParsedHtml(
+            `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`,
+          );
       }
     };
 
@@ -356,7 +495,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const handleSelectSpec = async (filename: string) => {
     // Warn if unsaved changes
     if (hasChanges) {
-      const confirm = window.confirm('You have unsaved changes. Discard them?');
+      const confirm = window.confirm("You have unsaved changes. Discard them?");
       if (!confirm) return;
     }
 
@@ -368,7 +507,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       try {
         // Check requirement status before opening
         const status = await felixApi.getRequirementStatus(projectId, reqId);
-        if (status.status === 'in_progress') {
+        if (status.status === "in_progress") {
           // Show warning modal - store pending spec for later
           setPendingSpecFilename(filename);
           setIsWarningModalOpen(true);
@@ -376,7 +515,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         }
       } catch (err) {
         // If status check fails, proceed anyway (graceful degradation)
-        console.error('Failed to check requirement status:', err);
+        console.error("Failed to check requirement status:", err);
       }
     }
 
@@ -387,14 +526,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
   // Handle warning modal actions (S-0006: Spec Edit Safety)
   const handleWarningAction = async (action: WarningAction) => {
-    if (action === 'cancel') {
+    if (action === "cancel") {
       // User cancelled - close modal and clear pending spec
       setIsWarningModalOpen(false);
       setPendingSpecFilename(null);
       return;
     }
 
-    if (action === 'continue') {
+    if (action === "continue") {
       // User chose to continue editing despite warning
       if (pendingSpecFilename) {
         setSelectedFilename(pendingSpecFilename);
@@ -405,8 +544,8 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       return;
     }
 
-    if (action === 'block') {
-      // User wants to block the requirement before editing
+    if (action === "reset_plan") {
+      // User wants to reset the plan before editing (S-0015: Pre-Edit Warning Modal)
       if (!pendingRequirementId) {
         setIsWarningModalOpen(false);
         setPendingSpecFilename(null);
@@ -415,15 +554,30 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
       setIsBlockingRequirement(true);
       try {
-        // Update requirement status to "blocked"
-        await felixApi.updateRequirementStatus(projectId, pendingRequirementId, 'blocked');
-        
+        // Delete the plan file
+        try {
+          await felixApi.deletePlan(projectId, pendingRequirementId);
+        } catch (delErr) {
+          // Plan might not exist - that's okay
+          console.log("Plan deletion attempted (may not exist):", delErr);
+        }
+
+        // Update requirement status to "planned"
+        await felixApi.updateRequirementStatus(
+          projectId,
+          pendingRequirementId,
+          "planned",
+        );
+
         // Try to stop the agent if running
         try {
           await felixApi.stopRun(projectId);
         } catch (stopErr) {
           // Agent might not be running - that's okay
-          console.log('Agent stop attempted (may not have been running):', stopErr);
+          console.log(
+            "Agent stop attempted (may not have been running):",
+            stopErr,
+          );
         }
 
         // Now proceed with editing
@@ -431,9 +585,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           setSelectedFilename(pendingSpecFilename);
           onSelectSpec?.(pendingSpecFilename);
         }
+
+        // Refresh requirements to update the list
+        const reqData = await felixApi.getRequirements(projectId);
+        setRequirements(reqData.requirements);
       } catch (err) {
-        console.error('Failed to block requirement:', err);
-        // Still allow editing even if blocking failed
+        console.error("Failed to reset plan:", err);
+        // Still allow editing even if reset failed
         if (pendingSpecFilename) {
           setSelectedFilename(pendingSpecFilename);
           onSelectSpec?.(pendingSpecFilename);
@@ -463,17 +621,17 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       await felixApi.deletePlan(projectId, selectedRequirementId);
       // Refresh the requirement status to update the hasPlan flag
       await refreshSelectedSpecStatus();
-      setResetPlanMessage({ type: 'success', text: 'Plan reset successfully' });
+      setResetPlanMessage({ type: "success", text: "Plan reset successfully" });
       // Close modal after short delay to show success message
       setTimeout(() => {
         setIsResetPlanModalOpen(false);
         setResetPlanMessage(null);
       }, 1500);
     } catch (err) {
-      console.error('Failed to reset plan:', err);
-      setResetPlanMessage({ 
-        type: 'error', 
-        text: err instanceof Error ? err.message : 'Failed to reset plan' 
+      console.error("Failed to reset plan:", err);
+      setResetPlanMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to reset plan",
       });
     } finally {
       setIsResettingPlan(false);
@@ -492,28 +650,31 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
     setSaving(true);
     setSaveMessage(null);
-    
+
     // S-0006: Check if acceptance/validation criteria changed before saving
     // This is used to detect plan invalidation
     const criteriaChanged = hasCriteriaChanged;
-    
+
     try {
       await felixApi.updateSpec(projectId, selectedFilename, specContent);
       setOriginalContent(specContent);
-      
+
       // S-0006: If criteria changed, invalidate (delete) the plan
       if (criteriaChanged) {
         // Extract requirement ID from filename
         const match = selectedFilename.match(/^(S-\d+)/);
         const reqId = match ? match[1] : null;
-        
+
         if (reqId) {
           try {
             // Check if a plan exists before attempting to delete
             const planInfo = await felixApi.getPlanInfo(projectId, reqId);
             if (planInfo.exists) {
               await felixApi.deletePlan(projectId, reqId);
-              setSaveMessage({ type: 'success', text: 'Saved. Plan invalidated due to criteria changes.' });
+              setSaveMessage({
+                type: "success",
+                text: "Saved. Plan invalidated due to criteria changes.",
+              });
               // Update original criteria to match the new saved content
               setOriginalCriteria(extractCriteriaSections(specContent));
               // Clear success message after 5 seconds (longer for the important message)
@@ -522,19 +683,22 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             }
           } catch (planErr) {
             // Plan deletion failed or plan doesn't exist - log but don't fail the save
-            console.log('Plan invalidation skipped:', planErr);
+            console.log("Plan invalidation skipped:", planErr);
           }
         }
         // Update original criteria even if no plan was deleted
         setOriginalCriteria(extractCriteriaSections(specContent));
       }
-      
-      setSaveMessage({ type: 'success', text: 'Saved successfully' });
+
+      setSaveMessage({ type: "success", text: "Saved successfully" });
       // Clear success message after 3 seconds
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
-      console.error('Failed to save spec:', err);
-      setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save' });
+      console.error("Failed to save spec:", err);
+      setSaveMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to save",
+      });
     } finally {
       setSaving(false);
     }
@@ -544,17 +708,17 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const handleOpenNewSpec = () => {
     // Find the next available spec ID
     const existingIds = specs
-      .map(s => parseSpecFilename(s.filename).id)
-      .filter(id => id.match(/^S-\d+$/))
-      .map(id => parseInt(id.replace('S-', ''), 10))
-      .filter(n => !isNaN(n));
-    
+      .map((s) => parseSpecFilename(s.filename).id)
+      .filter((id) => id.match(/^S-\d+$/))
+      .map((id) => parseInt(id.replace("S-", ""), 10))
+      .filter((n) => !isNaN(n));
+
     const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
-    const nextId = `S-${String(maxId + 1).padStart(4, '0')}`;
-    
+    const nextId = `S-${String(maxId + 1).padStart(4, "0")}`;
+
     setNewSpecId(nextId);
-    setNewSpecTitle('');
-    setNewSpecTemplate('basic');
+    setNewSpecTitle("");
+    setNewSpecTemplate("basic");
     setCreateError(null);
     setIsNewSpecOpen(true);
   };
@@ -562,21 +726,21 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   // Handle creating a new spec
   const handleCreateSpec = async () => {
     if (!newSpecId.trim() || !newSpecTitle.trim()) {
-      setCreateError('Spec ID and title are required');
+      setCreateError("Spec ID and title are required");
       return;
     }
 
     // Validate spec ID format
     if (!newSpecId.match(/^S-\d{4}$/)) {
-      setCreateError('Spec ID must be in format S-XXXX (e.g., S-0006)');
+      setCreateError("Spec ID must be in format S-XXXX (e.g., S-0006)");
       return;
     }
 
     // Generate filename from ID and title
     const slugTitle = newSpecTitle
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
     const filename = `${newSpecId}-${slugTitle}.md`;
 
     // Generate content from template
@@ -587,34 +751,41 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     setCreateError(null);
     try {
       await felixApi.createSpec(projectId, filename, content);
-      
+
       // Refresh spec list
       const specList = await felixApi.listSpecs(projectId);
       setSpecs(specList);
-      
+
       // Select the new spec
       setSelectedFilename(filename);
       onSelectSpec?.(filename);
-      
+
       // Close the modal
       setIsNewSpecOpen(false);
     } catch (err) {
-      console.error('Failed to create spec:', err);
-      setCreateError(err instanceof Error ? err.message : 'Failed to create spec');
+      console.error("Failed to create spec:", err);
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create spec",
+      );
     } finally {
       setIsCreating(false);
     }
   };
 
   // Insert formatting at cursor position
-  const insertFormatting = (prefix: string, suffix: string = '') => {
+  const insertFormatting = (prefix: string, suffix: string = "") => {
     if (!editorRef.current) return;
     const textarea = editorRef.current;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
     const selectedText = text.substring(start, end);
-    const newContent = text.substring(0, start) + prefix + selectedText + suffix + text.substring(end);
+    const newContent =
+      text.substring(0, start) +
+      prefix +
+      selectedText +
+      suffix +
+      text.substring(end);
 
     setSpecContent(newContent);
 
@@ -631,25 +802,28 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
   // Get selected spec's display info
   const selectedSpec = useMemo(() => {
-    return specs.find(s => s.filename === selectedFilename);
+    return specs.find((s) => s.filename === selectedFilename);
   }, [specs, selectedFilename]);
 
   // Extract spec ID and title from filename (e.g., "S-0001-felix-agent.md")
-  const parseSpecFilename = (filename: string): { id: string; title: string } => {
+  const parseSpecFilename = (
+    filename: string,
+  ): { id: string; title: string } => {
     const match = filename.match(/^(S-\d+)-(.+)\.md$/);
     if (match) {
-      const title = match[2].split('-').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1)
-      ).join(' ');
+      const title = match[2]
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
       return { id: match[1], title };
     }
-    return { id: '', title: filename };
+    return { id: "", title: filename };
   };
 
   return (
-    <div className="flex-1 flex bg-[#0d1117] overflow-hidden">
+    <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Specs List Sidebar */}
-      <div className="w-64 border-r border-slate-800/60 flex flex-col bg-[#0a0c10]/40 flex-shrink-0">
+      <div className="w-80 border-r theme-border flex flex-col theme-bg-deep/40 flex-shrink-0">
         <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
             Specifications
@@ -659,10 +833,65 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </span>
         </div>
 
-        <div className="p-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
+        {/* Search Bar - S-0015: Spec Screen Enhancements */}
+        <div className="px-3 pt-3 pb-2 space-y-1.5">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search specs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg outline-none transition-all"
+              style={{
+                backgroundColor: "var(--bg-elevated)",
+                border: "1px solid var(--border-muted)",
+                color: "var(--text-secondary)",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent-primary)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-muted)";
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--text-secondary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+                title="Clear search"
+              >
+                <IconX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Search Results Count - S-0015 */}
+        {!specsLoading && !specsError && searchQuery && (
+          <div className="px-3 pb-1">
+            <span
+              className="text-[9px] font-mono"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {filteredSpecs.length} / {specs.length} specs
+            </span>
+          </div>
+        )}
+
+        {/* Scrollable Spec List */}
+        <div className="px-3 pb-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
           {specsLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-xs text-slate-500 animate-pulse">Loading specs...</div>
+              <div className="text-xs text-slate-500 animate-pulse">
+                Loading specs...
+              </div>
             </div>
           ) : specsError ? (
             <div className="text-xs text-red-400 p-3 bg-red-900/20 rounded-lg">
@@ -672,74 +901,187 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             <div className="text-xs text-slate-600 text-center py-8">
               No specs found
             </div>
+          ) : filteredSpecs.length === 0 ? (
+            // No specs match search - S-0015
+            <div className="text-center py-8">
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                No specs match your search
+              </div>
+              <button
+                onClick={() => setSearchQuery("")}
+                className="mt-2 text-[10px] font-medium transition-colors"
+                style={{ color: "var(--accent-primary)" }}
+              >
+                Clear search
+              </button>
+            </div>
           ) : (
-            specs.map(spec => {
+            filteredSpecs.map((spec) => {
               const { id, title } = parseSpecFilename(spec.filename);
+              // Find matching requirement for status badge (S-0015: Safety Indicators)
+              const req = requirements.find(
+                (r) => r.spec_path.includes(spec.filename) || r.id === id,
+              );
+
+              // Get status badge color based on requirement status
+              const getStatusBadgeStyle = (status: string | undefined) => {
+                switch (status?.toLowerCase()) {
+                  case "in_progress":
+                    return {
+                      backgroundColor: "rgba(234, 179, 8, 0.15)",
+                      color: "#eab308",
+                      border: "1px solid rgba(234, 179, 8, 0.3)",
+                    };
+                  case "complete":
+                  case "done":
+                    return {
+                      backgroundColor: "rgba(34, 197, 94, 0.15)",
+                      color: "#22c55e",
+                      border: "1px solid rgba(34, 197, 94, 0.3)",
+                    };
+                  case "blocked":
+                    return {
+                      backgroundColor: "rgba(239, 68, 68, 0.15)",
+                      color: "#ef4444",
+                      border: "1px solid rgba(239, 68, 68, 0.3)",
+                    };
+                  case "planned":
+                    return {
+                      backgroundColor: "rgba(59, 130, 246, 0.15)",
+                      color: "#3b82f6",
+                      border: "1px solid rgba(59, 130, 246, 0.3)",
+                    };
+                  default:
+                    return {
+                      backgroundColor: "rgba(100, 116, 139, 0.15)",
+                      color: "#64748b",
+                      border: "1px solid rgba(100, 116, 139, 0.3)",
+                    };
+                }
+              };
+
+              // Check for drift - spec modified after plan generated (S-0015: Drift Detection)
+              const reqStatus = req ? requirementStatuses.get(req.id) : null;
+              const hasDrift =
+                reqStatus &&
+                reqStatus.has_plan &&
+                reqStatus.spec_modified_at &&
+                reqStatus.plan_modified_at
+                  ? new Date(reqStatus.spec_modified_at) >
+                    new Date(reqStatus.plan_modified_at)
+                  : false;
+
+              // Check if agent is actively running on this requirement (S-0015: Active Agent Indicator)
+              const isAgentActive = req?.status === "in_progress";
+
               return (
                 <button
                   key={spec.filename}
                   onClick={() => handleSelectSpec(spec.filename)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border group ${
                     selectedFilename === spec.filename
-                      ? 'bg-felix-600/10 text-felix-400 border-felix-500/20 shadow-lg shadow-felix-900/10'
-                      : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50'
+                      ? "bg-felix-600/10 text-felix-400 border-felix-500/20 shadow-lg shadow-felix-900/10"
+                      : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50"
                   }`}
                 >
-                  <IconFileText className="w-4 h-4 flex-shrink-0" />
+                  <div className="relative flex-shrink-0">
+                    <IconFileText className="w-4 h-4" />
+                    {/* Drift Indicator - S-0015 */}
+                    {hasDrift && !isAgentActive && (
+                      <span
+                        className="absolute -top-1 -right-1 text-[8px]"
+                        title="Spec modified after plan generated"
+                      >
+                        ⚠️
+                      </span>
+                    )}
+                    {/* Active Agent Indicator - S-0015 */}
+                    {isAgentActive && (
+                      <span
+                        className="absolute -top-1 -right-1 text-[8px] animate-pulse"
+                        title="Agent is currently running on this requirement"
+                      >
+                        🤖
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-col items-start min-w-0 flex-1">
-                    <span className="truncate font-medium w-full text-left">{title}</span>
-                    <span className="text-[9px] opacity-40 font-mono">{id}</span>
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="truncate font-medium text-left flex-1">
+                        {title}
+                      </span>
+                      {/* Status Badge - S-0015 */}
+                      {req && (
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex-shrink-0"
+                          style={getStatusBadgeStyle(req.status)}
+                          title={`Status: ${req.status}`}
+                        >
+                          {req.status === "in_progress"
+                            ? "IN PROG"
+                            : req.status.slice(0, 4).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] opacity-40 font-mono">
+                      {id}
+                    </span>
                   </div>
                 </button>
               );
             })
           )}
+        </div>
 
-          {/* New spec button */}
+        {/* Fixed New Spec Button - Always visible at bottom */}
+        <div
+          className="p-3 border-t"
+          style={{ borderColor: "var(--border-default)" }}
+        >
           <button
             onClick={handleOpenNewSpec}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-500 hover:text-felix-400 border border-dashed border-slate-700/60 hover:border-felix-500/30 mt-4 transition-all hover:bg-felix-500/5"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-felix-500 hover:bg-felix-600 text-white rounded-lg text-xs font-semibold transition-colors"
             title="Create a new spec"
           >
-            <IconPlus className="w-3.5 h-3.5" />
+            <IconPlus className="w-4 h-4" />
             <span>New Spec</span>
           </button>
         </div>
       </div>
 
       {/* Editor Pane */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#0a0c10]/20">
+      <div className="flex-1 flex flex-col min-w-0 theme-bg-deep/20">
         {/* Toolbar */}
-        <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between bg-[#0d1117]/95 backdrop-blur z-20 flex-shrink-0">
+        <div className="h-12 border-b theme-border flex items-center px-4 justify-between theme-bg-base/95 backdrop-blur z-20 flex-shrink-0">
           <div className="flex items-center gap-4">
             {/* View mode toggle */}
             <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 shadow-inner">
               <button
-                onClick={() => setViewMode('edit')}
+                onClick={() => setViewMode("edit")}
                 className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                  viewMode === 'edit'
-                    ? 'bg-slate-800 text-felix-400 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-400'
+                  viewMode === "edit"
+                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-400"
                 }`}
               >
                 SOURCE
               </button>
               <button
-                onClick={() => setViewMode('split')}
+                onClick={() => setViewMode("split")}
                 className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                  viewMode === 'split'
-                    ? 'bg-slate-800 text-felix-400 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-400'
+                  viewMode === "split"
+                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-400"
                 }`}
               >
                 SPLIT
               </button>
               <button
-                onClick={() => setViewMode('preview')}
+                onClick={() => setViewMode("preview")}
                 className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                  viewMode === 'preview'
-                    ? 'bg-slate-800 text-felix-400 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-400'
+                  viewMode === "preview"
+                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-400"
                 }`}
               >
                 PREVIEW
@@ -747,38 +1089,40 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             </div>
 
             {/* Formatting buttons (only in edit/split mode) */}
-            {(viewMode === 'edit' || viewMode === 'split') && (
+            {(viewMode === "edit" || viewMode === "split") && (
               <div className="flex items-center gap-0.5 border-l border-slate-800 pl-4">
                 <button
-                  onClick={() => insertFormatting('# ')}
+                  onClick={() => insertFormatting("# ")}
                   className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                   title="H1"
                 >
                   <span className="font-bold text-xs">H1</span>
                 </button>
                 <button
-                  onClick={() => insertFormatting('## ')}
+                  onClick={() => insertFormatting("## ")}
                   className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                   title="H2"
                 >
                   <span className="font-bold text-xs">H2</span>
                 </button>
                 <button
-                  onClick={() => insertFormatting('**', '**')}
+                  onClick={() => insertFormatting("**", "**")}
                   className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Bold"
                 >
                   <span className="font-bold text-xs uppercase">B</span>
                 </button>
                 <button
-                  onClick={() => insertFormatting('*', '*')}
+                  onClick={() => insertFormatting("*", "*")}
                   className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Italic"
                 >
-                  <span className="italic text-xs font-serif font-bold uppercase">I</span>
+                  <span className="italic text-xs font-serif font-bold uppercase">
+                    I
+                  </span>
                 </button>
                 <button
-                  onClick={() => insertFormatting('- ')}
+                  onClick={() => insertFormatting("- ")}
                   className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                   title="List"
                 >
@@ -797,7 +1141,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   </svg>
                 </button>
                 <button
-                  onClick={() => insertFormatting('`', '`')}
+                  onClick={() => insertFormatting("`", "`")}
                   className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Code"
                 >
@@ -816,7 +1160,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   </svg>
                 </button>
                 <button
-                  onClick={() => insertFormatting('- [ ] ')}
+                  onClick={() => insertFormatting("- [ ] ")}
                   className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Checkbox"
                 >
@@ -853,8 +1197,8 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               disabled={!hasChanges || saving}
               className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 ${
                 hasChanges
-                  ? 'bg-felix-600 text-white hover:bg-felix-500'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  ? "bg-felix-600 text-white hover:bg-felix-500"
+                  : "bg-slate-800 text-slate-500 cursor-not-allowed"
               }`}
             >
               {saving ? (
@@ -864,7 +1208,12 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </>
               ) : (
                 <>
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       d="M5 13l4 4L19 7"
                       strokeWidth="3"
@@ -881,7 +1230,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             {saveMessage && (
               <span
                 className={`text-[10px] font-medium ${
-                  saveMessage.type === 'success' ? 'text-emerald-400' : 'text-red-400'
+                  saveMessage.type === "success"
+                    ? "text-emerald-400"
+                    : "text-red-400"
                 }`}
               >
                 {saveMessage.text}
@@ -889,26 +1240,33 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             )}
 
             {/* Reset Plan button - S-0006: Manual Reset Plan Controls */}
-            {selectedSpecHasPlan && (selectedSpecStatus?.status === 'planned' || selectedSpecStatus?.status === 'in_progress') && (
-              <>
-                <div className="h-4 w-px bg-slate-800"></div>
-                <button
-                  onClick={handleResetPlanClick}
-                  className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30 hover:border-amber-500/50"
-                  title="Delete the current plan for this requirement"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      d="M4 4l16 16M4 20L20 4"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Reset Plan
-                </button>
-              </>
-            )}
+            {selectedSpecHasPlan &&
+              (selectedSpecStatus?.status === "planned" ||
+                selectedSpecStatus?.status === "in_progress") && (
+                <>
+                  <div className="h-4 w-px bg-slate-800"></div>
+                  <button
+                    onClick={handleResetPlanClick}
+                    className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30 hover:border-amber-500/50"
+                    title="Delete the current plan for this requirement"
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M4 4l16 16M4 20L20 4"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Reset Plan
+                  </button>
+                </>
+              )}
 
             {/* Copy button */}
             <button
@@ -936,10 +1294,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             {/* Filename display */}
             <div className="flex items-center gap-2">
               {hasChanges && (
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />
+                <div
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500"
+                  title="Unsaved changes"
+                />
               )}
               <span className="text-[10px] font-mono text-slate-500 uppercase">
-                {selectedFilename || 'No spec selected'}
+                {selectedFilename || "No spec selected"}
               </span>
             </div>
           </div>
@@ -948,28 +1309,32 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Content Area */}
         {!selectedFilename ? (
           // No spec selected
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#050608]/20">
-            <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-              <IconFileText className="w-8 h-8 text-slate-700" />
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 theme-bg-deepest/20">
+            <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
+              <IconFileText className="w-8 h-8 theme-text-faint" />
             </div>
-            <h3 className="text-sm font-bold text-slate-400 mb-2">No Spec Selected</h3>
-            <p className="text-xs text-slate-600 max-w-sm">
+            <h3 className="text-sm font-bold theme-text-tertiary mb-2">
+              No Spec Selected
+            </h3>
+            <p className="text-xs theme-text-muted max-w-sm">
               Select a specification from the list to view and edit its content.
             </p>
           </div>
         ) : contentLoading ? (
           // Loading content
-          <div className="flex-1 flex items-center justify-center bg-[#050608]/20">
-            <div className="flex items-center gap-3 text-slate-500">
-              <div className="w-5 h-5 border-2 border-slate-600 border-t-felix-500 rounded-full animate-spin" />
+          <div className="flex-1 flex items-center justify-center theme-bg-deepest/20">
+            <div className="flex items-center gap-3 theme-text-muted">
+              <div className="w-5 h-5 border-2 theme-border border-t-felix-500 rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading spec...</span>
             </div>
           </div>
         ) : contentError ? (
           // Error loading content
-          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#050608]/20">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 theme-bg-deepest/20">
             <div className="bg-red-900/20 border border-red-500/20 rounded-xl px-6 py-4 max-w-md">
-              <h3 className="text-sm font-bold text-red-400 mb-2">Failed to Load Spec</h3>
+              <h3 className="text-sm font-bold text-red-400 mb-2">
+                Failed to Load Spec
+              </h3>
               <p className="text-xs text-red-300/70">{contentError}</p>
             </div>
           </div>
@@ -977,20 +1342,21 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           // Editor and preview
           <div
             className={`flex-1 flex overflow-hidden ${
-              viewMode === 'split' ? 'divide-x divide-slate-800/40' : ''
+              viewMode === "split" ? "divide-x divide-slate-800/40" : ""
             }`}
           >
             {/* Editor pane */}
-            {(viewMode === 'edit' || viewMode === 'split') && (
+            {(viewMode === "edit" || viewMode === "split") && (
               <div className="flex-1 flex flex-col min-w-0 relative h-full">
                 <textarea
                   ref={editorRef}
                   value={specContent}
                   onChange={(e) => setSpecContent(e.target.value)}
-                  className="w-full h-full p-12 bg-[#050608]/20 text-slate-300 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30 placeholder:text-slate-800"
+                  className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30"
+                  style={{ backgroundColor: "var(--bg-deepest)" }}
                   placeholder="# Spec content..."
                 />
-                {viewMode === 'edit' && (
+                {viewMode === "edit" && (
                   <div className="absolute top-4 right-4 text-[9px] font-mono text-slate-700 uppercase tracking-[0.2em] bg-slate-900/30 px-3 py-1 rounded-full border border-slate-800/50 backdrop-blur">
                     Source Editor
                   </div>
@@ -999,8 +1365,8 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             )}
 
             {/* Preview pane */}
-            {(viewMode === 'preview' || viewMode === 'split') && (
-              <div className="flex-1 flex flex-col min-w-0 h-full bg-[#0d1117]/10 relative">
+            {(viewMode === "preview" || viewMode === "split") && (
+              <div className="flex-1 flex flex-col min-w-0 h-full theme-bg-base/10 relative">
                 <div className="flex-1 p-12 overflow-y-auto custom-scrollbar markdown-preview font-sans max-w-4xl mx-auto w-full">
                   <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
                   {!parsedHtml && (
@@ -1012,7 +1378,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                     </div>
                   )}
                 </div>
-                {viewMode === 'preview' && (
+                {viewMode === "preview" && (
                   <div className="absolute top-4 right-4 text-[9px] font-mono text-slate-700 uppercase tracking-[0.2em] bg-slate-900/30 px-3 py-1 rounded-full border border-slate-800/50 backdrop-blur">
                     Live Preview
                   </div>
@@ -1026,18 +1392,25 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       {/* New Spec Modal */}
       {isNewSpecOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[480px] overflow-hidden">
+          <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[480px] overflow-hidden">
             {/* Modal header */}
-            <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4">
+            <div className="h-12 border-b theme-border flex items-center justify-between px-4">
               <div className="flex items-center gap-2">
                 <IconPlus className="w-4 h-4 text-felix-400" />
-                <span className="text-xs font-bold text-slate-300">
+                <span className="text-xs font-bold theme-text-secondary">
                   Create New Spec
                 </span>
               </div>
               <button
                 onClick={() => setIsNewSpecOpen(false)}
-                className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+                className="p-1.5 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
+                style={{ backgroundColor: "transparent" }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = "var(--hover-bg)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = "transparent")
+                }
               >
                 <IconX className="w-4 h-4" />
               </button>
@@ -1047,7 +1420,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             <div className="p-4 space-y-4">
               {/* Spec ID */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
                   Spec ID *
                 </label>
                 <input
@@ -1055,7 +1428,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   value={newSpecId}
                   onChange={(e) => setNewSpecId(e.target.value.toUpperCase())}
                   placeholder="S-0006"
-                  className="w-full bg-[#161b22] border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-300 placeholder:text-slate-700 focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none font-mono"
+                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none font-mono"
                 />
                 <p className="mt-1.5 text-[9px] text-slate-600">
                   Format: S-XXXX (auto-incremented from existing specs)
@@ -1064,7 +1437,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
               {/* Spec Title */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
                   Title *
                 </label>
                 <input
@@ -1072,10 +1445,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   value={newSpecTitle}
                   onChange={(e) => setNewSpecTitle(e.target.value)}
                   placeholder="My New Feature"
-                  className="w-full bg-[#161b22] border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-300 placeholder:text-slate-700 focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none"
+                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none"
                 />
                 <p className="mt-1.5 text-[9px] text-slate-600">
-                  Filename will be: {newSpecId && newSpecTitle ? `${newSpecId}-${newSpecTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.md` : 'S-XXXX-your-title.md'}
+                  Filename will be:{" "}
+                  {newSpecId && newSpecTitle
+                    ? `${newSpecId}-${newSpecTitle
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, "-")
+                        .replace(/^-|-$/g, "")}.md`
+                    : "S-XXXX-your-title.md"}
                 </p>
               </div>
 
@@ -1085,23 +1464,29 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   Template
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(Object.keys(SPEC_TEMPLATES) as TemplateType[]).map((templateKey) => {
-                    const template = SPEC_TEMPLATES[templateKey];
-                    return (
-                      <button
-                        key={templateKey}
-                        onClick={() => setNewSpecTemplate(templateKey)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          newSpecTemplate === templateKey
-                            ? 'bg-felix-600/10 border-felix-500/30 text-felix-400'
-                            : 'bg-[#161b22] border-slate-700/50 text-slate-400 hover:border-slate-600'
-                        }`}
-                      >
-                        <div className="text-xs font-medium mb-1">{template.name}</div>
-                        <div className="text-[9px] opacity-60">{template.description}</div>
-                      </button>
-                    );
-                  })}
+                  {(Object.keys(SPEC_TEMPLATES) as TemplateType[]).map(
+                    (templateKey) => {
+                      const template = SPEC_TEMPLATES[templateKey];
+                      return (
+                        <button
+                          key={templateKey}
+                          onClick={() => setNewSpecTemplate(templateKey)}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            newSpecTemplate === templateKey
+                              ? "bg-felix-600/10 border-felix-500/30 text-felix-400"
+                              : "theme-bg-elevated theme-border-muted theme-text-tertiary hover:theme-border"
+                          }`}
+                        >
+                          <div className="text-xs font-medium mb-1">
+                            {template.name}
+                          </div>
+                          <div className="text-[9px] opacity-60">
+                            {template.description}
+                          </div>
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
               </div>
 
@@ -1123,7 +1508,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               </button>
               <button
                 onClick={handleCreateSpec}
-                disabled={!newSpecId.trim() || !newSpecTitle.trim() || isCreating}
+                disabled={
+                  !newSpecId.trim() || !newSpecTitle.trim() || isCreating
+                }
                 className="px-4 py-2 bg-felix-600 text-white text-xs font-bold rounded-xl hover:bg-felix-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isCreating ? (
@@ -1146,12 +1533,22 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       {/* Reset Plan Confirmation Modal (S-0006: Manual Reset Plan Controls) */}
       {isResetPlanModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[400px] overflow-hidden">
+          <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[400px] overflow-hidden">
             {/* Modal header */}
             <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4">
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <svg
+                  className="w-4 h-4 text-amber-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
                 </svg>
                 <span className="text-xs font-bold text-slate-300">
                   Reset Plan
@@ -1170,8 +1567,18 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             <div className="p-5">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <svg
+                    className="w-5 h-5 text-amber-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
                   </svg>
                 </div>
                 <div>
@@ -1179,8 +1586,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                     Delete plan for {selectedRequirementId}?
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    This will permanently delete the implementation plan for this requirement. 
-                    The agent will need to regenerate the plan on the next run.
+                    This will permanently delete the implementation plan for
+                    this requirement. The agent will need to regenerate the plan
+                    on the next run.
                   </p>
                 </div>
               </div>
@@ -1188,20 +1596,27 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               {/* Show current plan info if available */}
               {selectedSpecStatus?.plan_modified_at && (
                 <div className="bg-slate-800/40 rounded-lg p-3 mb-4">
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Current Plan</div>
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                    Current Plan
+                  </div>
                   <div className="text-xs text-slate-400">
-                    Generated: {new Date(selectedSpecStatus.plan_modified_at).toLocaleString()}
+                    Generated:{" "}
+                    {new Date(
+                      selectedSpecStatus.plan_modified_at,
+                    ).toLocaleString()}
                   </div>
                 </div>
               )}
 
               {/* Feedback message */}
               {resetPlanMessage && (
-                <div className={`p-2 rounded-lg text-xs mb-4 ${
-                  resetPlanMessage.type === 'success' 
-                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
-                    : 'bg-red-500/10 border border-red-500/20 text-red-400'
-                }`}>
+                <div
+                  className={`p-2 rounded-lg text-xs mb-4 ${
+                    resetPlanMessage.type === "success"
+                      ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                      : "bg-red-500/10 border border-red-500/20 text-red-400"
+                  }`}
+                >
                   {resetPlanMessage.text}
                 </div>
               )}
@@ -1218,7 +1633,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               </button>
               <button
                 onClick={handleResetPlanConfirm}
-                disabled={isResettingPlan || resetPlanMessage?.type === 'success'}
+                disabled={
+                  isResettingPlan || resetPlanMessage?.type === "success"
+                }
                 className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isResettingPlan ? (
@@ -1226,17 +1643,37 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                     <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Deleting...
                   </>
-                ) : resetPlanMessage?.type === 'success' ? (
+                ) : resetPlanMessage?.type === "success" ? (
                   <>
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="3"
+                        d="M5 13l4 4L19 7"
+                      />
                     </svg>
                     Done
                   </>
                 ) : (
                   <>
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
                     </svg>
                     Delete Plan
                   </>
@@ -1249,11 +1686,38 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
       {/* Warning modal for editing in_progress requirements (S-0006) */}
       <SpecEditWarningModal
-        requirementId={pendingRequirementId || ''}
-        requirementTitle={pendingSpecStatus?.title || parseSpecFilename(pendingSpecFilename || '').title}
+        requirementId={pendingRequirementId || ""}
+        requirementTitle={
+          pendingSpecStatus?.title ||
+          parseSpecFilename(pendingSpecFilename || "").title
+        }
         isOpen={isWarningModalOpen}
         isLoading={isBlockingRequirement}
         onAction={handleWarningAction}
+      />
+
+      {/* S-0017: Felix Copilot Chat Assistant */}
+      {/* CopilotChat renders its own floating button and panel */}
+      <CopilotChat
+        projectId={projectId}
+        onInsertSpec={(content: string) => {
+          // Insert the generated spec content into the editor
+          // If no spec is currently selected, user needs to select or create one first
+          if (!selectedFilename) {
+            // Show alert if no spec is selected
+            alert("Please select or create a spec first to insert content.");
+            return;
+          }
+          // Replace or append to current content based on whether editor is empty
+          if (!specContent.trim()) {
+            // Editor is empty - replace with generated content
+            setSpecContent(content);
+          } else {
+            // Editor has content - append at cursor or end
+            // For simplicity, we'll append at the end with a separator
+            setSpecContent((prev) => `${prev}\n\n---\n\n${content}`);
+          }
+        }}
       />
     </div>
   );

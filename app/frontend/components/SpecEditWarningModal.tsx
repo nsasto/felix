@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type WarningAction = 'continue' | 'block' | 'cancel';
+export type WarningAction = 'continue' | 'reset_plan' | 'cancel';
 
 interface SpecEditWarningModalProps {
   /** The requirement ID being edited */
@@ -58,7 +58,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-[#0d1117] border border-slate-800 rounded-2xl shadow-2xl w-[480px] overflow-hidden">
+      <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[480px] overflow-hidden">
         {/* Modal header */}
         <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4 bg-amber-500/5">
           <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 mt-0.5">•</span>
-                <span><strong className="text-slate-300">Block & Edit</strong> – Stop the agent and mark requirement as "blocked" before editing</span>
+                <span><strong className="text-slate-300">Reset Plan</strong> – Mark as "planned", clear the plan file, then edit</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-slate-500 mt-0.5">•</span>
@@ -122,7 +122,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
         </div>
 
         {/* Modal footer */}
-        <div className="h-16 border-t border-slate-800/60 flex items-center justify-end gap-3 px-4 bg-[#0a0c10]/50">
+        <div className="h-16 border-t theme-border flex items-center justify-end gap-3 px-4 theme-bg-deep/50">
           <button
             onClick={() => onAction('cancel')}
             disabled={isLoading}
@@ -131,19 +131,19 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={() => onAction('block')}
+            onClick={() => onAction('reset_plan')}
             disabled={isLoading}
             className="px-4 py-2 bg-amber-600/80 text-white text-xs font-bold rounded-xl hover:bg-amber-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isLoading ? (
               <>
                 <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Blocking...
+                Resetting...
               </>
             ) : (
               <>
                 <IconPause className="w-3 h-3" />
-                Block & Edit
+                Reset Plan
               </>
             )}
           </button>
