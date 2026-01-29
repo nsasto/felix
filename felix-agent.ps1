@@ -1634,6 +1634,18 @@ This task requires manual intervention.
                 Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
             }
         }
+        
+        # After successful task completion with passing validation, check if requirement is done
+        # Reload requirements to see if status was updated to complete
+        $freshRequirements = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
+        $freshReq = $freshRequirements.requirements | Where-Object { $_.id -eq $currentReq.id } | Select-Object -First 1
+        
+        if ($freshReq -and $freshReq.status -in @("complete", "done")) {
+            Write-Host ""
+            Write-Host "[COMPLETE] Requirement $($currentReq.id) is now marked as $($freshReq.status)" -ForegroundColor Green
+            Write-Host "[COMPLETE] Exiting successfully" -ForegroundColor Green
+            Exit-FelixAgent -ExitCode 0
+        }
     }
 
     # Transition to BUILDING if planning completed
