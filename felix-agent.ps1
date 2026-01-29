@@ -30,7 +30,15 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONIOENCODING = "utf-8"
 
 # Resolve project path
-$ProjectPath = Resolve-Path $ProjectPath
+try {
+    $ProjectPath = Resolve-Path $ProjectPath -ErrorAction Stop
+}
+catch {
+    Write-Host "ERROR: Invalid project path: $ProjectPath" -ForegroundColor Red
+    Write-Host "Error: $_" -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "Felix Agent starting for: " -NoNewline
 Write-Host $ProjectPath -ForegroundColor Cyan
 
@@ -679,6 +687,9 @@ $StateFile = Join-Path $FelixDir "state.json"
 $RequirementsFile = Join-Path $FelixDir "requirements.json"
 $PromptsDir = Join-Path $FelixDir "prompts"
 
+Write-Host "[DEBUG] StateFile: $StateFile" -ForegroundColor DarkGray
+Write-Host "[DEBUG] RequirementsFile: $RequirementsFile" -ForegroundColor DarkGray
+
 # Validate project structure
 $requiredPaths = @($SpecsDir, $FelixDir, $ConfigFile, $RequirementsFile)
 foreach ($path in $requiredPaths) {
@@ -695,6 +706,11 @@ $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
 $maxIterations = $config.executor.max_iterations
 $autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
+
+# Clear any cached plugin state from previous runs
+$script:PluginCache = $null
+$script:PluginCircuitBreaker = @{}
+$script:PluginPermissions = $null
 
 # Load agent configuration from global ~/.felix/agents.json via agent_id
 $FelixHome = if ($env:FELIX_HOME) { $env:FELIX_HOME } else { Join-Path $env:USERPROFILE ".felix" }
@@ -991,10 +1007,11 @@ function Initialize-PluginSystem {
     # Check if plugins are enabled
     if (-not $Config.plugins -or -not $Config.plugins.enabled) {
         Write-Verbose "Plugin system disabled"
-        return @{
+        $script:PluginCache = @{
             Enabled = $false
             Plugins = @()
         }
+        return $script:PluginCache
     }
     
     $pluginDir = $Config.plugins.discovery_path
@@ -1013,142 +1030,57 @@ function Initialize-PluginSystem {
     # Discover plugins
     $disabledPlugins = if ($Config.plugins.disabled) { $Config.plugins.disabled } else { @() }
     
+    Write-Host "[PLUGINS] Disabled plugins: $($disabledPlugins -join ', ')" -ForegroundColor DarkGray
+    
     $plugins = Get-ChildItem $pluginDir -Directory | ForEach-Object {
         $pluginName = $_.Name
         $manifestPath = Join-Path $_.FullName "plugin.json"
         
         if (-not (Test-Path $manifestPath)) {
-            Write-Warning "Plugin $pluginName missing plugin.json manifest"
-            return
-        }
-        
-        # Skip disabled plugins
-        if ($disabledPlugins -contains $pluginName) {
-            Write-Verbose "Plugin $pluginName is disabled"
-            return
+            Write-Verbose "Skipping plugin ${pluginName}: No manifest found"
+            return $null
         }
         
         try {
             $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
             
-            # Validate API version compatibility
-            $apiVersion = if ($Config.plugins.api_version) { $Config.plugins.api_version } else { "v1" }
-            if ($manifest.api_version -ne $apiVersion) {
-                Write-Warning "Plugin $pluginName uses API version $($manifest.api_version), expected $apiVersion"
-                return
+            # Check if plugin is disabled
+            if ($disabledPlugins -contains $manifest.id -or $disabledPlugins -contains $pluginName) {
+                Write-Verbose "Skipping plugin ${pluginName}: Disabled in config"
+                return $null
             }
             
-            # Validate Felix version compatibility
-            if ($manifest.felix_version_min) {
-                # Version comparison would go here - simplified for now
-                Write-Verbose "Plugin $pluginName requires Felix >= $($manifest.felix_version_min)"
+            # Basic validation
+            if (-not $manifest.id -or -not $manifest.hooks) {
+                Write-Warning "Invalid plugin manifest for $pluginName"
+                return $null
             }
             
-            # Check for circular dependencies (simple check)
-            if ($manifest.requires) {
-                foreach ($dep in $manifest.requires) {
-                    if ($dep -eq $pluginName) {
-                        Write-Warning "Plugin $pluginName has circular dependency on itself"
-                        return
-                    }
-                }
-            }
-            
-            # Check circuit breaker state
-            if ($script:PluginCircuitBreaker[$pluginName]) {
-                $cbState = $script:PluginCircuitBreaker[$pluginName]
-                if ($cbState.Disabled) {
-                    Write-Warning "Plugin $pluginName disabled by circuit breaker (failures: $($cbState.FailureCount))"
-                    return
-                }
-            }
-            
-            # Return plugin object (will be collected into array)
-            [PSCustomObject]@{
-                Name        = $pluginName
-                Manifest    = $manifest
+            $plugin = @{
+                Id          = $manifest.id
+                Name        = $manifest.name
                 Path        = $_.FullName
-                Priority    = if ($manifest.priority) { $manifest.priority } else { 100 }
+                Hooks       = $manifest.hooks
                 Permissions = if ($manifest.permissions) { $manifest.permissions } else { @() }
-                Hooks       = if ($manifest.hooks) { $manifest.hooks } else { @() }
-                Requires    = if ($manifest.requires) { $manifest.requires } else { @() }
+                Config      = if ($manifest.config) { $manifest.config } else { @{} }
             }
+            
+            Write-Verbose "Found plugin: $($plugin.Name) ($($plugin.Id))"
+            return [PSCustomObject]$plugin
         }
         catch {
-            Write-Warning "Failed to load plugin ${pluginName}: $($_.Exception.Message)"
+            Write-Warning "Failed to load plugin manifest for ${pluginName}: $_"
+            return $null
         }
-    }
+    } | Where-Object { $null -ne $_ }
     
-    # Filter out null values
-    $plugins = $plugins | Where-Object { $_ -ne $null }
-    
-    # Topological sort for dependency resolution
-    $sorted = [System.Collections.ArrayList]::new()
-    $visited = @{}
-    $visiting = @{}
-    
-    function Visit-Plugin {
-        param([PSCustomObject]$Plugin)
-        
-        if ($visited[$Plugin.Name]) { return }
-        if ($visiting[$Plugin.Name]) {
-            Write-Warning "Circular dependency detected: $($Plugin.Name)"
-            return
-        }
-        
-        $visiting[$Plugin.Name] = $true
-        
-        foreach ($depName in $Plugin.Requires) {
-            $dep = $plugins | Where-Object { $_.Name -eq $depName } | Select-Object -First 1
-            if ($dep) {
-                Visit-Plugin -Plugin $dep
-            }
-            else {
-                Write-Warning "Plugin $($Plugin.Name) requires missing plugin: $depName"
-            }
-        }
-        
-        $visiting[$Plugin.Name] = $false
-        $visited[$Plugin.Name] = $true
-        $null = $sorted.Add($Plugin)
-    }
-    
-    foreach ($plugin in $plugins) {
-        Visit-Plugin -Plugin $plugin
-    }
-    
-    # Sort by priority within dependency order and convert back to array
-    $sortedArray = @($sorted.ToArray() | Sort-Object Priority)
-    
-    # Cache plugins
     $script:PluginCache = @{
-        Enabled    = $true
-        Plugins    = $sortedArray
-        RunId      = $RunId
-        ApiVersion = if ($Config.plugins.api_version) { $Config.plugins.api_version } else { "v1" }
-        Config     = $Config.plugins
+        Enabled = $true
+        Plugins = $plugins
     }
     
-    Write-Host "[PLUGINS] Loaded $($sortedArray.Count) plugins"
-    
+    Write-Host "[PLUGINS] Initialized plugin system ($($plugins.Count) plugins active)" -ForegroundColor Green
     return $script:PluginCache
-}
-
-function Invoke-PluginHookSafely {
-    param(
-        [string]$HookName,
-        [string]$RunId,
-        [hashtable]$HookData,
-        [hashtable]$DefaultResult = @{}
-    )
-    
-    try {
-        return Invoke-PluginHook -HookName $HookName -RunId $RunId -HookData $HookData
-    }
-    catch {
-        Write-Host "[PLUGINS] $HookName hook failed: $_" -ForegroundColor Yellow
-        return $DefaultResult
-    }
 }
 
 function Invoke-PluginHook {
@@ -1157,228 +1089,131 @@ function Invoke-PluginHook {
         [Parameter(Mandatory = $true)]
         [string]$HookName,
         
-        [Parameter(Mandatory = $false)]
-        [hashtable]$HookData = @{},
-        
         [Parameter(Mandatory = $true)]
-        [string]$RunId
+        [string]$RunId,
+        
+        [Parameter(Mandatory = $false)]
+        [hashtable]$HookData = @{}
     )
     
     if (-not $script:PluginCache -or -not $script:PluginCache.Enabled) {
-        return $HookData
+        return @{ ShouldContinue = $true }
     }
     
-    if (-not $script:PluginCache.Plugins) {
-        return $HookData
-    }
-
-    $apiVersion = $script:PluginCache.ApiVersion
-    $applicablePlugins = $script:PluginCache.Plugins | Where-Object {
-        $_ -and $_.Hooks -contains $HookName
+    $combinedResult = @{
+        ShouldContinue = $true
+        Reason         = ""
     }
     
-    if ($applicablePlugins.Count -eq 0) {
-        return $HookData
-    }
-    
-    Write-Verbose "[PLUGINS] Executing hook: $HookName ($($applicablePlugins.Count) plugins)"
-    
-    $chainData = $HookData
-    $executionLog = [System.Collections.ArrayList]@()
-    
-    foreach ($plugin in $applicablePlugins) {
+    foreach ($plugin in $script:PluginCache.Plugins) {
+        # Check if plugin implements this hook
+        $hook = $plugin.Hooks | Where-Object { $_.name -eq $HookName }
+        if (-not $hook) { continue }
+        
+        # Check circuit breaker
+        $pluginId = $plugin.Id
+        if ($script:PluginCircuitBreaker[$pluginId] -ge 3) {
+            Write-Verbose "Plugin $pluginId is disabled due to repeated failures"
+            continue
+        }
+        
         try {
-            Write-Verbose "[PLUGINS] Executing plugin: $($plugin.Name) for hook: $HookName"
-            
-            # Check permissions
-            $hasAllPermissions = $true
-            $permissions = if ($plugin.Permissions) { $plugin.Permissions } else { @() }
-            
-            # Debug: Check if PluginPermissions is initialized
-            if (-not $script:PluginPermissions) {
-                Write-Warning "Plugin permissions not initialized for plugin: $($plugin.Name)"
-                $hasAllPermissions = $false
+            # Implementation depends on hook type (script or binary)
+            $result = $null
+            if ($hook.type -eq "powershell") {
+                $hookScript = Join-Path $plugin.Path $hook.script
+                if (Test-Path $hookScript) {
+                    $result = & $hookScript -HookName $HookName -RunId $RunId -Data $HookData -Config $plugin.Config
+                }
             }
-            else {
-                foreach ($perm in $permissions) {
-                    if (-not $script:PluginPermissions[$perm]) {
-                        Write-Warning "Plugin $($plugin.Name) requests unknown permission: $perm"
-                        $hasAllPermissions = $false
+            
+            # Process result
+            if ($result) {
+                if ($result.PSObject.Properties['ShouldContinue'] -and $result.ShouldContinue -eq $false) {
+                    $combinedResult.ShouldContinue = $false
+                    $combinedResult.Reason = $result.Reason
+                }
+                
+                # Merge other properties into combined result
+                foreach ($prop in $result.PSObject.Properties) {
+                    if ($prop.Name -ne "ShouldContinue" -and $prop.Name -ne "Reason") {
+                        $combinedResult[$prop.Name] = $prop.Value
                     }
                 }
             }
             
-            if (-not $hasAllPermissions) {
-                Write-Warning "Plugin $($plugin.Name) has invalid permissions, skipping"
-                continue
-            }
-            
-            # Determine hook script name based on API version
-            $hookScript = if ($apiVersion -eq "v2") {
-                Join-Path $plugin.Path "hooks/$HookName.ps1"
-            }
-            else {
-                Join-Path $plugin.Path "on-$($HookName.ToLower()).ps1"
-            }
-            
-            if (-not (Test-Path $hookScript)) {
-                Write-Verbose "Plugin $($plugin.Name) hook script not found: $hookScript"
-                continue
-            }
-            
-            $startTime = Get-Date
-            
-            # Execute hook with chained data
-            $result = & $hookScript -HookData $chainData -RunId $RunId -PluginConfig $plugin.Manifest
-            
-            $duration = (Get-Date) - $startTime
-            
-            # Update chain data with result (if hook returns data)
-            if ($null -ne $result -and $result -is [hashtable]) {
-                $chainData = $result
-            }
-            
-            # Log successful execution
-            $null = $executionLog.Add(@{
-                    Plugin   = $plugin.Name
-                    Hook     = $HookName
-                    Duration = $duration.TotalMilliseconds
-                    Success  = $true
-                })
-            
             # Reset circuit breaker on success
-            if ($script:PluginCircuitBreaker[$plugin.Name]) {
-                $script:PluginCircuitBreaker[$plugin.Name].FailureCount = 0
-            }
+            $script:PluginCircuitBreaker[$pluginId] = 0
         }
         catch {
-            Write-Warning "Plugin $($plugin.Name) hook $HookName failed: $_"
-            Write-Warning "Plugin details: Name=$($plugin.Name), Path=$($plugin.Path), Priority=$($plugin.Priority)"
-            Write-Warning "Error details: $($_.Exception.GetType().FullName): $($_.Exception.Message)"
-            Write-Warning "Stack trace: $($_.ScriptStackTrace)"
-            
-            # Update circuit breaker
-            if (-not $script:PluginCircuitBreaker[$plugin.Name]) {
-                $script:PluginCircuitBreaker[$plugin.Name] = @{
-                    FailureCount = 0
-                    Disabled     = $false
-                }
-            }
-            
-            $cbState = $script:PluginCircuitBreaker[$plugin.Name]
-            $cbState.FailureCount++
-            
-            $maxFailures = if ($script:PluginCache.Config.circuit_breaker_max_failures) {
-                $script:PluginCache.Config.circuit_breaker_max_failures
-            }
-            else { 3 }
-            
-            if ($cbState.FailureCount -ge $maxFailures) {
-                $cbState.Disabled = $true
-                Write-Warning "Plugin $($plugin.Name) disabled by circuit breaker after $($cbState.FailureCount) failures"
-            }
-            
-            $null = $executionLog.Add(@{
-                    Plugin  = $plugin.Name
-                    Hook    = $HookName
-                    Success = $false
-                    Error   = $_.ToString()
-                })
+            Write-Warning "Plugin $($plugin.Name) failed on hook ${HookName}: $_"
+            $currentCount = if ($script:PluginCircuitBreaker[$pluginId]) { $script:PluginCircuitBreaker[$pluginId] } else { 0 }
+            $script:PluginCircuitBreaker[$pluginId] = $currentCount + 1
         }
     }
     
-    # Save execution log for debugging
-    $logDir = Join-Path $RunsDir $RunId
-    if (Test-Path $logDir) {
-        $chainLogPath = Join-Path $logDir "plugin-chain-debug.json"
-        $existingLog = if (Test-Path $chainLogPath) {
-            $jsonContent = Get-Content $chainLogPath -Raw | ConvertFrom-Json
-            [System.Collections.ArrayList]@($jsonContent)
-        }
-        else { 
-            [System.Collections.ArrayList]@()
-        }
-        
-        $null = $existingLog.Add(@{
-                Hook      = $HookName
-                Timestamp = Get-Date -Format "o"
-                Plugins   = $executionLog
-            })
-        
-        $existingLog | ConvertTo-Json -Depth 10 | Set-Content $chainLogPath
-    }
-    
-    return $chainData
+    return [PSCustomObject]$combinedResult
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# End Plugin System Infrastructure
-# ═══════════════════════════════════════════════════════════════════════════
+function Invoke-PluginHookSafely {
+    param(
+        [string]$HookName,
+        [string]$RunId,
+        [hashtable]$HookData
+    )
+    
+    try {
+        return Invoke-PluginHook -HookName $HookName -RunId $RunId -HookData $HookData
+    }
+    catch {
+        Write-Host "[PLUGINS] $HookName hook failed: $_" -ForegroundColor Yellow
+        return @{ ShouldContinue = $true }
+    }
+}
 
-Write-Host "Max iterations: $maxIterations"
-Write-Host ""
+# ============================================================================
+# Main Execution Logic
+# ============================================================================
 
 # Load requirements
-$requirements = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
+if (-not (Test-Path $RequirementsFile)) {
+    Write-Host "ERROR: Requirements file not found: $RequirementsFile" -ForegroundColor Red
+    exit 1
+}
 
-# Select requirement (specific ID if provided, otherwise first available)
+$requirements = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
+$currentReq = $null
+
 if ($RequirementId) {
-    # Find specific requirement
-    $currentReq = $requirements.requirements | Where-Object { $_.id -eq $RequirementId } | Select-Object -First 1
-    
+    $currentReq = $requirements.requirements | Where-Object { $_.id -eq $RequirementId }
     if (-not $currentReq) {
-        Write-Host "Requirement $RequirementId not found" -ForegroundColor Red
-        exit 1
-    }
-    
-    if ($currentReq.status -notin @("planned", "in_progress")) {
-        Write-Host "Requirement $RequirementId has status '$($currentReq.status)' - cannot work on it" -ForegroundColor Yellow
+        Write-Host "ERROR: Requirement $RequirementId not found." -ForegroundColor Red
         exit 1
     }
 }
 else {
-    # Find first in_progress or planned
-    $currentReq = $requirements.requirements | Where-Object { 
-        $_.status -eq "in_progress" 
-    } | Select-Object -First 1
-
+    # Find first planned or in_progress requirement
+    $currentReq = $requirements.requirements | Where-Object { $_.status -eq "planned" -or $_.status -eq "in_progress" } | Select-Object -First 1
     if (-not $currentReq) {
-        $currentReq = $requirements.requirements | Where-Object { 
-            $_.status -eq "planned" 
-        } | Select-Object -First 1
-    }
-
-    if (-not $currentReq) {
-        Write-Host "No requirements to work on " -NoNewline
-        Write-Host "(all complete or blocked)" -ForegroundColor Yellow
+        Write-Host "No planned or in-progress requirements found." -ForegroundColor Green
         exit 0
     }
 }
 
-Write-Host "Working on: " -NoNewline
-Write-Host "$($currentReq.id) - $($currentReq.title)" -ForegroundColor Green
-Write-Host ""
+$RequirementId = $currentReq.id
 
-# Initialize state if needed
-if (-not (Test-Path $StateFile)) {
-    $initialState = @{
-        current_requirement_id = $currentReq.id
-        last_run_id            = $null
-        last_mode              = $null
-        last_iteration_outcome = $null
-        updated_at             = Get-Date -Format "o"
-        current_iteration      = 0
-        status                 = "ready"
-        blocked_task           = $null
-    }
-    $initialState | ConvertTo-Json | Set-Content $StateFile
+# Load or initialize state
+$state = if (Test-Path $StateFile) {
+    Get-Content $StateFile -Raw | ConvertFrom-Json
 }
-
-# Load state
-$state = Get-Content $StateFile -Raw | ConvertFrom-Json
-
-if ($null -eq $state.blocked_task) {
-    $state | Add-Member -MemberType NoteProperty -Name blocked_task -Value $null -Force
+else {
+    @{
+        current_requirement_id = $null
+        current_iteration      = 0
+        last_mode              = $null
+        status                 = "idle"
+        validation_retry_count = 0
+    }
 }
 
 # Initialize validation retry counter if it doesn't exist
@@ -1423,10 +1258,24 @@ $exitHandler = {
 for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host ""
     Write-Host "=============================================================" -ForegroundColor Cyan
-    Write-Host "  Felix Agent - Iteration $iteration/$maxIterations" -ForegroundColor Cyan
+    Write-Host " Felix Agent - Iteration $iteration/$maxIterations" -ForegroundColor Cyan
     
+    # --- FIX START: Generate Run ID and Setup Dir immediately ---
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $runId = "$($currentReq.id)-$timestamp-it$iteration"
+    
+    $runDir = Join-Path $RunsDir $runId
+    if (-not (Test-Path $runDir)) {
+        New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+    }
+    
+    # Initialize the plugin system for this run
+    Write-Host "[DEBUG] Initializing plugin system with runId: $runId" -ForegroundColor DarkGray
+    Initialize-PluginSystem -Config $config -RunId $runId
+    # --- FIX END ---
+
     # Determine mode
-    $mode = "building"  # Default
+    $mode = "building" # Default 
     
     # Look for most recent plan for current requirement in runs/
     $planPattern = "plan-$($currentReq.id).md"
@@ -1436,36 +1285,20 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         # Found plan in runs/ - use building mode
         $latestPlanPath = $existingPlans[0].FullName
         $planContent = Get-Content $latestPlanPath -Raw
-        
-        # Check if plan is substantive
-        if ($planContent.Trim().Length -lt 50) {
-            $mode = "planning"
-        }
+        $mode = "building"
+        Write-Host "[MODE] Found existing plan, using BUILDING mode" -ForegroundColor Yellow
     }
     else {
-        # No plan exists for current requirement - need to plan
-        $mode = "planning"
+        # No plan found - use planning mode (or default)
+        $mode = if ($state.last_mode) { $state.last_mode } else { $defaultMode }
+        if ($mode -eq "building" -and -not $existingPlans) {
+            Write-Host "[MODE] No plan found, falling back to PLANNING mode" -ForegroundColor Yellow
+            $mode = "planning"
+        }
+        $latestPlanPath = $null
+        $planContent = $null
     }
-    
-    # Override with state if available
-    if ($state.last_mode -and $iteration -eq 1) {
-        # Continue in same mode as last run on first iteration
-        $mode = $state.last_mode
-    }
-    
-    Write-Host "  Mode: " -NoNewline -ForegroundColor Cyan
-    Write-Host $mode.ToUpper() -ForegroundColor $(if ($mode -eq "planning") { "Magenta" } else { "Blue" })
-    Write-Host "=============================================================" -ForegroundColor Cyan
-    Write-Host ""
-    
-    # Create run directory and ID before any hooks
-    $runId = Get-Date -Format "yyyy-MM-ddTHH-mm-ss"
-    $runDir = Join-Path $RunsDir $runId
-    New-Item -ItemType Directory -Path $runDir -Force | Out-Null
-    
-    # Initialize the plugin system for this run
-    Initialize-PluginSystem -Config $config -RunId $runId
-    
+
     # Hook: OnPostModeSelection
     $hookResult = Invoke-PluginHook -HookName "OnPostModeSelection" -RunId $runId -HookData @{
         Mode               = $mode
@@ -1477,14 +1310,14 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         Write-Host "[PLUGINS] Mode overridden: $($mode) -> $($hookResult.OverrideMode) ($($hookResult.Reason))"
         $mode = $hookResult.OverrideMode
     }
-    
+
     # Update state
     $state.current_iteration = $iteration
     $state.last_mode = $mode
     $state.status = "running"
     $state.updated_at = Get-Date -Format "o"
     $state | ConvertTo-Json | Set-Content $StateFile
-    
+
     # Hook: OnPreIteration
     try {
         $hookResult = Invoke-PluginHook -HookName "OnPreIteration" -RunId $runId -HookData @{
@@ -1496,16 +1329,14 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     }
     catch {
         Write-Host "[PLUGINS] OnPreIteration hook failed: $_" -ForegroundColor Yellow
-        $hookResult = @{
-            ContinueIteration = $true
-        }
+        $hookResult = @{ ContinueIteration = $true }
     }
     
     if ($hookResult.ContinueIteration -eq $false) {
         Write-Host "[PLUGINS] Iteration skipped: $($hookResult.Reason)"
         break
     }
-    
+
     # Load prompt template
     $promptFile = Join-Path $PromptsDir "$mode.md"
     if (-not (Test-Path $promptFile)) {
@@ -1513,9 +1344,8 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         Write-Host "Prompt template not found: $promptFile" -ForegroundColor Red
         Exit-FelixAgent -ExitCode 1
     }
-    
     $promptTemplate = Get-Content $promptFile -Raw
-    
+
     # Gather context
     $contextParts = @()
     
@@ -1524,43 +1354,17 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $agentsContent = Get-Content $AgentsFile -Raw
         $contextParts += "# How to Run This Project`n`n$agentsContent"
     }
-    
-    # Add current requirement spec
-    $currentSpecPath = Join-Path $ProjectPath $currentReq.spec_path
-    if (Test-Path $currentSpecPath) {
-        $specContent = Get-Content $currentSpecPath -Raw
-        $contextParts += "# Current Requirement Spec: $($currentReq.id)`n`n$specContent"
-    }
-    
-    # Add CONTEXT.md
-    $contextFile = Join-Path $SpecsDir "CONTEXT.md"
-    if (Test-Path $contextFile) {
-        $contextContent = Get-Content $contextFile -Raw
-        $contextParts += "# Project Context`n`n$contextContent"
-    }
-    
-    # Add plan if in building mode
-    if ($mode -eq "building" -and $existingPlans -and $existingPlans.Count -gt 0) {
-        $latestPlanPath = $existingPlans[0].FullName
-        $planContent = Get-Content $latestPlanPath -Raw
-        $contextParts += "# Implementation Plan (from $($existingPlans[0].Directory.Name))`n`n$planContent"
-        
-        # Copy plan to current run for reference
-        Copy-Item $latestPlanPath (Join-Path $runDir "plan-$($currentReq.id).md")
-    }
-    
-    # Build minimal requirements context
+
+    # Add Requirements context
     $reqContext = @{
-        current = @{
-            id        = $currentReq.id
-            title     = $currentReq.title
-            status    = $currentReq.status
-            spec_path = $currentReq.spec_path
-            priority  = $currentReq.priority
-        }
+        id           = $currentReq.id
+        title        = $currentReq.title
+        description  = $currentReq.description
+        status       = $currentReq.status
+        dependencies = @()
     }
     
-    # Add dependencies with their statuses if they exist
+    # Add dependency info if they exist
     if ($currentReq.depends_on -and $currentReq.depends_on.Count -gt 0) {
         $deps = @()
         foreach ($depId in $currentReq.depends_on) {
@@ -1578,14 +1382,13 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     
     $reqSummary = $reqContext | ConvertTo-Json -Depth 10
     $contextParts += "# Current Requirement Context`n`n``````json`n$reqSummary`n```````n`n*Note: Full requirements list available at ``felix/requirements.json`` if you need to check other requirements.*"
-    
+
     # Add current requirement header
     $contextParts += "# Current Requirement`n`nYou are working on: **$($currentReq.id)** - $($currentReq.title)"
-    
+
     # Add failure context from previous iteration if blocked
     if ($state.blocked_task) {
         $failedCommandsList = ($state.blocked_task.failed_commands | ForEach-Object { "- $_" }) -join "`n"
-        
         $retryInfo = "# ⚠️ Previous Iteration - Task Blocked ⚠️`n`n"
         $retryInfo += "**IMPORTANT:** The following task failed validation in the previous iteration. You MUST fix these issues before proceeding.`n`n"
         $retryInfo += "**Blocked Task:** $($state.blocked_task.description)`n"
@@ -1596,43 +1399,34 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $retryInfo += "$failedCommandsList`n`n"
         $retryInfo += "## What You Must Do`n`n"
         $retryInfo += "1. **Review the failed validation commands above** - These commands must pass before the task can be committed`n"
-        $retryInfo += "2. **Fix the underlying issues** causing the test/build/lint failures`n"
-        $retryInfo += "3. **DO NOT mark the task complete** until all validation passes`n"
-        $retryInfo += "4. **Focus on fixing the errors** - Read error messages carefully and address root causes`n"
-        
-        # Load backpressure log from most recent run if available
-        $lastRunId = $state.last_run_id
-        if ($lastRunId) {
-            $lastRunDir = Join-Path $RunsDir $lastRunId
-            $backpressureLogPath = Join-Path $lastRunDir "backpressure.log"
-            if (Test-Path $backpressureLogPath) {
-                $backpressureLog = Get-Content $backpressureLogPath -Raw
-                $retryInfo += "`n## Full Validation Output from Previous Iteration`n`n"
-                $retryInfo += "The commands above produced the following output. **Read this carefully** to understand what needs to be fixed:`n`n"
-                $retryInfo += $backpressureLog
-                $retryInfo += "`n"
-            }
-        }
+        $retryInfo += "2. **Fix the underlying issues** causing the test/build/lint failures. DO NOT just retry without changes.`n"
+        $retryInfo += "3. **Explain your fix** in the task completion message.`n"
         
         $contextParts += $retryInfo
-        
-        Write-Host "[CONTEXT] " -NoNewline -ForegroundColor Yellow
-        Write-Host "Injected blocked task failure context (retry $($state.blocked_task.retry_count)/$($state.blocked_task.max_retries))" -ForegroundColor Yellow
     }
-    
-    # Add plan output path instruction
-    $planOutputPath = "runs/$runId/plan-$($currentReq.id).md"
+
+    # Add Mode Specific Context
+    if ($mode -eq "building") {
+        if ($planContent) {
+            $contextParts += "# Current Plan`n`n$planContent"
+        }
+    }
+
+    # Target path for plan (relative to project root)
+    $planRelPath = "runs/$runId/plan-$($currentReq.id).md"
+    $planOutputPath = Join-Path $ProjectPath $planRelPath
+
     if ($mode -eq "planning") {
-        $contextParts += "# Plan Output Path`n`nGenerate your implementation plan and save it to: **$planOutputPath**`n`nThis plan should contain ONLY tasks for requirement $($currentReq.id)."
+        $contextParts += "# Plan Output Path`n`nYou MUST generate a requirement-specific plan and save it to: **$planOutputPath**`n`nThis plan should contain ONLY tasks for requirement $($currentReq.id)."
     }
     else {
         $contextParts += "# Plan Update Path`n`nWhen marking tasks complete, update the plan at: **$planOutputPath**"
     }
-    
+
     # Construct full prompt
     $context = $contextParts -join "`n`n---`n`n"
     $fullPrompt = "$promptTemplate`n`n---`n`n# Project Context`n`n$context"
-    
+
     # Hook: OnContextGathering
     $gitDiff = if (Test-Path (Join-Path $ProjectPath ".git")) { git diff 2>$null } else { "" }
     $hookResult = Invoke-PluginHookSafely -HookName "OnContextGathering" -RunId $runId -HookData @{
@@ -1645,181 +1439,73 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     
     if ($hookResult.AdditionalContext) {
         Write-Verbose "[PLUGINS] Adding additional context from plugins"
-        $fullPrompt += "`n`n---`n`n# Plugin Context`n`n$($hookResult.AdditionalContext)"
+        $fullPrompt += "`n`n---`n`n# Additional Context (Plugins)`n`n$($hookResult.AdditionalContext)"
     }
-    
-    # Write requirement ID
-    Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id
-    
-    # Update last_run_id in requirements.json
-    $null = Update-RequirementRunId -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -RunId $runId
-    
-    # Capture git state before execution (for planning mode guardrails)
-    $gitStateBefore = $null
-    if ($mode -eq "planning") {
-        Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
-        Write-Host "Capturing git state before planning iteration..." -ForegroundColor Yellow
-        $gitStateBefore = Get-GitState -WorkingDir $ProjectPath
-    }
-    
-    # Call agent executable (using config from agents.json)
+
+    # Capture state before execution for planning mode guardrails
+    $beforeState = if ($mode -eq "planning") { Get-GitState -WorkingDir $ProjectPath } else { $null }
+
+    # Write prompt to run directory for debugging
+    Set-Content (Join-Path $runDir "prompt.md") $fullPrompt -Encoding UTF8
+
+    # Execute agent
+    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+    Write-Host "Executing droid in $mode mode..." -ForegroundColor White
+
     $executable = $agentConfig.executable
     $args = $agentConfig.args
-    Write-Host "Calling $executable $($args -join ' ')...`n"
-    
-    # Hook: OnPreLLM
-    $hookResult = Invoke-PluginHookSafely -HookName "OnPreLLM" -RunId $runId -HookData @{
-        Mode               = $mode
-        CurrentRequirement = $currentReq
-        PromptFile         = $promptFile
-        FullPrompt         = $fullPrompt
-    }
-    
-    if ($hookResult.SkipLLM) {
-        Write-Host "[PLUGINS] LLM execution skipped: $($hookResult.Reason)"
-        continue
-    }
-    
-    if ($hookResult.ModifiedPrompt) {
-        Write-Verbose "[PLUGINS] Using modified prompt from plugin"
-        $fullPrompt = $hookResult.ModifiedPrompt
-    }
-    
-    $droidSuccess = $false
-    $droidError = $null
-    try {
-        # Ensure UTF-8 encoding is preserved in output capture
-        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        
-        # Build command with arguments from agents.json
-        $cmdArgs = @($args) + @()  # Convert to array and add any additional args
-        $output = $fullPrompt | & $executable @cmdArgs 2>&1 | Out-String
-        $output = $output.Trim()
-        $droidSuccess = $true
-    }
-    catch {
-        $droidError = $_
-        Write-Host "ERROR during $executable execution: $_"
-        
-        # Write error report
-        $report = @"
-# Run Report
+    $startTime = Get-Date
 
-**Mode:** $mode
-**Iteration:** $iteration
-**Success:** false
-**Timestamp:** $(Get-Date -Format "o")
-
-## Error
-
-```
-$_
-```
-
-"@
-        Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
-        
-        $state.last_iteration_outcome = "error"
-        $state.status = "error"
-        $state.updated_at = Get-Date -Format "o"
-        $state | ConvertTo-Json | Set-Content $StateFile
-        
-        Exit-FelixAgent -ExitCode 1
+    # Hook: OnPreExecution
+    $hookResult = Invoke-PluginHookSafely -HookName "OnPreExecution" -RunId $runId -HookData @{
+        Executable = $executable
+        Args       = [System.Collections.ArrayList]@($args)
+        Prompt     = $fullPrompt
     }
     
-    # === Post-droid processing (outside try/catch) ===
-    Write-Host $output
-    
-    # Write output log
-    Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8
-    
-    # Hook: OnPostLLM
-    $hookResult = Invoke-PluginHookSafely -HookName "OnPostLLM" -RunId $runId -HookData @{
-        Mode               = $mode
-        CurrentRequirement = $currentReq
-        ExitCode           = if ($droidSuccess) { 0 } else { 1 }
-        OutputPath         = Join-Path $runDir "output.log"
+    if ($hookResult.ModifiedArgs) {
+        $args = $hookResult.ModifiedArgs
+        Write-Verbose "[PLUGINS] Using modified executable arguments"
     }
-    
-    if (-not $hookResult.Success) {
-        Write-Warning "[PLUGINS] Post-LLM hook reported failure: $($hookResult.ErrorMessage)"
+
+    # Execute the agent and capture output
+    $output = $fullPrompt | & $executable @args 2>&1 | Out-String
+    $duration = (Get-Date) - $startTime
+
+    # Write raw output to run directory
+    Set-Content (Join-Path $runDir "output.txt") $output -Encoding UTF8
+    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
+    Write-Host "Execution complete (Duration: $($duration.TotalSeconds.ToString("F1"))s)" -ForegroundColor White
+
+    # Hook: OnPostExecution
+    $hookResult = Invoke-PluginHookSafely -HookName "OnPostExecution" -RunId $runId -HookData @{
+        Output   = $output
+        Duration = $duration.TotalSeconds
     }
-    
-    # ====================================================================
-    # Planning Mode Guardrail Enforcement
-    # ====================================================================
-    $guardrailViolations = $null
-    if ($mode -eq "planning" -and $gitStateBefore) {
-        Write-Host ""
-        Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
-        Write-Host "Checking planning mode guardrails..." -ForegroundColor Yellow
-        $guardrailViolations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $gitStateBefore -RunId $runId
-        
-        if ($guardrailViolations.HasViolations) {
-            Write-Host ""
-            Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Red
-            Write-Host "VIOLATIONS DETECTED - Reverting unauthorized changes..." -ForegroundColor Red
-            Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $gitStateBefore -Violations $guardrailViolations
+
+    # Planning Mode Guardrails
+    if ($mode -eq "planning") {
+        $violations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $beforeState -RunId $runId
+        if ($violations.HasViolations) {
+            Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $beforeState -Violations $violations
             
-            # Log the violation in the run directory
-            $violationLog = @"
-# Guardrail Violation Report
-
-**Mode:** planning
-**Run ID:** $runId
-**Timestamp:** $(Get-Date -Format "o")
-
-## Violations
-
-**Commit Made:** $($guardrailViolations.CommitMade)
-
-**Unauthorized Files:**
-$(($guardrailViolations.UnauthorizedFiles | ForEach-Object { "- $_" }) -join "`n")
-
-## Action Taken
-
-All unauthorized changes have been reverted.
-"@
-            Set-Content (Join-Path $runDir "guardrail-violation.md") $violationLog -Encoding UTF8
-            
-            # Update state with guardrail violation
+            # Update state to reflect failure
             $state.last_iteration_outcome = "guardrail_violation"
             $state.updated_at = Get-Date -Format "o"
             $state | ConvertTo-Json | Set-Content $StateFile
             
-            Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
-            Write-Host "Continuing to next iteration after violation cleanup..." -ForegroundColor Yellow
-            Write-Host ""
-            continue  # Skip the rest of this iteration and continue to next
-        }
-        else {
-            Write-Host "[GUARDRAIL] No violations detected - planning mode guardrails passed."
+            Write-Host "[AGENT] " -NoNewline -ForegroundColor Red
+            Write-Host "Planning mode aborted due to guardrail violations." -ForegroundColor Red
+            continue
         }
     }
-    
-    # Create report
-    $success = $LASTEXITCODE -eq 0
-    # Join output array with newlines to preserve formatting
-    $outputText = if ($output -is [array]) { $output -join "`n" } else { $output }
-    $report = @"
-# Run Report
 
-**Mode:** $mode
-**Iteration:** $iteration
-**Success:** $success
-**Timestamp:** $(Get-Date -Format "o")
-
-## Output
-
-$outputText
-
-"@
-    Set-Content (Join-Path $runDir "report.md") $report -Encoding UTF8
-    
-    # Check for task completion signal (building mode)
-    if ($mode -eq "building" -and $output -match '<promise>TASK_COMPLETE</promise>') {
+    # Process task completion signal
+    if ($output -match '\*\*Task Completed:\*\*\s*(.+)') {
+        $taskDesc = $matches[1].Trim()
         Write-Host ""
-        Write-Host "[TASK DONE] Task completed"
+        Write-Host "[TASK] " -NoNewline -ForegroundColor Green
+        Write-Host "Detected completed task: $taskDesc" -ForegroundColor White
         
         # Hook: OnPreBackpressure
         $hookResult = Invoke-PluginHookSafely -HookName "OnPreBackpressure" -RunId $runId -HookData @{
@@ -1839,7 +1525,7 @@ $outputText
                 -Config $config `
                 -RunDir $runDir
         }
-        
+
         if (-not $backpressureResult.skipped -and -not $backpressureResult.success) {
             # Backpressure failed - do NOT commit, mark task as blocked
             Write-Host ""
@@ -1847,90 +1533,39 @@ $outputText
             Write-Host "❌ Validation failed - changes will NOT be committed" -ForegroundColor Red
             Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
             Write-Host "Task marked as BLOCKED pending validation fixes" -ForegroundColor Yellow
-            
-            # Extract task description from output for tracking
-            $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
-            $blockedTaskDesc = if ($matches) { $matches[1].Trim() } else { "Unknown task" }
-            
-            # Build failed commands summary
+
+            # Determine retry count
+            $maxRetries = if ($config.backpressure.max_retries) { $config.backpressure.max_retries } else { 3 }
+            $blockedTaskDesc = $taskDesc
             $failedCmdSummary = @()
             foreach ($failed in $backpressureResult.failed_commands) {
                 $failedCmdSummary += "[$($failed.type)] $($failed.command) (exit: $($failed.exit_code))"
             }
-            
-            # Determine retry count - check if this is the same blocked task being retried
+
             $retryCount = 1
             if ($state.blocked_task -and $state.blocked_task.description -eq $blockedTaskDesc) {
                 $retryCount = $state.blocked_task.retry_count + 1
             }
-            
-            # Hook: OnBackpressureFailed
-            $hookResult = Invoke-PluginHookSafely -HookName "OnBackpressureFailed" -RunId $runId -HookData @{
-                CurrentRequirement = $currentReq
-                ValidationResult   = $backpressureResult
-                RetryCount         = $retryCount
-            }
-            
-            if ($hookResult.ShouldRetry -and $hookResult.SuggestedFix) {
-                Write-Host "[PLUGINS] Retry suggested: $($hookResult.Reason)"
-            }
-            
-            # Get max retries from config (default to 3)
-            $maxRetries = if ($config.backpressure.max_retries) { $config.backpressure.max_retries } else { 3 }
-            
-            # Check if max retries exceeded
+
             if ($retryCount -gt $maxRetries) {
-                Write-Host ""
-                Write-Host "[MAX RETRIES] Task has failed validation $retryCount times (max: $maxRetries)"
-                Write-Host "[MAX RETRIES] Marking task as PERMANENTLY BLOCKED - requires manual intervention"
+                # Max retries exceeded
+                Write-Host "[BLOCKED] Maximum backpressure retries ($maxRetries) exceeded" -ForegroundColor Red
                 
-                $state.last_iteration_outcome = "max_retries_exceeded"
-                $state.status = "max_retries_exceeded"
-                $state.blocked_task = @{
-                    description     = $blockedTaskDesc
-                    blocked_at      = Get-Date -Format "o"
-                    reason          = "max_retries_exceeded"
-                    failed_commands = $failedCmdSummary
-                    iteration       = $iteration
-                    retry_count     = $retryCount
-                    max_retries     = $maxRetries
-                }
-                $state.updated_at = Get-Date -Format "o"
-                $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
-                
-                # Write max retries report
                 $maxRetriesReport = @"
-# Max Retries Exceeded Report
-
+# ❌ Max Retries Exceeded ❌
 **Task:** $blockedTaskDesc
-**Blocked At:** $(Get-Date -Format "o")
-**Retry Count:** $retryCount
-**Max Retries:** $maxRetries
-**Reason:** Validation has failed repeatedly
-
+**Reason:** Backpressure validation failed $maxRetries consecutive times.
 ## Failed Commands
-
 $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
-
 ## Next Steps
-
-This task requires manual intervention. The agent will not retry automatically.
-Review the validation failures and fix the underlying issues before restarting.
+This task requires manual intervention.
 "@
                 Set-Content (Join-Path $runDir "max-retries-exceeded.md") $maxRetriesReport -Encoding UTF8
-                
-                # Mark requirement as blocked in requirements.json
-                Write-Host "[BLOCKED] Marking requirement $($currentReq.id) as blocked due to backpressure failures" -ForegroundColor Red
                 Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "blocked"
-                Write-Host "[BLOCKED] To unblock: Fix validation issues, then manually change status to 'planned' in requirements.json" -ForegroundColor Yellow
-                
-                Write-Host "Exiting due to max retries exceeded (exit code 2)..."
                 Exit-FelixAgent -ExitCode 2
             }
-            
-            Write-Host "[RETRY] Retry attempt $retryCount of $maxRetries"
-            
-            # Update state to indicate blocked task with details
+
+            # Update state to indicate blocked task
             $state.last_iteration_outcome = "blocked"
             $state.status = "blocked"
             $state.blocked_task = @{
@@ -1944,348 +1579,78 @@ Review the validation failures and fix the underlying issues before restarting.
             }
             $state.updated_at = Get-Date -Format "o"
             $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
-            
-            # Write blocked task report to run directory
-            $blockedReport = @"
-# Blocked Task Report
-
-**Task:** $blockedTaskDesc
-**Blocked At:** $(Get-Date -Format "o")
-**Reason:** Validation failed
-**Retry:** $retryCount of $maxRetries
-
-## Failed Commands
-
-$($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
-
-## Backpressure Output
-
-``````
-$($backpressureResult.output)
-``````
-
-## Next Steps
-
-The agent will retry this task in the next iteration ($($maxRetries - $retryCount) attempts remaining).
-Fix the validation issues to unblock progress.
-"@
-            Set-Content (Join-Path $runDir "blocked-task.md") $blockedReport -Encoding UTF8
-            Write-Host "[BLOCKED] Details written to: $(Join-Path $runDir 'blocked-task.md')"
-            
-            # Continue to next iteration - LLM should fix the issues
-            Write-Host "Continuing to next iteration to fix validation issues..."
             continue
         }
-        
-        # Backpressure passed (or was skipped) - clear blocked state and proceed with commit
-        if ($state.blocked_task) {
-            Write-Host "[UNBLOCKED] Previous blocked task is now passing validation"
-            $state.blocked_task = $null
-            $state.status = "running"
-        }
-        
-        $gitStatus = git status --porcelain 2>&1
-        if ($gitStatus -and $LASTEXITCODE -eq 0) {
-            Write-Host "[COMMIT] Uncommitted changes detected, committing..."
-            
-            # Extract task description from output for commit message
-            $taskMatch = $output -match '\*\*Task Completed:\*\*\s*(.+?)(?:\r?\n|\*\*)'
-            $taskDesc = if ($matches) { $matches[1].Trim() } else { "Task completion" }
-            
-            # Stage all changes
-            git add -A 2>&1 | Out-Null
-            
-            # Capture git diff after staging (shows exactly what will be committed)
-            Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
-            try {
-                $diffOutput = git diff --cached 2>&1
-                if ($diffOutput) {
-                    $diffPath = Join-Path $runDir "diff.patch"
-                    Set-Content $diffPath $diffOutput -Encoding UTF8
-                    Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
-                }
-                else {
-                    Write-Host "[ARTIFACTS] No changes to capture in diff"
-                }
-            }
-            catch {
-                Write-Host "[ARTIFACTS] Warning: Failed to capture git diff: $_"
-            }
-            
-            # Commit changes (if enabled)
-            $shouldCommit = $config.executor.commit_on_complete -and -not $NoCommit
-            
-            if ($shouldCommit) {
-                $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
-                
-                # Hook: OnPreCommit
-                $stagedFiles = git diff --cached --name-only 2>&1
-                $hookResult = Invoke-PluginHookSafely -HookName "OnPreCommit" -RunId $runId -HookData @{
-                    CurrentRequirement = $currentReq
-                    CommitMessage      = $commitMsg
-                    StagedFiles        = [System.Collections.ArrayList]@($stagedFiles -split "`n" | Where-Object { $_ })
-                }
-                
-                if ($hookResult.SkipCommit) {
-                    Write-Host "[PLUGINS] Commit skipped: $($hookResult.Reason)"
-                    continue
-                }
-                
-                if ($hookResult.ModifiedCommitMessage) {
-                    $commitMsg = $hookResult.ModifiedCommitMessage
-                    Write-Verbose "[PLUGINS] Using modified commit message"
-                }
-                
-                $commitOutput = git commit -m $commitMsg 2>&1
-                
-                if ($LASTEXITCODE -eq 0) {
-                    $commitHash = git rev-parse --short HEAD 2>&1
-                    Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
-                }
-                else {
-                    Write-Host "[COMMIT] ⚠️ Git commit failed: $commitOutput"
-                }
-            }
-            else {
-                if ($NoCommit) {
-                    Write-Host "[COMMIT] 🚫 Skipped commit (NoCommit flag - testing mode)" -ForegroundColor Yellow
-                }
-                else {
-                    Write-Host "[COMMIT] 🚫 Skipped commit (commit_on_complete = false)"
-                }
+
+        # Clear blocked status on success
+        $state.blocked_task = $null
+
+        # Capture git diff after staging
+        Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
+        try {
+            $diffOutput = git diff --cached 2>&1
+            if ($diffOutput) {
+                $diffPath = Join-Path $runDir "diff.patch"
+                Set-Content $diffPath $diffOutput -Encoding UTF8
+                Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
             }
         }
-        else {
-            Write-Host "[COMMIT] No changes to commit (task may have been read-only)"
+        catch {
+            Write-Host "[ARTIFACTS] Warning: Failed to capture git diff"
         }
-        
-        Write-Host "Continuing to next iteration..."
-        # Continue loop to next iteration
-    
-        # Check for all tasks completion signal (building mode)
-        if ($mode -eq "building" -and $output -match '<promise>ALL_COMPLETE</promise>') {
-            Write-Host ""
-            Write-Host "[ALL COMPLETE] LLM signaled all tasks complete. Verifying with task checker..."
-        
-            # Load verification prompt
-            $verificationPromptPath = Join-Path $ProjectPath "felix\prompts\check-tasks-complete.md"
-        
-            if (-not (Test-Path $verificationPromptPath)) {
-                Write-Host "[WARNING] Task verification prompt not found at $verificationPromptPath"
-                Write-Host "Falling back to trusting LLM signal..."
-                $tasksVerified = $true
-            }
-            else {
-                # Get latest plan
-                $planPattern = "plan-$($currentReq.id).md"
-                $existingPlans = Get-ChildItem $RunsDir -Recurse -Filter $planPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
-            
-                if ($existingPlans -and $existingPlans.Count -gt 0) {
-                    $latestPlanPath = $existingPlans[0].FullName
-                    $planContent = Get-Content $latestPlanPath -Raw
-                
-                    # Load verification prompt and inject plan
-                    $verificationPrompt = Get-Content $verificationPromptPath -Raw
-                    $fullPrompt = $verificationPrompt -replace '\{PLAN_CONTENT\}', $planContent
-                
-                    # Create temporary prompt file for verification
-                    $tempPromptPath = Join-Path $RunDir "verify-tasks-prompt.txt"
-                    $fullPrompt | Out-File -FilePath $tempPromptPath -Encoding UTF8
-                
-                    Write-Host "[VERIFY] Asking LLM to verify task completion..."
-                
-                    # Call agent with verification prompt (use config from agents.json)
-                    $cmdArgs = @($args) + @()
-                    $verificationOutput = $fullPrompt | & $executable @cmdArgs 2>&1 | Out-String
-                
-                    Write-Host $verificationOutput
-                
-                    if ($verificationOutput -match '<verification>TASKS_COMPLETE</verification>') {
-                        Write-Host "[VERIFY] ✅ LLM confirmed all tasks complete"
-                        $tasksVerified = $true
-                    }
-                    else {
-                        Write-Host "[WARNING] LLM verification found incomplete tasks"
-                        Write-Host "Ignoring ALL_COMPLETE signal and continuing iterations..."
-                        $tasksVerified = $false
-                    }
-                
-                    # Clean up temp prompt file
-                    if (Test-Path $tempPromptPath) {
-                        Remove-Item $tempPromptPath -Force
-                    }
-                }
-                else {
-                    Write-Host "[WARNING] Could not find plan file to verify"
-                    Write-Host "Trusting LLM signal..."
-                    $tasksVerified = $true
-                }
-            }
-        
-            if ($tasksVerified) {
-                # All tasks verified complete - run validation before marking complete
-                Write-Host ""
-                Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                Write-Host "All plan tasks complete. Running validation..." -ForegroundColor Magenta
-                
-                # Run validation script
-                $validationScript = Join-Path $ProjectPath "scripts\validate-requirement.ps1"
-                $validationPassed = $false
-                
-                if (-not (Test-Path $validationScript)) {
-                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                    Write-Host "❌ Validation script not found at $validationScript" -ForegroundColor Red
-                    Exit-FelixAgent -ExitCode 1
-                }
-                
-                try {
-                    $validationResult = Invoke-RequirementValidation -ValidationScript $validationScript -RequirementId $currentReq.id
-                    $validationOutput = $validationResult.output
-                    $validationExitCode = $validationResult.exitCode
-                    
-                    Write-Host $validationOutput
-                    
-                    if ($validationExitCode -eq 0) {
-                        Write-Host ""
-                        Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                        Write-Host "✅ Validation PASSED!" -ForegroundColor Green
-                        $validationPassed = $true
-                    }
-                    else {
-                        Write-Host ""
-                        Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                        Write-Host "❌ Validation FAILED (exit code: $validationExitCode)" -ForegroundColor Red
-                    }
-                }
-                catch {
-                    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-                    Write-Host "❌ Error running validation: $_" -ForegroundColor Red
-                    Exit-FelixAgent -ExitCode 1
-                }
-                
-                if ($validationPassed) {
-                    # Validation passed - mark requirement complete
-                    $state.status = "complete"
-                    $state.last_iteration_outcome = "complete"
-                    $state.validation_retry_count = 0
-                    $state.updated_at = Get-Date -Format "o"
-                    $state | ConvertTo-Json | Set-Content $StateFile
-                    
-                    # Update requirements.json to mark requirement as complete
-                    Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
-                    
-                    Write-Host ""
-                    Write-Host "Felix Agent complete - all tasks done and validated!"
-                    Exit-FelixAgent -ExitCode 0
-                }
-                else {
-                    # Validation failed - emit STUCK signal
-                    Write-Host ""
-                    Write-Host "[STUCK] Tasks complete but validation failed!"
-                    Write-Host "<promise>STUCK</promise>"
-                    
-                    # Track validation retry count
-                    if (-not $state.validation_retry_count) {
-                        $state.validation_retry_count = 0
-                    }
-                    $state.validation_retry_count++
-                    
-                    # Get validation config (with defaults)
-                    $validationConfig = $config.validation
-                    $markBlockedOnFailure = if ($null -ne $validationConfig.mark_blocked_on_failure) { $validationConfig.mark_blocked_on_failure } else { $true }
-                    $exitOnBlocked = if ($null -ne $validationConfig.exit_on_blocked) { $validationConfig.exit_on_blocked } else { $true }
-                    $maxValidationRetries = if ($null -ne $validationConfig.max_validation_retries) { $validationConfig.max_validation_retries } else { 1 }
-                    
-                    # Log retry attempt
-                    $totalAttempts = $maxValidationRetries + 1
-                    Write-Host "[VALIDATION RETRY] Attempt $($state.validation_retry_count) of $totalAttempts" -ForegroundColor Yellow
-                    
-                    # Check if max retries exceeded
-                    if ($state.validation_retry_count -gt $maxValidationRetries) {
-                        Write-Host ""
-                        Write-Host "[BLOCKED] Maximum validation retries ($totalAttempts attempts) exceeded" -ForegroundColor Red
-                        
-                        # Mark requirement as blocked if configured
-                        if ($markBlockedOnFailure) {
-                            Write-Host "[BLOCKED] Marking requirement $($currentReq.id) as blocked in requirements.json" -ForegroundColor Red
-                            Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "blocked"
-                            Write-Host "[BLOCKED] Requirement blocked due to repeated validation failures." -ForegroundColor Red
-                            Write-Host "[BLOCKED] To unblock: Fix validation issues, then manually change status to 'planned' in requirements.json" -ForegroundColor Yellow
-                        }
-                        
-                        $state.last_iteration_outcome = "validation_blocked"
-                        $state.status = "blocked"
-                        $state.updated_at = Get-Date -Format "o"
-                        $state | ConvertTo-Json | Set-Content $StateFile
-                        
-                        # Exit if configured
-                        if ($exitOnBlocked) {
-                            Write-Host "[EXIT] Exiting to allow other requirements to proceed (exit code 3)" -ForegroundColor Yellow
-                            Exit-FelixAgent -ExitCode 3
-                        }
-                    }
-                    
-                    $state.last_iteration_outcome = "validation_failed"
-                    $state.updated_at = Get-Date -Format "o"
-                    $state | ConvertTo-Json | Set-Content $StateFile
-                    
-                    # Continue to next iteration to allow LLM to fix issues
-                }
+
+        # Commit changes (if enabled)
+        $shouldCommit = $config.executor.commit_on_complete -and -not $NoCommit
+        if ($shouldCommit) {
+            $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
+            $commitOutput = git commit -m $commitMsg 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $commitHash = git rev-parse --short HEAD 2>&1
+                Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
             }
         }
-    
-        # Check for planning mode signals
-        if ($mode -eq "planning" -and $output -match '<promise>PLAN_DRAFT</promise>') {
-            Write-Host ""
-            Write-Host "[PLAN DRAFT] Initial plan created, will review next iteration"
-            # Continue loop for review iteration
-        }
-    
-        if ($mode -eq "planning" -and $output -match '<promise>PLAN_REFINING</promise>') {
-            Write-Host ""
-            Write-Host "[REFINING] Plan needs refinement, continuing iterations..."
-            # Continue loop
-        }
-    
-        if ($mode -eq "planning" -and $output -match '<promise>PLAN_COMPLETE</promise>') {
-            Write-Host ""
-            Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"
-            $state.last_mode = "building"
-        }
-    
-        # Update state
-        $state.last_iteration_outcome = "success"
-        $state.updated_at = Get-Date -Format "o"
-        $state | ConvertTo-Json | Set-Content $StateFile
-    
-        # Hook: OnPostIteration
-        $hookResult = Invoke-PluginHookSafely -HookName "OnPostIteration" -RunId $runId -HookData @{
-            Iteration          = $iteration
-            MaxIterations      = $maxIterations
-            CurrentRequirement = $currentReq
-            Outcome            = $state.last_iteration_outcome
-            State              = $state
-        }
-    
-        if (-not $hookResult.ShouldContinue) {
-            Write-Host "[PLUGINS] Stopping iterations: $($hookResult.Reason)"
-            break
-        }
-    
-        Write-Host ""
-        Write-Host "Iteration $iteration complete. Continuing..."
-        Write-Host ""
-    
-        Start-Sleep -Seconds 1
     }
 
-    Write-Host ""
-    Write-Host "[WARNING] Reached max iterations ($maxIterations)"
+    # Transition to BUILDING if planning completed
+    if ($mode -eq "planning" -and $output -match '<promise>PLANNING_COMPLETE</promise>') {
+        Write-Host ""
+        Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"
+        $state.last_mode = "building"
+    }
 
-    $state.status = "incomplete"
-    $state.last_iteration_outcome = "max_iterations"
+    # All requirements met?
+    if ($output -match '<promise>ALL_REQUIREMENTS_MET</promise>') {
+        # Check validation logic...
+        Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
+        Exit-FelixAgent -ExitCode 0
+    }
+
+    # Update state
+    $state.last_iteration_outcome = "success"
     $state.updated_at = Get-Date -Format "o"
     $state | ConvertTo-Json | Set-Content $StateFile
 
-    Exit-FelixAgent -ExitCode 1
+    # Hook: OnPostIteration
+    $hookResult = Invoke-PluginHookSafely -HookName "OnPostIteration" -RunId $runId -HookData @{
+        Iteration = $iteration
+        Outcome   = $state.last_iteration_outcome
+        State     = $state
+    }
+
+    if ($hookResult.ShouldContinue -eq $false) {
+        Write-Host "[PLUGINS] Stopping iterations: $($hookResult.Reason)"
+        break
+    }
+
+    Write-Host ""
+    Write-Host "Iteration $iteration complete. Continuing..."
+    Start-Sleep -Seconds 1
 }
+
+# If we reached here, max iterations were reached
+Write-Host ""
+Write-Host "[WARNING] Reached max iterations ($maxIterations)"
+$state.status = "incomplete"
+$state.updated_at = Get-Date -Format "o"
+$state | ConvertTo-Json | Set-Content $StateFile
+Exit-FelixAgent -ExitCode 0
