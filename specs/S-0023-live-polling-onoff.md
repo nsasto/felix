@@ -69,7 +69,7 @@ None - this is a frontend-only feature.
 
 **localStorage:**
 
-- Key: `felix_agent_polling_mode`
+- Key: felix_agent_polling_mode
 - Value: `'live'` | `'manual'`
 - Type: string
 
@@ -97,7 +97,7 @@ None
 
 ### Technical Validation
 
-- [ ] Browser DevTools: Verify `felix_agent_polling_mode` key exists in localStorage
+- [ ] Browser DevTools: Verify felix_agent_polling_mode key exists in localStorage
 - [ ] Browser DevTools: Verify localStorage value changes when toggling modes
 - [ ] Browser DevTools: Verify correct value ('live' or 'manual') stored
 
