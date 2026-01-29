@@ -380,7 +380,7 @@
                              "id":  "S-0025",
                              "title":  "Compact kanban cards",
                              "spec_path":  "specs/S-0025-compact-kanban-cards.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
 
@@ -389,7 +389,7 @@
 
                                             ],
                              "updated_at":  "2026-01-29",
-                             "last_run_id":  "2026-01-29T14-04-52"
+                             "last_run_id":  "2026-01-29T14-08-00"
                          }
                      ]
 }
