@@ -5,7 +5,7 @@
     "max_iterations": 100,
     "default_mode": "planning",
     "auto_transition": true,
-    "commit_on_complete": true
+    "commit_on_complete": false
   },
   "agent": {
     "name": "felix-primary",
