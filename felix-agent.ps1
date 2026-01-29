@@ -705,7 +705,6 @@ foreach ($path in $requiredPaths) {
 # Load config
 $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
 $maxIterations = $config.executor.max_iterations
-$autoTransition = $config.executor.auto_transition
 $defaultMode = $config.executor.default_mode
 
 # Clear any cached plugin state from previous runs
@@ -964,9 +963,8 @@ $script:agentName = $null
 $script:agentId = $null
 
 # Resolve python upfront (hard stop if unavailable)
-$pythonInfo = $null
 try {
-    $pythonInfo = Resolve-PythonCommand -Config $config
+    $null = Resolve-PythonCommand -Config $config
 }
 catch {
     Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
