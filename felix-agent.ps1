@@ -1238,10 +1238,10 @@ function Invoke-PluginHook {
             }
             
             $executionLog += @{
-                Plugin   = $plugin.Name
-                Hook     = $HookName
-                Success  = $false
-                Error    = $_.ToString()
+                Plugin  = $plugin.Name
+                Hook    = $HookName
+                Success = $false
+                Error   = $_.ToString()
             }
         }
     }
@@ -1267,189 +1267,18 @@ function Invoke-PluginHook {
     return $chainData
 }
 
-function Get-PluginPersistentState {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$PluginName,
-        
-        [Parameter(Mandatory = $false)]
-        [string]$Key
-    )
-    
-    $statePath = Join-Path $PSScriptRoot "felix/plugins/$PluginName/persistent-state.json"
-    
-    if (-not (Test-Path $statePath)) {
-        return $null
-    }
-    
-    try {
-        $state = Get-Content $statePath -Raw | ConvertFrom-Json
-        
-        if ($Key) {
-            return $state.$Key
-        }
-        
-        return $state
-    }
-    catch {
-        Write-Warning "Failed to read persistent state for plugin $PluginName: $_"
-        return $null
-    }
-}
-
-function Set-PluginPersistentState {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$PluginName,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$Key,
-        
-        [Parameter(Mandatory = $true)]
-        $Value
-    )
-    
-    $stateDir = Join-Path $PSScriptRoot "felix/plugins/$PluginName"
-    $statePath = Join-Path $stateDir "persistent-state.json"
-    
-    if (-not (Test-Path $stateDir)) {
-        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
-    }
-    
-    try {
-        # File locking for concurrent access
-        $state = if (Test-Path $statePath) {
-            Get-Content $statePath -Raw | ConvertFrom-Json
-        }
-        else {
-            @{}
-        }
-        
-        # Update state
-        if ($state -is [PSCustomObject]) {
-            $state | Add-Member -MemberType NoteProperty -Name $Key -Value $Value -Force
-        }
-        else {
-            $state[$Key] = $Value
-        }
-        
-        $state | ConvertTo-Json -Depth 10 | Set-Content $statePath
-    }
-    catch {
-        Write-Warning "Failed to write persistent state for plugin $PluginName: $_"
-    }
-}
-
-function Get-PluginTransientState {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$PluginName,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$RunId,
-        
-        [Parameter(Mandatory = $false)]
-        [string]$Key
-    )
-    
-    $statePath = Join-Path $RunsDir "$RunId/plugin-state-$PluginName.json"
-    
-    if (-not (Test-Path $statePath)) {
-        return $null
-    }
-    
-    try {
-        $state = Get-Content $statePath -Raw | ConvertFrom-Json
-        
-        if ($Key) {
-            return $state.$Key
-        }
-        
-        return $state
-    }
-    catch {
-        Write-Warning "Failed to read transient state for plugin $PluginName: $_"
-        return $null
-    }
-}
-
-function Set-PluginTransientState {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$PluginName,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$RunId,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$Key,
-        
-        [Parameter(Mandatory = $true)]
-        $Value
-    )
-    
-    $runDir = Join-Path $RunsDir $RunId
-    $statePath = Join-Path $runDir "plugin-state-$PluginName.json"
-    
-    if (-not (Test-Path $runDir)) {
-        Write-Warning "Run directory not found: $runDir"
-        return
-    }
-    
-    try {
-        $state = if (Test-Path $statePath) {
-            Get-Content $statePath -Raw | ConvertFrom-Json
-        }
-        else {
-            @{}
-        }
-        
-        if ($state -is [PSCustomObject]) {
-            $state | Add-Member -MemberType NoteProperty -Name $Key -Value $Value -Force
-        }
-        else {
-            $state[$Key] = $Value
-        }
-        
-        $state | ConvertTo-Json -Depth 10 | Set-Content $statePath
-    }
-    catch {
-        Write-Warning "Failed to write transient state for plugin $PluginName: $_"
-    }
-}
-
-function Clear-PluginStateGarbage {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $false)]
-        [int]$RetentionDays = 7
-    )
-    
-    $cutoffDate = (Get-Date).AddDays(-$RetentionDays)
-    
-    # Clean old transient state from runs/
-    Get-ChildItem $RunsDir -Directory | ForEach-Object {
-        if ($_.LastWriteTime -lt $cutoffDate) {
-            Get-ChildItem $_.FullName -Filter "plugin-state-*.json" | ForEach-Object {
-                Write-Verbose "Removing old plugin state: $($_.FullName)"
-                Remove-Item $_.FullName -Force
-            }
-            
-            Get-ChildItem $_.FullName -Filter "plugin-chain-debug.json" | ForEach-Object {
-                Write-Verbose "Removing old plugin chain log: $($_.FullName)"
-                Remove-Item $_.FullName -Force
-            }
-        }
-    }
-}
-
 # ═══════════════════════════════════════════════════════════════════════════
 # End Plugin System Infrastructure
 # ═══════════════════════════════════════════════════════════════════════════
+
+# Initialize plugin system after config loading
+$pluginSystem = Initialize-PluginSystem -Config $config -RunId "init"
+if ($pluginSystem.Enabled) {
+    Write-Host "[PLUGINS] Plugin system initialized - $($pluginSystem.Plugins.Count) plugins loaded"
+    foreach ($plugin in $pluginSystem.Plugins) {
+        Write-Verbose "  - $($plugin.Name) v$($plugin.Manifest.version) (priority: $($plugin.Priority))"
+    }
+}
 
 Write-Host "Max iterations: $maxIterations"
 Write-Host ""
@@ -1592,9 +1421,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     
     # Hook: OnPostModeSelection
     $hookResult = Invoke-PluginHook -HookName "OnPostModeSelection" -RunId $runId -HookData @{
-        Mode = $mode
+        Mode               = $mode
         CurrentRequirement = $currentReq
-        PlanPath = if ($latestPlanPath) { $latestPlanPath } else { "" }
+        PlanPath           = if ($latestPlanPath) { $latestPlanPath } else { "" }
     }
     
     if ($hookResult.OverrideMode) {
@@ -1616,10 +1445,10 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     
     # Hook: OnPreIteration
     $hookResult = Invoke-PluginHook -HookName "OnPreIteration" -RunId $runId -HookData @{
-        Iteration = $iteration
-        MaxIterations = $maxIterations
+        Iteration          = $iteration
+        MaxIterations      = $maxIterations
         CurrentRequirement = $currentReq
-        State = $state
+        State              = $state
     }
     
     if ($hookResult.ContinueIteration -eq $false) {
@@ -1757,11 +1586,11 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     # Hook: OnContextGathering
     $gitDiff = if (Test-Path (Join-Path $ProjectPath ".git")) { git diff 2>$null } else { "" }
     $hookResult = Invoke-PluginHook -HookName "OnContextGathering" -RunId $runId -HookData @{
-        Mode = $mode
+        Mode               = $mode
         CurrentRequirement = $currentReq
-        GitDiff = $gitDiff
-        PlanContent = if ($mode -eq "building" -and $planContent) { $planContent } else { "" }
-        ContextFiles = [System.Collections.ArrayList]@($contextParts)
+        GitDiff            = $gitDiff
+        PlanContent        = if ($mode -eq "building" -and $planContent) { $planContent } else { "" }
+        ContextFiles       = [System.Collections.ArrayList]@($contextParts)
     }
     
     if ($hookResult.AdditionalContext) {
@@ -1790,10 +1619,10 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     
     # Hook: OnPreLLM
     $hookResult = Invoke-PluginHook -HookName "OnPreLLM" -RunId $runId -HookData @{
-        Mode = $mode
+        Mode               = $mode
         CurrentRequirement = $currentReq
-        PromptFile = $promptFile
-        FullPrompt = $fullPrompt
+        PromptFile         = $promptFile
+        FullPrompt         = $fullPrompt
     }
     
     if ($hookResult.SkipLLM) {
@@ -1856,10 +1685,10 @@ $_
     
     # Hook: OnPostLLM
     $hookResult = Invoke-PluginHook -HookName "OnPostLLM" -RunId $runId -HookData @{
-        Mode = $mode
+        Mode               = $mode
         CurrentRequirement = $currentReq
-        ExitCode = if ($droidSuccess) { 0 } else { 1 }
-        OutputPath = Join-Path $runDir "output.log"
+        ExitCode           = if ($droidSuccess) { 0 } else { 1 }
+        OutputPath         = Join-Path $runDir "output.log"
     }
     
     if (-not $hookResult.Success) {
@@ -1945,7 +1774,7 @@ $outputText
         # Hook: OnPreBackpressure
         $hookResult = Invoke-PluginHook -HookName "OnPreBackpressure" -RunId $runId -HookData @{
             CurrentRequirement = $currentReq
-            Commands = [System.Collections.ArrayList]@()
+            Commands           = [System.Collections.ArrayList]@()
         }
         
         if ($hookResult.SkipBackpressure) {
@@ -1988,8 +1817,8 @@ $outputText
             # Hook: OnBackpressureFailed
             $hookResult = Invoke-PluginHook -HookName "OnBackpressureFailed" -RunId $runId -HookData @{
                 CurrentRequirement = $currentReq
-                ValidationResult = $backpressureResult
-                RetryCount = $retryCount
+                ValidationResult   = $backpressureResult
+                RetryCount         = $retryCount
             }
             
             if ($hookResult.ShouldRetry -and $hookResult.SuggestedFix) {
@@ -2140,8 +1969,8 @@ Fix the validation issues to unblock progress.
             $stagedFiles = git diff --cached --name-only 2>&1
             $hookResult = Invoke-PluginHook -HookName "OnPreCommit" -RunId $runId -HookData @{
                 CurrentRequirement = $currentReq
-                CommitMessage = $commitMsg
-                StagedFiles = [System.Collections.ArrayList]@($stagedFiles -split "`n" | Where-Object { $_ })
+                CommitMessage      = $commitMsg
+                StagedFiles        = [System.Collections.ArrayList]@($stagedFiles -split "`n" | Where-Object { $_ })
             }
             
             if ($hookResult.SkipCommit) {
@@ -2370,11 +2199,11 @@ Fix the validation issues to unblock progress.
     
     # Hook: OnPostIteration
     $hookResult = Invoke-PluginHook -HookName "OnPostIteration" -RunId $runId -HookData @{
-        Iteration = $iteration
-        MaxIterations = $maxIterations
+        Iteration          = $iteration
+        MaxIterations      = $maxIterations
         CurrentRequirement = $currentReq
-        Outcome = $state.last_iteration_outcome
-        State = $state
+        Outcome            = $state.last_iteration_outcome
+        State              = $state
     }
     
     if (-not $hookResult.ShouldContinue) {
