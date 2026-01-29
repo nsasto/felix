@@ -504,7 +504,7 @@
                                     BorderThickness="0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding DisplayName}" Foreground="White" Padding="8,4" />
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource PrimaryTextBrush}" Padding="8,4" />
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>

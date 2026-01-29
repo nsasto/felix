@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FelixTrayApp.Services;
 
@@ -41,6 +42,7 @@ public class WindowSettingsService
         _jsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
+            NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
             PropertyNameCaseInsensitive = true
         };
     }

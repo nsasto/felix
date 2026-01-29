@@ -61,7 +61,7 @@ public partial class MainViewModel : ObservableObject
     private double _runHistorySplitterPosition = 300;
 
     [ObservableProperty]
-    private string _selectedTheme = "Dark";
+    private string _selectedTheme = "";
 
     [ObservableProperty]
     private bool _isLightTheme = false;
@@ -74,7 +74,10 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedThemeChanged(string value)
     {
-        ApplyTheme(value);
+        if (!string.IsNullOrEmpty(value))
+        {
+            ApplyTheme(value);
+        }
     }
 
     public MainViewModel()
@@ -86,12 +89,11 @@ public partial class MainViewModel : ObservableObject
         var settings = windowSettingsService.LoadSettings();
         RunHistorySplitterPosition = settings.RunHistorySplitterPosition;
         
-        // Apply saved theme
+        // Apply saved theme (this will trigger OnSelectedThemeChanged -> ApplyTheme)
         SelectedTheme = settings.Theme;
         IsLightTheme = settings.Theme == "Light";
         IsDarkTheme = settings.Theme == "Dark";
         IsSystemTheme = settings.Theme == "System";
-        ApplyTheme(settings.Theme);
         
         // Load agents from file
         var loadedAgents = _storageService.LoadAgents();
