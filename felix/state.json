@@ -3,9 +3,9 @@
     "last_run_id":  null,
     "last_mode":  "building",
     "last_iteration_outcome":  "complete",
-    "updated_at":  "2026-01-29T11:26:06.9467276+00:00",
+    "updated_at":  "2026-01-29T11:33:34.4701370+00:00",
     "current_iteration":  1,
-    "status":  "complete",
+    "status":  "running",
     "validation_retry_count":  0,
     "blocked_task":  {
                          "iteration":  1,
