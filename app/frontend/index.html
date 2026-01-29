@@ -414,6 +414,40 @@
     }
 
     /* ============================================
+       Kanban Card Styling
+       ============================================ */
+    
+    /* Base kanban card - transition for smooth mode switching */
+    .kanban-card {
+      transition: all 300ms ease-in-out;
+      min-height: 0;
+    }
+
+    /* Compact kanban card - reduced height and content */
+    .kanban-card-compact {
+      max-height: 80px;
+      overflow: hidden;
+    }
+
+    /* Single line truncation for compact title */
+    .line-clamp-1 {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Two line truncation for normal title */
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ============================================
        ANSI Console Color Classes
        These map to ansi-to-react's useClasses output
        ============================================ */
