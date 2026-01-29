@@ -17,7 +17,7 @@ param(
     [string]$RequirementId = $null,
     
     [Parameter(Mandatory = $false)]
-    [switch]$NoCommit
+    [switch]$NoCommit   # Use this flag for testing to prevent git commits
 )
 
 $ErrorActionPreference = "Stop"
@@ -2044,7 +2044,7 @@ Fix the validation issues to unblock progress.
             }
             else {
                 if ($NoCommit) {
-                    Write-Host "[COMMIT] 🚫 Skipped commit (--NoCommit flag)"
+                    Write-Host "[COMMIT] 🚫 Skipped commit (NoCommit flag - testing mode)" -ForegroundColor Yellow
                 }
                 else {
                     Write-Host "[COMMIT] 🚫 Skipped commit (commit_on_complete = false)"
