@@ -49,4 +49,4 @@ All plugins disabled in felix/config.json:
 
 ## Testing
 
-Use S-0999 dummy spec to test plugin fixes without side effects.
+Use S-0000 dummy spec to test plugin fixes without side effects.
