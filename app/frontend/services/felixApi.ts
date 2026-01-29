@@ -871,15 +871,21 @@ class FelixApiService {
               // Create unique event ID for deduplication
               const eventId = `${lineNumber}_${dataStr.slice(0, 50)}`;
               if (processedEventIds.has(eventId)) {
-                console.warn('Duplicate SSE event detected, skipping:', eventId);
+                console.warn(
+                  "Duplicate SSE event detected, skipping:",
+                  eventId,
+                );
                 continue;
               }
               processedEventIds.add(eventId);
 
               // Clean up old event IDs to prevent memory leak
               if (processedEventIds.size > 1000) {
-                const oldestEvents = Array.from(processedEventIds).slice(0, 500);
-                oldestEvents.forEach(id => processedEventIds.delete(id));
+                const oldestEvents = Array.from(processedEventIds).slice(
+                  0,
+                  500,
+                );
+                oldestEvents.forEach((id) => processedEventIds.delete(id));
               }
 
               const data = JSON.parse(dataStr) as CopilotStreamEvent;

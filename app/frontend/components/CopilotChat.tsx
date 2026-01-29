@@ -1,19 +1,19 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import CopilotChatButton from './CopilotChatButton';
-import CopilotChatPanel from './CopilotChatPanel';
-import { AvatarState } from './CopilotAvatar';
-import { 
-  felixApi, 
-  ChatMessage, 
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import CopilotChatButton from "./CopilotChatButton";
+import CopilotChatPanel from "./CopilotChatPanel";
+import { AvatarState } from "./CopilotAvatar";
+import {
+  felixApi,
+  ChatMessage,
   CopilotStreamController,
-  CopilotStreamEvent 
-} from '../services/felixApi';
+  CopilotStreamEvent,
+} from "../services/felixApi";
 
 /** Maximum number of messages to store in localStorage */
 const MAX_STORED_MESSAGES = 50;
 
 /** localStorage key prefix for chat history */
-const STORAGE_KEY_PREFIX = 'felix_copilot_chat_';
+const STORAGE_KEY_PREFIX = "felix_copilot_chat_";
 
 interface CopilotChatProps {
   /** Project ID for API calls and localStorage key */
@@ -43,17 +43,17 @@ const loadChatHistory = (projectId: string): ChatMessage[] => {
     const storageKey = getStorageKey(projectId);
     const saved = localStorage.getItem(storageKey);
     if (!saved) return [];
-    
+
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed)) return [];
-    
+
     // Convert stored timestamps back to Date objects
     return parsed.map((msg: any) => ({
       ...msg,
       timestamp: new Date(msg.timestamp),
     }));
   } catch (err) {
-    console.error('Failed to load chat history from localStorage:', err);
+    console.error("Failed to load chat history from localStorage:", err);
     return [];
   }
 };
@@ -67,21 +67,22 @@ const loadChatHistory = (projectId: string): ChatMessage[] => {
 const saveChatHistory = (projectId: string, messages: ChatMessage[]): void => {
   try {
     const storageKey = getStorageKey(projectId);
-    
+
     // Keep only the last MAX_STORED_MESSAGES messages (FIFO)
     const toSave = messages.slice(-MAX_STORED_MESSAGES);
-    
+
     // Convert Date objects to ISO strings for storage
-    const serialized = toSave.map(msg => ({
+    const serialized = toSave.map((msg) => ({
       ...msg,
-      timestamp: msg.timestamp instanceof Date 
-        ? msg.timestamp.toISOString() 
-        : msg.timestamp,
+      timestamp:
+        msg.timestamp instanceof Date
+          ? msg.timestamp.toISOString()
+          : msg.timestamp,
     }));
-    
+
     localStorage.setItem(storageKey, JSON.stringify(serialized));
   } catch (err) {
-    console.error('Failed to save chat history to localStorage:', err);
+    console.error("Failed to save chat history to localStorage:", err);
   }
 };
 
@@ -94,20 +95,20 @@ const clearChatHistory = (projectId: string): void => {
     const storageKey = getStorageKey(projectId);
     localStorage.removeItem(storageKey);
   } catch (err) {
-    console.error('Failed to clear chat history from localStorage:', err);
+    console.error("Failed to clear chat history from localStorage:", err);
   }
 };
 
 /**
  * CopilotChat - Main chat component integrating button, panel, and streaming logic.
- * 
+ *
  * Features:
  * - Streaming responses via SSE (Server-Sent Events)
  * - Token-by-token message building
  * - Avatar state updates from stream
  * - Cancel button during streaming
  * - Error handling and retry
- * 
+ *
  * This component manages all chat state and coordinates between:
  * - CopilotChatButton (floating FAB)
  * - CopilotChatPanel (chat UI with messages and input)
@@ -120,38 +121,40 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
 }) => {
   // Panel open/close state
   const [isOpen, setIsOpen] = useState(false);
-  
+
   // Chat messages
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  
+
   // Input state
-  const [inputValue, setInputValue] = useState('');
-  
+  const [inputValue, setInputValue] = useState("");
+
   // Avatar state
-  const [avatarState, setAvatarState] = useState<AvatarState>('idle');
-  
+  const [avatarState, setAvatarState] = useState<AvatarState>("idle");
+
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
-  
+
   // Unread count (for badge when panel is closed)
   const [unreadCount, setUnreadCount] = useState(0);
-  
+
   // Reference to the stream controller for cancellation
   const streamControllerRef = useRef<CopilotStreamController | null>(null);
-  
+
   // Track current streaming message to prevent race conditions
   const streamingMessageRef = useRef<{
     id: string;
     content: string;
     tokenCount: number;
   } | null>(null);
-  
+
   // Context source count (for display in header)
   const [contextSourceCount, setContextSourceCount] = useState(0);
-  
+
   // Error state for retry functionality
   const [lastError, setLastError] = useState<string | null>(null);
-  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(
+    null,
+  );
 
   // Track whether we've loaded history (to prevent saving on initial load)
   const historyLoadedRef = useRef(false);
@@ -175,7 +178,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
     if (!historyLoadedRef.current) {
       return;
     }
-    
+
     // Save messages (even if empty, which clears the storage)
     saveChatHistory(projectId, messages);
   }, [projectId, messages]);
@@ -198,12 +201,12 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
           setContextSourceCount(count);
         }
       } catch (err) {
-        console.error('Failed to load context source count:', err);
+        console.error("Failed to load context source count:", err);
         // Default to 4 if we can't load config
         setContextSourceCount(4);
       }
     };
-    
+
     loadContextSourceCount();
   }, []);
 
@@ -221,7 +224,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
 
   /**
    * Handle sending a message and streaming the response.
-   * 
+   *
    * Flow:
    * 1. Add user message to messages
    * 2. Set avatar to 'thinking'
@@ -243,37 +246,37 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
     // Create user message
     const userMessage: ChatMessage = {
       id: generateMessageId(),
-      role: 'user',
+      role: "user",
       content: trimmedInput,
       timestamp: new Date(),
     };
 
     // Add user message to state
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setAvatarState('thinking');
+    setMessages((prev) => [...prev, userMessage]);
+    setInputValue("");
+    setAvatarState("thinking");
     setIsStreaming(true);
 
     // Create placeholder assistant message
     const assistantMessageId = generateMessageId();
     const assistantMessage: ChatMessage = {
       id: assistantMessageId,
-      role: 'assistant',
-      content: '',
+      role: "assistant",
+      content: "",
       timestamp: new Date(),
     };
-    setMessages(prev => [...prev, assistantMessage]);
+    setMessages((prev) => [...prev, assistantMessage]);
 
     // Initialize streaming tracker
     streamingMessageRef.current = {
       id: assistantMessageId,
-      content: '',
+      content: "",
       tokenCount: 0,
     };
 
     try {
       // Build conversation history for context (last 10 messages, excluding the new ones)
-      const historyForApi = messages.slice(-10).map(msg => ({
+      const historyForApi = messages.slice(-10).map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
@@ -306,16 +309,20 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
             streamingMsg.tokenCount++;
 
             // Atomic state update using the tracked content
-            setMessages(prev => {
+            setMessages((prev) => {
               const updated = [...prev];
-              const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+              const targetMsg = updated.find(
+                (msg) => msg.id === assistantMessageId,
+              );
               if (targetMsg) {
                 // Create new message object to ensure React detects the change
                 const newMsg: ChatMessage = {
                   ...targetMsg,
                   content: streamingMsg.content, // Use tracked content, not concatenation
                 };
-                const index = updated.findIndex(msg => msg.id === assistantMessageId);
+                const index = updated.findIndex(
+                  (msg) => msg.id === assistantMessageId,
+                );
                 updated[index] = newMsg;
               }
               return updated;
@@ -326,52 +333,67 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
         // Handle completion
         if (event.done) {
           setIsStreaming(false);
-          setAvatarState('idle');
+          setAvatarState("idle");
           streamControllerRef.current = null;
           streamingMessageRef.current = null;
-          
+
           // Increment unread count if panel is closed
           if (!isOpen) {
-            setUnreadCount(prev => prev + 1);
+            setUnreadCount((prev) => prev + 1);
           }
         }
 
         // Handle errors from stream
         if (event.error) {
-          console.error('Stream error:', event.error);
+          console.error("Stream error:", event.error);
           setLastError(event.error);
           setLastFailedMessage(trimmedInput);
-          
+
           // Clean error handling
-          if (streamingMessageRef.current && streamingMessageRef.current.content === '') {
+          if (
+            streamingMessageRef.current &&
+            streamingMessageRef.current.content === ""
+          ) {
             // No content received yet - show error message
-            setMessages(prev => {
+            setMessages((prev) => {
               const updated = [...prev];
-              const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+              const targetMsg = updated.find(
+                (msg) => msg.id === assistantMessageId,
+              );
               if (targetMsg) {
-                const errorMsg = { ...targetMsg, content: `❌ Error: ${event.error}` };
-                const index = updated.findIndex(msg => msg.id === assistantMessageId);
+                const errorMsg = {
+                  ...targetMsg,
+                  content: `❌ Error: ${event.error}`,
+                };
+                const index = updated.findIndex(
+                  (msg) => msg.id === assistantMessageId,
+                );
                 updated[index] = errorMsg;
               }
               return updated;
             });
           } else if (streamingMessageRef.current) {
             // Partial content received - add interruption notice
-            const finalContent = streamingMessageRef.current.content + '\n\n⚠️ Stream interrupted';
-            setMessages(prev => {
+            const finalContent =
+              streamingMessageRef.current.content + "\n\n⚠️ Stream interrupted";
+            setMessages((prev) => {
               const updated = [...prev];
-              const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+              const targetMsg = updated.find(
+                (msg) => msg.id === assistantMessageId,
+              );
               if (targetMsg) {
                 const finalMsg = { ...targetMsg, content: finalContent };
-                const index = updated.findIndex(msg => msg.id === assistantMessageId);
+                const index = updated.findIndex(
+                  (msg) => msg.id === assistantMessageId,
+                );
                 updated[index] = finalMsg;
               }
               return updated;
             });
           }
-          
+
           // Avatar will be set to error by the event, then we reset to idle
-          setTimeout(() => setAvatarState('idle'), 2000);
+          setTimeout(() => setAvatarState("idle"), 2000);
           setIsStreaming(false);
           streamControllerRef.current = null;
           streamingMessageRef.current = null;
@@ -380,38 +402,53 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
 
       // Handle stream-level errors
       streamController.onError((error: Error) => {
-        console.error('Stream connection error:', error);
+        console.error("Stream connection error:", error);
         setLastError(error.message);
         setLastFailedMessage(trimmedInput);
-        
+
         // Update assistant message with error
-        if (streamingMessageRef.current && streamingMessageRef.current.content === '') {
-          setMessages(prev => {
+        if (
+          streamingMessageRef.current &&
+          streamingMessageRef.current.content === ""
+        ) {
+          setMessages((prev) => {
             const updated = [...prev];
-            const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+            const targetMsg = updated.find(
+              (msg) => msg.id === assistantMessageId,
+            );
             if (targetMsg) {
-              const errorMsg = { ...targetMsg, content: `❌ Connection lost. ${error.message}` };
-              const index = updated.findIndex(msg => msg.id === assistantMessageId);
+              const errorMsg = {
+                ...targetMsg,
+                content: `❌ Connection lost. ${error.message}`,
+              };
+              const index = updated.findIndex(
+                (msg) => msg.id === assistantMessageId,
+              );
               updated[index] = errorMsg;
             }
             return updated;
           });
         } else if (streamingMessageRef.current) {
-          const finalContent = streamingMessageRef.current.content + '\n\n⚠️ Stream interrupted';
-          setMessages(prev => {
+          const finalContent =
+            streamingMessageRef.current.content + "\n\n⚠️ Stream interrupted";
+          setMessages((prev) => {
             const updated = [...prev];
-            const targetMsg = updated.find(msg => msg.id === assistantMessageId);
+            const targetMsg = updated.find(
+              (msg) => msg.id === assistantMessageId,
+            );
             if (targetMsg) {
               const finalMsg = { ...targetMsg, content: finalContent };
-              const index = updated.findIndex(msg => msg.id === assistantMessageId);
+              const index = updated.findIndex(
+                (msg) => msg.id === assistantMessageId,
+              );
               updated[index] = finalMsg;
             }
             return updated;
           });
         }
-        
-        setAvatarState('error');
-        setTimeout(() => setAvatarState('idle'), 2000);
+
+        setAvatarState("error");
+        setTimeout(() => setAvatarState("idle"), 2000);
         setIsStreaming(false);
         streamControllerRef.current = null;
         streamingMessageRef.current = null;
@@ -420,20 +457,19 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
       // Handle stream completion
       streamController.onComplete(() => {
         setIsStreaming(false);
-        setAvatarState('idle');
+        setAvatarState("idle");
         streamControllerRef.current = null;
         streamingMessageRef.current = null;
       });
-
     } catch (err) {
-      console.error('Failed to start stream:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error("Failed to start stream:", err);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setLastError(errorMessage);
       setLastFailedMessage(trimmedInput);
       streamingMessageRef.current = null;
-      
+
       // Update assistant message with error
-      setMessages(prev => {
+      setMessages((prev) => {
         const updated = [...prev];
         const lastMsg = updated[updated.length - 1];
         if (lastMsg && lastMsg.id === assistantMessageId) {
@@ -441,12 +477,19 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
         }
         return updated;
       });
-      
-      setAvatarState('error');
-      setTimeout(() => setAvatarState('idle'), 2000);
+
+      setAvatarState("error");
+      setTimeout(() => setAvatarState("idle"), 2000);
       setIsStreaming(false);
     }
-  }, [inputValue, isStreaming, messages, projectPath, generateMessageId, isOpen]);
+  }, [
+    inputValue,
+    isStreaming,
+    messages,
+    projectPath,
+    generateMessageId,
+    isOpen,
+  ]);
 
   /**
    * Handle canceling the current stream.
@@ -455,18 +498,25 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
     if (streamControllerRef.current) {
       streamControllerRef.current.cancel();
       streamControllerRef.current = null;
-      
+
       // Finalize the streaming message
       if (streamingMessageRef.current) {
-        const finalContent = streamingMessageRef.current.content +
-          (streamingMessageRef.current.content ? '\n\n⚠️ Stream cancelled' : '⚠️ Response cancelled');
+        const finalContent =
+          streamingMessageRef.current.content +
+          (streamingMessageRef.current.content
+            ? "\n\n⚠️ Stream cancelled"
+            : "⚠️ Response cancelled");
 
-        setMessages(prev => {
+        setMessages((prev) => {
           const updated = [...prev];
-          const targetMsg = updated.find(msg => msg.id === streamingMessageRef.current!.id);
+          const targetMsg = updated.find(
+            (msg) => msg.id === streamingMessageRef.current!.id,
+          );
           if (targetMsg) {
             const finalMsg = { ...targetMsg, content: finalContent };
-            const index = updated.findIndex(msg => msg.id === streamingMessageRef.current!.id);
+            const index = updated.findIndex(
+              (msg) => msg.id === streamingMessageRef.current!.id,
+            );
             updated[index] = finalMsg;
           }
           return updated;
@@ -475,9 +525,9 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
         streamingMessageRef.current = null;
       }
     }
-    
+
     setIsStreaming(false);
-    setAvatarState('idle');
+    setAvatarState("idle");
   }, []);
 
   // Cleanup on unmount
@@ -500,14 +550,14 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
       streamControllerRef.current.cancel();
       streamControllerRef.current = null;
     }
-    
+
     // Clear localStorage for this project
     clearChatHistory(projectId);
-    
+
     // Clear in-memory state
     setMessages([]);
     setIsStreaming(false);
-    setAvatarState('idle');
+    setAvatarState("idle");
     setLastError(null);
     setLastFailedMessage(null);
     setUnreadCount(0);
@@ -518,7 +568,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
    */
   const handleInputFocus = useCallback(() => {
     if (!isStreaming) {
-      setAvatarState('listening');
+      setAvatarState("listening");
     }
   }, [isStreaming]);
 
@@ -526,27 +576,30 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
    * Handle input blur - reset avatar to idle if not streaming.
    */
   const handleInputBlur = useCallback(() => {
-    if (!isStreaming && avatarState === 'listening') {
-      setAvatarState('idle');
+    if (!isStreaming && avatarState === "listening") {
+      setAvatarState("idle");
     }
   }, [isStreaming, avatarState]);
 
   /**
    * Handle input change with listening state.
    */
-  const handleInputChange = useCallback((value: string) => {
-    setInputValue(value);
-    // Set to listening when typing
-    if (!isStreaming && value.trim()) {
-      setAvatarState('listening');
-    }
-  }, [isStreaming]);
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setInputValue(value);
+      // Set to listening when typing
+      if (!isStreaming && value.trim()) {
+        setAvatarState("listening");
+      }
+    },
+    [isStreaming],
+  );
 
   /**
    * Toggle panel open/close.
    */
   const handleTogglePanel = useCallback(() => {
-    setIsOpen(prev => !prev);
+    setIsOpen((prev) => !prev);
   }, []);
 
   /**
@@ -560,7 +613,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
    * Handle quick draft action - prompts user to describe what spec to draft.
    */
   const handleQuickDraft = useCallback(() => {
-    setInputValue('Draft a spec for: ');
+    setInputValue("Draft a spec for: ");
     // Focus will be handled by the panel's auto-focus
   }, []);
 
@@ -570,7 +623,7 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
   const handleHelpCommand = useCallback(() => {
     const helpMessage: ChatMessage = {
       id: generateMessageId(),
-      role: 'assistant',
+      role: "assistant",
       content: `## Available Commands
 
 **Quick Actions:**
@@ -593,17 +646,20 @@ const CopilotChat: React.FC<CopilotChatProps> = ({
 - I can help review and improve existing specs`,
       timestamp: new Date(),
     };
-    setMessages(prev => [...prev, helpMessage]);
+    setMessages((prev) => [...prev, helpMessage]);
   }, [generateMessageId]);
 
   /**
    * Handle inserting spec content into the editor.
    */
-  const handleInsertSpec = useCallback((content: string) => {
-    if (onInsertSpec) {
-      onInsertSpec(content);
-    }
-  }, [onInsertSpec]);
+  const handleInsertSpec = useCallback(
+    (content: string) => {
+      if (onInsertSpec) {
+        onInsertSpec(content);
+      }
+    },
+    [onInsertSpec],
+  );
 
   return (
     <>
