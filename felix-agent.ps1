@@ -806,7 +806,7 @@ function Register-Agent {
     
     try {
         $body = $registration | ConvertTo-Json
-        $response = Invoke-RestMethod -Method POST `
+        $null = Invoke-RestMethod -Method POST `
             -Uri "$script:BackendBaseUrl/api/agents/register" `
             -Body $body `
             -ContentType "application/json" `
@@ -1470,23 +1470,23 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host "Executing droid in $mode mode..." -ForegroundColor White
 
     $executable = $agentConfig.executable
-    $args = $agentConfig.args
+    $agentArgs = $agentConfig.args
     $startTime = Get-Date
 
     # Hook: OnPreExecution
     $hookResult = Invoke-PluginHookSafely -HookName "OnPreExecution" -RunId $runId -HookData @{
         Executable = $executable
-        Args       = [System.Collections.ArrayList]@($args)
+        Args       = [System.Collections.ArrayList]@($agentArgs)
         Prompt     = $fullPrompt
     }
     
     if ($hookResult.ModifiedArgs) {
-        $args = $hookResult.ModifiedArgs
+        $agentArgs = $hookResult.ModifiedArgs
         Write-Verbose "[PLUGINS] Using modified executable arguments"
     }
 
     # Execute the agent and capture output
-    $output = $fullPrompt | & $executable @args 2>&1 | Out-String
+    $output = $fullPrompt | & $executable @agentArgs 2>&1 | Out-String
     $duration = (Get-Date) - $startTime
 
     # Write raw output to run directory
@@ -1624,6 +1624,10 @@ This task requires manual intervention.
             if ($LASTEXITCODE -eq 0) {
                 $commitHash = git rev-parse --short HEAD 2>&1
                 Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
+            }
+            else {
+                Write-Host "[COMMIT] ❌ Failed to commit changes:" -ForegroundColor Red
+                Write-Host $commitOutput -ForegroundColor Red
             }
         }
         
