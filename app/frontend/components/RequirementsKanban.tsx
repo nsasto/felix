@@ -211,7 +211,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
-  
+
   // Compact view state - persisted to localStorage
   const [isCompactView, setIsCompactView] = useState<boolean>(() => {
     // Initialize from localStorage on first render
@@ -221,7 +221,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
     }
     return false;
   });
-  
+
   // Persist compact view preference to localStorage
   useEffect(() => {
     localStorage.setItem("felix-kanban-compact-view", String(isCompactView));
@@ -608,11 +608,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
             className="text-[10px] font-bold theme-text-muted uppercase tracking-widest flex items-center gap-1"
             title="Compact view shows smaller cards with less information"
           >
-            {/* Grid/Compress icon */}
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-            </svg>
-            Compact
+            Compact View
           </span>
         </label>
 
@@ -706,14 +702,18 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                       style={{ boxShadow: "var(--shadow-lg)" }}
                     >
                       {/* Header row: ID + Priority + In-Progress Indicator */}
-                      <div className={`flex justify-between items-start ${isCompactView ? "mb-1" : "mb-2"}`}>
+                      <div
+                        className={`flex justify-between items-start ${isCompactView ? "mb-1" : "mb-2"}`}
+                      >
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-mono font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded border border-felix-500/20">
                             {requirement.id}
                           </span>
                           {/* In-progress indicator for actively worked on requirements */}
                           {requirement.status === "in_progress" && (
-                            <div className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 ${isCompactView ? "scale-90" : ""}`}>
+                            <div
+                              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 ${isCompactView ? "scale-90" : ""}`}
+                            >
                               <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-lg shadow-amber-500/50" />
                               <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wide">
                                 Active
@@ -729,7 +729,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                       </div>
 
                       {/* Title */}
-                      <h4 className={`font-semibold theme-text-primary group-hover:text-felix-400 ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}>
+                      <h4
+                        className={`font-semibold theme-text-primary group-hover:text-felix-400 ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}
+                      >
                         {requirement.title}
                       </h4>
 
@@ -768,7 +770,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
                       {/* Labels - Animated hide/show with compact mode transition */}
                       {requirement.labels && requirement.labels.length > 0 && (
-                        <div className={`kanban-card-section kanban-card-section-hideable flex flex-wrap gap-1.5 ${isCompactView ? "" : "mb-2"}`}>
+                        <div
+                          className={`kanban-card-section kanban-card-section-hideable flex flex-wrap gap-1.5 ${isCompactView ? "" : "mb-2"}`}
+                        >
                           {requirement.labels.map((label) => (
                             <span
                               key={label}
@@ -782,7 +786,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
                       {/* Plan timestamp indicator with drift detection - Animated hide/show */}
                       {planTimestampInfo.hasPlan && (
-                        <div className={`kanban-card-section kanban-card-section-hideable flex items-center gap-2 text-[9px] ${isCompactView ? "" : "mb-2"}`}>
+                        <div
+                          className={`kanban-card-section kanban-card-section-hideable flex items-center gap-2 text-[9px] ${isCompactView ? "" : "mb-2"}`}
+                        >
                           {/* Drift warning indicator - spec modified after plan */}
                           {planTimestampInfo.specModifiedAfterPlan ? (
                             <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/30">
@@ -828,7 +834,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                       )}
 
                       {/* Footer: Updated date + view spec link - Animated hide/show */}
-                      <div className={`kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t theme-border-muted ${isCompactView ? "" : ""}`}>
+                      <div
+                        className={`kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t theme-border-muted ${isCompactView ? "" : ""}`}
+                      >
                         <span className="text-[9px] font-mono theme-text-tertiary">
                           Updated: {requirement.updated_at}
                         </span>

@@ -73,7 +73,6 @@ const createMockConfig = (
     ...overrides.backpressure,
   },
   ui: {
-    theme: "dark",
     ...overrides.ui,
   },
   ...overrides,

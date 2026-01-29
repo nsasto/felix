@@ -2,6 +2,7 @@
 Felix Backend - File Operations API
 Handles reading and writing project files (specs, plan, requirements).
 """
+
 from fastapi import APIRouter, HTTPException, Path as PathParam
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -11,6 +12,7 @@ import fnmatch
 from pathlib import Path
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import storage
@@ -20,8 +22,10 @@ router = APIRouter(prefix="/api/projects", tags=["files"])
 
 # --- Request/Response Models ---
 
+
 class SpecFile(BaseModel):
     """Spec file metadata"""
+
     filename: str
     path: str
     size: int
@@ -30,17 +34,20 @@ class SpecFile(BaseModel):
 
 class SpecContent(BaseModel):
     """Spec file content response"""
+
     filename: str
     content: str
 
 
 class SpecUpdate(BaseModel):
     """Request body for updating a spec"""
+
     content: str = Field(..., description="Markdown content for the spec file")
 
 
 class Requirement(BaseModel):
     """Single requirement from requirements.json"""
+
     id: str
     title: str
     spec_path: Optional[str] = None
@@ -53,48 +60,71 @@ class Requirement(BaseModel):
 
 class RequirementsContent(BaseModel):
     """Requirements.json content response"""
+
     requirements: List[Requirement]
     path: str
 
 
 class RequirementsUpdate(BaseModel):
     """Request body for updating requirements.json"""
+
     requirements: List[Requirement] = Field(..., description="List of requirements")
 
 
 class SpecCreate(BaseModel):
     """Request body for creating a new spec"""
-    filename: str = Field(..., description="Filename for the spec (e.g., 'my-feature.md')")
+
+    filename: str = Field(
+        ..., description="Filename for the spec (e.g., 'my-feature.md')"
+    )
     content: str = Field(..., description="Markdown content for the spec file")
 
 
 class AgentsMdContent(BaseModel):
     """AGENTS.md content response"""
+
     content: str
     path: str
 
 
 # --- Config Models ---
 
+
 class ExecutorConfig(BaseModel):
     """Executor configuration from felix/config.json"""
+
     mode: str = Field(default="local", description="Executor mode")
     max_iterations: int = Field(default=100, description="Maximum iterations per run")
-    default_mode: str = Field(default="building", description="Default agent mode (planning or building)")
-    auto_transition: bool = Field(default=True, description="Auto-transition from planning to building")
+    default_mode: str = Field(
+        default="building", description="Default agent mode (planning or building)"
+    )
+    auto_transition: bool = Field(
+        default=True, description="Auto-transition from planning to building"
+    )
 
 
 class AgentConfig(BaseModel):
     """Agent configuration from felix/config.json"""
-    name: str = Field(default="felix-primary", description="Unique agent name identifier")
+
+    name: str = Field(
+        default="felix-primary", description="Unique agent name identifier"
+    )
     executable: str = Field(default="droid", description="Agent executable name")
-    args: List[str] = Field(default_factory=lambda: ["exec", "--skip-permissions-unsafe"], description="Agent arguments")
-    working_directory: str = Field(default=".", description="Working directory for agent")
-    environment: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+    args: List[str] = Field(
+        default_factory=lambda: ["exec", "--skip-permissions-unsafe"],
+        description="Agent arguments",
+    )
+    working_directory: str = Field(
+        default=".", description="Working directory for agent"
+    )
+    environment: Dict[str, str] = Field(
+        default_factory=dict, description="Environment variables"
+    )
 
 
 class PathsConfig(BaseModel):
     """Paths configuration from felix/config.json"""
+
     specs: str = Field(default="specs", description="Specs directory path")
     agents: str = Field(default="AGENTS.md", description="AGENTS.md file path")
     runs: str = Field(default="runs", description="Runs directory path")
@@ -102,80 +132,115 @@ class PathsConfig(BaseModel):
 
 class BackpressureConfig(BaseModel):
     """Backpressure configuration from felix/config.json"""
+
     enabled: bool = Field(default=True, description="Whether backpressure is enabled")
-    commands: List[str] = Field(default_factory=list, description="Backpressure commands to run")
+    commands: List[str] = Field(
+        default_factory=list, description="Backpressure commands to run"
+    )
 
 
 class UIConfig(BaseModel):
     """UI configuration from felix/config.json"""
-    theme: str = Field(default="dark", description="Theme setting: 'dark', 'light', or 'system'")
+
+    pass
 
 
 class CopilotContextSourcesConfig(BaseModel):
     """Context sources configuration for copilot"""
+
     agents_md: bool = Field(default=True, description="Include AGENTS.md in context")
-    learnings_md: bool = Field(default=True, description="Include LEARNINGS.md in context")
+    learnings_md: bool = Field(
+        default=True, description="Include LEARNINGS.md in context"
+    )
     prompt_md: bool = Field(default=True, description="Include prompt.md in context")
-    requirements: bool = Field(default=True, description="Include requirements.json in context")
-    other_specs: bool = Field(default=True, description="Include other spec files in context")
+    requirements: bool = Field(
+        default=True, description="Include requirements.json in context"
+    )
+    other_specs: bool = Field(
+        default=True, description="Include other spec files in context"
+    )
 
 
 class CopilotFeaturesConfig(BaseModel):
     """Feature toggles for copilot"""
+
     streaming: bool = Field(default=True, description="Enable streaming responses")
     auto_suggest: bool = Field(default=True, description="Auto-suggest spec titles")
-    context_aware: bool = Field(default=True, description="Use project context in responses")
+    context_aware: bool = Field(
+        default=True, description="Use project context in responses"
+    )
 
 
 class CopilotConfig(BaseModel):
     """Copilot configuration from felix/config.json"""
+
     enabled: bool = Field(default=False, description="Whether copilot is enabled")
-    provider: str = Field(default="openai", description="LLM provider: 'openai', 'anthropic', or 'custom'")
+    provider: str = Field(
+        default="openai", description="LLM provider: 'openai', 'anthropic', or 'custom'"
+    )
     model: str = Field(default="gpt-4o", description="Model name to use")
-    context_sources: CopilotContextSourcesConfig = Field(default_factory=CopilotContextSourcesConfig)
+    context_sources: CopilotContextSourcesConfig = Field(
+        default_factory=CopilotContextSourcesConfig
+    )
     features: CopilotFeaturesConfig = Field(default_factory=CopilotFeaturesConfig)
 
 
 class AgentEntry(BaseModel):
     """Agent entry for felix/agents.json registry"""
+
     pid: int = Field(..., description="Process ID of the agent")
     hostname: str = Field(..., description="Hostname where agent is running")
-    status: str = Field(default="active", description="Agent status: active, inactive, stopped")
-    current_run_id: Optional[str] = Field(None, description="Current requirement ID being worked on")
-    started_at: Optional[str] = Field(None, description="ISO timestamp when agent started")
-    last_heartbeat: Optional[str] = Field(None, description="ISO timestamp of last heartbeat")
-    stopped_at: Optional[str] = Field(None, description="ISO timestamp when agent was stopped")
+    status: str = Field(
+        default="active", description="Agent status: active, inactive, stopped"
+    )
+    current_run_id: Optional[str] = Field(
+        None, description="Current requirement ID being worked on"
+    )
+    started_at: Optional[str] = Field(
+        None, description="ISO timestamp when agent started"
+    )
+    last_heartbeat: Optional[str] = Field(
+        None, description="ISO timestamp of last heartbeat"
+    )
+    stopped_at: Optional[str] = Field(
+        None, description="ISO timestamp when agent was stopped"
+    )
 
 
 class FelixConfig(BaseModel):
     """Full felix/config.json configuration"""
+
     version: str = Field(default="0.1.0", description="Config version")
     executor: ExecutorConfig = Field(default_factory=ExecutorConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     backpressure: BackpressureConfig = Field(default_factory=BackpressureConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
-    copilot: Optional[CopilotConfig] = Field(default=None, description="Copilot configuration")
+    copilot: Optional[CopilotConfig] = Field(
+        default=None, description="Copilot configuration"
+    )
 
 
 class ConfigContent(BaseModel):
     """Config file content response"""
+
     config: FelixConfig
     path: str
 
 
 class ConfigUpdate(BaseModel):
     """Request body for updating config"""
+
     config: FelixConfig = Field(..., description="Configuration object")
 
 
 # --- Security Helpers ---
 
 # Allowed filename pattern: alphanumeric, hyphens, underscores, dots
-SAFE_FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_\-]+\.md$')
+SAFE_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+\.md$")
 
 # Files that can be read/written
-ALLOWED_SPEC_EXTENSIONS = {'.md'}
+ALLOWED_SPEC_EXTENSIONS = {".md"}
 
 
 def validate_filename(filename: str) -> bool:
@@ -183,7 +248,7 @@ def validate_filename(filename: str) -> bool:
     if not filename:
         return False
     # Block path traversal
-    if '..' in filename or '/' in filename or '\\' in filename:
+    if ".." in filename or "/" in filename or "\\" in filename:
         return False
     # Must match safe pattern
     return bool(SAFE_FILENAME_PATTERN.match(filename))
@@ -192,51 +257,51 @@ def validate_filename(filename: str) -> bool:
 def load_policies(project_path: Path) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Load allowlist and denylist policies from the project's felix/policies/ directory.
-    
+
     Returns (allowlist, denylist) dictionaries. Returns empty dicts if files don't exist.
     """
     policies_dir = project_path / "felix" / "policies"
-    
+
     allowlist = {}
     denylist = {}
-    
+
     allowlist_path = policies_dir / "allowlist.json"
     if allowlist_path.exists():
         try:
-            allowlist = json.loads(allowlist_path.read_text(encoding='utf-8-sig'))
+            allowlist = json.loads(allowlist_path.read_text(encoding="utf-8-sig"))
         except (json.JSONDecodeError, IOError):
             pass
-    
+
     denylist_path = policies_dir / "denylist.json"
     if denylist_path.exists():
         try:
-            denylist = json.loads(denylist_path.read_text(encoding='utf-8-sig'))
+            denylist = json.loads(denylist_path.read_text(encoding="utf-8-sig"))
         except (json.JSONDecodeError, IOError):
             pass
-    
+
     return allowlist, denylist
 
 
 def path_matches_pattern(file_path: str, pattern: str) -> bool:
     """
     Check if a file path matches a glob-like pattern.
-    
+
     Supports patterns like:
     - "specs/**" - matches any file under specs/
     - "felix/requirements.json" - exact match
     - "*.md" - matches any .md file
     """
     # Normalize path separators to forward slashes
-    file_path = file_path.replace('\\', '/')
-    pattern = pattern.replace('\\', '/')
-    
+    file_path = file_path.replace("\\", "/")
+    pattern = pattern.replace("\\", "/")
+
     # Handle ** for recursive matching
-    if '**' in pattern:
+    if "**" in pattern:
         # Convert ** pattern to regex
-        regex_pattern = pattern.replace('.', r'\.')
-        regex_pattern = regex_pattern.replace('**', '.*')
-        regex_pattern = regex_pattern.replace('*', '[^/]*')
-        regex_pattern = f'^{regex_pattern}$'
+        regex_pattern = pattern.replace(".", r"\.")
+        regex_pattern = regex_pattern.replace("**", ".*")
+        regex_pattern = regex_pattern.replace("*", "[^/]*")
+        regex_pattern = f"^{regex_pattern}$"
         return bool(re.match(regex_pattern, file_path))
     else:
         # Use fnmatch for simple patterns
@@ -244,47 +309,45 @@ def path_matches_pattern(file_path: str, pattern: str) -> bool:
 
 
 def validate_path_against_policies(
-    file_path: str, 
-    project_path: Path,
-    operation: str = "write"
+    file_path: str, project_path: Path, operation: str = "write"
 ) -> tuple[bool, Optional[str]]:
     """
     Validate a file path against the project's allowlist and denylist policies.
-    
+
     Args:
         file_path: Relative path from project root (e.g., "specs/my-spec.md")
         project_path: Absolute path to the project root
         operation: "read" or "write" - write operations are more strictly validated
-    
+
     Returns:
         (is_allowed, error_message) - (True, None) if allowed, (False, reason) if denied
     """
     allowlist, denylist = load_policies(project_path)
-    
+
     # Normalize path
-    file_path = file_path.replace('\\', '/')
-    
+    file_path = file_path.replace("\\", "/")
+
     # Check restricted paths (from allowlist.json) - these are read-only or protected
     restricted_paths = allowlist.get("restricted_paths", [])
     for pattern in restricted_paths:
         if path_matches_pattern(file_path, pattern):
             return False, f"Path is restricted by policy: {pattern}"
-    
+
     # For write operations, check that path is in allowed_file_patterns
     if operation == "write":
         allowed_patterns = allowlist.get("allowed_file_patterns", [])
-        
+
         # If no allowlist patterns defined, allow by default (backwards compatibility)
         if not allowed_patterns:
             return True, None
-        
+
         # Check if path matches any allowed pattern
         for pattern in allowed_patterns:
             if path_matches_pattern(file_path, pattern):
                 return True, None
-        
+
         return False, f"Path not in allowed file patterns. Allowed: {allowed_patterns}"
-    
+
     # Read operations are generally allowed if not restricted
     return True, None
 
@@ -294,15 +357,19 @@ def get_project_path(project_id: str) -> Path:
     project = storage.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    
+
     project_path = Path(project.path)
     if not project_path.exists():
-        raise HTTPException(status_code=404, detail=f"Project directory no longer exists: {project.path}")
-    
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project directory no longer exists: {project.path}",
+        )
+
     return project_path
 
 
 # --- Specs Endpoints ---
+
 
 @router.get("/{project_id}/specs", response_model=List[SpecFile])
 async def list_specs(project_id: str = PathParam(..., description="Project ID")):
@@ -311,46 +378,50 @@ async def list_specs(project_id: str = PathParam(..., description="Project ID"))
     """
     project_path = get_project_path(project_id)
     specs_dir = project_path / "specs"
-    
+
     if not specs_dir.exists():
         return []
-    
+
     specs = []
     for file_path in sorted(specs_dir.glob("*.md")):
         if file_path.is_file():
             stat = file_path.stat()
-            specs.append(SpecFile(
-                filename=file_path.name,
-                path=str(file_path.relative_to(project_path)),
-                size=stat.st_size,
-                modified_at=stat.st_mtime.__str__()
-            ))
-    
+            specs.append(
+                SpecFile(
+                    filename=file_path.name,
+                    path=str(file_path.relative_to(project_path)),
+                    size=stat.st_size,
+                    modified_at=stat.st_mtime.__str__(),
+                )
+            )
+
     return specs
 
 
 @router.get("/{project_id}/specs/{filename}", response_model=SpecContent)
 async def read_spec(
     project_id: str = PathParam(..., description="Project ID"),
-    filename: str = PathParam(..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')")
+    filename: str = PathParam(
+        ..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')"
+    ),
 ):
     """
     Read content of a specific spec file.
     """
     if not validate_filename(filename):
         raise HTTPException(status_code=400, detail=f"Invalid filename: {filename}")
-    
+
     project_path = get_project_path(project_id)
     spec_path = project_path / "specs" / filename
-    
+
     if not spec_path.exists():
         raise HTTPException(status_code=404, detail=f"Spec file not found: {filename}")
-    
+
     if not spec_path.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {filename}")
-    
+
     try:
-        content = spec_path.read_text(encoding='utf-8')
+        content = spec_path.read_text(encoding="utf-8")
         return SpecContent(filename=filename, content=content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read spec: {str(e)}")
@@ -360,40 +431,45 @@ async def read_spec(
 async def update_spec(
     request: SpecUpdate,
     project_id: str = PathParam(..., description="Project ID"),
-    filename: str = PathParam(..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')")
+    filename: str = PathParam(
+        ..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')"
+    ),
 ):
     """
     Update or create a spec file.
-    
+
     If the file doesn't exist, it will be created.
     Validates path against project policies (allowlist/denylist).
     """
     if not validate_filename(filename):
         raise HTTPException(status_code=400, detail=f"Invalid filename: {filename}")
-    
+
     project_path = get_project_path(project_id)
     specs_dir = project_path / "specs"
-    
+
     # Ensure specs directory exists
     if not specs_dir.exists():
         raise HTTPException(status_code=400, detail="Project has no specs/ directory")
-    
+
     # Validate path against policies
     relative_path = f"specs/{filename}"
-    is_allowed, error_msg = validate_path_against_policies(relative_path, project_path, operation="write")
+    is_allowed, error_msg = validate_path_against_policies(
+        relative_path, project_path, operation="write"
+    )
     if not is_allowed:
         raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
-    
+
     spec_path = specs_dir / filename
-    
+
     try:
-        spec_path.write_text(request.content, encoding='utf-8')
+        spec_path.write_text(request.content, encoding="utf-8")
         return SpecContent(filename=filename, content=request.content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write spec: {str(e)}")
 
 
 # --- Requirements Endpoints ---
+
 
 @router.get("/{project_id}/requirements", response_model=RequirementsContent)
 async def read_requirements(project_id: str = PathParam(..., description="Project ID")):
@@ -402,29 +478,32 @@ async def read_requirements(project_id: str = PathParam(..., description="Projec
     """
     project_path = get_project_path(project_id)
     req_path = project_path / "felix" / "requirements.json"
-    
+
     if not req_path.exists():
         raise HTTPException(status_code=404, detail="felix/requirements.json not found")
-    
+
     try:
         import json
-        data = json.loads(req_path.read_text(encoding='utf-8-sig'))
-        
-        requirements = [
-            Requirement(**r) for r in data.get("requirements", [])
-        ]
-        
+
+        data = json.loads(req_path.read_text(encoding="utf-8-sig"))
+
+        requirements = [Requirement(**r) for r in data.get("requirements", [])]
+
         return RequirementsContent(
-            requirements=requirements,
-            path=str(req_path.relative_to(project_path))
+            requirements=requirements, path=str(req_path.relative_to(project_path))
         )
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read requirements: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read requirements: {str(e)}"
+        )
 
 
 # --- README Endpoint ---
+
 
 @router.get("/{project_id}/files/README.md")
 async def read_readme(project_id: str = PathParam(..., description="Project ID")):
@@ -433,18 +512,19 @@ async def read_readme(project_id: str = PathParam(..., description="Project ID")
     """
     project_path = get_project_path(project_id)
     readme_path = project_path / "README.md"
-    
+
     if not readme_path.exists():
-        raise HTTPException(status_code=404, detail="README.md not found in project root")
-    
+        raise HTTPException(
+            status_code=404, detail="README.md not found in project root"
+        )
+
     try:
-        content = readme_path.read_text(encoding='utf-8')
-        return {
-            "content": content,
-            "path": "README.md"
-        }
+        content = readme_path.read_text(encoding="utf-8")
+        return {"content": content, "path": "README.md"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read README.md: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read README.md: {str(e)}"
+        )
 
 
 # --- Requirements Endpoints ---
@@ -453,99 +533,111 @@ async def read_readme(project_id: str = PathParam(..., description="Project ID")
 @router.put("/{project_id}/requirements", response_model=RequirementsContent)
 async def update_requirements(
     request: RequirementsUpdate,
-    project_id: str = PathParam(..., description="Project ID")
+    project_id: str = PathParam(..., description="Project ID"),
 ):
     """
     Update the project's felix/requirements.json.
-    
+
     Validates path against project policies (allowlist/denylist).
     """
     project_path = get_project_path(project_id)
     req_path = project_path / "felix" / "requirements.json"
-    
+
     # Ensure felix directory exists
     felix_dir = project_path / "felix"
     if not felix_dir.exists():
         raise HTTPException(status_code=400, detail="Project has no felix/ directory")
-    
+
     # Validate path against policies
-    is_allowed, error_msg = validate_path_against_policies("felix/requirements.json", project_path, operation="write")
+    is_allowed, error_msg = validate_path_against_policies(
+        "felix/requirements.json", project_path, operation="write"
+    )
     if not is_allowed:
         raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
-    
+
     try:
         # Convert requirements to dict format for JSON
         requirements_data = {
             "requirements": [r.model_dump() for r in request.requirements]
         }
-        
-        req_path.write_text(json.dumps(requirements_data, indent=2), encoding='utf-8-sig')
-        
+
+        req_path.write_text(
+            json.dumps(requirements_data, indent=2), encoding="utf-8-sig"
+        )
+
         return RequirementsContent(
             requirements=request.requirements,
-            path=str(req_path.relative_to(project_path))
+            path=str(req_path.relative_to(project_path)),
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to write requirements: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to write requirements: {str(e)}"
+        )
 
 
 # --- Create New Spec Endpoint ---
 
+
 @router.post("/{project_id}/specs", response_model=SpecContent, status_code=201)
 async def create_spec(
-    request: SpecCreate,
-    project_id: str = PathParam(..., description="Project ID")
+    request: SpecCreate, project_id: str = PathParam(..., description="Project ID")
 ):
     """
     Create a new spec file and add it to requirements.json.
-    
+
     Returns 409 Conflict if the file already exists.
     Validates path against project policies (allowlist/denylist).
     """
     if not validate_filename(request.filename):
-        raise HTTPException(status_code=400, detail=f"Invalid filename: {request.filename}")
-    
+        raise HTTPException(
+            status_code=400, detail=f"Invalid filename: {request.filename}"
+        )
+
     project_path = get_project_path(project_id)
     specs_dir = project_path / "specs"
-    
+
     # Ensure specs directory exists
     if not specs_dir.exists():
         raise HTTPException(status_code=400, detail="Project has no specs/ directory")
-    
+
     # Validate path against policies
     relative_path = f"specs/{request.filename}"
-    is_allowed, error_msg = validate_path_against_policies(relative_path, project_path, operation="write")
+    is_allowed, error_msg = validate_path_against_policies(
+        relative_path, project_path, operation="write"
+    )
     if not is_allowed:
         raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
-    
+
     spec_path = specs_dir / request.filename
-    
+
     # Check if file already exists
     if spec_path.exists():
-        raise HTTPException(status_code=409, detail=f"Spec file already exists: {request.filename}")
-    
+        raise HTTPException(
+            status_code=409, detail=f"Spec file already exists: {request.filename}"
+        )
+
     try:
         # Write the spec file
-        spec_path.write_text(request.content, encoding='utf-8')
-        
+        spec_path.write_text(request.content, encoding="utf-8")
+
         # Extract spec ID and title from filename (e.g., "S-0007-settings-page.md")
         import re
         from datetime import datetime
-        
-        match = re.match(r'^(S-\d{4})-(.+)\.md$', request.filename)
+
+        match = re.match(r"^(S-\d{4})-(.+)\.md$", request.filename)
         if match:
             spec_id = match.group(1)
             title_slug = match.group(2)
             # Convert slug to title (e.g., "settings-page" -> "Settings Page")
-            title = ' '.join(word.capitalize() for word in title_slug.split('-'))
-            
+            title = " ".join(word.capitalize() for word in title_slug.split("-"))
+
             # Update requirements.json
             req_path = project_path / "felix" / "requirements.json"
             if req_path.exists():
                 try:
-                    data = json.loads(req_path.read_text(encoding='utf-8-sig'))
+                    data = json.loads(req_path.read_text(encoding="utf-8-sig"))
                     requirements = data.get("requirements", [])
-                    
+
                     # Check if this requirement already exists
                     if not any(r.get("id") == spec_id for r in requirements):
                         # Add new requirement
@@ -557,23 +649,26 @@ async def create_spec(
                             "priority": "medium",
                             "labels": [],
                             "depends_on": [],
-                            "updated_at": datetime.now().strftime("%Y-%m-%d")
+                            "updated_at": datetime.now().strftime("%Y-%m-%d"),
                         }
                         requirements.append(new_requirement)
-                        
+
                         # Write updated requirements
                         data["requirements"] = requirements
-                        req_path.write_text(json.dumps(data, indent=4), encoding='utf-8-sig')
+                        req_path.write_text(
+                            json.dumps(data, indent=4), encoding="utf-8-sig"
+                        )
                 except Exception as req_err:
                     # Log error but don't fail the spec creation
                     print(f"Warning: Failed to update requirements.json: {req_err}")
-        
+
         return SpecContent(filename=request.filename, content=request.content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create spec: {str(e)}")
 
 
 # --- AGENTS.md Endpoint ---
+
 
 @router.get("/{project_id}/agents-md", response_model=AgentsMdContent)
 async def read_agents_md(project_id: str = PathParam(..., description="Project ID")):
@@ -582,43 +677,40 @@ async def read_agents_md(project_id: str = PathParam(..., description="Project I
     """
     project_path = get_project_path(project_id)
     agents_path = project_path / "AGENTS.md"
-    
+
     if not agents_path.exists():
         raise HTTPException(status_code=404, detail="AGENTS.md not found")
-    
+
     try:
-        content = agents_path.read_text(encoding='utf-8')
-        return AgentsMdContent(
-            content=content,
-            path="AGENTS.md"
-        )
+        content = agents_path.read_text(encoding="utf-8")
+        return AgentsMdContent(content=content, path="AGENTS.md")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read AGENTS.md: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read AGENTS.md: {str(e)}"
+        )
 
 
 # --- Config Endpoints ---
+
 
 @router.get("/{project_id}/config", response_model=ConfigContent)
 async def read_config(project_id: str = PathParam(..., description="Project ID")):
     """
     Read the project's felix/config.json configuration.
-    
+
     Returns the configuration with all sections (executor, agent, paths, backpressure).
     If the config file doesn't exist, returns default values.
     """
     project_path = get_project_path(project_id)
     config_path = project_path / "felix" / "config.json"
-    
+
     if not config_path.exists():
         # Return default config if file doesn't exist
-        return ConfigContent(
-            config=FelixConfig(),
-            path="felix/config.json"
-        )
-    
+        return ConfigContent(config=FelixConfig(), path="felix/config.json")
+
     try:
-        data = json.loads(config_path.read_text(encoding='utf-8-sig'))
-        
+        data = json.loads(config_path.read_text(encoding="utf-8-sig"))
+
         # Parse nested configuration objects
         executor_data = data.get("executor", {})
         agent_data = data.get("agent", {})
@@ -626,7 +718,7 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
         backpressure_data = data.get("backpressure", {})
         ui_data = data.get("ui", {})
         copilot_data = data.get("copilot", None)
-        
+
         # Parse copilot config if present
         copilot_config = None
         if copilot_data:
@@ -636,96 +728,98 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
                 enabled=copilot_data.get("enabled", False),
                 provider=copilot_data.get("provider", "openai"),
                 model=copilot_data.get("model", "gpt-4o"),
-                context_sources=CopilotContextSourcesConfig(**context_sources_data) if context_sources_data else CopilotContextSourcesConfig(),
-                features=CopilotFeaturesConfig(**features_data) if features_data else CopilotFeaturesConfig()
+                context_sources=(
+                    CopilotContextSourcesConfig(**context_sources_data)
+                    if context_sources_data
+                    else CopilotContextSourcesConfig()
+                ),
+                features=(
+                    CopilotFeaturesConfig(**features_data)
+                    if features_data
+                    else CopilotFeaturesConfig()
+                ),
             )
-        
+
         config = FelixConfig(
             version=data.get("version", "0.1.0"),
-            executor=ExecutorConfig(**executor_data) if executor_data else ExecutorConfig(),
+            executor=(
+                ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
+            ),
             agent=AgentConfig(**agent_data) if agent_data else AgentConfig(),
             paths=PathsConfig(**paths_data) if paths_data else PathsConfig(),
-            backpressure=BackpressureConfig(**backpressure_data) if backpressure_data else BackpressureConfig(),
+            backpressure=(
+                BackpressureConfig(**backpressure_data)
+                if backpressure_data
+                else BackpressureConfig()
+            ),
             ui=UIConfig(**ui_data) if ui_data else UIConfig(),
-            copilot=copilot_config
+            copilot=copilot_config,
         )
-        
-        return ConfigContent(
-            config=config,
-            path="felix/config.json"
-        )
+
+        return ConfigContent(config=config, path="felix/config.json")
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Invalid JSON in config.json: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Invalid JSON in config.json: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read config: {str(e)}")
 
 
 @router.put("/{project_id}/config", response_model=ConfigContent)
 async def update_config(
-    request: ConfigUpdate,
-    project_id: str = PathParam(..., description="Project ID")
+    request: ConfigUpdate, project_id: str = PathParam(..., description="Project ID")
 ):
     """
     Update the project's felix/config.json configuration.
-    
+
     Note: This endpoint bypasses the normal policy validation since config.json
     is typically marked as restricted in allowlist.json. The UI needs to be able
     to update configuration settings.
-    
+
     Validates:
     - max_iterations must be a positive integer
     - default_mode must be 'planning' or 'building'
     """
     project_path = get_project_path(project_id)
     config_path = project_path / "felix" / "config.json"
-    
+
     # Ensure felix directory exists
     felix_dir = project_path / "felix"
     if not felix_dir.exists():
         raise HTTPException(status_code=400, detail="Project has no felix/ directory")
-    
+
     # Validate config values
     config = request.config
-    
+
     # Validate max_iterations is positive
     if config.executor.max_iterations <= 0:
         raise HTTPException(
-            status_code=400, 
-            detail="max_iterations must be a positive integer"
+            status_code=400, detail="max_iterations must be a positive integer"
         )
-    
+
     # Validate default_mode
     if config.executor.default_mode not in ("planning", "building"):
         raise HTTPException(
-            status_code=400,
-            detail="default_mode must be 'planning' or 'building'"
+            status_code=400, detail="default_mode must be 'planning' or 'building'"
         )
-    
-    # Validate ui.theme
-    if config.ui.theme not in ("dark", "light", "system"):
-        raise HTTPException(
-            status_code=400,
-            detail="ui.theme must be 'dark', 'light', or 'system'"
-        )
-    
+
     try:
         # Convert to dict for JSON serialization
         config_data = config.model_dump()
-        
-        config_path.write_text(json.dumps(config_data, indent=2), encoding='utf-8')
-        
-        return ConfigContent(
-            config=config,
-            path="felix/config.json"
-        )
+
+        config_path.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
+
+        return ConfigContent(config=config, path="felix/config.json")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write config: {str(e)}")
 
 
 # --- Requirement Status Endpoints (for S-0006: Spec Edit Safety) ---
 
+
 class RequirementStatusResponse(BaseModel):
     """Response for requirement status check"""
+
     id: str
     status: str
     title: str
@@ -737,11 +831,16 @@ class RequirementStatusResponse(BaseModel):
 
 class RequirementStatusUpdate(BaseModel):
     """Request body for updating requirement status"""
-    status: str = Field(..., description="New status: draft, planned, in_progress, complete, blocked, done")
+
+    status: str = Field(
+        ...,
+        description="New status: draft, planned, in_progress, complete, blocked, done",
+    )
 
 
 class PlanInfo(BaseModel):
     """Information about a requirement's plan"""
+
     requirement_id: str
     exists: bool
     plan_path: Optional[str] = None
@@ -752,22 +851,25 @@ class PlanInfo(BaseModel):
 
 class PlanDeleteResponse(BaseModel):
     """Response for plan deletion"""
+
     message: str
     requirement_id: str
     deleted_path: Optional[str] = None
 
 
-def find_plan_for_requirement(project_path: Path, requirement_id: str) -> Optional[tuple[Path, str]]:
+def find_plan_for_requirement(
+    project_path: Path, requirement_id: str
+) -> Optional[tuple[Path, str]]:
     """
     Find the most recent plan file for a requirement.
-    
+
     Plans are stored in runs/<run-id>/plan-<requirement-id>.md
     Returns (plan_path, run_id) or None if not found.
     """
     runs_dir = project_path / "runs"
     if not runs_dir.exists():
         return None
-    
+
     # Find all plan files for this requirement across all runs
     plan_files: list[tuple[Path, str]] = []
     for run_dir in runs_dir.iterdir():
@@ -775,56 +877,61 @@ def find_plan_for_requirement(project_path: Path, requirement_id: str) -> Option
             plan_file = run_dir / f"plan-{requirement_id}.md"
             if plan_file.exists():
                 plan_files.append((plan_file, run_dir.name))
-    
+
     if not plan_files:
         return None
-    
+
     # Sort by run_id (which is a timestamp) and return the most recent
     plan_files.sort(key=lambda x: x[1], reverse=True)
     return plan_files[0]
 
 
-@router.get("/{project_id}/requirements/{requirement_id}/status", response_model=RequirementStatusResponse)
+@router.get(
+    "/{project_id}/requirements/{requirement_id}/status",
+    response_model=RequirementStatusResponse,
+)
 async def get_requirement_status(
     project_id: str = PathParam(..., description="Project ID"),
-    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
 ):
     """
     Get the status of a specific requirement, including whether it has a plan.
-    
+
     Used by the frontend to determine if warnings should be shown when editing specs.
     """
     project_path = get_project_path(project_id)
     req_path = project_path / "felix" / "requirements.json"
-    
+
     if not req_path.exists():
         raise HTTPException(status_code=404, detail="felix/requirements.json not found")
-    
+
     try:
-        data = json.loads(req_path.read_text(encoding='utf-8-sig'))
+        data = json.loads(req_path.read_text(encoding="utf-8-sig"))
         requirements = data.get("requirements", [])
-        
+
         # Find the specific requirement
         requirement = None
         for req in requirements:
             if req.get("id") == requirement_id:
                 requirement = req
                 break
-        
+
         if not requirement:
-            raise HTTPException(status_code=404, detail=f"Requirement not found: {requirement_id}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Requirement not found: {requirement_id}"
+            )
+
         # Check if a plan exists for this requirement
         plan_info = find_plan_for_requirement(project_path, requirement_id)
         has_plan = plan_info is not None
         plan_path = None
         plan_modified_at = None
-        
+
         if plan_info:
             plan_file, run_id = plan_info
             plan_path = str(plan_file.relative_to(project_path))
             plan_modified_at = str(plan_file.stat().st_mtime)
-        
+
         # Get spec modification time
         spec_path_str = requirement.get("spec_path")
         spec_modified_at = None
@@ -832,7 +939,7 @@ async def get_requirement_status(
             spec_path = project_path / spec_path_str
             if spec_path.exists():
                 spec_modified_at = str(spec_path.stat().st_mtime)
-        
+
         return RequirementStatusResponse(
             id=requirement_id,
             status=requirement.get("status", "draft"),
@@ -840,23 +947,30 @@ async def get_requirement_status(
             has_plan=has_plan,
             plan_path=plan_path,
             plan_modified_at=plan_modified_at,
-            spec_modified_at=spec_modified_at
+            spec_modified_at=spec_modified_at,
         )
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get requirement status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get requirement status: {str(e)}"
+        )
 
 
-@router.put("/{project_id}/requirements/{requirement_id}/status", response_model=RequirementStatusResponse)
+@router.put(
+    "/{project_id}/requirements/{requirement_id}/status",
+    response_model=RequirementStatusResponse,
+)
 async def update_requirement_status(
     request: RequirementStatusUpdate,
     project_id: str = PathParam(..., description="Project ID"),
-    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
 ):
     """
     Update the status of a specific requirement.
-    
+
     Used to set requirement to 'blocked' status when user chooses to block and edit,
     or 'done' when a user manually marks a requirement as accepted/reviewed.
     Valid status values: draft, planned, in_progress, complete, blocked, done
@@ -864,48 +978,50 @@ async def update_requirement_status(
     valid_statuses = {"draft", "planned", "in_progress", "complete", "blocked", "done"}
     if request.status not in valid_statuses:
         raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            status_code=400,
+            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
         )
-    
+
     project_path = get_project_path(project_id)
     req_path = project_path / "felix" / "requirements.json"
-    
+
     if not req_path.exists():
         raise HTTPException(status_code=404, detail="felix/requirements.json not found")
-    
+
     try:
-        data = json.loads(req_path.read_text(encoding='utf-8-sig'))
+        data = json.loads(req_path.read_text(encoding="utf-8-sig"))
         requirements = data.get("requirements", [])
-        
+
         # Find and update the specific requirement
         updated = False
         requirement = None
         for req in requirements:
             if req.get("id") == requirement_id:
                 req["status"] = request.status
-                req["updated_at"] = str(__import__('datetime').date.today())
+                req["updated_at"] = str(__import__("datetime").date.today())
                 requirement = req
                 updated = True
                 break
-        
+
         if not updated:
-            raise HTTPException(status_code=404, detail=f"Requirement not found: {requirement_id}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Requirement not found: {requirement_id}"
+            )
+
         # Write back the updated requirements
-        req_path.write_text(json.dumps(data, indent=2), encoding='utf-8-sig')
-        
+        req_path.write_text(json.dumps(data, indent=2), encoding="utf-8-sig")
+
         # Get plan info for response
         plan_info = find_plan_for_requirement(project_path, requirement_id)
         has_plan = plan_info is not None
         plan_path = None
         plan_modified_at = None
-        
+
         if plan_info:
             plan_file, run_id = plan_info
             plan_path = str(plan_file.relative_to(project_path))
             plan_modified_at = str(plan_file.stat().st_mtime)
-        
+
         # Get spec modification time
         spec_path_str = requirement.get("spec_path")
         spec_modified_at = None
@@ -913,7 +1029,7 @@ async def update_requirement_status(
             spec_path = project_path / spec_path_str
             if spec_path.exists():
                 spec_modified_at = str(spec_path.stat().st_mtime)
-        
+
         return RequirementStatusResponse(
             id=requirement_id,
             status=request.status,
@@ -921,75 +1037,78 @@ async def update_requirement_status(
             has_plan=has_plan,
             plan_path=plan_path,
             plan_modified_at=plan_modified_at,
-            spec_modified_at=spec_modified_at
+            spec_modified_at=spec_modified_at,
         )
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update requirement status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update requirement status: {str(e)}"
+        )
 
 
 @router.get("/{project_id}/plans/{requirement_id}", response_model=PlanInfo)
 async def get_plan_info(
     project_id: str = PathParam(..., description="Project ID"),
-    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
 ):
     """
     Get information about a requirement's plan, including whether it exists
     and its metadata.
     """
     project_path = get_project_path(project_id)
-    
+
     plan_info = find_plan_for_requirement(project_path, requirement_id)
-    
+
     if not plan_info:
-        return PlanInfo(
-            requirement_id=requirement_id,
-            exists=False
-        )
-    
+        return PlanInfo(requirement_id=requirement_id, exists=False)
+
     plan_file, run_id = plan_info
-    
+
     # Read first 500 chars of content as preview
     content_preview = None
     try:
-        content = plan_file.read_text(encoding='utf-8')
+        content = plan_file.read_text(encoding="utf-8")
         content_preview = content[:500] + ("..." if len(content) > 500 else "")
     except Exception:
         pass
-    
+
     return PlanInfo(
         requirement_id=requirement_id,
         exists=True,
         plan_path=str(plan_file.relative_to(project_path)),
         run_id=run_id,
         modified_at=str(plan_file.stat().st_mtime),
-        content_preview=content_preview
+        content_preview=content_preview,
     )
 
 
-@router.delete("/{project_id}/plans/{requirement_id}", response_model=PlanDeleteResponse)
+@router.delete(
+    "/{project_id}/plans/{requirement_id}", response_model=PlanDeleteResponse
+)
 async def delete_plan(
     project_id: str = PathParam(..., description="Project ID"),
-    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')")
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
 ):
     """
     Delete all plan files for a specific requirement.
-    
+
     This is used when acceptance criteria change to invalidate stale plans,
     or when user manually requests a plan reset.
-    
+
     Deletes plan-<requirement-id>.md from all run directories.
     """
     project_path = get_project_path(project_id)
     runs_dir = project_path / "runs"
-    
+
     if not runs_dir.exists():
         return PlanDeleteResponse(
             message="No plans found (runs directory does not exist)",
-            requirement_id=requirement_id
+            requirement_id=requirement_id,
         )
-    
+
     deleted_paths = []
     for run_dir in runs_dir.iterdir():
         if run_dir.is_dir():
@@ -1000,18 +1119,18 @@ async def delete_plan(
                     deleted_paths.append(str(plan_file.relative_to(project_path)))
                 except Exception as e:
                     raise HTTPException(
-                        status_code=500, 
-                        detail=f"Failed to delete plan file {plan_file}: {str(e)}"
+                        status_code=500,
+                        detail=f"Failed to delete plan file {plan_file}: {str(e)}",
                     )
-    
+
     if not deleted_paths:
         return PlanDeleteResponse(
             message="No plan files found for this requirement",
-            requirement_id=requirement_id
+            requirement_id=requirement_id,
         )
-    
+
     return PlanDeleteResponse(
         message=f"Deleted {len(deleted_paths)} plan file(s)",
         requirement_id=requirement_id,
-        deleted_path=deleted_paths[0] if deleted_paths else None
+        deleted_path=deleted_paths[0] if deleted_paths else None,
     )

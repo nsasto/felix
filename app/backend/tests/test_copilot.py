@@ -890,7 +890,7 @@ class TestCopilotConfigSaveLoad:
             "agent": {"agent_id": 0},  # Use agent_id format (ID 0 = system default)
             "paths": {"specs": "specs", "agents": "AGENTS.md", "runs": "runs"},
             "backpressure": {"enabled": True, "commands": [], "max_retries": 3},
-            "ui": {"theme": "dark"},
+            "ui": {},
             "copilot": {
                 "enabled": True,
                 "provider": "anthropic",
@@ -946,7 +946,7 @@ class TestCopilotConfigSaveLoad:
             },
             "paths": {"specs": "specs", "agents": "AGENTS.md", "runs": "runs"},
             "backpressure": {"enabled": True, "commands": [], "max_retries": 3},
-            "ui": {"theme": "dark"},
+            "ui": {},
         }
         config_file.write_text(json.dumps(config_data), encoding="utf-8")
 
@@ -986,9 +986,13 @@ class TestApiKeyHeaderSupport:
         call_args = mock_verify.call_args[0]
         assert call_args[0] == "test-header-key-12345"
 
-    def test_test_endpoint_header_takes_priority_over_env(self, client, mock_felix_config):
+    def test_test_endpoint_header_takes_priority_over_env(
+        self, client, mock_felix_config
+    ):
         """Test that header API key takes priority over environment variable"""
-        with patch("routers.copilot.os.getenv", return_value="test-env-key"):  # Env var set
+        with patch(
+            "routers.copilot.os.getenv", return_value="test-env-key"
+        ):  # Env var set
             with patch(
                 "routers.copilot.load_global_config",
                 return_value=(mock_felix_config, None),
@@ -1010,7 +1014,9 @@ class TestApiKeyHeaderSupport:
         call_args = mock_verify.call_args[0]
         assert call_args[0] == "test-header-priority"
 
-    def test_test_endpoint_falls_back_to_env_when_no_header(self, client, mock_felix_config):
+    def test_test_endpoint_falls_back_to_env_when_no_header(
+        self, client, mock_felix_config
+    ):
         """Test that env var is used when no header provided"""
         with patch("routers.copilot.os.getenv", return_value="test-env-fallback"):
             with patch(
@@ -1111,7 +1117,9 @@ class TestApiKeyHeaderSupport:
         call_kwargs = mock_service_factory.call_args[1]
         assert call_kwargs["api_key"] == "test-header-priority"
 
-    def test_stream_endpoint_fallback_to_env_when_no_header(self, client, mock_felix_config):
+    def test_stream_endpoint_fallback_to_env_when_no_header(
+        self, client, mock_felix_config
+    ):
         """Stream endpoint: falls back to env var when no header provided"""
         with patch("routers.copilot.os.getenv", return_value="test-env-key"):
             with patch(
@@ -1144,7 +1152,9 @@ class TestApiKeyHeaderSupport:
         call_kwargs = mock_service_factory.call_args[1]
         assert call_kwargs["api_key"] is None
 
-    def test_stream_endpoint_error_when_no_key_available(self, client, mock_felix_config):
+    def test_stream_endpoint_error_when_no_key_available(
+        self, client, mock_felix_config
+    ):
         """Stream endpoint returns error event when no API key available"""
         # Create a config that's enabled but don't provide any API key
         with patch("routers.copilot.os.getenv", return_value=None):
@@ -1255,7 +1265,9 @@ class TestCopilotServiceApiKey:
         copilot_config.context_sources.requirements = True
         copilot_config.context_sources.other_specs = True
 
-        service = create_copilot_service_from_config(copilot_config, api_key="test-factory-key")
+        service = create_copilot_service_from_config(
+            copilot_config, api_key="test-factory-key"
+        )
 
         assert service._provided_api_key == "test-factory-key"
         assert service.api_key == "test-factory-key"
