@@ -22,61 +22,16 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         
-        <!-- Markdown Style for Dark Theme -->
+        <!-- Markdown Style -->
         <Style x:Key="MarkdownStyle" TargetType="FlowDocument">
-            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
             <Setter Property="FontFamily" Value="Segoe UI Emoji, Segoe UI Symbol, Segoe UI" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Background" Value="Transparent" />
         </Style>
-        
-        <!-- Form Label Style with Light Theme Support -->
-        <Style x:Key="FormLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#B0FFFFFF" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                    <Setter Property="Foreground" Value="#555555" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        
-        <!-- Toggle Label Style with Light Theme Support -->
-        <Style x:Key="ToggleLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                    <Setter Property="Foreground" Value="#1a1a1a" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
     </Window.Resources>
 
-    <Grid>
-        <!-- Gradient overlay for deeper color while showing Mica through -->
-        <Grid.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" Opacity="0.3">
-                <GradientStop Color="#1a1a2e" Offset="0" />
-                <GradientStop Color="#0f3460" Offset="1" />
-            </LinearGradientBrush>
-        </Grid.Background>
-        <Grid.Style>
-            <Style TargetType="Grid">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                        <Setter Property="Background">
-                            <Setter.Value>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1" Opacity="0.6">
-                                    <GradientStop Color="#F5F5F5" Offset="0" />
-                                    <GradientStop Color="#FFFFFF" Offset="1" />
-                                </LinearGradientBrush>
-                            </Setter.Value>
-                        </Setter>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </Grid.Style>
+    <Grid Background="{DynamicResource MainBackgroundBrush}">
 
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="60" />
@@ -84,17 +39,10 @@
         </Grid.ColumnDefinitions>
 
         <!-- Left Navigation Panel -->
-        <Border Grid.Column="0" Background="#15000000" BorderBrush="#20FFFFFF" BorderThickness="0,0,1,0">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                            <Setter Property="Background" Value="#15FFFFFF" />
-                            <Setter Property="BorderBrush" Value="#30000000" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
+        <Border Grid.Column="0" 
+                Background="{DynamicResource SidebarBackgroundBrush}" 
+                BorderBrush="{DynamicResource SidebarBorderBrush}" 
+                BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="50" />
@@ -125,29 +73,13 @@
                 </StackPanel>
 
                 <!-- Footer with User Info -->
-                <Border Grid.Row="2" Margin="8" Padding="8" Background="#20FFFFFF" CornerRadius="8">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                    <Setter Property="Background" Value="#30000000" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <ui:SymbolIcon Symbol="Person24" FontSize="20" HorizontalAlignment="Center"
-                                  ToolTip="{Binding Path=UserName, FallbackValue='User'}">
-                        <ui:SymbolIcon.Style>
-                            <Style TargetType="ui:SymbolIcon">
-                                <Setter Property="Foreground" Value="White" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                        <Setter Property="Foreground" Value="#333333" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ui:SymbolIcon.Style>
-                    </ui:SymbolIcon>
+                <Border Grid.Row="2" Margin="8" Padding="8" 
+                        Background="{DynamicResource FooterBackgroundBrush}" 
+                        CornerRadius="8">
+                    <ui:SymbolIcon Symbol="Person24" FontSize="20" 
+                                  Foreground="{DynamicResource PrimaryTextBrush}"
+                                  HorizontalAlignment="Center"
+                                  ToolTip="{Binding Path=UserName, FallbackValue='User'}" />
                 </Border>
             </Grid>
         </Border>
@@ -161,18 +93,10 @@
             </Grid.RowDefinitions>
 
             <!-- Top Toolbar -->
-            <Border Grid.Row="0" Background="#10000000" BorderBrush="#20FFFFFF" 
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource ToolbarBackgroundBrush}" 
+                    BorderBrush="{DynamicResource ToolbarBorderBrush}" 
                     BorderThickness="0,0,0,1" Padding="20,12">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                <Setter Property="Background" Value="#15FFFFFF" />
-                                <Setter Property="BorderBrush" Value="#30000000" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -182,18 +106,8 @@
                     <!-- Title -->
                     <TextBlock Grid.Column="0" Text="Felix Agent Manager" 
                               FontSize="16" FontWeight="SemiBold"
-                              VerticalAlignment="Center">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="White" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                        <Setter Property="Foreground" Value="#1a1a1a" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                              Foreground="{DynamicResource PrimaryTextBrush}"
+                              VerticalAlignment="Center" />
 
                     <!-- Controls -->
                     <ui:Button Grid.Column="1" 
@@ -205,16 +119,10 @@
             </Border>
 
             <!-- Search and Filter Bar -->
-            <Border Grid.Row="1" Background="#08000000" Padding="20,12" Visibility="{Binding ShowAgentsList, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                <Setter Property="Background" Value="#08FFFFFF" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
+            <Border Grid.Row="1" 
+                    Background="{DynamicResource SearchBarBackgroundBrush}" 
+                    Padding="20,12" 
+                    Visibility="{Binding ShowAgentsList, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -230,17 +138,8 @@
                                   Appearance="Primary" Command="{Binding AddAgentCommand}" />
                     </StackPanel>
 
-                    <TextBlock Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#B0FFFFFF" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                        <Setter Property="Foreground" Value="#666666" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SecondaryTextBrush}">
                         <Run Text="{Binding FilteredAgents.Count, Mode=OneWay}" />
                         <Run Text="agent(s) configured" />
                     </TextBlock>
@@ -255,18 +154,9 @@
                 </Grid.RowDefinitions>
 
                 <!-- Section Title -->
-                <TextBlock Grid.Row="0" Text="Agents" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="White" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                    <Setter Property="Foreground" Value="#1a1a1a" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <TextBlock Grid.Row="0" Text="Agents" FontSize="18" FontWeight="SemiBold" 
+                           Foreground="{DynamicResource PrimaryTextBrush}"
+                           Margin="0,0,0,12" />
 
                 <!-- DataGrid -->
                 <DataGrid x:Name="AgentsDataGrid" Grid.Row="1" 
@@ -282,35 +172,18 @@
                           SelectionMode="Single"
                           Background="Transparent"
                           BorderThickness="0"
-                          RowBackground="#15FFFFFF"
-                          AlternatingRowBackground="#10FFFFFF"
+                          RowBackground="{DynamicResource DataGridRowBrush}"
+                          AlternatingRowBackground="{DynamicResource DataGridAlternateRowBrush}"
                           RowHeight="48">
-                    <DataGrid.Style>
-                        <Style TargetType="DataGrid">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                    <Setter Property="RowBackground" Value="#F8F8F8" />
-                                    <Setter Property="AlternatingRowBackground" Value="#FFFFFF" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.Style>
 
                     <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="DataGridColumnHeader">
-                            <Setter Property="Background" Value="#20FFFFFF" />
-                            <Setter Property="Foreground" Value="#B0FFFFFF" />
+                            <Setter Property="Background" Value="{DynamicResource DataGridHeaderBackgroundBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource DataGridHeaderTextBrush}" />
                             <Setter Property="Padding" Value="12,8" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                             <Setter Property="BorderThickness" Value="0,0,0,1" />
-                            <Setter Property="BorderBrush" Value="#30FFFFFF" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding DataContext.IsLightTheme, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                                    <Setter Property="Background" Value="#E8E8E8" />
-                                    <Setter Property="Foreground" Value="#555555" />
-                                    <Setter Property="BorderBrush" Value="#D0D0D0" />
-                                </DataTrigger>
-                            </Style.Triggers>
+                            <Setter Property="BorderBrush" Value="{DynamicResource DataGridBorderBrush}" />
                         </Style>
                     </DataGrid.ColumnHeaderStyle>
 
@@ -318,7 +191,7 @@
                         <Style TargetType="DataGridCell">
                             <Setter Property="Background" Value="Transparent" />
                             <Setter Property="BorderThickness" Value="0" />
-                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
                             <Setter Property="Padding" Value="12,0" />
                             <Setter Property="Template">
                                 <Setter.Value>
@@ -332,19 +205,9 @@
                                 </Setter.Value>
                             </Setter>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding DataContext.IsLightTheme, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                                    <Setter Property="Foreground" Value="#1a1a1a" />
-                                </DataTrigger>
                                 <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#30FFFFFF" />
+                                    <Setter Property="Background" Value="{DynamicResource DataGridSelectedRowBrush}" />
                                 </Trigger>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding DataContext.IsLightTheme, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True" />
-                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Background" Value="#D0D0D0" />
-                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </DataGrid.CellStyle>
@@ -402,18 +265,7 @@
                                                 </Style>
                                             </ui:SymbolIcon.Style>
                                         </ui:SymbolIcon>
-                                        <TextBlock Text="{Binding DisplayStatus}" VerticalAlignment="Center">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="White" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding DataContext.IsLightTheme, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                                                            <Setter Property="Foreground" Value="#1a1a1a" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                        <TextBlock Text="{Binding DisplayStatus}" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" />
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -480,37 +332,26 @@
                 </Grid.RowDefinitions>
 
                 <!-- Section Title -->
-                <TextBlock Grid.Row="0" Text="Agent Settings" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,20">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="White" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsLightTheme}" Value="True">
-                                    <Setter Property="Foreground" Value="#1a1a1a" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <TextBlock Grid.Row="0" Text="Agent Settings" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,20" Foreground="{DynamicResource PrimaryTextBrush}" />
 
                 <!-- Settings Form -->
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="600" HorizontalAlignment="Left">
                         
                         <!-- Name (Auto) -->
-                        <TextBlock Text="Name (auto-generated)" Style="{StaticResource FormLabelStyle}" />
+                        <TextBlock Text="Name (auto-generated)" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
                         <ui:TextBox Text="{Binding SelectedAgent.Name}" 
                                    IsReadOnly="True"
                                    Margin="0,0,0,20" />
 
                         <!-- Friendly Name -->
-                        <TextBlock Text="Friendly Name" Style="{StaticResource FormLabelStyle}" />
+                        <TextBlock Text="Friendly Name" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
                         <ui:TextBox Text="{Binding SelectedAgent.FriendlyName, UpdateSourceTrigger=PropertyChanged}" 
                                    PlaceholderText="Enter a custom display name"
                                    Margin="0,0,0,20" />
 
                         <!-- Path to Agent -->
-                        <TextBlock Text="Path to Agent Script" Style="{StaticResource FormLabelStyle}" />
+                        <TextBlock Text="Path to Agent Script" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -526,7 +367,7 @@
                         </Grid>
 
                         <!-- Project Folder -->
-                        <TextBlock Text="Project Folder" Style="{StaticResource FormLabelStyle}" />
+                        <TextBlock Text="Project Folder" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -542,7 +383,7 @@
                         </Grid>
 
                         <!-- Server Address -->
-                        <TextBlock Text="Server Address" Style="{StaticResource FormLabelStyle}" />
+                        <TextBlock Text="Server Address" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -564,7 +405,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Enabled" Style="{StaticResource ToggleLabelStyle}" />
+                            <TextBlock Grid.Column="0" Text="Enabled" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="14" VerticalAlignment="Center" />
                             <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SelectedAgent.IsActive}" />
                         </Grid>
 
@@ -574,7 +415,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Enable Logging" Style="{StaticResource ToggleLabelStyle}" />
+                            <TextBlock Grid.Column="0" Text="Enable Logging" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="14" VerticalAlignment="Center" />
                             <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SelectedAgent.EnableLogging}" />
                         </Grid>
 
@@ -582,7 +423,7 @@
                 </ScrollViewer>
 
                 <!-- Action Buttons -->
-                <Border Grid.Row="2" BorderBrush="#30FFFFFF" BorderThickness="0,1,0,0" Padding="0,20,0,0">
+                <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,20,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -633,8 +474,8 @@
                               Margin="0,0,20,0" />
                     
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="Run History" FontSize="18" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="{Binding SelectedAgent.DisplayName}" FontSize="14" Foreground="#B0FFFFFF" Margin="0,4,0,0" />
+                        <TextBlock Text="Run History" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock Text="{Binding SelectedAgent.DisplayName}" FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
                     </StackPanel>
                 </Grid>
 
@@ -647,14 +488,14 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Runs List -->
-                    <Border Grid.Column="0" Background="#10FFFFFF" CornerRadius="8" Margin="0,0,5,0" Padding="12">
+                    <Border Grid.Column="0" Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Margin="0,0,5,0" Padding="12">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             
-                            <TextBlock Grid.Row="0" Text="Recent Runs" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,12" />
+                            <TextBlock Grid.Row="0" Text="Recent Runs" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,12" />
                             
                             <ListBox Grid.Row="1" 
                                     ItemsSource="{Binding RunHistoryItems}"
@@ -675,14 +516,14 @@
                                  Width="10" 
                                  HorizontalAlignment="Center"
                                  VerticalAlignment="Stretch"
-                                 Background="#20FFFFFF"
+                                 Background="{DynamicResource DataGridHeaderBackgroundBrush}"
                                  ShowsPreview="False"
                                  ResizeBehavior="PreviousAndNext"
                                  ResizeDirection="Columns"
                                  DragCompleted="GridSplitter_DragCompleted" />
 
                     <!-- Run Details with Tabs -->
-                    <Border Grid.Column="2" Background="#10FFFFFF" CornerRadius="8" Margin="5,0,0,0" Padding="12">
+                    <Border Grid.Column="2" Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Margin="5,0,0,0" Padding="12">
                         <TabControl>
                             <TabItem Header="Plan">
                                 <md:MarkdownScrollViewer Markdown="{Binding PlanContent, Mode=OneWay}"
@@ -729,8 +570,8 @@
                               Margin="0,0,20,0" />
                     
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="Global Settings" FontSize="18" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Application preferences and configuration" FontSize="14" Foreground="#B0FFFFFF" Margin="0,4,0,0" />
+                        <TextBlock Text="Global Settings" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock Text="Application preferences and configuration" FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
                     </StackPanel>
                 </Grid>
 
@@ -739,46 +580,40 @@
                     <StackPanel MaxWidth="600" HorizontalAlignment="Left">
                         
                         <!-- Theme Section -->
-                        <Border Background="#10FFFFFF" CornerRadius="8" Padding="20" Margin="0,0,0,20">
+                        <Border Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Padding="20" Margin="0,0,0,20">
                             <StackPanel>
-                                <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,12" />
-                                <TextBlock Text="Choose your preferred theme" Foreground="#B0FFFFFF" Margin="0,0,0,16" />
+                                <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,12" />
+                                <TextBlock Text="Choose your preferred theme" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,16" />
                                 
                                 <!-- Theme Options -->
                                 <StackPanel>
                                     <RadioButton GroupName="Theme" 
                                                Content="Light" 
-                                               IsChecked="{Binding IsLightTheme}"
-                                               Command="{Binding ApplyThemeCommand}"
-                                               CommandParameter="Light"
-                                               Foreground="White"
+                                               IsChecked="{Binding SelectedTheme, Converter={StaticResource ThemeToCheckedConverter}, ConverterParameter=Light}"
+                                               Foreground="{DynamicResource PrimaryTextBrush}"
                                                Margin="0,0,0,12" />
                                     
                                     <RadioButton GroupName="Theme" 
                                                Content="Dark" 
-                                               IsChecked="{Binding IsDarkTheme}"
-                                               Command="{Binding ApplyThemeCommand}"
-                                               CommandParameter="Dark"
-                                               Foreground="White"
+                                               IsChecked="{Binding SelectedTheme, Converter={StaticResource ThemeToCheckedConverter}, ConverterParameter=Dark}"
+                                               Foreground="{DynamicResource PrimaryTextBrush}"
                                                Margin="0,0,0,12" />
                                     
                                     <RadioButton GroupName="Theme" 
                                                Content="System (Use Windows theme)" 
-                                               IsChecked="{Binding IsSystemTheme}"
-                                               Command="{Binding ApplyThemeCommand}"
-                                               CommandParameter="System"
-                                               Foreground="White" />
+                                               IsChecked="{Binding SelectedTheme, Converter={StaticResource ThemeToCheckedConverter}, ConverterParameter=System}"
+                                               Foreground="{DynamicResource PrimaryTextBrush}" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
 
                         <!-- Additional Settings Placeholder -->
-                        <Border Background="#10FFFFFF" CornerRadius="8" Padding="20">
+                        <Border Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Padding="20">
                             <StackPanel>
-                                <TextBlock Text="About" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,12" />
-                                <TextBlock Text="Felix Tray App" Foreground="#B0FFFFFF" Margin="0,0,0,4" />
-                                <TextBlock Text="Version 1.0.0" Foreground="#B0FFFFFF" Margin="0,0,0,4" />
-                                <TextBlock Text="Agent management and monitoring" Foreground="#B0FFFFFF" />
+                                <TextBlock Text="About" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,12" />
+                                <TextBlock Text="Felix Tray App" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4" />
+                                <TextBlock Text="Version 1.0.0" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4" />
+                                <TextBlock Text="Agent management and monitoring" Foreground="{DynamicResource SecondaryTextBrush}" />
                             </StackPanel>
                         </Border>
                         

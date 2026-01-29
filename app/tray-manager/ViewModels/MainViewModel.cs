@@ -72,6 +72,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSystemTheme = false;
 
+    partial void OnSelectedThemeChanged(string value)
+    {
+        ApplyTheme(value);
+    }
+
     public MainViewModel()
     {
         _storageService = new AgentStorageService();
@@ -550,24 +555,48 @@ public partial class MainViewModel : ObservableObject
         settings.Theme = theme;
         windowSettingsService.SaveSettings(settings);
 
-        // Apply theme to application
-        Wpf.Ui.Appearance.ApplicationTheme themeToApply;
+        // Swap theme resource dictionaries
+        SwapThemeResourceDictionary(theme);
+        
+        // Apply WPF-UI theme for controls
+        Wpf.Ui.Appearance.ApplicationTheme wpfUiTheme;
         
         if (theme == "System")
         {
             var systemTheme = Wpf.Ui.Appearance.ApplicationThemeManager.GetSystemTheme();
-            themeToApply = systemTheme == Wpf.Ui.Appearance.SystemTheme.Light 
+            wpfUiTheme = systemTheme == Wpf.Ui.Appearance.SystemTheme.Light 
                 ? Wpf.Ui.Appearance.ApplicationTheme.Light 
                 : Wpf.Ui.Appearance.ApplicationTheme.Dark;
         }
         else
         {
-            themeToApply = theme == "Light" 
+            wpfUiTheme = theme == "Light" 
                 ? Wpf.Ui.Appearance.ApplicationTheme.Light 
                 : Wpf.Ui.Appearance.ApplicationTheme.Dark;
         }
         
-        Wpf.Ui.Appearance.ApplicationThemeManager.Apply(themeToApply);
+        Wpf.Ui.Appearance.ApplicationThemeManager.Apply(wpfUiTheme);
+    }
+    
+    private void SwapThemeResourceDictionary(string theme)
+    {
+        var dictionaries = System.Windows.Application.Current.Resources.MergedDictionaries;
+        
+        // Remove old theme dictionary
+        var oldTheme = dictionaries.FirstOrDefault(d => 
+            d.Source?.OriginalString.Contains("/Themes/") == true);
+        if (oldTheme != null)
+        {
+            dictionaries.Remove(oldTheme);
+        }
+        
+        // Determine which theme to load
+        var themeFile = theme == "Light" ? "LightTheme.xaml" : "DarkTheme.xaml";
+        
+        // Add new theme dictionary
+        var themeUri = new Uri($"pack://application:,,,/Themes/{themeFile}", UriKind.Absolute);
+        var newTheme = new System.Windows.ResourceDictionary { Source = themeUri };
+        dictionaries.Add(newTheme);
     }
 
     partial void OnSelectedRunChanged(RunHistoryItem? value)

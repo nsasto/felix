@@ -10,11 +10,11 @@ none
 false
 TRACE;DEBUG;NET;NET8_0;NETCOREAPP
 C:\projects\roboza\felix\app\tray-manager\App.xaml
-1-1644662438
+31804215517
 
-9-810440188
+10-1519799031
 214752954495
-Views\MainWindow.xaml;
+Themes\DarkTheme.xaml;Themes\LightTheme.xaml;Views\MainWindow.xaml;
 
 False
 

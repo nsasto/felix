@@ -29,3 +29,5 @@ C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\r
 C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\ICSharpCode.AvalonEdit.dll
 C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\MdXaml.dll
 C:\projects\roboza\felix\app\tray-manager\bin\Debug\net8.0-windows10.0.22621.0\MdXaml.Plugins.dll
+C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\Themes\DarkTheme.baml
+C:\projects\roboza\felix\app\tray-manager\obj\Debug\net8.0-windows10.0.22621.0\Themes\LightTheme.baml
