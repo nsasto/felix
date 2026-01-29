@@ -954,6 +954,503 @@ catch {
     exit 1
 }
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Plugin System Infrastructure
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Global plugin state
+$script:PluginCache = @{}
+$script:PluginCircuitBreaker = @{}
+
+# Permission constants
+$script:PluginPermissions = @{
+    "read:specs"       = @{ Description = "Read spec files from specs/" }
+    "read:state"       = @{ Description = "Read felix/state.json and felix/requirements.json" }
+    "read:runs"        = @{ Description = "Read run artifacts from runs/" }
+    "write:runs"       = @{ Description = "Write to run artifacts in runs/" }
+    "write:logs"       = @{ Description = "Write to log files" }
+    "execute:commands" = @{ Description = "Execute external commands" }
+    "network:http"     = @{ Description = "Make HTTP requests" }
+    "git:read"         = @{ Description = "Read git state" }
+    "git:write"        = @{ Description = "Execute git commands" }
+}
+
+function Initialize-PluginSystem {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$RunId
+    )
+    
+    # Check if plugins are enabled
+    if (-not $Config.plugins -or -not $Config.plugins.enabled) {
+        Write-Verbose "Plugin system disabled"
+        return @{
+            Enabled = $false
+            Plugins = @()
+        }
+    }
+    
+    $pluginDir = $Config.plugins.discovery_path
+    if (-not $pluginDir) {
+        $pluginDir = Join-Path $PSScriptRoot "felix/plugins"
+    }
+    
+    if (-not (Test-Path $pluginDir)) {
+        Write-Verbose "Plugin directory not found: $pluginDir"
+        return @{
+            Enabled = $true
+            Plugins = @()
+        }
+    }
+    
+    # Discover plugins
+    $plugins = @()
+    $disabledPlugins = if ($Config.plugins.disabled) { $Config.plugins.disabled } else { @() }
+    
+    Get-ChildItem $pluginDir -Directory | ForEach-Object {
+        $pluginName = $_.Name
+        $manifestPath = Join-Path $_.FullName "plugin.json"
+        
+        if (-not (Test-Path $manifestPath)) {
+            Write-Warning "Plugin $pluginName missing plugin.json manifest"
+            return
+        }
+        
+        # Skip disabled plugins
+        if ($disabledPlugins -contains $pluginName) {
+            Write-Verbose "Plugin $pluginName is disabled"
+            return
+        }
+        
+        try {
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            
+            # Validate API version compatibility
+            $apiVersion = if ($Config.plugins.api_version) { $Config.plugins.api_version } else { "v1" }
+            if ($manifest.api_version -ne $apiVersion) {
+                Write-Warning "Plugin $pluginName uses API version $($manifest.api_version), expected $apiVersion"
+                return
+            }
+            
+            # Validate Felix version compatibility
+            if ($manifest.felix_version_min) {
+                # Version comparison would go here - simplified for now
+                Write-Verbose "Plugin $pluginName requires Felix >= $($manifest.felix_version_min)"
+            }
+            
+            # Check for circular dependencies (simple check)
+            if ($manifest.requires) {
+                foreach ($dep in $manifest.requires) {
+                    if ($dep -eq $pluginName) {
+                        Write-Warning "Plugin $pluginName has circular dependency on itself"
+                        return
+                    }
+                }
+            }
+            
+            # Check circuit breaker state
+            if ($script:PluginCircuitBreaker[$pluginName]) {
+                $cbState = $script:PluginCircuitBreaker[$pluginName]
+                if ($cbState.Disabled) {
+                    Write-Warning "Plugin $pluginName disabled by circuit breaker (failures: $($cbState.FailureCount))"
+                    return
+                }
+            }
+            
+            $plugins += @{
+                Name        = $pluginName
+                Manifest    = $manifest
+                Path        = $_.FullName
+                Priority    = if ($manifest.priority) { $manifest.priority } else { 100 }
+                Permissions = if ($manifest.permissions) { $manifest.permissions } else { @() }
+                Hooks       = if ($manifest.hooks) { $manifest.hooks } else { @() }
+                Requires    = if ($manifest.requires) { $manifest.requires } else { @() }
+            }
+        }
+        catch {
+            Write-Warning "Failed to load plugin $pluginName: $_"
+        }
+    }
+    
+    # Topological sort for dependency resolution
+    $sorted = @()
+    $visited = @{}
+    $visiting = @{}
+    
+    function Visit-Plugin {
+        param([hashtable]$Plugin)
+        
+        if ($visited[$Plugin.Name]) { return }
+        if ($visiting[$Plugin.Name]) {
+            Write-Warning "Circular dependency detected: $($Plugin.Name)"
+            return
+        }
+        
+        $visiting[$Plugin.Name] = $true
+        
+        foreach ($depName in $Plugin.Requires) {
+            $dep = $plugins | Where-Object { $_.Name -eq $depName } | Select-Object -First 1
+            if ($dep) {
+                Visit-Plugin -Plugin $dep
+            }
+            else {
+                Write-Warning "Plugin $($Plugin.Name) requires missing plugin: $depName"
+            }
+        }
+        
+        $visiting[$Plugin.Name] = $false
+        $visited[$Plugin.Name] = $true
+        $script:sorted += $Plugin
+    }
+    
+    foreach ($plugin in $plugins) {
+        Visit-Plugin -Plugin $plugin
+    }
+    
+    # Sort by priority within dependency order
+    $sorted = $sorted | Sort-Object Priority
+    
+    # Cache plugins
+    $script:PluginCache = @{
+        Enabled    = $true
+        Plugins    = $sorted
+        RunId      = $RunId
+        ApiVersion = if ($Config.plugins.api_version) { $Config.plugins.api_version } else { "v1" }
+        Config     = $Config.plugins
+    }
+    
+    Write-Host "[PLUGINS] Loaded $($sorted.Count) plugins"
+    
+    return $script:PluginCache
+}
+
+function Invoke-PluginHook {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$HookName,
+        
+        [Parameter(Mandatory = $false)]
+        [hashtable]$HookData = @{},
+        
+        [Parameter(Mandatory = $true)]
+        [string]$RunId
+    )
+    
+    if (-not $script:PluginCache.Enabled) {
+        return $HookData
+    }
+    
+    $apiVersion = $script:PluginCache.ApiVersion
+    $applicablePlugins = $script:PluginCache.Plugins | Where-Object {
+        $_.Hooks -contains $HookName
+    }
+    
+    if ($applicablePlugins.Count -eq 0) {
+        return $HookData
+    }
+    
+    Write-Verbose "[PLUGINS] Executing hook: $HookName ($($applicablePlugins.Count) plugins)"
+    
+    $chainData = $HookData
+    $executionLog = @()
+    
+    foreach ($plugin in $applicablePlugins) {
+        try {
+            # Check permissions
+            $hasAllPermissions = $true
+            foreach ($perm in $plugin.Permissions) {
+                if (-not $script:PluginPermissions[$perm]) {
+                    Write-Warning "Plugin $($plugin.Name) requests unknown permission: $perm"
+                    $hasAllPermissions = $false
+                }
+            }
+            
+            if (-not $hasAllPermissions) {
+                Write-Warning "Plugin $($plugin.Name) has invalid permissions, skipping"
+                continue
+            }
+            
+            # Determine hook script name based on API version
+            $hookScript = if ($apiVersion -eq "v2") {
+                Join-Path $plugin.Path "hooks/$HookName.ps1"
+            }
+            else {
+                Join-Path $plugin.Path "on-$($HookName.ToLower()).ps1"
+            }
+            
+            if (-not (Test-Path $hookScript)) {
+                Write-Verbose "Plugin $($plugin.Name) hook script not found: $hookScript"
+                continue
+            }
+            
+            $startTime = Get-Date
+            
+            # Execute hook with chained data
+            $result = & $hookScript -HookData $chainData -RunId $RunId -PluginConfig $plugin.Manifest
+            
+            $duration = (Get-Date) - $startTime
+            
+            # Update chain data with result (if hook returns data)
+            if ($null -ne $result -and $result -is [hashtable]) {
+                $chainData = $result
+            }
+            
+            # Log successful execution
+            $executionLog += @{
+                Plugin   = $plugin.Name
+                Hook     = $HookName
+                Duration = $duration.TotalMilliseconds
+                Success  = $true
+            }
+            
+            # Reset circuit breaker on success
+            if ($script:PluginCircuitBreaker[$plugin.Name]) {
+                $script:PluginCircuitBreaker[$plugin.Name].FailureCount = 0
+            }
+        }
+        catch {
+            Write-Warning "Plugin $($plugin.Name) hook $HookName failed: $_"
+            
+            # Update circuit breaker
+            if (-not $script:PluginCircuitBreaker[$plugin.Name]) {
+                $script:PluginCircuitBreaker[$plugin.Name] = @{
+                    FailureCount = 0
+                    Disabled     = $false
+                }
+            }
+            
+            $cbState = $script:PluginCircuitBreaker[$plugin.Name]
+            $cbState.FailureCount++
+            
+            $maxFailures = if ($script:PluginCache.Config.circuit_breaker_max_failures) {
+                $script:PluginCache.Config.circuit_breaker_max_failures
+            }
+            else { 3 }
+            
+            if ($cbState.FailureCount -ge $maxFailures) {
+                $cbState.Disabled = $true
+                Write-Warning "Plugin $($plugin.Name) disabled by circuit breaker after $($cbState.FailureCount) failures"
+            }
+            
+            $executionLog += @{
+                Plugin   = $plugin.Name
+                Hook     = $HookName
+                Success  = $false
+                Error    = $_.ToString()
+            }
+        }
+    }
+    
+    # Save execution log for debugging
+    $logDir = Join-Path $RunsDir $RunId
+    if (Test-Path $logDir) {
+        $chainLogPath = Join-Path $logDir "plugin-chain-debug.json"
+        $existingLog = if (Test-Path $chainLogPath) {
+            Get-Content $chainLogPath -Raw | ConvertFrom-Json
+        }
+        else { @() }
+        
+        $existingLog += @{
+            Hook      = $HookName
+            Timestamp = Get-Date -Format "o"
+            Plugins   = $executionLog
+        }
+        
+        $existingLog | ConvertTo-Json -Depth 10 | Set-Content $chainLogPath
+    }
+    
+    return $chainData
+}
+
+function Get-PluginPersistentState {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PluginName,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$Key
+    )
+    
+    $statePath = Join-Path $PSScriptRoot "felix/plugins/$PluginName/persistent-state.json"
+    
+    if (-not (Test-Path $statePath)) {
+        return $null
+    }
+    
+    try {
+        $state = Get-Content $statePath -Raw | ConvertFrom-Json
+        
+        if ($Key) {
+            return $state.$Key
+        }
+        
+        return $state
+    }
+    catch {
+        Write-Warning "Failed to read persistent state for plugin $PluginName: $_"
+        return $null
+    }
+}
+
+function Set-PluginPersistentState {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PluginName,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+        
+        [Parameter(Mandatory = $true)]
+        $Value
+    )
+    
+    $stateDir = Join-Path $PSScriptRoot "felix/plugins/$PluginName"
+    $statePath = Join-Path $stateDir "persistent-state.json"
+    
+    if (-not (Test-Path $stateDir)) {
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+    }
+    
+    try {
+        # File locking for concurrent access
+        $state = if (Test-Path $statePath) {
+            Get-Content $statePath -Raw | ConvertFrom-Json
+        }
+        else {
+            @{}
+        }
+        
+        # Update state
+        if ($state -is [PSCustomObject]) {
+            $state | Add-Member -MemberType NoteProperty -Name $Key -Value $Value -Force
+        }
+        else {
+            $state[$Key] = $Value
+        }
+        
+        $state | ConvertTo-Json -Depth 10 | Set-Content $statePath
+    }
+    catch {
+        Write-Warning "Failed to write persistent state for plugin $PluginName: $_"
+    }
+}
+
+function Get-PluginTransientState {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PluginName,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$RunId,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$Key
+    )
+    
+    $statePath = Join-Path $RunsDir "$RunId/plugin-state-$PluginName.json"
+    
+    if (-not (Test-Path $statePath)) {
+        return $null
+    }
+    
+    try {
+        $state = Get-Content $statePath -Raw | ConvertFrom-Json
+        
+        if ($Key) {
+            return $state.$Key
+        }
+        
+        return $state
+    }
+    catch {
+        Write-Warning "Failed to read transient state for plugin $PluginName: $_"
+        return $null
+    }
+}
+
+function Set-PluginTransientState {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PluginName,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$RunId,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+        
+        [Parameter(Mandatory = $true)]
+        $Value
+    )
+    
+    $runDir = Join-Path $RunsDir $RunId
+    $statePath = Join-Path $runDir "plugin-state-$PluginName.json"
+    
+    if (-not (Test-Path $runDir)) {
+        Write-Warning "Run directory not found: $runDir"
+        return
+    }
+    
+    try {
+        $state = if (Test-Path $statePath) {
+            Get-Content $statePath -Raw | ConvertFrom-Json
+        }
+        else {
+            @{}
+        }
+        
+        if ($state -is [PSCustomObject]) {
+            $state | Add-Member -MemberType NoteProperty -Name $Key -Value $Value -Force
+        }
+        else {
+            $state[$Key] = $Value
+        }
+        
+        $state | ConvertTo-Json -Depth 10 | Set-Content $statePath
+    }
+    catch {
+        Write-Warning "Failed to write transient state for plugin $PluginName: $_"
+    }
+}
+
+function Clear-PluginStateGarbage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [int]$RetentionDays = 7
+    )
+    
+    $cutoffDate = (Get-Date).AddDays(-$RetentionDays)
+    
+    # Clean old transient state from runs/
+    Get-ChildItem $RunsDir -Directory | ForEach-Object {
+        if ($_.LastWriteTime -lt $cutoffDate) {
+            Get-ChildItem $_.FullName -Filter "plugin-state-*.json" | ForEach-Object {
+                Write-Verbose "Removing old plugin state: $($_.FullName)"
+                Remove-Item $_.FullName -Force
+            }
+            
+            Get-ChildItem $_.FullName -Filter "plugin-chain-debug.json" | ForEach-Object {
+                Write-Verbose "Removing old plugin chain log: $($_.FullName)"
+                Remove-Item $_.FullName -Force
+            }
+        }
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# End Plugin System Infrastructure
+# ═══════════════════════════════════════════════════════════════════════════
+
 Write-Host "Max iterations: $maxIterations"
 Write-Host ""
 
@@ -1093,6 +1590,18 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host "=============================================================" -ForegroundColor Cyan
     Write-Host ""
     
+    # Hook: OnPostModeSelection
+    $hookResult = Invoke-PluginHook -HookName "OnPostModeSelection" -RunId $runId -HookData @{
+        Mode = $mode
+        CurrentRequirement = $currentReq
+        PlanPath = if ($latestPlanPath) { $latestPlanPath } else { "" }
+    }
+    
+    if ($hookResult.OverrideMode) {
+        Write-Host "[PLUGINS] Mode overridden: $($mode) -> $($hookResult.OverrideMode) ($($hookResult.Reason))"
+        $mode = $hookResult.OverrideMode
+    }
+    
     # Update state
     $state.current_iteration = $iteration
     $state.last_mode = $mode
@@ -1104,6 +1613,19 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $runId = Get-Date -Format "yyyy-MM-ddTHH-mm-ss"
     $runDir = Join-Path $RunsDir $runId
     New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+    
+    # Hook: OnPreIteration
+    $hookResult = Invoke-PluginHook -HookName "OnPreIteration" -RunId $runId -HookData @{
+        Iteration = $iteration
+        MaxIterations = $maxIterations
+        CurrentRequirement = $currentReq
+        State = $state
+    }
+    
+    if ($hookResult.ContinueIteration -eq $false) {
+        Write-Host "[PLUGINS] Iteration skipped: $($hookResult.Reason)"
+        break
+    }
     
     # Load prompt template
     $promptFile = Join-Path $PromptsDir "$mode.md"
@@ -1232,6 +1754,21 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $context = $contextParts -join "`n`n---`n`n"
     $fullPrompt = "$promptTemplate`n`n---`n`n# Project Context`n`n$context"
     
+    # Hook: OnContextGathering
+    $gitDiff = if (Test-Path (Join-Path $ProjectPath ".git")) { git diff 2>$null } else { "" }
+    $hookResult = Invoke-PluginHook -HookName "OnContextGathering" -RunId $runId -HookData @{
+        Mode = $mode
+        CurrentRequirement = $currentReq
+        GitDiff = $gitDiff
+        PlanContent = if ($mode -eq "building" -and $planContent) { $planContent } else { "" }
+        ContextFiles = [System.Collections.ArrayList]@($contextParts)
+    }
+    
+    if ($hookResult.AdditionalContext) {
+        Write-Verbose "[PLUGINS] Adding additional context from plugins"
+        $fullPrompt += "`n`n---`n`n# Plugin Context`n`n$($hookResult.AdditionalContext)"
+    }
+    
     # Write requirement ID
     Set-Content (Join-Path $runDir "requirement_id.txt") $currentReq.id
     
@@ -1250,6 +1787,24 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $executable = $agentConfig.executable
     $args = $agentConfig.args
     Write-Host "Calling $executable $($args -join ' ')...`n"
+    
+    # Hook: OnPreLLM
+    $hookResult = Invoke-PluginHook -HookName "OnPreLLM" -RunId $runId -HookData @{
+        Mode = $mode
+        CurrentRequirement = $currentReq
+        PromptFile = $promptFile
+        FullPrompt = $fullPrompt
+    }
+    
+    if ($hookResult.SkipLLM) {
+        Write-Host "[PLUGINS] LLM execution skipped: $($hookResult.Reason)"
+        continue
+    }
+    
+    if ($hookResult.ModifiedPrompt) {
+        Write-Verbose "[PLUGINS] Using modified prompt from plugin"
+        $fullPrompt = $hookResult.ModifiedPrompt
+    }
     
     $droidSuccess = $false
     $droidError = $null
@@ -1298,6 +1853,18 @@ $_
     
     # Write output log
     Set-Content (Join-Path $runDir "output.log") $output -Encoding UTF8
+    
+    # Hook: OnPostLLM
+    $hookResult = Invoke-PluginHook -HookName "OnPostLLM" -RunId $runId -HookData @{
+        Mode = $mode
+        CurrentRequirement = $currentReq
+        ExitCode = if ($droidSuccess) { 0 } else { 1 }
+        OutputPath = Join-Path $runDir "output.log"
+    }
+    
+    if (-not $hookResult.Success) {
+        Write-Warning "[PLUGINS] Post-LLM hook reported failure: $($hookResult.ErrorMessage)"
+    }
     
     # ====================================================================
     # Planning Mode Guardrail Enforcement
@@ -1375,12 +1942,24 @@ $outputText
         Write-Host ""
         Write-Host "[TASK DONE] Task completed"
         
-        # Run backpressure validation BEFORE committing
-        $backpressureResult = Invoke-BackpressureValidation `
-            -WorkingDir $ProjectPath `
-            -AgentsFilePath $AgentsFile `
-            -Config $config `
-            -RunDir $runDir
+        # Hook: OnPreBackpressure
+        $hookResult = Invoke-PluginHook -HookName "OnPreBackpressure" -RunId $runId -HookData @{
+            CurrentRequirement = $currentReq
+            Commands = [System.Collections.ArrayList]@()
+        }
+        
+        if ($hookResult.SkipBackpressure) {
+            Write-Host "[PLUGINS] Backpressure skipped: $($hookResult.Reason)"
+            $backpressureResult = @{ skipped = $true; success = $true }
+        }
+        else {
+            # Run backpressure validation BEFORE committing
+            $backpressureResult = Invoke-BackpressureValidation `
+                -WorkingDir $ProjectPath `
+                -AgentsFilePath $AgentsFile `
+                -Config $config `
+                -RunDir $runDir
+        }
         
         if (-not $backpressureResult.skipped -and -not $backpressureResult.success) {
             # Backpressure failed - do NOT commit, mark task as blocked
@@ -1404,6 +1983,17 @@ $outputText
             $retryCount = 1
             if ($state.blocked_task -and $state.blocked_task.description -eq $blockedTaskDesc) {
                 $retryCount = $state.blocked_task.retry_count + 1
+            }
+            
+            # Hook: OnBackpressureFailed
+            $hookResult = Invoke-PluginHook -HookName "OnBackpressureFailed" -RunId $runId -HookData @{
+                CurrentRequirement = $currentReq
+                ValidationResult = $backpressureResult
+                RetryCount = $retryCount
+            }
+            
+            if ($hookResult.ShouldRetry -and $hookResult.SuggestedFix) {
+                Write-Host "[PLUGINS] Retry suggested: $($hookResult.Reason)"
             }
             
             # Get max retries from config (default to 3)
@@ -1545,6 +2135,25 @@ Fix the validation issues to unblock progress.
             
             # Commit changes
             $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
+            
+            # Hook: OnPreCommit
+            $stagedFiles = git diff --cached --name-only 2>&1
+            $hookResult = Invoke-PluginHook -HookName "OnPreCommit" -RunId $runId -HookData @{
+                CurrentRequirement = $currentReq
+                CommitMessage = $commitMsg
+                StagedFiles = [System.Collections.ArrayList]@($stagedFiles -split "`n" | Where-Object { $_ })
+            }
+            
+            if ($hookResult.SkipCommit) {
+                Write-Host "[PLUGINS] Commit skipped: $($hookResult.Reason)"
+                continue
+            }
+            
+            if ($hookResult.ModifiedCommitMessage) {
+                $commitMsg = $hookResult.ModifiedCommitMessage
+                Write-Verbose "[PLUGINS] Using modified commit message"
+            }
+            
             $commitOutput = git commit -m $commitMsg 2>&1
             
             if ($LASTEXITCODE -eq 0) {
@@ -1758,6 +2367,20 @@ Fix the validation issues to unblock progress.
     $state.last_iteration_outcome = "success"
     $state.updated_at = Get-Date -Format "o"
     $state | ConvertTo-Json | Set-Content $StateFile
+    
+    # Hook: OnPostIteration
+    $hookResult = Invoke-PluginHook -HookName "OnPostIteration" -RunId $runId -HookData @{
+        Iteration = $iteration
+        MaxIterations = $maxIterations
+        CurrentRequirement = $currentReq
+        Outcome = $state.last_iteration_outcome
+        State = $state
+    }
+    
+    if (-not $hookResult.ShouldContinue) {
+        Write-Host "[PLUGINS] Stopping iterations: $($hookResult.Reason)"
+        break
+    }
     
     Write-Host ""
     Write-Host "Iteration $iteration complete. Continuing..."

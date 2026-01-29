@@ -1,0 +1,19 @@
+{
+  "name": "metrics-collector",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "description": "Collects execution metrics for Felix agent performance analysis",
+  "author": "Felix Team",
+  "permissions": [
+    "read:state",
+    "read:runs",
+    "write:runs"
+  ],
+  "hooks": [
+    "OnPreIteration",
+    "OnPostLLM",
+    "OnPostIteration"
+  ],
+  "priority": 50,
+  "felix_version_min": "0.1.0"
+}
