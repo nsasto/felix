@@ -208,7 +208,7 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
 
   // Full mode - card display
   return (
-    <div className="bg-[#161b22] border border-slate-800/60 rounded-2xl overflow-hidden relative">
+    <div className="theme-bg-elevated border theme-border rounded-2xl overflow-hidden relative">
       {/* Notifications overlay */}
       {notifications.length > 0 && (
         <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 max-w-xs">
@@ -270,8 +270,8 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
       <div className="px-6 py-6">
         <div className="grid grid-cols-2 gap-6">
           {/* Status */}
-          <div className="bg-[#0d1117]/50 rounded-xl p-4 border border-slate-800/40">
-            <span className="text-[9px] font-mono text-slate-600 uppercase block mb-2">
+          <div className="theme-bg-base/50 rounded-xl p-4 border theme-border-subtle">
+            <span className="text-[9px] font-mono theme-text-muted uppercase block mb-2">
               Status
             </span>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${statusInfo.bg} w-fit`}>
@@ -283,8 +283,8 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
           </div>
 
           {/* Mode */}
-          <div className="bg-[#0d1117]/50 rounded-xl p-4 border border-slate-800/40">
-            <span className="text-[9px] font-mono text-slate-600 uppercase block mb-2">
+          <div className="theme-bg-base/50 rounded-xl p-4 border theme-border-subtle">
+            <span className="text-[9px] font-mono theme-text-muted uppercase block mb-2">
               Mode
             </span>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${modeInfo.bg} w-fit`}>
@@ -296,16 +296,16 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
           </div>
 
           {/* Iteration */}
-          <div className="bg-[#0d1117]/50 rounded-xl p-4 border border-slate-800/40">
-            <span className="text-[9px] font-mono text-slate-600 uppercase block mb-2">
+          <div className="theme-bg-base/50 rounded-xl p-4 border theme-border-subtle">
+            <span className="text-[9px] font-mono theme-text-muted uppercase block mb-2">
               Current Iteration
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-200">
+              <span className="text-3xl font-bold theme-text-primary">
                 {state?.current_iteration ?? 0}
               </span>
               {state?.status === 'running' && (
-                <span className="text-[10px] font-mono text-slate-500 animate-pulse">
+                <span className="text-[10px] font-mono theme-text-muted animate-pulse">
                   active
                 </span>
               )}
@@ -313,11 +313,11 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
           </div>
 
           {/* Requirement */}
-          <div className="bg-[#0d1117]/50 rounded-xl p-4 border border-slate-800/40">
-            <span className="text-[9px] font-mono text-slate-600 uppercase block mb-2">
+          <div className="theme-bg-base/50 rounded-xl p-4 border theme-border-subtle">
+            <span className="text-[9px] font-mono theme-text-muted uppercase block mb-2">
               Current Requirement
             </span>
-            <span className="text-sm font-mono text-slate-300">
+            <span className="text-sm font-mono theme-text-secondary">
               {state?.current_requirement_id || '—'}
             </span>
           </div>
@@ -325,8 +325,8 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
 
         {/* Last outcome */}
         {state?.last_iteration_outcome && (
-          <div className="mt-4 bg-[#0d1117]/50 rounded-xl p-4 border border-slate-800/40">
-            <span className="text-[9px] font-mono text-slate-600 uppercase block mb-2">
+          <div className="mt-4 theme-bg-base/50 rounded-xl p-4 border theme-border-subtle">
+            <span className="text-[9px] font-mono theme-text-muted uppercase block mb-2">
               Last Iteration Outcome
             </span>
             <span className={`text-xs font-mono px-2 py-1 rounded ${
@@ -345,11 +345,11 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
 
         {/* Last run ID */}
         {state?.last_run_id && (
-          <div className="mt-4 bg-[#0d1117]/50 rounded-xl p-4 border border-slate-800/40">
-            <span className="text-[9px] font-mono text-slate-600 uppercase block mb-2">
+          <div className="mt-4 theme-bg-base/50 rounded-xl p-4 border theme-border-subtle">
+            <span className="text-[9px] font-mono theme-text-muted uppercase block mb-2">
               Last Run ID
             </span>
-            <span className="text-xs font-mono text-slate-400 truncate block">
+            <span className="text-xs font-mono theme-text-tertiary truncate block">
               {state.last_run_id}
             </span>
           </div>
@@ -357,7 +357,7 @@ const RunMonitor: React.FC<RunMonitorProps> = ({
 
         {/* Updated at */}
         {state?.updated_at && (
-          <div className="mt-4 text-[10px] font-mono text-slate-600 text-right">
+          <div className="mt-4 text-[10px] font-mono theme-text-muted text-right">
             Last updated: {new Date(state.updated_at).toLocaleTimeString()}
           </div>
         )}

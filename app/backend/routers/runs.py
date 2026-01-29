@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/projects", tags=["runs"])
 
 class RunStatus(str, Enum):
     """Status of an agent run"""
+
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -41,14 +42,14 @@ class AgentProcessInfo(BaseModel):
     started_at: datetime = Field(default_factory=datetime.now)
     project_path: str
     process: Optional[subprocess.Popen] = None  # Actual process object for monitoring
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class RunHistoryEntry(BaseModel):
     """A completed or historical run entry"""
-    
+
     run_id: str
     project_id: str
     pid: int
@@ -58,6 +59,8 @@ class RunHistoryEntry(BaseModel):
     exit_code: Optional[int] = None
     project_path: str
     error_message: Optional[str] = None
+    requirement_id: Optional[str] = None
+    agent_name: Optional[str] = None
 
 
 # In-memory store for running agent processes
@@ -96,7 +99,7 @@ class RunStatusResponse(BaseModel):
 
 class RunHistoryResponse(BaseModel):
     """Response for run history list"""
-    
+
     project_id: str
     runs: List[RunHistoryEntry]
     total: int
@@ -104,14 +107,14 @@ class RunHistoryResponse(BaseModel):
 
 class RunDetailResponse(BaseModel):
     """Detailed response for a specific run"""
-    
+
     run: RunHistoryEntry
     artifacts: List[str] = []  # List of available artifact files
 
 
 class RunArtifactContent(BaseModel):
     """Response for run artifact content"""
-    
+
     run_id: str
     filename: str
     content: str
@@ -144,14 +147,19 @@ def _add_to_history(entry: RunHistoryEntry):
     if project_id not in _run_history:
         _run_history[project_id] = []
     _run_history[project_id].append(entry)
-    
+
     # Keep only last 100 runs per project to prevent memory bloat
     if len(_run_history[project_id]) > 100:
         _run_history[project_id] = _run_history[project_id][-100:]
 
 
-def _update_run_status(run_id: str, project_id: str, status: RunStatus, 
-                       exit_code: Optional[int] = None, error_message: Optional[str] = None):
+def _update_run_status(
+    run_id: str,
+    project_id: str,
+    status: RunStatus,
+    exit_code: Optional[int] = None,
+    error_message: Optional[str] = None,
+):
     """Update the status of a run in history"""
     if project_id in _run_history:
         for entry in _run_history[project_id]:
@@ -167,16 +175,16 @@ def _check_and_update_agent_status(project_id: str):
     """Check if a running agent has completed and update its status"""
     if project_id not in _running_agents:
         return
-    
+
     info = _running_agents[project_id]
-    
+
     # Check if process has completed
     if info.process is not None:
         exit_code = info.process.poll()
         if exit_code is not None:
             # Process has completed
             status = RunStatus.COMPLETED if exit_code == 0 else RunStatus.FAILED
-            
+
             # Find and update the run in history
             if project_id in _run_history:
                 for entry in reversed(_run_history[project_id]):
@@ -185,7 +193,7 @@ def _check_and_update_agent_status(project_id: str):
                         entry.ended_at = datetime.now()
                         entry.exit_code = exit_code
                         break
-            
+
             # Remove from running agents
             del _running_agents[project_id]
 
@@ -209,7 +217,7 @@ def _cleanup_dead_agents():
                             break
                 dead_projects.append(project_id)
                 continue
-        
+
         # Fallback to PID check
         if not _is_process_running(info.pid):
             # Process died without proper exit code capture
@@ -362,7 +370,7 @@ async def get_agent_status(project_id: str):
                 if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
                     run_id = entry.run_id
                     break
-        
+
         return RunStatusResponse(
             project_id=project_id,
             running=True,
@@ -377,7 +385,7 @@ async def get_agent_status(project_id: str):
 
 class RunStopResponse(BaseModel):
     """Response from stopping an agent run"""
-    
+
     message: str
     project_id: str
     run_id: Optional[str] = None
@@ -389,29 +397,29 @@ class RunStopResponse(BaseModel):
 async def stop_agent_run(project_id: str):
     """
     Stop a running Felix agent for the specified project.
-    
+
     Sends a termination signal to the agent process and updates run history.
     Returns 404 if no agent is running for this project.
     """
     import signal
-    
+
     # Clean up any dead agents first
     _cleanup_dead_agents()
-    
+
     # Check if project exists
     project = storage.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    
+
     # Check if agent is running for this project
     if project_id not in _running_agents:
         raise HTTPException(
             status_code=404,
             detail=f"No agent running for project {project_id}",
         )
-    
+
     info = _running_agents[project_id]
-    
+
     # Verify process is still running
     if not _is_process_running(info.pid):
         # Process already dead, clean up
@@ -420,7 +428,7 @@ async def stop_agent_run(project_id: str):
             status_code=404,
             detail=f"Agent process already terminated for project {project_id}",
         )
-    
+
     # Find the run_id from history
     run_id = None
     if project_id in _run_history:
@@ -428,7 +436,7 @@ async def stop_agent_run(project_id: str):
             if entry.pid == info.pid and entry.status == RunStatus.RUNNING:
                 run_id = entry.run_id
                 break
-    
+
     try:
         # Terminate the process
         if info.process is not None:
@@ -447,17 +455,18 @@ async def stop_agent_run(project_id: str):
                 subprocess.run(
                     ["taskkill", "/F", "/PID", str(info.pid)],
                     capture_output=True,
-                    timeout=10
+                    timeout=10,
                 )
             else:
                 # On Unix, send SIGTERM first, then SIGKILL if needed
                 os.kill(info.pid, signal.SIGTERM)
                 # Give it a moment
                 import time
+
                 time.sleep(1)
                 if _is_process_running(info.pid):
                     os.kill(info.pid, signal.SIGKILL)
-        
+
         # Update run history
         if project_id in _run_history:
             for entry in reversed(_run_history[project_id]):
@@ -466,10 +475,10 @@ async def stop_agent_run(project_id: str):
                     entry.ended_at = datetime.now()
                     entry.error_message = "Agent stopped by user"
                     break
-        
+
         # Remove from running agents
         del _running_agents[project_id]
-        
+
         return RunStopResponse(
             message=f"Agent stopped for project {project.name}",
             project_id=project_id,
@@ -477,7 +486,7 @@ async def stop_agent_run(project_id: str):
             pid=info.pid,
             status=RunStatus.STOPPED,
         )
-        
+
     except Exception as e:
         # Even on error, try to clean up
         if project_id in _running_agents:
@@ -489,12 +498,27 @@ async def stop_agent_run(project_id: str):
 
 
 @router.get("/{project_id}/runs", response_model=RunHistoryResponse)
-async def get_run_history(project_id: str):
+async def get_run_history(
+    project_id: str,
+    requirement_id: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
     """
     Get the run history for a project.
-    
+
     Returns a list of all runs (running, completed, failed, stopped) in reverse chronological order.
-    History is ephemeral and kept in memory - not persisted across server restarts.
+    Scans the runs/ directory on disk to populate history from past runs.
+
+    Args:
+        project_id: The project ID
+        requirement_id: Optional requirement ID to filter runs (e.g., "S-0011")
+        agent_name: Optional agent name to filter runs
+        status: Optional comma-separated list of statuses to filter (completed,failed,blocked,running,stopped)
+        start_date: Optional start date filter (ISO format YYYY-MM-DD)
+        end_date: Optional end date filter (ISO format YYYY-MM-DD)
     """
     # Clean up any dead agents first
     _cleanup_dead_agents()
@@ -504,10 +528,139 @@ async def get_run_history(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
 
-    runs = _run_history.get(project_id, [])
+    # Start with in-memory history
+    runs = _run_history.get(project_id, []).copy()
+
+    # Scan runs/ directory on disk to find historical runs not in memory
+    project_path = Path(project.path)
+    runs_dir = project_path / "runs"
+
+    if runs_dir.exists():
+        # Get run IDs already in memory to avoid duplicates
+        existing_run_ids = {r.run_id for r in runs}
+
+        # Scan run directories
+        for run_dir in runs_dir.iterdir():
+            if not run_dir.is_dir():
+                continue
+
+            run_id = run_dir.name
+
+            # Skip if already in memory
+            if run_id in existing_run_ids:
+                continue
+
+            # Try to parse timestamp from directory name (format: YYYY-MM-DDTHH-MM-SS)
+            try:
+                # Parse timestamp from directory name
+                timestamp_str = run_id.replace("T", " ").replace("-", ":")
+                # Adjust for the date part (keep dashes in date)
+                parts = run_id.split("T")
+                if len(parts) == 2:
+                    date_part = parts[0]  # YYYY-MM-DD
+                    time_part = parts[1].replace("-", ":")  # HH:MM:SS
+                    timestamp_str = f"{date_part} {time_part}"
+                    started_at = datetime.fromisoformat(timestamp_str)
+                else:
+                    # Fallback to directory modification time
+                    started_at = datetime.fromtimestamp(run_dir.stat().st_mtime)
+            except Exception:
+                # If parsing fails, use directory modification time
+                started_at = datetime.fromtimestamp(run_dir.stat().st_mtime)
+
+            # Determine status based on artifacts
+            status = RunStatus.COMPLETED
+            exit_code = None
+            ended_at = None
+            error_message = None
+
+            # Check for output.log to determine if run completed
+            output_log = run_dir / "output.log"
+            if output_log.exists():
+                try:
+                    # Try to determine status from log
+                    log_content = output_log.read_text(
+                        encoding="utf-8", errors="ignore"
+                    )
+                    if "FAILED" in log_content or "ERROR" in log_content:
+                        status = RunStatus.FAILED
+                    ended_at = datetime.fromtimestamp(output_log.stat().st_mtime)
+                except Exception:
+                    pass
+
+            # Read requirement_id.txt if it exists
+            run_requirement_id = None
+            requirement_id_file = run_dir / "requirement_id.txt"
+            if requirement_id_file.exists():
+                try:
+                    run_requirement_id = requirement_id_file.read_text(
+                        encoding="utf-8"
+                    ).strip()
+                except Exception:
+                    pass
+
+            # Read agent_name.txt if it exists
+            run_agent_name = None
+            agent_name_file = run_dir / "agent_name.txt"
+            if agent_name_file.exists():
+                try:
+                    run_agent_name = agent_name_file.read_text(
+                        encoding="utf-8"
+                    ).strip()
+                except Exception:
+                    pass
+
+            # Create historical entry
+            history_entry = RunHistoryEntry(
+                run_id=run_id,
+                project_id=project_id,
+                pid=0,  # Unknown PID for historical runs
+                status=status,
+                started_at=started_at,
+                ended_at=ended_at,
+                exit_code=exit_code,
+                project_path=str(project_path),
+                error_message=error_message,
+                requirement_id=run_requirement_id,
+                agent_name=run_agent_name,
+            )
+            runs.append(history_entry)
+
     # Return in reverse chronological order (newest first)
     runs_sorted = sorted(runs, key=lambda r: r.started_at, reverse=True)
-    
+
+    # Filter by requirement_id if provided
+    if requirement_id:
+        runs_sorted = [r for r in runs_sorted if r.requirement_id == requirement_id]
+
+    # Filter by agent_name if provided
+    if agent_name:
+        runs_sorted = [r for r in runs_sorted if r.agent_name == agent_name]
+
+    # Filter by status if provided (comma-separated list)
+    if status:
+        status_list = [s.strip().lower() for s in status.split(",")]
+        runs_sorted = [r for r in runs_sorted if r.status.value.lower() in status_list]
+
+    # Filter by date range if provided
+    if start_date:
+        try:
+            start_dt = datetime.fromisoformat(start_date)
+            # Include the whole start day
+            start_dt = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            runs_sorted = [r for r in runs_sorted if r.started_at >= start_dt]
+        except ValueError:
+            pass  # Ignore invalid date format
+
+    if end_date:
+        try:
+            end_dt = datetime.fromisoformat(end_date)
+            # Include the whole end day
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+            runs_sorted = [r for r in runs_sorted if r.started_at <= end_dt]
+        except ValueError:
+            pass  # Ignore invalid date format
+
     return RunHistoryResponse(
         project_id=project_id,
         runs=runs_sorted,
@@ -519,7 +672,7 @@ async def get_run_history(project_id: str):
 async def get_run_detail(project_id: str, run_id: str):
     """
     Get detailed information about a specific run, including available artifacts.
-    
+
     Artifacts are read from the runs/ directory in the project.
     """
     # Check if project exists
@@ -534,10 +687,10 @@ async def get_run_detail(project_id: str, run_id: str):
             if entry.run_id == run_id:
                 run_entry = entry
                 break
-    
+
     if not run_entry:
         raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
-    
+
     # Scan for artifacts in the project's runs directory
     artifacts = []
     runs_dir = Path(project.path) / "runs"
@@ -550,26 +703,29 @@ async def get_run_detail(project_id: str, run_id: str):
                 for artifact_file in run_dir.iterdir():
                     if artifact_file.is_file():
                         artifacts.append(f"{run_dir.name}/{artifact_file.name}")
-    
+
     return RunDetailResponse(
         run=run_entry,
         artifacts=artifacts,
     )
 
 
-@router.get("/{project_id}/runs/{run_id}/artifacts/{filename:path}", response_model=RunArtifactContent)
+@router.get(
+    "/{project_id}/runs/{run_id}/artifacts/{filename:path}",
+    response_model=RunArtifactContent,
+)
 async def get_run_artifact(project_id: str, run_id: str, filename: str):
     """
     Read the content of a specific run artifact file.
-    
+
     Artifacts are files in the runs/<run_id>/ directory such as:
     - report.md: Run report in markdown format
     - output.log: Agent output log
     - plan-<requirement-id>.md: Plan snapshot for the run
     - diff.patch: Changes made during the run
-    
+
     The filename can include subdirectories (e.g., "subdir/file.txt").
-    
+
     Returns 404 if the artifact file doesn't exist.
     Returns 400 for invalid filenames (path traversal attempts).
     """
@@ -577,57 +733,61 @@ async def get_run_artifact(project_id: str, run_id: str, filename: str):
     project = storage.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    
+
     # Validate filename - prevent path traversal
-    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
-        raise HTTPException(status_code=400, detail="Invalid filename: path traversal not allowed")
-    
+    if ".." in filename or filename.startswith("/") or filename.startswith("\\"):
+        raise HTTPException(
+            status_code=400, detail="Invalid filename: path traversal not allowed"
+        )
+
     # Normalize path separators
-    filename = filename.replace('\\', '/')
-    
+    filename = filename.replace("\\", "/")
+
     project_path = Path(project.path)
     runs_dir = project_path / "runs"
-    
+
     if not runs_dir.exists():
-        raise HTTPException(status_code=404, detail="No runs directory found in project")
-    
+        raise HTTPException(
+            status_code=404, detail="No runs directory found in project"
+        )
+
     # Build path to artifact
     # run_id is typically a timestamp like "2026-01-25T17-03-59"
     artifact_path = runs_dir / run_id / filename
-    
+
     # Ensure the path is still within runs directory (extra security check)
     try:
         artifact_path = artifact_path.resolve()
         runs_dir_resolved = runs_dir.resolve()
         if not str(artifact_path).startswith(str(runs_dir_resolved)):
-            raise HTTPException(status_code=400, detail="Invalid path: outside runs directory")
+            raise HTTPException(
+                status_code=400, detail="Invalid path: outside runs directory"
+            )
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid path")
-    
+
     if not artifact_path.exists():
         raise HTTPException(
-            status_code=404, 
-            detail=f"Artifact not found: {run_id}/{filename}"
+            status_code=404, detail=f"Artifact not found: {run_id}/{filename}"
         )
-    
+
     if not artifact_path.is_file():
         raise HTTPException(status_code=400, detail="Path is not a file")
-    
+
     try:
-        content = artifact_path.read_text(encoding='utf-8')
+        content = artifact_path.read_text(encoding="utf-8")
         return RunArtifactContent(
-            run_id=run_id,
-            filename=filename,
-            content=content,
-            size=len(content)
+            run_id=run_id, filename=filename, content=content, size=len(content)
         )
     except UnicodeDecodeError:
         raise HTTPException(
-            status_code=400, 
-            detail="Cannot read file: not a text file or invalid encoding"
+            status_code=400,
+            detail="Cannot read file: not a text file or invalid encoding",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read artifact: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read artifact: {str(e)}"
+        )
 
 
 # Expose the running agents dict for cleanup during shutdown

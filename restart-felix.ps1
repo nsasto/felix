@@ -73,10 +73,10 @@ $projectRoot = $PSScriptRoot
 Write-Host "`n  → Starting Backend (http://localhost:8080)..." -ForegroundColor Cyan
 $backendPath = Join-Path $projectRoot "app\backend"
 
-Start-Process pwsh -ArgumentList @(
+Start-Process powershell -ArgumentList @(
     '-NoExit',
     '-Command',
-    "Set-Location '$backendPath'; Write-Host '=== Felix Backend ===' -ForegroundColor Cyan; python main.py"
+    "Set-Location '$backendPath'; Write-Host '=== Felix Backend ===' -ForegroundColor Cyan; if (Test-Path .venv\Scripts\Activate.ps1) { & .\.venv\Scripts\Activate.ps1 }; python main.py"
 )
 
 # Wait for backend to initialize
@@ -86,7 +86,7 @@ Start-Sleep -Seconds 3
 Write-Host "  → Starting Frontend (http://localhost:3000)..." -ForegroundColor Cyan
 $frontendPath = Join-Path $projectRoot "app\frontend"
 
-Start-Process pwsh -ArgumentList @(
+Start-Process powershell -ArgumentList @(
     '-NoExit',
     '-Command',
     "Set-Location '$frontendPath'; Write-Host '=== Felix Frontend ===' -ForegroundColor Cyan; npm run dev"

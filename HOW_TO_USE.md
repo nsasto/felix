@@ -89,6 +89,54 @@ Each has one job.
 
 ---
 
+## First-time setup
+
+Before running Felix, set up the development environment:
+
+```powershell
+.\scripts\setup-dev-environment.ps1
+```
+
+This will:
+
+- Create Python virtual environment in `app/backend/.venv`
+- Install all Python dependencies including pytest
+- Create `tests/` directory if missing
+- Install frontend npm dependencies
+- Verify toolchain (Python, Node.js, npm)
+
+You only need to run this once. The test scripts will auto-setup if you skip this step.
+
+## Prerequisites
+
+Recommended tools and minimum versions for a smooth experience on Windows:
+
+- **PowerShell**: PowerShell 7+ (or Windows PowerShell with execution policy set appropriately)
+- **Python**: 3.10+
+- **Node.js**: 16+ and **npm**
+- **Git**: CLI installed and on PATH
+
+If your environment uses a non-standard Python executable, set the path in `felix/config.json` under the `python.executable` key so scripts like `validate-requirement.py` can be invoked reliably.
+
+### Quick setup (one-liner)
+
+Run the auto-setup which creates a venv and installs dependencies:
+
+```powershell
+.\scripts\setup-dev-environment.ps1
+```
+
+If the script fails, see the Troubleshooting section below.
+
+### Troubleshooting (Windows)
+
+- If virtualenv creation fails: run PowerShell as Administrator and ensure ExecutionPolicy allows script execution: `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`.
+- If Node/npm commands fail: ensure Node is installed and restart your shell so PATH updates take effect.
+- If ports are already in use (backend/frontend): identify and stop the process or change the port in the respective start command.
+- If `py -3` is not present, use `python` or provide the full Python executable path in `felix/config.json`.
+
+---
+
 ## `specs/` – requirements content
 
 This directory contains **requirements**, not plans.
@@ -214,6 +262,32 @@ Those live in Markdown.
 ```
 
 Keep this boring and stable. JSON grows painful when it tries to express nuance.
+
+### Requirement status values
+
+- **draft** - Initial state, not ready for work
+- **planned** - Ready to be worked on
+- **in_progress** - Currently being worked on
+- **complete** - Finished and validated
+- **blocked** - Cannot proceed due to validation or backpressure failures
+
+### Handling blocked requirements
+
+When a requirement becomes blocked (either from repeated validation failures or backpressure test failures), Felix automatically marks it as "blocked" in `requirements.json` and moves to the next requirement.
+
+**Why requirements get blocked:**
+
+- **Validation failures**: After retrying validation (default: 2 attempts), the requirement is blocked if validation criteria still fail
+- **Backpressure failures**: After max retries (default: 3 attempts), the requirement is blocked if tests/lint/build continue to fail
+
+**Unblocking a requirement:**
+
+1. **Diagnose the issue**: Check the run logs in `runs/<run-id>/` and look for validation or backpressure failure messages
+2. **Fix the root cause**: Correct the code, tests, or validation criteria as needed
+3. **Manually reset status**: Edit `felix/requirements.json` and change the requirement's status from `"blocked"` to `"planned"`
+4. **Restart Felix**: The agent will pick up the unblocked requirement on the next run
+
+Blocked requirements are intentionally manual - this prevents the agent from repeatedly attempting impossible tasks and allows independent requirements to proceed.
 
 ---
 
@@ -409,55 +483,75 @@ Felix exits after one iteration.
 
 ### Autonomous operation (default)
 
-**Felix agent runs autonomously through all tasks:**
+**Felix runs autonomously through all requirements:**
 
-**Option A: Via UI**
+#### Multi-Requirement Mode (Recommended)
 
-1. Open Felix UI (http://localhost:3000)
-2. Select project or register new one
-3. Click "Start Run"
-4. Backend spawns agent process for that project
-5. Agent runs to completion
-6. UI shows real-time progress via WebSocket
+Use `felix-loop.ps1` to process multiple requirements sequentially:
 
-**Option B: Via CLI (Pure Ralph)**
+```powershell
+# Process all planned requirements until none remain
+.\felix-loop.ps1 C:\path\to\project
 
-1. Navigate to project: `cd my-todo-app`
-2. Run agent: `felix run` (or `felix-agent .`)
-3. Agent runs to completion
-4. No UI needed - pure command line
+# Process up to 5 requirements then stop
+.\felix-loop.ps1 C:\path\to\project -MaxRequirements 5
+```
+
+**What the loop does:**
+
+- Selects next available requirement (in_progress → planned)
+- Spawns fresh felix-agent.ps1 process for that requirement
+- Handles completion: marks complete and moves to next
+- Handles blocking: marks blocked and moves to next
+- Continues until all requirements processed or max limit reached
+- Each requirement gets fresh context (true Ralph style)
+
+#### Single-Requirement Mode
+
+Use `felix-agent.ps1` directly to work on one requirement:
+
+```powershell
+# Work on specific requirement
+.\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+
+# Work on first available requirement (in_progress or planned)
+.\felix-agent.ps1 C:\path\to\project
+```
 
 **What the agent does:**
 
-- Starts in planning mode if no plan exists
-- Generates implementation plan
-- **Automatically transitions to building mode**
-- Iterates continuously through tasks:
-  - Picks next task
-  - Implements
-  - Validates
-  - Updates status
-  - Commits
-  - Repeats
-- Returns to planning mode if plan becomes stale
-- Transitions back to building after replanning
-- Stops when all requirements complete or all tasks blocked
+- Generates implementation plan (if needed)
+- Iterates continuously through tasks
+- Validates with backpressure (tests/build/lint)
+- Marks requirement complete or blocked
+- Exits when complete, blocked, or max iterations reached
 
-**Mode transitions are automatic.** Start the agent once, it plans and builds until done.
+#### Via UI (Future)
 
-You can start the agent and walk away. State persists on disk. Progress is visible through commits and `felix/state.json`.
+When the backend is running:
+
+1. Open Felix UI (http://localhost:3000)
+2. Select project
+3. Click "Start Run" to spawn felix-loop
+4. UI shows real-time progress via WebSocket
+
+**Mode transitions are automatic.** The agent plans and builds until done.
+
+You can start the loop and walk away. State persists on disk. Progress is visible through commits and `felix/requirements.json`.
 
 ### Manual operation (optional)
 
 For tighter control or debugging:
 
-1. Run Felix with single-iteration flag
-2. One task executes
-3. Felix exits
-4. Review changes
-5. Repeat manually
+```powershell
+# Single requirement, single iteration
+.\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
 
-Most production runs use autonomous mode. Manual mode is for development and troubleshooting.
+# Review changes, then run again for next iteration
+.\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+```
+
+Most production runs use `felix-loop.ps1`. Manual mode is for development and troubleshooting.
 
 ---
 

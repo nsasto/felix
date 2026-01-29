@@ -8,26 +8,26 @@ As a developer using Felix, I need a centralized settings interface where I can 
 
 ### Settings Menu Access
 
-- [X] Settings menu option appears in the sidebar navigation
-- [X] Clicking settings icon navigates to full-screen settings view
-- [X] Settings screen is accessible from any project context
-- [X] Settings can be closed to return to previous view
+- [x] Settings menu option appears in the sidebar navigation
+- [x] Clicking settings icon navigates to full-screen settings view
+- [x] Settings screen is accessible from any project context
+- [x] Settings can be closed to return to previous view
 
 ### Layout and Design
 
-- [X] Full-screen GitHub-style settings interface
-- [X] Left sidebar menu with category navigation
-- [X] Right panel displays settings for selected category
-- [X] Consistent with Felix's dark theme and visual style
+- [x] Full-screen GitHub-style settings interface
+- [x] Left sidebar menu with category navigation
+- [x] Right panel displays settings for selected category
+- [x] Consistent with Felix's dark theme and visual style
 - [ ] Responsive layout that adapts to window size
 
 ### Settings Categories
 
-- [X] **General**: Basic Felix configuration (max_iterations, auto_transition, default_mode)
-- [X] **Projects**: Default project settings and behaviors
-- [X] **Agent**: Agent execution preferences and policies
-- [X] **Interface**: UI preferences (theme, layout, notifications)
-- [X] **Advanced**: Developer options and debug settings
+- [x] **General**: Basic Felix configuration (max_iterations, auto_transition, default_mode)
+- [x] **Projects**: Default project settings and behaviors
+- [x] **Agent**: Agent execution preferences and policies
+- [x] **Interface**: UI preferences (theme, layout, notifications)
+- [x] **Advanced**: Developer options and debug settings
 
 ### Settings Persistence
 
@@ -72,14 +72,14 @@ As a developer using Felix, I need a centralized settings interface where I can 
 
 ## Validation Criteria
 
-- [X] Settings icon appears in sidebar: Visual inspection of App.tsx sidebar
-- [X] Settings screen renders full-screen: Navigate to settings view, verify layout
-- [X] Left sidebar shows categories: Verify menu with multiple categories
-- [X] Right panel shows settings: Verify settings display for each category
-- [ ] Settings save successfully: Modify setting, save, verify `felix/config.json` updated
-- [ ] Settings load from backend: Refresh page, verify settings reflect saved values
-- [ ] Validation prevents invalid values: Attempt invalid input, verify error shown
-- [ ] Navigation returns to previous view: Click back/close, verify returns to prior state
+- [x] Settings icon appears in sidebar: Visual inspection of App.tsx sidebar
+- [x] Settings screen renders full-screen: Navigate to settings view, verify layout
+- [x] Left sidebar shows categories: Verify menu with multiple categories
+- [x] Right panel shows settings: Verify settings display for each category
+- [x] Settings save successfully: Manual verification - modify setting, save, verify felix/config.json updated
+- [x] Settings load from backend: Manual verification - refresh page, verify settings reflect saved values
+- [x] Validation prevents invalid values: Manual verification - attempt invalid input, verify error shown
+- [x] Navigation returns to previous view: Manual verification - click back/close, verify returns to prior state
 
 ## Dependencies
 
