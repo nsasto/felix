@@ -189,6 +189,11 @@ class ConnectionManager:
             event = await self._create_run_event(change_type, path, relative_path, timestamp)
             return [event] if event else []
         
+        # plugin state changes (felix/plugins/)
+        if len(path_parts) >= 2 and path_parts[0] == "felix" and path_parts[1] == "plugins":
+            event = await self._create_plugin_event(change_type, path, relative_path, timestamp)
+            return [event] if event else []
+        
         return []
     
     async def _create_state_event(self, path: Path, timestamp: str, 
@@ -347,6 +352,47 @@ class ConnectionManager:
                 "type": event_type,
                 "timestamp": timestamp,
                 "data": data
+            }
+        
+        return None
+    
+    async def _create_plugin_event(self, change_type: Change, path: Path,
+                                   relative_path: Path, timestamp: str) -> Optional[dict]:
+        """Create event for plugin-related changes"""
+        path_parts = relative_path.parts
+        
+        # felix/plugins/{plugin-name}/persistent-state.json
+        if len(path_parts) == 4 and path_parts[3] == "persistent-state.json":
+            plugin_name = path_parts[2]
+            return {
+                "type": "plugin_state_updated",
+                "timestamp": timestamp,
+                "data": {
+                    "plugin": plugin_name,
+                    "state_type": "persistent"
+                }
+            }
+        
+        # felix/plugins/{plugin-name}/plugin.json (plugin added/updated)
+        if len(path_parts) == 4 and path_parts[3] == "plugin.json":
+            plugin_name = path_parts[2]
+            event_type = "plugin_added" if change_type == Change.added else "plugin_updated"
+            
+            # Try to read manifest for details
+            manifest_data = {}
+            if path.exists():
+                try:
+                    manifest_data = json.loads(path.read_text())
+                except (json.JSONDecodeError, IOError):
+                    pass
+            
+            return {
+                "type": event_type,
+                "timestamp": timestamp,
+                "data": {
+                    "plugin": plugin_name,
+                    "manifest": manifest_data
+                }
             }
         
         return None

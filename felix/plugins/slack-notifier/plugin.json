@@ -1,0 +1,22 @@
+{
+  "name": "slack-notifier",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "description": "Sends Slack notifications on key Felix events",
+  "author": "Felix Team",
+  "permissions": [
+    "read:state",
+    "network:http"
+  ],
+  "hooks": [
+    "OnPostLLM",
+    "OnBackpressureFailed",
+    "OnPostValidation"
+  ],
+  "priority": 200,
+  "config": {
+    "webhook_url": "",
+    "notify_on_success": true,
+    "notify_on_failure": true
+  }
+}

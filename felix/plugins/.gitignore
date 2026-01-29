@@ -1,0 +1,10 @@
+# Ignore persistent state files (generated at runtime)
+*/persistent-state.json
+
+# Ignore backup files
+*.bak
+*.backup
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
