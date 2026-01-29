@@ -370,7 +370,17 @@
       "id": "S-0028",
       "title": "Show Done In Dropzone",
       "spec_path": "specs/S-0028-show-done-in-dropzone.md",
-      "status": "draft",
+      "status": "planned",
+      "priority": "medium",
+      "labels": [],
+      "depends_on": [],
+      "updated_at": "2026-01-29"
+    },
+    {
+      "id": "S-0029",
+      "title": "Connect Live Polling",
+      "spec_path": "specs/S-0029-connect-live-polling.md",
+      "status": "planned",
       "priority": "medium",
       "labels": [],
       "depends_on": [],
