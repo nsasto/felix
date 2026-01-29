@@ -1190,6 +1190,25 @@ if ($RequirementId) {
         Write-Host "ERROR: Requirement $RequirementId not found." -ForegroundColor Red
         exit 1
     }
+    
+    # Check if requirement is already complete
+    if ($currentReq.status -in @("complete", "done")) {
+        Write-Host "Requirement $RequirementId is already $($currentReq.status) - nothing to do." -ForegroundColor Green
+        
+        # Clean up stale state if needed
+        if (Test-Path $StateFile) {
+            $state = Get-Content $StateFile -Raw | ConvertFrom-Json
+            if ($state.current_requirement_id -eq $RequirementId) {
+                Write-Host "[STATE] Clearing stale state for completed requirement $RequirementId" -ForegroundColor Cyan
+                $state.current_requirement_id = $null
+                $state.status = "ready"
+                $state.last_iteration_outcome = "already_complete"
+                $state.updated_at = Get-Date -Format "o"
+                $state | ConvertTo-Json | Set-Content $StateFile
+            }
+        }
+        exit 0
+    }
 }
 else {
     # Find first planned or in_progress requirement
