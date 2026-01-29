@@ -13,11 +13,12 @@ You are operating in **building mode**.
 ## Rules
 
 1. **One task per iteration** - implement ONLY one item, then exit
-2. **Investigate before implementing** - search codebase for existing implementations
-3. **Check for reusable components** - before creating new components, search for existing ones that serve the same purpose. Reuse or extend existing components rather than duplicating functionality. Maintain clean, consistent code by consolidating similar implementations.
-4. **Update plan after implementing** - change `- [ ]` to `- [x]` for completed items
-5. **Update requirements status** - if completing a requirement, set status to `complete`
-6. **Exit cleanly** - output a run report summarizing what was done
+2. **CRITICAL: Backtick Usage** - Only use backticks for actual executable commands (e.g., `pytest`, `npm test`, `curl http://...`). Do NOT use backticks for file paths, URLs, placeholders, configuration values, or localStorage keys. Use **bold** or plain text for those instead.
+3. **Investigate before implementing** - search codebase for existing implementations
+4. **Check for reusable components** - before creating new components, search for existing ones that serve the same purpose. Reuse or extend existing components rather than duplicating functionality. Maintain clean, consistent code by consolidating similar implementations.
+5. **Update plan after implementing** - change `- [ ]` to `- [x]` for completed items
+6. **Update requirements status** - if completing a requirement, set status to `complete`
+7. **Exit cleanly** - output a run report summarizing what was done
 
 ## Test Implementation
 

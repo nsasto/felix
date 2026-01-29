@@ -1,16 +1,21 @@
 #!/usr/bin/env pwsh
 # Felix Loop - Autonomous Multi-Requirement Executor
-# Usage: .\felix-loop.ps1 <ProjectPath> [-MaxRequirements <N>]
+# Usage: .\felix-loop.ps1 <ProjectPath> [-MaxRequirements <N>] [-NoCommit]
 #
 # Continuously selects and processes planned/in_progress requirements
 # until none remain or max requirements limit is reached.
+#
+# Use -NoCommit flag for testing without git commits
 
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectPath,
     
     [Parameter(Mandatory = $false)]
-    [int]$MaxRequirements = 999
+    [int]$MaxRequirements = 999,
+    
+    [Parameter(Mandatory = $false)]
+    [switch]$NoCommit   # Use this flag for testing to prevent git commits
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,7 +74,12 @@ while ($requirementsProcessed -lt $MaxRequirements) {
     Write-Host ""
     
     # Execute felix-agent for this specific requirement
-    & $AgentScript $ProjectPath -RequirementId $nextReq.id
+    if ($NoCommit) {
+        & $AgentScript $ProjectPath -RequirementId $nextReq.id -NoCommit
+    }
+    else {
+        & $AgentScript $ProjectPath -RequirementId $nextReq.id
+    }
     $exitCode = $LASTEXITCODE
     
     Write-Host ""

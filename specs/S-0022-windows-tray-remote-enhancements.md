@@ -127,7 +127,7 @@ As a Windows user of Felix, I need to configure and manage multiple remote Felix
 - [ ] Each agent has unique name auto-generated from computer name
 - [ ] Connection test successfully validates backend endpoint
 - [ ] Connection test shows appropriate error when backend is down
-- [ ] Settings persist correctly to `settings.json`
+- [ ] Settings persist correctly to settings.json
 - [ ] Legacy settings migrate correctly to new agent-based format
 
 ## Technical Notes

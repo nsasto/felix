@@ -3,7 +3,7 @@
  * Handles communication with the Felix backend server.
  */
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = "http://localhost:8080/api";
 
 // --- Types matching backend models ---
 
@@ -60,7 +60,7 @@ export interface RunInfo {
   artifacts: string[];
 }
 
-export type RunStatus = 'running' | 'completed' | 'failed' | 'stopped';
+export type RunStatus = "running" | "completed" | "failed" | "stopped";
 
 export interface RunHistoryEntry {
   run_id: string;
@@ -99,9 +99,11 @@ export interface AgentStatus {
 // --- Agent Registry Types (for S-0013: Agent Settings Registry) ---
 
 export interface AgentEntry {
+  agent_id: number;
+  agent_name: string;
   pid: number;
   hostname: string;
-  status: 'active' | 'inactive' | 'stopped' | 'stale' | 'not-started';
+  status: "active" | "inactive" | "stopped" | "stale" | "not-started";
   current_run_id: string | null;
   started_at: string | null;
   last_heartbeat: string | null;
@@ -109,10 +111,11 @@ export interface AgentEntry {
 }
 
 export interface AgentRegistryResponse {
-  agents: Record<string, AgentEntry>;
+  agents: Record<number, AgentEntry>;
 }
 
 export interface AgentRegistration {
+  agent_id: number;
   agent_name: string;
   pid: number;
   hostname: string;
@@ -120,6 +123,7 @@ export interface AgentRegistration {
 }
 
 export interface AgentStatusResponse {
+  agent_id: number;
   agent_name: string;
   status: string;
   pid: number;
@@ -167,7 +171,7 @@ export interface ExecutorConfig {
 }
 
 export interface AgentConfig {
-  name?: string;  // Agent name identifier (added in S-0013)
+  name?: string; // Agent name identifier (added in S-0013)
   executable: string;
   args: string[];
   working_directory: string;
@@ -188,7 +192,7 @@ export interface BackpressureConfig {
 }
 
 export interface UIConfig {
-  theme: 'dark' | 'light' | 'system';
+  theme: "dark" | "light" | "system";
 }
 
 // --- Copilot Config Types (for S-0016: Felix Copilot Settings) ---
@@ -209,7 +213,7 @@ export interface CopilotFeatures {
 
 export interface CopilotConfig {
   enabled: boolean;
-  provider: 'openai' | 'anthropic' | 'custom';
+  provider: "openai" | "anthropic" | "custom";
   model: string;
   context_sources: CopilotContextSources;
   features: CopilotFeatures;
@@ -312,7 +316,7 @@ export interface MergedAgent {
   working_directory: string;
   environment: Record<string, string>;
   // From runtime registry (or derived status)
-  status: 'not-started' | 'active' | 'stale' | 'inactive' | 'stopped';
+  status: "not-started" | "active" | "stale" | "inactive" | "stopped";
   // Runtime data (optional - only present if agent has been started)
   pid?: number;
   hostname?: string;
@@ -324,11 +328,16 @@ export interface MergedAgent {
 
 // --- Copilot Chat Types (for S-0017: Felix Copilot Chat Assistant) ---
 
-export type AvatarState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+export type AvatarState =
+  | "idle"
+  | "listening"
+  | "thinking"
+  | "speaking"
+  | "error";
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: Date;
 }
@@ -377,6 +386,9 @@ export interface ConfigContent {
 
 // --- API Functions ---
 
+// Copilot API Key localStorage key (for S-0022: Copilot API Key Storage)
+const COPILOT_API_KEY_STORAGE_KEY = "felix_copilot_api_key";
+
 class FelixApiService {
   private baseUrl: string;
 
@@ -386,20 +398,22 @@ class FelixApiService {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options.headers,
       },
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(
+        errorData.detail || `HTTP ${response.status}: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -408,7 +422,7 @@ class FelixApiService {
   // --- Project Endpoints ---
 
   async listProjects(): Promise<Project[]> {
-    return this.request<Project[]>('/projects');
+    return this.request<Project[]>("/projects");
   }
 
   async getProject(projectId: string): Promise<ProjectDetails> {
@@ -416,21 +430,24 @@ class FelixApiService {
   }
 
   async registerProject(request: ProjectRegisterRequest): Promise<Project> {
-    return this.request<Project>('/projects/register', {
-      method: 'POST',
+    return this.request<Project>("/projects/register", {
+      method: "POST",
       body: JSON.stringify(request),
     });
   }
 
   async unregisterProject(projectId: string): Promise<void> {
     await this.request<{ message: string }>(`/projects/${projectId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
-  async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<Project> {
+  async updateProject(
+    projectId: string,
+    request: ProjectUpdateRequest,
+  ): Promise<Project> {
     return this.request<Project>(`/projects/${projectId}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(request),
     });
   }
@@ -441,22 +458,41 @@ class FelixApiService {
     return this.request<SpecFile[]>(`/projects/${projectId}/specs`);
   }
 
-  async getSpec(projectId: string, filename: string): Promise<{ content: string }> {
-    return this.request<{ content: string }>(`/projects/${projectId}/specs/${filename}`);
+  async getSpec(
+    projectId: string,
+    filename: string,
+  ): Promise<{ content: string }> {
+    return this.request<{ content: string }>(
+      `/projects/${projectId}/specs/${filename}`,
+    );
   }
 
-  async updateSpec(projectId: string, filename: string, content: string): Promise<void> {
-    await this.request<{ message: string }>(`/projects/${projectId}/specs/${filename}`, {
-      method: 'PUT',
-      body: JSON.stringify({ content }),
-    });
+  async updateSpec(
+    projectId: string,
+    filename: string,
+    content: string,
+  ): Promise<void> {
+    await this.request<{ message: string }>(
+      `/projects/${projectId}/specs/${filename}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      },
+    );
   }
 
-  async createSpec(projectId: string, filename: string, content: string): Promise<{ filename: string; content: string }> {
-    return this.request<{ filename: string; content: string }>(`/projects/${projectId}/specs`, {
-      method: 'POST',
-      body: JSON.stringify({ filename, content }),
-    });
+  async createSpec(
+    projectId: string,
+    filename: string,
+    content: string,
+  ): Promise<{ filename: string; content: string }> {
+    return this.request<{ filename: string; content: string }>(
+      `/projects/${projectId}/specs`,
+      {
+        method: "POST",
+        body: JSON.stringify({ filename, content }),
+      },
+    );
   }
 
   // --- Plan Endpoints ---
@@ -467,7 +503,7 @@ class FelixApiService {
 
   async updatePlan(projectId: string, content: string): Promise<void> {
     await this.request<{ message: string }>(`/projects/${projectId}/plan`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify({ content }),
     });
   }
@@ -475,14 +511,22 @@ class FelixApiService {
   // --- Requirements Endpoints ---
 
   async getRequirements(projectId: string): Promise<RequirementsData> {
-    return this.request<RequirementsData>(`/projects/${projectId}/requirements`);
+    return this.request<RequirementsData>(
+      `/projects/${projectId}/requirements`,
+    );
   }
 
-  async updateRequirements(projectId: string, requirements: Requirement[]): Promise<RequirementsData> {
-    return this.request<RequirementsData>(`/projects/${projectId}/requirements`, {
-      method: 'PUT',
-      body: JSON.stringify({ requirements }),
-    });
+  async updateRequirements(
+    projectId: string,
+    requirements: Requirement[],
+  ): Promise<RequirementsData> {
+    return this.request<RequirementsData>(
+      `/projects/${projectId}/requirements`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ requirements }),
+      },
+    );
   }
 
   // --- Run Endpoints ---
@@ -495,46 +539,60 @@ class FelixApiService {
       status?: string[];
       startDate?: string;
       endDate?: string;
-    }
+    },
   ): Promise<RunHistoryResponse> {
     const params = new URLSearchParams();
     if (filters?.requirementId) {
-      params.append('requirement_id', filters.requirementId);
+      params.append("requirement_id", filters.requirementId);
     }
     if (filters?.agentName) {
-      params.append('agent_name', filters.agentName);
+      params.append("agent_name", filters.agentName);
     }
     if (filters?.status && filters.status.length > 0) {
-      params.append('status', filters.status.join(','));
+      params.append("status", filters.status.join(","));
     }
     if (filters?.startDate) {
-      params.append('start_date', filters.startDate);
+      params.append("start_date", filters.startDate);
     }
     if (filters?.endDate) {
-      params.append('end_date', filters.endDate);
+      params.append("end_date", filters.endDate);
     }
     const queryString = params.toString();
-    return this.request<RunHistoryResponse>(`/projects/${projectId}/runs${queryString ? `?${queryString}` : ''}`);
+    return this.request<RunHistoryResponse>(
+      `/projects/${projectId}/runs${queryString ? `?${queryString}` : ""}`,
+    );
   }
 
   async startRun(projectId: string): Promise<{ run_id: string; pid: number }> {
-    return this.request<{ run_id: string; pid: number }>(`/projects/${projectId}/runs/start`, {
-      method: 'POST',
-    });
+    return this.request<{ run_id: string; pid: number }>(
+      `/projects/${projectId}/runs/start`,
+      {
+        method: "POST",
+      },
+    );
   }
 
   async stopRun(projectId: string): Promise<void> {
-    await this.request<{ message: string }>(`/projects/${projectId}/runs/stop`, {
-      method: 'POST',
-    });
+    await this.request<{ message: string }>(
+      `/projects/${projectId}/runs/stop`,
+      {
+        method: "POST",
+      },
+    );
   }
 
   async getAgentStatus(projectId: string): Promise<AgentStatus> {
     return this.request<AgentStatus>(`/projects/${projectId}/runs/status`);
   }
 
-  async getRunArtifact(projectId: string, runId: string, filename: string): Promise<RunArtifactContent> {
-    return this.request<RunArtifactContent>(`/projects/${projectId}/runs/${runId}/artifacts/${filename}`);
+  async getRunArtifact(
+    projectId: string,
+    runId: string,
+    filename: string,
+  ): Promise<RunArtifactContent> {
+    return this.request<RunArtifactContent>(
+      `/projects/${projectId}/runs/${runId}/artifacts/${filename}`,
+    );
   }
 
   // --- Config Endpoints ---
@@ -543,65 +601,124 @@ class FelixApiService {
     return this.request<ConfigContent>(`/projects/${projectId}/config`);
   }
 
-  async updateConfig(projectId: string, config: FelixConfig): Promise<ConfigContent> {
+  async updateConfig(
+    projectId: string,
+    config: FelixConfig,
+  ): Promise<ConfigContent> {
     return this.request<ConfigContent>(`/projects/${projectId}/config`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify({ config }),
     });
   }
 
   // --- Requirement Status Endpoints (for S-0006: Spec Edit Safety) ---
 
-  async getRequirementStatus(projectId: string, requirementId: string): Promise<RequirementStatusResponse> {
-    return this.request<RequirementStatusResponse>(`/projects/${projectId}/requirements/${requirementId}/status`);
+  async getRequirementStatus(
+    projectId: string,
+    requirementId: string,
+  ): Promise<RequirementStatusResponse> {
+    return this.request<RequirementStatusResponse>(
+      `/projects/${projectId}/requirements/${requirementId}/status`,
+    );
   }
 
-  async updateRequirementStatus(projectId: string, requirementId: string, status: string): Promise<RequirementStatusResponse> {
-    return this.request<RequirementStatusResponse>(`/projects/${projectId}/requirements/${requirementId}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    });
+  async updateRequirementStatus(
+    projectId: string,
+    requirementId: string,
+    status: string,
+  ): Promise<RequirementStatusResponse> {
+    return this.request<RequirementStatusResponse>(
+      `/projects/${projectId}/requirements/${requirementId}/status`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      },
+    );
   }
 
-  async getPlanInfo(projectId: string, requirementId: string): Promise<PlanInfo> {
-    return this.request<PlanInfo>(`/projects/${projectId}/plans/${requirementId}`);
+  async getPlanInfo(
+    projectId: string,
+    requirementId: string,
+  ): Promise<PlanInfo> {
+    return this.request<PlanInfo>(
+      `/projects/${projectId}/plans/${requirementId}`,
+    );
   }
 
-  async deletePlan(projectId: string, requirementId: string): Promise<PlanDeleteResponse> {
-    return this.request<PlanDeleteResponse>(`/projects/${projectId}/plans/${requirementId}`, {
-      method: 'DELETE',
-    });
+  async deletePlan(
+    projectId: string,
+    requirementId: string,
+  ): Promise<PlanDeleteResponse> {
+    return this.request<PlanDeleteResponse>(
+      `/projects/${projectId}/plans/${requirementId}`,
+      {
+        method: "DELETE",
+      },
+    );
   }
 
   // --- Agent Registry Endpoints (for S-0013: Agent Settings Registry) ---
 
   async getAgents(): Promise<AgentRegistryResponse> {
-    return this.request<AgentRegistryResponse>('/agents');
+    return this.request<AgentRegistryResponse>("/agents");
   }
 
-  async registerAgent(registration: AgentRegistration): Promise<AgentStatusResponse> {
-    return this.request<AgentStatusResponse>('/agents/register', {
-      method: 'POST',
+  async registerAgent(
+    registration: AgentRegistration,
+  ): Promise<AgentStatusResponse> {
+    return this.request<AgentStatusResponse>("/agents/register", {
+      method: "POST",
       body: JSON.stringify(registration),
     });
   }
 
-  async agentHeartbeat(agentName: string, currentRunId?: string): Promise<AgentStatusResponse> {
-    return this.request<AgentStatusResponse>(`/agents/${agentName}/heartbeat`, {
-      method: 'POST',
+  async agentHeartbeat(
+    agentId: number,
+    currentRunId?: string,
+  ): Promise<AgentStatusResponse> {
+    return this.request<AgentStatusResponse>(`/agents/${agentId}/heartbeat`, {
+      method: "POST",
       body: JSON.stringify({ current_run_id: currentRunId || null }),
     });
   }
 
-  async stopAgent(agentName: string, mode: 'graceful' | 'force' = 'graceful'): Promise<{ message: string; agent_name: string; status: string }> {
-    return this.request<{ message: string; agent_name: string; status: string }>(`/agents/${agentName}/stop?mode=${mode}`, {
-      method: 'POST',
+  async stopAgent(
+    agentId: number,
+    mode: "graceful" | "force" = "graceful",
+  ): Promise<{
+    message: string;
+    agent_id: number;
+    agent_name: string;
+    status: string;
+  }> {
+    return this.request<{
+      message: string;
+      agent_id: number;
+      agent_name: string;
+      status: string;
+    }>(`/agents/${agentId}/stop?mode=${mode}`, {
+      method: "POST",
     });
   }
 
-  async startAgentWithRequirement(agentName: string, requirementId: string): Promise<{ message: string; agent_name: string; requirement_id: string; status: string }> {
-    return this.request<{ message: string; agent_name: string; requirement_id: string; status: string }>(`/agents/${agentName}/start`, {
-      method: 'POST',
+  async startAgentWithRequirement(
+    agentId: number,
+    requirementId: string,
+  ): Promise<{
+    message: string;
+    agent_id: number;
+    agent_name: string;
+    requirement_id: string;
+    status: string;
+  }> {
+    return this.request<{
+      message: string;
+      agent_id: number;
+      agent_name: string;
+      requirement_id: string;
+      status: string;
+    }>(`/agents/${agentId}/start`, {
+      method: "POST",
       body: JSON.stringify({ requirement_id: requirementId }),
     });
   }
@@ -614,18 +731,18 @@ class FelixApiService {
    * This is different from getAgents() which returns runtime registry (running/stopped agents).
    */
   async getAgentsConfig(): Promise<AgentConfigsListResponse> {
-    return this.request<AgentConfigsListResponse>('/agents/config');
+    return this.request<AgentConfigsListResponse>("/agents/config");
   }
 
   // --- Global Settings Endpoints (project-independent) ---
 
   async getGlobalConfig(): Promise<ConfigContent> {
-    return this.request<ConfigContent>('/settings');
+    return this.request<ConfigContent>("/settings");
   }
 
   async updateGlobalConfig(config: FelixConfig): Promise<ConfigContent> {
-    return this.request<ConfigContent>('/settings', {
-      method: 'PUT',
+    return this.request<ConfigContent>("/settings", {
+      method: "PUT",
       body: JSON.stringify({ config }),
     });
   }
@@ -633,13 +750,21 @@ class FelixApiService {
   // --- Copilot Endpoints (for S-0016: Felix Copilot Settings) ---
 
   async testCopilotConnection(): Promise<CopilotTestResult> {
-    return this.request<CopilotTestResult>('/copilot/test', {
-      method: 'POST',
+    // Build headers with optional API key from localStorage
+    const headers: Record<string, string> = {};
+    const apiKey = localStorage.getItem(COPILOT_API_KEY_STORAGE_KEY);
+    if (apiKey) {
+      headers["X-Copilot-API-Key"] = apiKey;
+    }
+
+    return this.request<CopilotTestResult>("/copilot/test", {
+      method: "POST",
+      headers,
     });
   }
 
   async getCopilotStatus(): Promise<CopilotStatus> {
-    return this.request<CopilotStatus>('/copilot/status');
+    return this.request<CopilotStatus>("/copilot/status");
   }
 
   // --- Copilot Chat Endpoints (for S-0017: Felix Copilot Chat Assistant) ---
@@ -647,7 +772,7 @@ class FelixApiService {
   /**
    * Stream copilot chat response via Server-Sent Events (SSE).
    * Returns a controller object to manage the stream.
-   * 
+   *
    * @param request - The chat request containing message, history, and optional project path
    * @returns CopilotStreamController for managing the SSE stream
    */
@@ -660,71 +785,92 @@ class FelixApiService {
     // Start the fetch request
     const startStream = async () => {
       try {
+        // Build headers with optional API key from localStorage
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        // Get API key from localStorage and add to headers if present
+        const apiKey = localStorage.getItem(COPILOT_API_KEY_STORAGE_KEY);
+        if (apiKey) {
+          headers["X-Copilot-API-Key"] = apiKey;
+        }
+
         const response = await fetch(`${this.baseUrl}/copilot/chat/stream`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          method: "POST",
+          headers,
           body: JSON.stringify(request),
           signal: abortController?.signal,
         });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+          // Provide clear error message for 401 Unauthorized (missing API key)
+          if (response.status === 401) {
+            throw new Error(
+              errorData.detail ||
+                "API key required. Please add your OpenAI API key in Settings → Copilot.",
+            );
+          }
+          throw new Error(
+            errorData.detail ||
+              `HTTP ${response.status}: ${response.statusText}`,
+          );
         }
 
         const reader = response.body?.getReader();
         if (!reader) {
-          throw new Error('Response body is not readable');
+          throw new Error("Response body is not readable");
         }
 
         const decoder = new TextDecoder();
-        let buffer = '';
+        let buffer = "";
 
         while (true) {
           const { done, value } = await reader.read();
-          
+
           if (done) {
             completeCallback?.();
             break;
           }
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          
+          const lines = buffer.split("\n");
+
           // Keep the last incomplete line in the buffer
-          buffer = lines.pop() || '';
+          buffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            if (line.startsWith("data: ")) {
               try {
                 const data = JSON.parse(line.slice(6)) as CopilotStreamEvent;
                 eventCallback?.(data);
-                
+
                 // Check if stream is done
                 if (data.done) {
                   completeCallback?.();
                   return;
                 }
-                
+
                 // Check for errors
                 if (data.error) {
                   errorCallback?.(new Error(data.error));
                 }
               } catch (parseError) {
                 // Ignore JSON parse errors for malformed lines
-                console.warn('Failed to parse SSE data:', line);
+                console.warn("Failed to parse SSE data:", line);
               }
             }
           }
         }
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           // Stream was cancelled, don't call error callback
           return;
         }
-        errorCallback?.(error instanceof Error ? error : new Error(String(error)));
+        errorCallback?.(
+          error instanceof Error ? error : new Error(String(error)),
+        );
       }
     };
 
@@ -755,23 +901,29 @@ class FelixApiService {
    * Returns the list of agent configurations along with the currently active agent ID.
    */
   async getAgentConfigurations(): Promise<AgentConfigurationsResponse> {
-    return this.request<AgentConfigurationsResponse>('/agent-configs');
+    return this.request<AgentConfigurationsResponse>("/agent-configs");
   }
 
   /**
    * Get a specific agent configuration by ID.
    */
-  async getAgentConfiguration(agentId: number): Promise<AgentConfigurationResponse> {
-    return this.request<AgentConfigurationResponse>(`/agent-configs/${agentId}`);
+  async getAgentConfiguration(
+    agentId: number,
+  ): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>(
+      `/agent-configs/${agentId}`,
+    );
   }
 
   /**
    * Create a new agent configuration.
    * Automatically assigns the next available ID.
    */
-  async createAgentConfiguration(config: AgentConfigurationCreate): Promise<AgentConfigurationResponse> {
-    return this.request<AgentConfigurationResponse>('/agent-configs', {
-      method: 'POST',
+  async createAgentConfiguration(
+    config: AgentConfigurationCreate,
+  ): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>("/agent-configs", {
+      method: "POST",
       body: JSON.stringify(config),
     });
   }
@@ -780,11 +932,17 @@ class FelixApiService {
    * Update an existing agent configuration.
    * All fields are optional - only provided fields are updated.
    */
-  async updateAgentConfiguration(agentId: number, config: AgentConfigurationUpdate): Promise<AgentConfigurationResponse> {
-    return this.request<AgentConfigurationResponse>(`/agent-configs/${agentId}`, {
-      method: 'PUT',
-      body: JSON.stringify(config),
-    });
+  async updateAgentConfiguration(
+    agentId: number,
+    config: AgentConfigurationUpdate,
+  ): Promise<AgentConfigurationResponse> {
+    return this.request<AgentConfigurationResponse>(
+      `/agent-configs/${agentId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(config),
+      },
+    );
   }
 
   /**
@@ -792,10 +950,15 @@ class FelixApiService {
    * Agent ID 0 (system default) cannot be deleted.
    * If deleting the currently active agent, switches to agent ID 0.
    */
-  async deleteAgentConfiguration(agentId: number): Promise<{ status: string; agent_id: number; message: string }> {
-    return this.request<{ status: string; agent_id: number; message: string }>(`/agent-configs/${agentId}`, {
-      method: 'DELETE',
-    });
+  async deleteAgentConfiguration(
+    agentId: number,
+  ): Promise<{ status: string; agent_id: number; message: string }> {
+    return this.request<{ status: string; agent_id: number; message: string }>(
+      `/agent-configs/${agentId}`,
+      {
+        method: "DELETE",
+      },
+    );
   }
 
   /**
@@ -803,8 +966,8 @@ class FelixApiService {
    * Updates config.json to use the specified agent_id.
    */
   async setActiveAgent(agentId: number): Promise<SetActiveAgentResponse> {
-    return this.request<SetActiveAgentResponse>('/agent-configs/active', {
-      method: 'POST',
+    return this.request<SetActiveAgentResponse>("/agent-configs/active", {
+      method: "POST",
       body: JSON.stringify({ agent_id: agentId }),
     });
   }
@@ -815,19 +978,50 @@ class FelixApiService {
    * Falls back to ID 0 if the active ID is invalid.
    */
   async getActiveAgentConfiguration(): Promise<AgentConfigurationResponse> {
-    return this.request<AgentConfigurationResponse>('/agent-configs/active/current');
+    return this.request<AgentConfigurationResponse>(
+      "/agent-configs/active/current",
+    );
   }
 
   // --- Health Check ---
 
-  async healthCheck(): Promise<{ status: string; service: string; version: string }> {
-    const url = this.baseUrl.replace('/api', '/health');
+  async healthCheck(): Promise<{
+    status: string;
+    service: string;
+    version: string;
+  }> {
+    const url = this.baseUrl.replace("/api", "/health");
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Backend not available');
+      throw new Error("Backend not available");
     }
     return response.json();
   }
 }
 
 export const felixApi = new FelixApiService();
+
+// --- Copilot API Key localStorage Functions (for S-0022: Copilot API Key Storage) ---
+
+/**
+ * Store the Copilot API key in localStorage.
+ * @param key - The OpenAI/Anthropic API key to store
+ */
+export function setCopilotApiKey(key: string): void {
+  localStorage.setItem(COPILOT_API_KEY_STORAGE_KEY, key);
+}
+
+/**
+ * Retrieve the Copilot API key from localStorage.
+ * @returns The stored API key, or null if not set
+ */
+export function getCopilotApiKey(): string | null {
+  return localStorage.getItem(COPILOT_API_KEY_STORAGE_KEY);
+}
+
+/**
+ * Remove the Copilot API key from localStorage.
+ */
+export function clearCopilotApiKey(): void {
+  localStorage.removeItem(COPILOT_API_KEY_STORAGE_KEY);
+}
