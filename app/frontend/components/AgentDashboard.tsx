@@ -20,6 +20,7 @@ import {
   IconZap,
   IconLock,
   IconTrash,
+  IconWorkflow,
 } from "./Icons";
 import { marked } from "marked";
 import Ansi from "ansi-to-react";
@@ -1145,18 +1146,10 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
           className="px-4 py-1.5 border-b flex items-center gap-2 flex-shrink-0"
           style={{ borderColor: "var(--border-default)" }}
         >
-          <svg
+          <IconWorkflow
             className="w-4 h-4"
             style={{ color: "var(--text-muted)" }}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
+          />
           <span
             className="text-xs font-bold uppercase tracking-wider"
             style={{ color: "var(--text-tertiary)" }}

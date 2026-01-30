@@ -10,6 +10,7 @@ import {
   IconCpu,
   IconKanban,
   IconPlus,
+  IconPulse,
 } from "./components/Icons";
 import felixLogo from "./img/felix_logo_small.png";
 import felixLogoHammer from "./img/felix_logo_hammer_small.png";
@@ -1321,7 +1322,7 @@ export const executeTask = (taskId: string) => {
             }}
             title="Agent Dashboard"
           >
-            <IconCpu className="w-5 h-5" />
+            <IconPulse className="w-5 h-5" />
             {uiState === "orchestration" && (
               <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
             )}

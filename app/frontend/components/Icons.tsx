@@ -465,3 +465,39 @@ export const IconTrash = ({ className = "w-5 h-5", style }: IconProps) => (
     <line x1="14" y1="11" x2="14" y2="17" />
   </svg>
 );
+
+export const IconPulse = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>
+);
+
+export const IconWorkflow = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
+    <rect x="3" y="3" width="6" height="6" rx="1" />
+    <rect x="15" y="3" width="6" height="6" rx="1" />
+    <rect x="9" y="15" width="6" height="6" rx="1" />
+    <line x1="6" y1="9" x2="6" y2="13" />
+    <line x1="18" y1="9" x2="18" y2="13" />
+    <line x1="6" y1="13" x2="12" y2="15" />
+    <line x1="18" y1="13" x2="12" y2="15" />
+  </svg>
+);
