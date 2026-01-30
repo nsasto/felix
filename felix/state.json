@@ -1,11 +1,27 @@
-{
+﻿{
     "current_requirement_id":  "S-0030",
-    "last_run_id":  "S-0030-20260129-235054-it4",
+    "last_run_id":  "S-0030-20260129-235700-it5",
     "last_mode":  "building",
     "last_iteration_outcome":  "success",
-    "updated_at":  "2026-01-29T23:50:54.7142190+00:00",
-    "current_iteration":  4,
+    "updated_at":  "2026-01-30T00:01:55.3179862+00:00",
+    "current_iteration":  5,
     "status":  "running",
     "validation_retry_count":  0,
-    "blocked_task":  null
+    "blocked_task":  null,
+    "workflow_stage_history":  [
+                                   {
+                                       "timestamp":  "2026-01-30T00:01:24.5272623+00:00",
+                                       "stage":  "execute_llm"
+                                   },
+                                   {
+                                       "timestamp":  "2026-01-30T00:01:38.1328052+00:00",
+                                       "stage":  "process_output"
+                                   },
+                                   {
+                                       "timestamp":  "2026-01-30T00:01:44.8520739+00:00",
+                                       "stage":  "run_backpressure"
+                                   }
+                               ],
+    "current_workflow_stage":  null,
+    "workflow_stage_timestamp":  null
 }
