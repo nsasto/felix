@@ -115,3 +115,78 @@ export const IconZap = ({ className = "w-5 h-5", style }: IconProps) => (
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
   </svg>
 );
+
+// Workflow visualization icons
+
+export const IconTarget = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" />
+  </svg>
+);
+
+export const IconGitBranch = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <line x1="6" y1="3" x2="6" y2="15" />
+    <circle cx="18" cy="6" r="3" />
+    <circle cx="6" cy="18" r="3" />
+    <path d="M18 9a9 9 0 0 1-9 9" />
+  </svg>
+);
+
+export const IconFlask = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M9 3h6" />
+    <path d="M10 3v7.31a2 2 0 0 1-.46 1.27l-5.08 6.35A2 2 0 0 0 6 21h12a2 2 0 0 0 1.54-3.07l-5.08-6.35A2 2 0 0 1 14 10.31V3" />
+  </svg>
+);
+
+export const IconGitCommit = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <circle cx="12" cy="12" r="3" />
+    <line x1="3" y1="12" x2="9" y2="12" />
+    <line x1="15" y1="12" x2="21" y2="12" />
+  </svg>
+);
+
+export const IconBarChart = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <line x1="12" y1="20" x2="12" y2="10" />
+    <line x1="18" y1="20" x2="18" y2="4" />
+    <line x1="6" y1="20" x2="6" y2="16" />
+  </svg>
+);
+
+export const IconFlag = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+    <line x1="4" y1="22" x2="4" y2="15" />
+  </svg>
+);
+
+export const IconShield = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
+
+export const IconCheckSquare = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <polyline points="9 11 12 14 22 4" />
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+);
+
+export const IconFolder = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+export const IconCheckCircle = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
