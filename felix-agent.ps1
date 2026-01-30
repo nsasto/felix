@@ -32,6 +32,8 @@ $env:PYTHONIOENCODING = "utf-8"
 # Resolve project path
 try {
     $ProjectPath = Resolve-Path $ProjectPath -ErrorAction Stop
+    # Store in script scope for Exit-FelixAgent cleanup
+    $script:ProjectPath = $ProjectPath
 }
 catch {
     Write-Host "ERROR: Invalid project path: $ProjectPath" -ForegroundColor Red
@@ -351,6 +353,60 @@ function Resolve-PythonCommand {
     }
     
     throw "Python executable not found. Set felix/config.json -> python.executable (and optional python.args) or install Python."
+}
+
+function Set-WorkflowStage {
+    <#
+    .SYNOPSIS
+    Updates the current workflow stage in state.json for live visualization
+    
+    .DESCRIPTION
+    Calls the set-workflow-stage.ps1 helper script to update:
+    - current_workflow_stage
+    - workflow_stage_timestamp
+    - workflow_stage_history (last 10 entries)
+    
+    This is a wrapper that handles errors silently to not disrupt agent execution.
+    
+    .PARAMETER Stage
+    The workflow stage ID (e.g., "execute_llm", "run_backpressure")
+    
+    .PARAMETER ProjectPath
+    The Felix project path
+    
+    .PARAMETER Clear
+    Optional switch to clear the current stage
+    #>
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$Stage,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+        
+        [Parameter(Mandatory = $false)]
+        [switch]$Clear
+    )
+    
+    $helperScript = Join-Path $ProjectPath "felix\scripts\set-workflow-stage.ps1"
+    
+    # If helper script doesn't exist, silently skip (backwards compatibility)
+    if (-not (Test-Path $helperScript)) {
+        return
+    }
+    
+    try {
+        if ($Clear) {
+            & $helperScript -Clear -ProjectPath $ProjectPath 2>$null | Out-Null
+        }
+        elseif ($Stage) {
+            & $helperScript -Stage $Stage -ProjectPath $ProjectPath 2>$null | Out-Null
+        }
+    }
+    catch {
+        # Silently ignore workflow stage update errors - visualization is non-critical
+        Write-Verbose "[WORKFLOW] Failed to update stage: $_"
+    }
 }
 
 function Invoke-RequirementValidation {
@@ -947,6 +1003,11 @@ function Exit-FelixAgent {
         [int]$ExitCode = 0
     )
     
+    # Clear workflow stage on exit
+    if ($script:ProjectPath) {
+        Set-WorkflowStage -Clear -ProjectPath $script:ProjectPath
+    }
+    
     # Stop heartbeat job
     Stop-HeartbeatJob
     
@@ -1277,6 +1338,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     Write-Host "=============================================================" -ForegroundColor Cyan
     Write-Host " Felix Agent - Iteration $iteration/$maxIterations" -ForegroundColor Cyan
     
+    # Workflow Stage: start_iteration
+    Set-WorkflowStage -Stage "start_iteration" -ProjectPath $ProjectPath
+    
     # --- FIX START: Generate Run ID and Setup Dir immediately ---
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $runId = "$($currentReq.id)-$timestamp-it$iteration"
@@ -1327,6 +1391,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $planContent = $null
     }
 
+    # Workflow Stage: determine_mode
+    Set-WorkflowStage -Stage "determine_mode" -ProjectPath $ProjectPath
+
     # Hook: OnPostModeSelection
     $hookResult = Invoke-PluginHook -HookName "OnPostModeSelection" -RunId $runId -HookData @{
         Mode               = $mode
@@ -1373,6 +1440,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         Exit-FelixAgent -ExitCode 1
     }
     $promptTemplate = Get-Content $promptFile -Raw
+
+    # Workflow Stage: gather_context
+    Set-WorkflowStage -Stage "gather_context" -ProjectPath $ProjectPath
 
     # Gather context
     $contextParts = @()
@@ -1451,6 +1521,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $contextParts += "# Plan Update Path`n`nWhen marking tasks complete, update the plan at: **$planOutputPath**"
     }
 
+    # Workflow Stage: build_prompt
+    Set-WorkflowStage -Stage "build_prompt" -ProjectPath $ProjectPath
+
     # Construct full prompt
     $context = $contextParts -join "`n`n---`n`n"
     $fullPrompt = "$promptTemplate`n`n---`n`n# Project Context`n`n$context"
@@ -1475,6 +1548,9 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
 
     # Capture commit hash before execution to detect agent-created commits
     $beforeCommitHash = git rev-parse HEAD 2>&1
+
+    # Workflow Stage: execute_llm
+    Set-WorkflowStage -Stage "execute_llm" -ProjectPath $ProjectPath
 
     # Execute agent
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
@@ -1511,8 +1587,14 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         Duration = $duration.TotalSeconds
     }
 
+    # Workflow Stage: process_output
+    Set-WorkflowStage -Stage "process_output" -ProjectPath $ProjectPath
+
     # Planning Mode Guardrails
     if ($mode -eq "planning") {
+        # Workflow Stage: check_guardrails (conditional - planning mode only)
+        Set-WorkflowStage -Stage "check_guardrails" -ProjectPath $ProjectPath
+        
         $violations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $beforeState -RunId $runId
         if ($violations.HasViolations) {
             Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $beforeState -Violations $violations
@@ -1568,6 +1650,9 @@ Planning mode is for creating/refining plans only.
         }
     }
 
+    # Workflow Stage: detect_task
+    Set-WorkflowStage -Stage "detect_task" -ProjectPath $ProjectPath
+
     # Process task completion signal
     if ($output -match '\*\*Task Completed:\*\*\s*(.+)') {
         $taskDesc = $matches[1].Trim()
@@ -1586,6 +1671,9 @@ Planning mode is for creating/refining plans only.
             $backpressureResult = @{ skipped = $true; success = $true }
         }
         else {
+            # Workflow Stage: run_backpressure
+            Set-WorkflowStage -Stage "run_backpressure" -ProjectPath $ProjectPath
+            
             # Run backpressure validation BEFORE committing
             $backpressureResult = Invoke-BackpressureValidation `
                 -WorkingDir $ProjectPath `
@@ -1675,6 +1763,9 @@ This task requires manual intervention.
         # Clear blocked status on success
         $state.blocked_task = $null
 
+        # Workflow Stage: commit_changes
+        Set-WorkflowStage -Stage "commit_changes" -ProjectPath $ProjectPath
+
         # Check if agent already committed changes
         $afterCommitHash = git rev-parse HEAD 2>&1
         if ($beforeCommitHash -ne $afterCommitHash) {
@@ -1738,10 +1829,16 @@ This task requires manual intervention.
 
     # All requirements met?
     if ($output -match '<promise>ALL_REQUIREMENTS_MET</promise>') {
+        # Workflow Stage: update_status
+        Set-WorkflowStage -Stage "update_status" -ProjectPath $ProjectPath
+        
         # Check validation logic...
         Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
         Exit-FelixAgent -ExitCode 0
     }
+
+    # Workflow Stage: update_status
+    Set-WorkflowStage -Stage "update_status" -ProjectPath $ProjectPath
 
     # Update state
     $state.last_iteration_outcome = "success"
@@ -1775,6 +1872,9 @@ $output
         Write-Host "[PLUGINS] Stopping iterations: $($hookResult.Reason)"
         break
     }
+
+    # Workflow Stage: iteration_complete
+    Set-WorkflowStage -Stage "iteration_complete" -ProjectPath $ProjectPath
 
     Write-Host ""
     Write-Host "Iteration $iteration complete. Continuing..."
