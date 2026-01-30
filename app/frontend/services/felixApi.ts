@@ -108,6 +108,9 @@ export interface AgentEntry {
   started_at: string | null;
   last_heartbeat: string | null;
   stopped_at: string | null;
+  // Workflow stage fields (S-0030: Agent Workflow Visualization)
+  current_workflow_stage?: string | null;
+  workflow_stage_timestamp?: string | null;
 }
 
 export interface AgentRegistryResponse {

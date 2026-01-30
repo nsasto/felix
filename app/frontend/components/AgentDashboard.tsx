@@ -13,6 +13,8 @@ import { marked } from "marked";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
 import RunCard from "./RunCard";
+import { Group, Panel, Separator } from "react-resizable-panels";
+import WorkflowVisualization from "./WorkflowVisualization";
 
 // --- Types ---
 
@@ -1048,77 +1050,134 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
     );
   }
 
-  // Active console view
+  // Active console view with split layout
   return (
     <div
       className="h-full flex flex-col"
       style={{ backgroundColor: "var(--bg-base)" }}
     >
-      {/* Header */}
-      <div
-        className="px-6 py-4 border-b flex items-center justify-between"
-        style={{
-          borderColor: "var(--border-default)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <IconTerminal className="w-4 h-4 text-felix-400" />
-          <span
-            className="text-xs font-bold"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {selectedAgent.name}
-          </span>
-          {selectedAgent.agent.current_run_id && (
-            <span className="text-[10px] px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
-              {selectedAgent.agent.current_run_id}
-            </span>
-          )}
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setScrollLocked(!scrollLocked)}
-            className={`p-1.5 rounded transition-colors ${scrollLocked ? "bg-felix-500/10 text-felix-400" : ""}`}
-            style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
-            title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
-          >
-            <span>📌</span>
-          </button>
-          <button
-            onClick={handleClear}
-            className="p-1.5 rounded transition-colors"
-            style={{ color: "var(--text-muted)" }}
-            title="Clear console"
-          >
-            <span>🗑️</span>
-          </button>
-        </div>
-      </div>
+      <Group orientation="vertical" className="flex-1">
+        {/* Console Panel - Top ~65% */}
+        <Panel id="console-panel" defaultSize={65} minSize={30}>
+          <div className="h-full flex flex-col">
+            {/* Header */}
+            <div
+              className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0"
+              style={{
+                borderColor: "var(--border-default)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <IconTerminal className="w-4 h-4 text-felix-400" />
+                <span
+                  className="text-xs font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {selectedAgent.name}
+                </span>
+                {selectedAgent.agent.current_run_id && (
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
+                    {selectedAgent.agent.current_run_id}
+                  </span>
+                )}
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setScrollLocked(!scrollLocked)}
+                  className={`p-1.5 rounded transition-colors ${scrollLocked ? "bg-felix-500/10 text-felix-400" : ""}`}
+                  style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
+                  title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
+                >
+                  <span>📌</span>
+                </button>
+                <button
+                  onClick={handleClear}
+                  className="p-1.5 rounded transition-colors"
+                  style={{ color: "var(--text-muted)" }}
+                  title="Clear console"
+                >
+                  <span>🗑️</span>
+                </button>
+              </div>
+            </div>
 
-      {/* Console output */}
-      <div
-        ref={consoleRef}
-        className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console"
-        style={{
-          backgroundColor: "var(--bg-base)",
-          color: "var(--text-secondary)",
-        }}
-      >
-        {consoleOutput ? (
-          <pre className="whitespace-pre-wrap">
-            <Ansi useClasses>{consoleOutput}</Ansi>
-          </pre>
-        ) : (
-          <div
-            className="flex items-center gap-2"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
-            <span>Waiting for output...</span>
+            {/* Console output */}
+            <div
+              ref={consoleRef}
+              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console"
+              style={{
+                backgroundColor: "var(--bg-base)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {consoleOutput ? (
+                <pre className="whitespace-pre-wrap">
+                  <Ansi useClasses>{consoleOutput}</Ansi>
+                </pre>
+              ) : (
+                <div
+                  className="flex items-center gap-2"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
+                  <span>Waiting for output...</span>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </Panel>
+
+        {/* Resizable Divider */}
+        <Separator
+          className="h-2 flex items-center justify-center cursor-row-resize transition-colors hover:bg-felix-500/10"
+          style={{ backgroundColor: "var(--bg-surface)" }}
+        >
+          <div
+            className="w-12 h-1 rounded-full"
+            style={{ backgroundColor: "var(--border-muted)" }}
+          />
+        </Separator>
+
+        {/* Workflow Panel - Bottom ~35% */}
+        <Panel id="workflow-panel" defaultSize={35} minSize={15}>
+          <div className="h-full flex flex-col overflow-hidden">
+            {/* Workflow Header */}
+            <div
+              className="px-6 py-3 border-b flex items-center gap-2 flex-shrink-0"
+              style={{ borderColor: "var(--border-default)" }}
+            >
+              <svg
+                className="w-4 h-4"
+                style={{ color: "var(--text-muted)" }}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              <span
+                className="text-xs font-bold uppercase tracking-wider"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Agent Workflow
+              </span>
+            </div>
+
+            {/* Workflow Visualization */}
+            <div className="flex-1 overflow-auto">
+              <WorkflowVisualization
+                projectId={projectId}
+                currentStage={selectedAgent.agent.current_workflow_stage}
+                isAgentActive={selectedAgent.agent.status === "active"}
+              />
+            </div>
+          </div>
+        </Panel>
+      </Group>
     </div>
   );
 };
@@ -1550,6 +1609,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
           last_heartbeat: runtime.last_heartbeat,
           started_at: runtime.started_at,
           stopped_at: runtime.stopped_at,
+          // Workflow stage fields (S-0030)
+          current_workflow_stage: runtime.current_workflow_stage,
+          workflow_stage_timestamp: runtime.workflow_stage_timestamp,
         };
       });
 
