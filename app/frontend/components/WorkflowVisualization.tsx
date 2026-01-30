@@ -1,5 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { felixApi, WorkflowStage, WorkflowConfigResponse } from "../services/felixApi";
+import {
+  felixApi,
+  WorkflowStage,
+  WorkflowConfigResponse,
+} from "../services/felixApi";
 import {
   IconTarget,
   IconPlay,
@@ -38,28 +42,43 @@ type StageStatus = "active" | "completed" | "failed" | "pending" | "unknown";
  * Maps workflow.json icon names to React icon components.
  * Add new icons here as they're added to Icons.tsx.
  */
-const ICON_MAP: Record<string, React.FC<{ className?: string; style?: React.CSSProperties }>> = {
-  "target": IconTarget,
-  "play": IconPlay,
+const ICON_MAP: Record<
+  string,
+  React.FC<{ className?: string; style?: React.CSSProperties }>
+> = {
+  target: IconTarget,
+  play: IconPlay,
   "git-branch": IconGitBranch,
-  "folder": IconFolder,
+  folder: IconFolder,
   "file-text": IconFileText,
-  "cpu": IconCpu,
+  cpu: IconCpu,
   "file-code": IconFileCode,
-  "shield": IconShield,
+  shield: IconShield,
   "check-square": IconCheckSquare,
-  "flask": IconFlask,
+  flask: IconFlask,
   "git-commit": IconGitCommit,
   "check-circle": IconCheckCircle,
   "bar-chart": IconBarChart,
-  "flag": IconFlag,
+  flag: IconFlag,
 };
 
 /**
  * Default icon when the specified icon is not found in the map
  */
-const DefaultIcon: React.FC<{ className?: string; style?: React.CSSProperties }> = ({ className, style }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+const DefaultIcon: React.FC<{
+  className?: string;
+  style?: React.CSSProperties;
+}> = ({ className, style }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
     <circle cx="12" cy="12" r="10" />
     <path d="M12 16v-4" />
     <path d="M12 8h.01" />
@@ -74,7 +93,7 @@ const StageNode: React.FC<{
   isLast: boolean;
 }> = ({ stage, status, isLast }) => {
   const IconComponent = ICON_MAP[stage.icon] || DefaultIcon;
-  
+
   // Determine styles based on status
   const getNodeStyles = () => {
     switch (status) {
@@ -149,7 +168,7 @@ const StageNode: React.FC<{
             </span>
           )}
         </div>
-        
+
         {/* Node Container */}
         <div
           className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all duration-300 ${styles.animation} ${styles.glow} ${
@@ -172,20 +191,32 @@ const StageNode: React.FC<{
             {/* Status overlay */}
             {status === "completed" && (
               <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
-                <svg className="w-1.5 h-1.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                <svg
+                  className="w-1.5 h-1.5 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
             )}
             {status === "failed" && (
               <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 flex items-center justify-center">
-                <svg className="w-1.5 h-1.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                <svg
+                  className="w-1.5 h-1.5 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                >
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </div>
             )}
           </div>
-          
+
           {/* Stage Name */}
           <span
             className={`text-[9px] font-medium text-center leading-tight ${styles.nameColor}`}
@@ -204,9 +235,10 @@ const StageNode: React.FC<{
           <div
             className="w-3 h-px transition-colors"
             style={{
-              backgroundColor: status === "completed" || status === "active"
-                ? "var(--text-muted)"
-                : "var(--border-muted)",
+              backgroundColor:
+                status === "completed" || status === "active"
+                  ? "var(--text-muted)"
+                  : "var(--border-muted)",
             }}
           />
           <svg
@@ -216,9 +248,10 @@ const StageNode: React.FC<{
             stroke="currentColor"
             strokeWidth="1.5"
             style={{
-              color: status === "completed" || status === "active"
-                ? "var(--text-muted)"
-                : "var(--border-muted)",
+              color:
+                status === "completed" || status === "active"
+                  ? "var(--text-muted)"
+                  : "var(--border-muted)",
             }}
           >
             <path d="M2 1l3 3-3 3" />
@@ -238,7 +271,8 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
   failedStages = [],
   isAgentActive = false,
 }) => {
-  const [workflowConfig, setWorkflowConfig] = useState<WorkflowConfigResponse | null>(null);
+  const [workflowConfig, setWorkflowConfig] =
+    useState<WorkflowConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -252,7 +286,11 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
         setError(null);
       } catch (err) {
         console.error("Failed to load workflow config:", err);
-        setError(err instanceof Error ? err.message : "Failed to load workflow configuration");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load workflow configuration",
+        );
       } finally {
         setLoading(false);
       }
@@ -291,9 +329,11 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
 
     // Check if current stage exists in our config
     if (currentStage) {
-      const currentStageIndex = sortedStages.findIndex(s => s.id === currentStage);
-      const thisStageIndex = sortedStages.findIndex(s => s.id === stage.id);
-      
+      const currentStageIndex = sortedStages.findIndex(
+        (s) => s.id === currentStage,
+      );
+      const thisStageIndex = sortedStages.findIndex((s) => s.id === stage.id);
+
       // If we couldn't find current stage, it's unknown
       if (currentStageIndex === -1) {
         // Current stage is not in config - show warning
@@ -312,7 +352,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
   // Check if current stage is unknown (not in config)
   const isCurrentStageUnknown = useMemo(() => {
     if (!currentStage || !isAgentActive) return false;
-    return !sortedStages.some(s => s.id === currentStage);
+    return !sortedStages.some((s) => s.id === currentStage);
   }, [currentStage, sortedStages, isAgentActive]);
 
   // Loading state
@@ -364,10 +404,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
 
   // Render workflow visualization
   return (
-    <div
-      className="p-3"
-      style={{ backgroundColor: "var(--bg-surface)" }}
-    >
+    <div className="px-4 py-1" style={{ backgroundColor: "var(--bg-base)" }}>
       {/* Unknown stage warning */}
       {isCurrentStageUnknown && currentStage && (
         <div className="mb-2 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20">
@@ -377,17 +414,8 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
         </div>
       )}
 
-      {/* Agent idle message */}
-      {!isAgentActive && (
-        <div className="mb-2 px-2 py-1 rounded" style={{ backgroundColor: "var(--bg-base)" }}>
-          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            Agent idle - workflow inactive
-          </span>
-        </div>
-      )}
-
       {/* Workflow stages - horizontal scrollable */}
-      <div className="overflow-x-auto custom-scrollbar">
+      <div className="overflow-x-auto overflow-y-hidden custom-scrollbar">
         <div className="flex items-center min-w-max pb-1">
           {sortedStages.map((stage, index) => (
             <StageNode
