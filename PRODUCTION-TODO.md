@@ -2,20 +2,25 @@
 
 ## Overview
 
-This document outlines the complete production readiness roadmap for Felix as a SaaS solution. The architecture consists of:
+This document outlines the complete production readiness roadmap for Felix as a SaaS solution using **Supabase** as the backend infrastructure. The architecture consists of:
 
-- **Frontend (React + Vite)**: Cloud-hosted web application
-- **Backend (FastAPI)**: Cloud-hosted API and WebSocket server
+- **Frontend (React + Vite)**: Cloud-hosted web application (Vercel/Netlify)
+- **Backend (FastAPI)**: Lightweight API layer for agent orchestration
+- **Supabase**: Managed PostgreSQL, Auth, Storage, and Realtime
 - **Tray Manager (.NET WPF)**: Desktop application on developer machines
 
 ```mermaid
 graph TB
-    subgraph "Cloud Infrastructure"
-        FE[Frontend<br/>React + Vite]
-        BE[Backend<br/>FastAPI]
-        DB[(Database<br/>PostgreSQL)]
-        CACHE[(Redis Cache)]
-        STORAGE[Object Storage<br/>S3/Azure Blob]
+    subgraph "Cloud - Supabase"
+        SUPA_AUTH[Supabase Auth<br/>OAuth + JWT]
+        SUPA_DB[(Supabase PostgreSQL<br/>with Row-Level Security)]
+        SUPA_STORAGE[Supabase Storage<br/>Artifacts/Logs]
+        SUPA_REALTIME[Supabase Realtime<br/>WebSocket]
+    end
+    
+    subgraph "Cloud - Application"
+        FE[Frontend<br/>React + Vite<br/>Vercel]
+        BE[Backend<br/>FastAPI<br/>Agent Orchestration]
     end
     
     subgraph "Developer Machine"
@@ -25,23 +30,42 @@ graph TB
     end
     
     BROWSER[Web Browser] -->|HTTPS| FE
-    FE -->|REST/WebSocket| BE
-    BE -->|Auth/Data| DB
-    BE -->|Session/Cache| CACHE
-    BE -->|Artifacts/Logs| STORAGE
-    TRAY -->|WSS + Auth| BE
+    FE -->|Supabase JS Client| SUPA_AUTH
+    FE -->|Supabase JS Client| SUPA_DB
+    FE -->|Supabase JS Client| SUPA_REALTIME
+    FE -->|REST API| BE
+    
+    BE -->|Service Role Key| SUPA_DB
+    BE -->|Service Role Key| SUPA_STORAGE
+    
+    TRAY -->|Supabase Auth| SUPA_AUTH
+    TRAY -->|Device Token| BE
     TRAY -->|Manages| LOCAL
     LOCAL -->|R/W| FILES
     
     style FE fill:#e1f5ff
     style BE fill:#e1f5ff
+    style SUPA_AUTH fill:#3ecf8e
+    style SUPA_DB fill:#3ecf8e
+    style SUPA_STORAGE fill:#3ecf8e
+    style SUPA_REALTIME fill:#3ecf8e
     style TRAY fill:#fff4e1
     style LOCAL fill:#fff4e1
 ```
 
+### Why Supabase?
+
+- ✅ **Built-in Authentication**: OAuth providers, JWT, Row-Level Security (RLS)
+- ✅ **Managed PostgreSQL**: Auto-scaling, backups, point-in-time recovery
+- ✅ **Object Storage**: S3-compatible storage with CDN
+- ✅ **Realtime Subscriptions**: WebSocket connections built-in (replaces custom WebSocket implementation)
+- ✅ **Generous Free Tier**: 500MB database, 1GB storage, 2GB bandwidth
+- ✅ **Auto-generated REST API**: Instant CRUD APIs with RLS
+- ✅ **Edge Functions**: Optional serverless functions if needed
+
 ---
 
-## 1. Authentication & Authorization
+## 1. Authentication & Authorization with Supabase
 
 ### 1.1 User Authentication (Frontend & Backend)
 
@@ -49,49 +73,44 @@ graph TB
 
 #### Tasks
 
-- [ ] **Implement OAuth 2.0 / OpenID Connect provider integration**
-  - Support GitHub, Google, Microsoft authentication
-  - Use industry-standard library (e.g., `authlib` for Python)
-  - Store JWT tokens securely in backend
+- [ ] **Set up Supabase project and configure Auth providers**
+  - Enable GitHub, Google, Microsoft OAuth in Supabase dashboard
+  - Configure redirect URLs for production domain
+  - Copy Supabase URL and anon key to frontend environment
   
-- [ ] **Backend authentication middleware**
-  - Create FastAPI dependency for JWT validation
-  - Implement token refresh mechanism
-  - Add rate limiting per user (prevent abuse)
+- [ ] **Frontend Supabase Auth integration**
+  - Install `@supabase/supabase-js` package
+  - Initialize Supabase client with project URL and anon key
+  - Implement login/logout UI using Supabase Auth methods
+  - Add auth state listener and context provider
+  - Session auto-refresh handled by Supabase client
   
-- [ ] **Frontend authentication flow**
-  - Implement login/logout UI
-  - Store auth tokens in httpOnly cookies (not localStorage)
-  - Add auth context provider in React
-  - Implement automatic token refresh
+- [ ] **Backend Supabase integration** (minimal - mostly for agent orchestration)
+  - Install `supabase` Python client
+  - Use service role key for admin operations
+  - Validate JWT tokens from Supabase in FastAPI middleware (optional - can skip if backend only handles agent orchestration)
   
-- [ ] **Session management**
-  - Use Redis for session storage
-  - Implement session timeout (configurable, default 24h)
-  - Add "remember me" functionality
-  
-- [ ] **Multi-tenant data isolation**
-  - Add `tenant_id` or `user_id` to all database tables
-  - Implement row-level security in queries
-  - Ensure WebSocket connections filter by user
+- [ ] **Row-Level Security (RLS) policies**
+  - Enable RLS on all tables in Supabase dashboard
+  - Create policies to ensure users only access their own data
+  - Use `auth.uid()` in RLS policies for automatic filtering
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Frontend
-    participant Backend
-    participant AuthProvider
-    participant Database
+    participant Supabase Auth
+    participant Supabase DB
     
-    User->>Frontend: Click Login
-    Frontend->>AuthProvider: Redirect to OAuth
-    AuthProvider->>Frontend: Return auth code
-    Frontend->>Backend: Exchange code for token
-    Backend->>AuthProvider: Validate auth code
-    AuthProvider->>Backend: User info + token
-    Backend->>Database: Create/update user
-    Backend->>Frontend: Return JWT + refresh token
-    Frontend->>Frontend: Store tokens in httpOnly cookie
+    User->>Frontend: Click "Login with GitHub"
+    Frontend->>Supabase Auth: signInWithOAuth({provider: 'github'})
+    Supabase Auth->>User: Redirect to GitHub
+    User->>Supabase Auth: Approve & redirect back
+    Supabase Auth->>Frontend: Return session with JWT
+    Frontend->>Frontend: Store session in localStorage
+    Frontend->>Supabase DB: Query with user's JWT
+    Supabase DB->>Supabase DB: Apply RLS policies (auth.uid())
+    Supabase DB->>Frontend: Return user-specific data only
 ```
 
 ### 1.2 Tray Application Authentication
@@ -103,159 +122,300 @@ sequenceDiagram
 - [ ] **Device registration flow**
   - Generate unique device ID on first launch
   - Implement device approval workflow in web UI
-  - Store device certificates/tokens in Windows Credential Manager
+**Supabase Approach**: Tray app authenticates using Supabase Auth, then registers device
+
+#### Tasks
+
+- [ ] **Implement Supabase Auth in C# .NET**
+  - Use HTTP client to call Supabase Auth REST API
+  - Implement device code flow or magic link authentication
+  - Store Supabase session tokens in Windows Credential Manager
   
-- [ ] **Device-to-backend authentication**
-  - Implement mutual TLS (mTLS) or API key per device
-  - Add device fingerprinting (machine name, MAC address hash)
-  - Support device revocation from web UI
+- [ ] **Device registration in Supabase**
+  - Create `devices` table in Supabase with RLS
+  - On first launch, register device with user's account
+  - Store device metadata (name, fingerprint, last_seen)
   
-- [ ] **Workspace authorization**
-  - Associate devices with specific workspaces/projects
-  - Implement project-level access control
-  - Allow users to grant/revoke device access to projects
+- [ ] **Device approval workflow**
+  - New devices start as `pending` status
+  - User approves devices in web UI
+  - Tray app polls for approval status
   
-- [ ] **Secure credential storage**
-  - Use Windows Credential Manager for API keys
-  - Encrypt sensitive data at rest
-  - Never store credentials in plain text config files
+- [ ] **Project access control**
+  - Create `project_device_access` junction table
+  - Users grant specific devices access to specific projects
+  - Tray app queries accessible projects via Supabase client
 
 ```csharp
-// Example: Secure credential storage
-using System.Security.Cryptography;
+// Example: Supabase Auth in C#
+using System.Net.Http;
+using System.Text.Json;
 using Windows.Security.Credentials;
 
-public class SecureStorage 
+public class SupabaseAuthService 
 {
-    private const string ResourceName = "FelixTrayApp";
+    private const string SupabaseUrl = "https://your-project.supabase.co";
+    private const string SupabaseAnonKey = "your-anon-key";
+    private readonly HttpClient _httpClient;
     
-    public void StoreDeviceToken(string token) 
+    public SupabaseAuthService() 
     {
-        var vault = new PasswordVault();
-        vault.Add(new PasswordCredential(
-            ResourceName, 
-            "DeviceToken", 
-            token
-        ));
+        _httpClient = new HttpClient();
+        _httpClient.DefaultRequestHeaders.Add("apikey", SupabaseAnonKey);
     }
     
-    public string? GetDeviceToken() 
+    public async Task<string> SignInWithMagicLink(string email) 
     {
-        try 
-        {
-            var vault = new PasswordVault();
-            var cred = vault.Retrieve(ResourceName, "DeviceToken");
-            cred.RetrievePassword();
-            return cred.Password;
-        } 
-        catch { return null; }
+        var payload = new { email };
+        var response = await _httpClient.PostAsJsonAsync(
+            $"{SupabaseUrl}/auth/v1/magiclink", 
+            payload
+        );
+        response.EnsureSuccessStatusCode();
+        return "Check your email for the magic link";
     }
-}
-```
+    Supabase Database Setup
 
----
-
-## 2. Backend Cloud Readiness
-
-### 2.1 Database Migration
+### 2.1 Database Schema & Migration
 
 **Priority**: 🔴 CRITICAL
 
 **Current State**: File-based storage (`~/.felix/projects.json`, `~/.felix/agents.json`)
 
+**Supabase Approach**: Use Supabase dashboard SQL editor or migrations
+
 #### Tasks
 
-- [ ] **Replace file storage with PostgreSQL**
-  - Design schema for projects, users, agents, runs, requirements
-  - Implement database models using SQLAlchemy or similar ORM
-  - Add database migrations (Alembic)
+- [ ] **Create Supabase database schema**
+  - Run SQL migrations in Supabase SQL editor
+  - Users table auto-created by Supabase Auth (`auth.users`)
+  - Create tables for projects, devices, runs, requirements
   
-- [ ] **Multi-tenancy schema**
+- [ ] **Multi-tenancy schema with RLS**
   ```sql
-  CREATE TABLE users (
+  -- Projects table
+  CREATE TABLE public.projects (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      email VARCHAR(255) UNIQUE NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW(),
-      last_login TIMESTAMP
-  );
-  
-  CREATE TABLE projects (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
       name VARCHAR(255) NOT NULL,
       path TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(user_id, name)
   );
   
-  CREATE TABLE devices (
+  -- Enable RLS
+  ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+  
+  -- RLS Policy: Users can only see their own projects
+  CREATE POLICY "Users can view own projects"
+      ON public.projects FOR SELECT
+      USING (auth.uid() = user_id);
+  
+  CREATE POLICY "Users can insert own projects"
+      ON public.projects FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  
+  CREATE POLICY "Users can update own projects"
+      ON public.projects FOR UPDATE
+      USING (auth.uid() = user_id);
+  
+  -- Devices table
+  CREATE TABLE public.devices (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
       device_name VARCHAR(255) NOT NULL,
-      device_token TEXT NOT NULL,
-      fingerprint TEXT,
+      device_fingerprint TEXT,
       approved BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT NOW(),
-      last_seen TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      last_seen TIMESTAMPTZ DEFAULT NOW()
   );
   
-  CREATE TABLE project_access (
+  ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+  
+  CREATE POLICY "Users can view own devices"
+      ON public.devices FOR SELECT
+      USING (auth.uid() = user_id);
+  
+  CREATE POLICY "Users can insert own devices"
+      ON public.devices FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  
+  -- Project access control
+  CREATE TABLE public.project_device_access (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-      device_id UUID REFERENCES devices(id) ON DELETE CASCADE,
-      granted_at TIMESTAMP DEFAULT NOW(),
+      project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+      device_id UUID REFERENCES public.devices(id) ON DELETE CASCADE,
+      granted_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(project_id, device_id)
   );
   
-  CREATE TABLE runs (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-      requirement_id VARCHAR(50),
-      started_at TIMESTAMP DEFAULT NOW(),
-      completed_at TIMESTAMP,
-      status VARCHAR(50),
-      artifacts_url TEXT
-  );
-  ```
-
-- [ ] **Data migration script**
-  - Script to import existing `projects.json` → PostgreSQL
-  - Preserve project IDs and timestamps
+  ALTER TABLE public.project_device_access ENABLE ROW LEVEL SECURITY;
   
-- [ ] **Connection pooling**
-  - Configure SQLAlchemy connection pool
-  - Set appropriate pool size based on expected load
-  - Implement connection retry logic
-
-### 2.2 File Storage (Artifacts & Logs)
+  -- Runs table
+  CREATE TABLE public.runs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+      requirement_id VARCHAR(50),
+      started_at TIMESTAMPTZ DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      status VARCHAR(50),
+      output_log TEXT,
+      diff_patch TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  
+  ALTER TABLE public.runs ENABLE ROW LEVEL SECURITY;
+  
+  CREATE POLICY "Users can view runs for their projects"
+      ON public.runs FOR SELECT
+      USING (
+        Supabase Storage (Artifacts & Logs)
 
 **Priority**: 🔴 CRITICAL
 
 **Current State**: Local filesystem (`runs/`, `specs/`, project files)
 
+**Supabase Approach**: Use Supabase Storage with RLS policies
+
 #### Tasks
 
-- [ ] **Object storage integration**
-  - Integrate AWS S3, Azure Blob Storage, or Google Cloud Storage
-  - Store run artifacts (plans, logs, diffs) in object storage
-  - Generate presigned URLs for secure file access
+- [ ] **Set up Supabase Storage buckets**
+  - Create `project-artifacts` bucket in Supabase dashboard
+  - Enable RLS on the bucket
+  - Configure bucket policies for user-specific access
   
-- [ ] **Project file synchronization**
-  - Implement bidirectional sync between tray app and cloud
-  - Use chunked uploads for large files
-  - Handle conflict resolution (last-write-wins or version history)
+- [ ] **Upload artifacts from tray app & backend**
+  - Use Supabase Storage API to upload run artifacts (plans, logs, diffs)
+  - Organize by path: `{user_id}/{project_id}/runs/{run_id}/{filename}`
+  - Set appropriate content types and caching headers
   
-- [ ] **Artifact cleanup policy**
-  - Implement retention policies (e.g., delete runs > 90 days)
-  - Compress old artifacts
-  - Archive vs. delete options
+- [ ] **Storage RLS policies**
+  - Users can only upload to their own folders
+  - Users can only read their own artifacts
+  - Automatic cleanup via Supabase Storage lifecycle policies
+  
+- [ ] **Frontend access to artifacts**
+  - Generate signed URLs for secure downloads
+  - Display artifacts in web UI
+  - Implement artifact viewer for logs and diffs
 
 ```python
-# Example: S3 artifact storage
-import boto3
-from botocore.exceptions import ClientError
+# Example: Supabase Storage in Python backend
+from supabase import create_client, Client
 
+class SupabaseArtifactStorage:
+    def __init__(self):
+        self.supabase: Client = create_client(
+            supabase_url=os.getenv("SUPABASE_URL"),
+            supabase_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+        self.bucket_name = "project-artifacts"
+    
+    async def upload_run_artifact(
+        self, 
+        user_id: str,
+        project_id: str, 
+        run_id: str, 
+        filename: str, 
+        content: bytes
+    ) -> str:
+        path = f"{user_id}/{project_id}/runs/{run_id}/{filename}"
+        
+        self.supabase.storage.from_(self.bucket_name).upload(
+            path=path,
+            file=content,
+            file_options={"content-type": "text/plain"}
+        )
+        Realtime Updates with Supabase
+
+**Priority**: 🟡 HIGH
+
+**Current State**: Custom WebSocket implementation in FastAPI
+
+**Supabase Approach**: Use Supabase Realtime for database change subscriptions
+
+#### Tasks
+
+- [ ] **Replace custom WebSocket with Supabase Realtime**
+  - Frontend subscribes to database changes using Supabase JS client
+  - Listen to `INSERT`, `UPDATE`, `DELETE` on `runs`, `requirements`, `projects`
+  - RLS policies automatically filter realtime events per user
+  
+- [ ] **Frontend realtime subscription**
+  - Subscribe to project-specific channels
+  - Auto-update UI when runs/requirements change
+  - Handle reconnection automatically (built into Supabase client)
+  
+- [ ] **Optional: Keep FastAPI WebSocket for agent-specific events**
+  - Use Supabase Realtime for database changes
+  - Use FastAPI WebSocket only for live agent output streaming (if needed)
+  - Authenticate WebSocket with Supabase JWT
+
+```typescript
+// Example: Supabase Realtime in React frontend
+import { useEffect } from 'react';
+import { supabase } from './supabaseClient';
+
+function useProjectRuns(projectId: string) {
+  const [runs, setRuns] = useState([]);
+  
+  useEffect(() => {
+    // Initial fetch
+    const fetchRuns = async () => {
+      const { data } = await supabase
+        .from('runs')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('started_at', { ascending: false });
+      
+      setRuns(data || []);
+    };
+    
+    fetchRuns();
+    
+    // Subscribe to realtime changes
+    const subscription = supabase
+      .channel(`project:${projectId}:runs`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'runs',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          console.log('Run updated:', payload);
+          // Update local state
+          if (payload.eventType === 'INSERT') {
+            setRuns((prev) => [payload.new, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setRuns((prev) =>
+              prev.map((run) =>
+                run.id === payload.new.id ? payload.new : run
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [projectId]);
+  
+  return runs;
+}
+```
+
+**Benefits over custom WebSocket:**
+- ✅ No Redis needed for pub/sub
+- ✅ Automatic scaling (managed by Supabase)
+- ✅ RLS filtering built-in
+- ✅ Reconnection handling automatic
+- ✅ Works across multiple frontend instances
 class ArtifactStorage:
     def __init__(self, bucket_name: str):
         self.s3 = boto3.client('s3')
@@ -265,104 +425,115 @@ class ArtifactStorage:
         self, 
         project_id: str, 
         run_id: str, 
-        filename: str, 
-        content: bytes
-    ) -> str:
-        key = f"{project_id}/runs/{run_id}/{filename}"
-        self.s3.put_object(
-            Bucket=self.bucket,
-            Key=key,
-            Body=content,
-            ServerSideEncryption='AES256'
-        )
-        return key
-    
-    async def get_presigned_url(self, key: str, expires_in: int = 3600) -> str:
-        return self.s3.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': self.bucket, 'Key': key},
-            ExpiresIn=expires_in
-        )
-```
-
-### 2.3 WebSocket Scalability
-
-**Priority**: 🟡 HIGH
-
-**Current State**: In-memory connection manager, single-process
-
-#### Tasks
-
-- [ ] **Redis-backed WebSocket pub/sub**
-  - Use Redis for WebSocket message broadcasting across instances
-  - Implement cluster-aware connection manager
-  - Support horizontal scaling with load balancer
-  
-- [ ] **WebSocket authentication**
-  - Validate JWT token on WebSocket handshake
-  - Disconnect on token expiry
-  - Implement per-user connection limits
-  
-- [ ] **Sticky sessions or connection state sharing**
-  - Configure load balancer for WebSocket sticky sessions
-  - OR: Use Redis to store connection state
-
-```python
-# Example: Redis-backed WebSocket manager
-import aioredis
-from fastapi import WebSocket
-
-class ScalableConnectionManager:
-    def __init__(self):
-        self.redis = aioredis.from_url("redis://localhost")
-        self.local_connections: Dict[str, Set[WebSocket]] = {}
-    
-    async def broadcast(self, project_id: str, message: dict):
-        # Publish to Redis for cross-instance delivery
-        await self.redis.publish(
-            f"project:{project_id}", 
-            json.dumps(message)
-        )
-    
-    async def subscribe_to_broadcasts(self):
-        pubsub = self.redis.pubsub()
-        await pubsub.psubscribe("project:*")
-        
-        async for message in pubsub.listen():
-            if message['type'] == 'pmessage':
-                # Forward to local WebSocket connections
-                data = json.loads(message['data'])
-                await self._send_to_local_connections(data)
-```
-
-### 2.4 Environment Configuration
+        filename: str,  with Supabase
 
 **Priority**: 🟡 HIGH
 
 #### Tasks
 
-- [ ] **Environment-based configuration**
-  - Separate configs for dev, staging, production
-  - Use environment variables for secrets
-  - Implement 12-factor app principles
+- [ ] **Supabase project setup**
+  - Create production Supabase project (separate from development)
+  - Copy Supabase URL and keys to environment variables
+  - Configure custom domain for Supabase API (optional)
   
-- [ ] **Secret management**
-  - Integrate AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault
-  - Rotate secrets automatically
-  - Never commit secrets to version control
+- [ ] **Environment variables**
+  - Frontend: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+  - Backend: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+  - Tray app: Fetch Supabase config from backend or config file
   
 - [ ] **CORS configuration**
-  - Update CORS to allow production frontend domain
-  - Remove localhost origins in production
-  - Implement CORS preflight caching
+  - Add production frontend domain to Supabase allowed origins
+  - Supabase handles CORS automatically for configured domains
+  - No need for custom CORS middleware in backend
 
 ```python
-# config.py
+# backend/config.py - Simplified with Supabase
 import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    # Database
+    # Supabase
+    supabase_url: str = os.getenv("SUPABASE_URL")
+    supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    
+    # FastAPI
+    api_host: str = os.getenv("API_HOST", "0.0.0.0")
+    api_port: int = int(os.getenv("API_PORT", "8080"))
+    
+    # Feature flags
+    copilot_enabled: bool = os.getenv("COPILOT_ENABLED", "true").lower() == "true"
+    
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+```
+
+```bash
+# .env.example
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Frontend (for Vite)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+
+# OptionSecurity (Simplified with Supabase)
+
+**Priority**: 🔴 CRITICAL
+
+**Supabase handles most security automatically:**
+- ✅ Rate limiting built-in (configurable in dashboard)
+- ✅ HTTPS/SSL automatic on all Supabase endpoints
+- ✅ Row-Level Security for data isolation
+- ✅ JWT validation automatic
+
+#### Tasks
+
+- [ ] **Configure Supabase rate limiting**
+  - Set rate limits in Supabase dashboard (requests per second)
+  - Default: 100 requests/second on free tier
+  - Upgrade for higher limits
+  
+- [ ] **Backend API security** (for FastAPI endpoints)
+  - Validate Supabase JWT if backend needs auth
+  - Add security headers middleware
+  - Input validation with Pydantic (already in place)
+  
+- [ ] **HTTPS enforcement**
+  - Deploy backend to platform with automatic HTTPS (Render, Railway, Fly.io)
+  - Frontend on Vercel/Netlify has automatic HTTPS
+  - No manual SSL certificate management needed
+  
+- [ ] **API versioning**
+  - Implement `/api/v1/` prefix for backend endpoints
+  - Supabase auto-generated API is already versioned
+
+```python
+# Minimal security middleware for FastAPI
+from fastapi import Request
+from fastapi.middleware.cors import CORSMiddleware
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    return response
+
+# CORS (allow frontend domain)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://felix.yourdomain.com",
+        "http://localhost:3000"  # Development only
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
     database_url: str = os.getenv("DATABASE_URL", "postgresql://...")
     
     # Redis
@@ -441,54 +612,63 @@ async def list_projects(request: Request, user: User = Depends(get_current_user)
     # ... implementation
 ```
 
----
+## 3. Frontend Cloud Readiness (Simplified)
 
-## 3. Frontend Cloud Readiness
-
-### 3.1 Build & Deployment
+### 3.1 Build & Deployment to Vercel/Netlify
 
 **Priority**: 🟡 HIGH
+
+**Recommended**: Deploy to Vercel or Netlify for automatic HTTPS, CDN, and zero-config deployment
 
 #### Tasks
 
 - [ ] **Production build optimization**
   - Configure Vite for production builds
   - Enable code splitting and lazy loading
-  - Optimize bundle size (tree shaking, minification)
-  - Generate source maps (store securely, don't expose)
+  - Optimize bundle size (tree shaking already enabled by Vite)
   
 - [ ] **Environment configuration**
-  - Use `.env.production` for production API URLs
-  - Remove hardcoded `localhost:8080` references
-  - Implement feature flags
+  - Create `.env.production` with Supabase production credentials
+  - Remove any hardcoded localhost URLs
+  - Use `import.meta.env` for environment variables
   
-- [ ] **CDN integration**
-  - Host static assets on CDN (CloudFront, Azure CDN)
-  - Configure cache headers
-  - Implement asset versioning/cache busting
+- [ ] **Deploy to Vercel**
+  - Connect GitHub repo to Vercel
+  - Set environment variables in Vercel dashboard
+  - Automatic deployments on git push
+  - Preview deployments for pull requests
   
-- [ ] **Monitoring & error tracking**
-  - Integrate Sentry or similar for error tracking
-  - Implement analytics (Google Analytics, Mixpanel)
-  - Add performance monitoring
+  OR
+  
+- [ ] **Deploy to Netlify**
+  - Connect GitHub repo to Netlify
+  - Configure build command: `npm run build`
+  - Set publish directory: `dist`
+  - Add environment variables in Netlify UI
+  
+- [ ] **Error tracking (optional)**
+  - Integrate Sentry for error tracking
+  - Add Sentry DSN to environment variables
 
 ```typescript
-// src/config.ts
-const config = {
-  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:8080',
-  wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:8080',
-  environment: import.meta.env.MODE,
-  sentryDsn: import.meta.env.VITE_SENTRY_DSN,
-};
+// src/lib/supabaseClient.ts
+import { createClient } from '@supabase/supabase-js';
 
-export default config;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 ```
 
 ```bash
 # .env.production
-VITE_API_URL=https://api.felix.example.com
-VITE_WS_URL=wss://api.felix.example.com
-VITE_SENTRY_DSN=https://...
+VITE_SUPABASE_URL=https://your-production-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-production-anon-key
+VITE_API_URL=https://api.felix.yourdomain.com
 ```
 
 ### 3.2 Authentication Integration
@@ -497,57 +677,80 @@ VITE_SENTRY_DSN=https://...
 
 #### Tasks
 
+- [ ] **Install Supabase JS client**
+  ```bash
+  npm install @supabase/supabase-js
+  ```
+
 - [ ] **Auth context provider**
-  - Create React context for auth state
-  - Implement login/logout flows
-  - Handle token refresh
+  - Create React context for Supabase auth
+  - Auto-refresh sessions handled by Supabase
+  - Persist session in localStorage (automatic)
   
 - [ ] **Protected routes**
   - Wrap routes with auth guard
   - Redirect unauthenticated users to login
   
-- [ ] **API client with auth**
-  - Add Authorization header to all API requests
-  - Handle 401 responses (redirect to login)
-  - Implement token refresh interceptor
+- [ ] **Login UI**
+  - Add OAuth provider buttons (GitHub, Google)
+  - Handle OAuth redirect flow
+  - Show loading states
 
 ```typescript
 // src/contexts/AuthContext.tsx
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabaseClient';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  isAuthenticated: boolean;
+  session: Session | null;
+  signInWithGithub: () => Promise<void>;
+  signOut: () => Promise<void>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  const login = async (email: string, password: string) => {
-    const response = await fetch(`${config.apiUrl}/api/v1/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-      credentials: 'include', // Include cookies
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
-    const data = await response.json();
-    setUser(data.user);
+    
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
+    
+    return () => subscription.unsubscribe();
+  }, []);
+  
+  const signInWithGithub = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
   };
   
-  const logout = async () => {
-    await fetch(`${config.apiUrl}/api/v1/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    setUser(null);
+  const signOut = async () => {
+    await supabase.auth.signOut();
   };
   
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, session, signInWithGithub, signOut, loading }}>
       {children}
     </AuthContext.Provider>
   );
@@ -562,91 +765,138 @@ export const useAuth = () => {
 
 ---
 
-## 4. Tray Manager Production Enhancements
+## 4. Tray Manager Production Enhancements (Simplified)
 
-### 4.1 Secure Communication
+### 4.1 Supabase Integration in C#
 
 **Priority**: 🔴 CRITICAL
 
 #### Tasks
 
-- [ ] **HTTPS/WSS client implementation**
-  - Update all HTTP calls to use HTTPS
-  - Update WebSocket connections to use WSS (secure WebSocket)
-  - Implement certificate validation
-  
-- [ ] **Device authentication**
+- [ ] **Install Supabase C# client**
+  ```bash
+  dotnet add package supabase-csharp
+  # OR use HTTP client with Supabase REST API
+  ```
+
+- [ ] **Device authentication flow**
   - Generate device ID on first launch
-  - Implement device registration API call
-  - Store device token in Windows Credential Manager
-  - Add token to all API requests
+  - Authenticate user with Supabase (magic link or device code flow)
+  - Register device in Supabase database
+  - Store Supabase session in Windows Credential Manager
   
-- [ ] **Certificate pinning** (optional, high security)
-  - Pin production API certificate
-  - Prevent MITM attacks
+- [ ] **HTTPS communication**
+  - All Supabase endpoints use HTTPS by default
+  - No custom SSL configuration needed
+  - Certificate validation automatic
 
 ```csharp
-// Services/AuthService.cs
+// Services/SupabaseService.cs
 using System.Net.Http;
-using System.Net.Http.Headers;
+using System.Text.Json;
 using Windows.Security.Credentials;
 
-public class AuthService
+public class SupabaseService
 {
     private readonly HttpClient _httpClient;
-    private const string ApiBaseUrl = "https://api.felix.example.com";
+    private const string SupabaseUrl = "https://your-project.supabase.co";
+    private const string SupabaseAnonKey = "your-anon-key";
     
-    public AuthService()
+    public SupabaseService()
     {
         _httpClient = new HttpClient();
+        _httpClient.DefaultRequestHeaders.Add("apikey", SupabaseAnonKey);
     }
     
-    public async Task<string> RegisterDeviceAsync()
+    // Step 1: Request magic link for device authentication
+    public async Task<bool> RequestMagicLinkAsync(string email)
     {
-        var deviceId = GetOrCreateDeviceId();
-        var deviceName = Environment.MachineName;
-        
-        var request = new
-        {
-            device_id = deviceId,
-            device_name = deviceName,
-            fingerprint = GetDeviceFingerprint()
-        };
-        
+        var payload = new { email };
         var response = await _httpClient.PostAsJsonAsync(
-            $"{ApiBaseUrl}/api/v1/devices/register", 
-            request
+            $"{SupabaseUrl}/auth/v1/magiclink", 
+            payload
         );
         
+        return response.IsSuccessStatusCode;
+    }
+    
+    // Step 2: After user clicks magic link, get session
+    public async Task<Session> GetSessionAsync(string accessToken)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var response = await _httpClient.GetAsync($"{SupabaseUrl}/auth/v1/user");
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<DeviceRegistrationResult>();
         
-        // Store token securely
-        StoreDeviceToken(result.Token);
+        var session = await response.Content.ReadFromJsonAsync<Session>();
+        StoreSession(session);
         
-        return result.Token;
+        // Step 3: Register this device
+        await RegisterDeviceAsync(session);
+        
+        return session;
     }
     
-    public void AddAuthHeader(HttpRequestMessage request)
+    // Register device in Supabase database
+    private async Task RegisterDeviceAsync(Session session)
     {
-        var token = GetDeviceToken();
-        if (token != null)
+        var deviceData = new
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-    }
-    
-    private string GetDeviceFingerprint()
-    {
-        // Generate hash of machine-specific identifiers
-        var machineId = Environment.MachineName;
+            device_name = Environment.MachineName,
+            device_fingerprint = GetDeviceFingerprint(),
+            approved = false // Will be approved by user in web UI
+        };
+        
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", session.AccessToken);
+        
+        var response = await _httpClient.PostAsJsonAsync(
+            $"{SupabaseUrl}/rest/v1/devices",
+            deviceData& Updates
+
+**Priority**: 🟡 HIGH
+
+#### Tasks
+
+- [ ] **Supabase configuration**
+  - Store Supabase URL in app settings (can be updated via config file)
+  - OR: Hardcode production Supabase URL (simpler for first version)
+  - Support environment switching (dev/prod)
+  
+- [ ] **Auto-update mechanism**
+  - Use ClickOnce deployment (easiest for .NET apps)
+  - OR: Publish releases on GitHub and check for updates
+  - Download and install updates automatically
+  
+- [ ] **Logging**
+  - Implement Serilog for structured logging
+  - Log to file and optionally to Supabase (via Edge Function)
+  - Include device ID in all logs
+
+```csharp
+// App.config or appsettings.json
+{
+  "Supabase": {
+    "Url": "https://your-project.supabase.co",
+    "AnonKey": "your-anon-key"
+  },
+  "UpdateCheckUrl": "https://api.github.com/repos/yourusername/felix/releases/latest"= Environment.MachineName;
         var username = Environment.UserName;
-        // Add more unique identifiers (MAC address, CPU ID, etc.)
         
         using var sha = System.Security.Cryptography.SHA256.Create();
-        var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"{machineId}:{username}"));
+        var hash = sha.ComputeHash(
+            System.Text.Encoding.UTF8.GetBytes($"{machineId}:{username}")
+        );
         return Convert.ToBase64String(hash);
     }
+}
+
+public class Session
+{
+    public string AccessToken { get; set; }
+    public string RefreshToken { get; set; }
+    public User User { get; set; }
 }
 ```
 
@@ -660,20 +910,21 @@ public class AuthService
   - Fetch API endpoint from cloud (not hardcoded)
   - Support configuration updates without reinstall
   - Implement configuration caching
+  Authentication UX**
+  - Show "Login Required" dialog on first launch
+  - Display magic link email prompt
+  - Show success message after authentication
   
-- [ ] **Auto-update mechanism**
-  - Implement ClickOnce deployment or Squirrel.Windows
-  - Check for updates on startup
-  - Download and install updates in background
+- [ ] **Device approval workflow**
+  - Show "Waiting for approval" status
+  - Poll Supabase for device approval (check `approved` field)
+  - Guide user to web UI to approve device
+  - Show notification when approved
   
-- [ ] **Logging and diagnostics**
-  - Implement structured logging (Serilog)
-  - Upload crash reports to cloud
-  - Add diagnostic info to crash reports
-
-```csharp
-// App.xaml.cs - Auto-update check
-protected override async void OnStartup(StartupEventArgs e)
+- [ ] **Connection status**
+  - Show online/offline indicator (check Supabase connectivity)
+  - Display last sync time
+  - Auto-reconnect when network recovers OnStartup(StartupEventArgs e)
 {
     base.OnStartup(e);
     
@@ -724,135 +975,77 @@ protected override async void OnStartup(StartupEventArgs e)
 
 ---
 
-## 5. DevOps & Infrastructure
+## 5. DevOps & Infrastructure (Simplified with Supabase)
 
-### 5.1 Containerization
-
-**Priority**: 🟡 HIGH
-
-#### Tasks
-
-- [ ] **Backend Dockerfile**
-  ```dockerfile
-  FROM python:3.11-slim
-  
-  WORKDIR /app
-  
-  # Install dependencies
-  COPY app/backend/requirements.txt .
-  RUN pip install --no-cache-dir -r requirements.txt
-  
-  # Copy application
-  COPY app/backend/ .
-  
-  # Create non-root user
-  RUN useradd -m -u 1000 felix && chown -R felix:felix /app
-  USER felix
-  
-  EXPOSE 8080
-  
-  CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
-  ```
-
-- [ ] **Frontend Dockerfile**
-  ```dockerfile
-  # Build stage
-  FROM node:20-alpine AS builder
-  
-  WORKDIR /app
-  COPY app/frontend/package*.json ./
-  RUN npm ci
-  
-  COPY app/frontend/ .
-  RUN npm run build
-  
-  # Production stage
-  FROM nginx:alpine
-  
-  COPY --from=builder /app/dist /usr/share/nginx/html
-  COPY nginx.conf /etc/nginx/nginx.conf
-  
-  EXPOSE 80
-  CMD ["nginx", "-g", "daemon off;"]
-  ```
-
-- [ ] **Docker Compose for local development**
-  ```yaml
-  version: '3.8'
-  
-  services:
-    postgres:
-      image: postgres:15
-      environment:
-        POSTGRES_DB: felix
-        POSTGRES_USER: felix
-        POSTGRES_PASSWORD: felix_dev
-      ports:
-        - "5432:5432"
-      volumes:
-        - postgres_data:/var/lib/postgresql/data
-    
-    redis:
-      image: redis:7-alpine
-      ports:
-        - "6379:6379"
-    
-    backend:
-      build:
-        context: .
-        dockerfile: app/backend/Dockerfile
-      environment:
-        DATABASE_URL: postgresql://felix:felix_dev@postgres:5432/felix
-        REDIS_URL: redis://redis:6379
-      ports:
-        - "8080:8080"
-      depends_on:
-        - postgres
-        - redis
-    
-    frontend:
-      build:
-        context: .
-        dockerfile: app/frontend/Dockerfile
-      ports:
-        - "3000:80"
-      depends_on:
-        - backend
-  
-  volumes:
-    postgres_data:
-  ```
-
-### 5.2 CI/CD Pipeline
+### 5.1 Deployment Architecture
 
 **Priority**: 🟡 HIGH
 
+**Recommended Stack:**
+- **Frontend**: Vercel or Netlify (automatic HTTPS, CDN, git-based deployment)
+- **Backend**: Render, Railway, or Fly.io (simple deployment, automatic HTTPS)
+- **Database/Auth/Storage**: Supabase (fully managed, no DevOps required)
+
 #### Tasks
 
-- [ ] **GitHub Actions workflow**
-  - Backend tests on PR
-  - Frontend tests on PR
-  - Tray app build on PR
-  - Automated deployment to staging on merge to main
-  - Manual approval for production deployment
+- [ ] **Backend deployment**
+  - Create `Dockerfile` for FastAPI backend (optional - many platforms support Python directly)
+  - Deploy to Render/Railway/Fly.io
+  - Set environment variables (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  - Configure auto-deployment from git
   
-- [ ] **Deployment automation**
-  - Deploy backend to Kubernetes/ECS/App Service
-  - Deploy frontend to S3 + CloudFront / Azure Static Web Apps
-  - Publish tray app to release page
-  
-- [ ] **Database migration automation**
-  - Run Alembic migrations on deployment
-  - Implement rollback strategy
+- [ ] **Frontend deployment**
+  - Connect GitHub repo to Vercel/Netlify
+  - Configure build settings (auto-detected for Vite)
+  - Add environment variables in dashboard
+  - Custom domain setup (optional)
+
+```dockerfile
+# Optional Dockerfile for backend (if needed)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY app/backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/backend/ .
+
+# Create non-root user
+RUN useradd -m -u 1000 felix && chown -R felix:felix /app
+USER felix
+
+EXPOSE 8080
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+```
+
+**Platform Comparison:**
+
+| Platform | Pros | Cons | Cost (Free Tier) |
+|----------|------|------|------------------|
+| **Render** | Easy setup, automatic HTTPS, PostgreSQL included | Slower cold starts on free tier | 750 hrs/month |
+| **Railway** | Great DX, automatic deploys, built-in observability | No free tier anymore | $5/month minimum |
+| **Fly.io** | Fast edge deployment, generous free tier | Slightly more complex setup | 3 VMs free |
+
+### 5.2 CI/CD Pipeline (Simplified)
+
+**Priority**: 🟢 MEDIUM
+
+**Note**: Vercel/Netlify handle frontend CI/CD automatically. Backend platforms also support auto-deploy from git.
+
+#### Tasks
+
+- [ ] **GitHub Actions for testing only**
+  - Run tests on PR (no deployment - platforms handle that)
+  - Build verification
+  - Tray app build check
 
 ```yaml
-# .github/workflows/deploy.yml
-name: Deploy to Production
+# .github/workflows/test.yml
+name: Run Tests
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+on: [pull_request, push]
 
 jobs:
   test-backend:
@@ -872,10 +1065,10 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '20'
-      - run: npm ci
-        working-directory: app/frontend
-      - run: npm test
-        working-directory: app/frontend
+      - working-directory: app/frontend
+        run: |
+          npm ci
+          npm test
   
   build-tray:
     runs-on: windows-latest
@@ -885,132 +1078,66 @@ jobs:
         with:
           dotnet-version: '8.0'
       - run: dotnet build app/tray-manager/FelixTrayApp.csproj -c Release
-  
-  deploy-backend:
-    needs: [test-backend]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - # Build and push Docker image
-      - # Deploy to cloud platform
-  
-  deploy-frontend:
-    needs: [test-frontend]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - # Build and upload to CDN
 ```
 
 ### 5.3 Monitoring & Observability
+
+**Priority**: � MEDIUM
+
+**Supabase provides built-in monitoring** for database, auth, and storage. For application-level monitoring:
+
+#### Tasks
+
+- [ ] **Supabase dashboard monitoring**
+  - Use built-in Supabase dashboard for database metrics
+  - Monitor API requests, database connections, storage usage
+  - Set up billing alerts
+  
+- [ ] **Application monitoring (optional)**
+  - Frontend: Vercel Analytics (built-in) or Sentry
+  - Backend: Render/Railway built-in metrics or Sentry
+  - Track error rates, response times
+  
+- [ ] **Health checks**
+  - Backend `/health` endpoint (already exists)
+  - Supabase automatic health monitoring
+  
+- [ ] **Logging**
+  - Frontend: Console errors to Sentry
+  - Backend: stdout logs (captured by platform)
+  - Supabase: Query logs in dashboard
+
+**Recommended minimal setup:**
+- ✅ Supabase dashboard (free, built-in)
+- ✅ Vercel/Netlify analytics (free, built-in)
+- ✅ Sentry free tier for error tracking (optional, recommended)
+
+---
+
+## 6. Compliance & Security (Simplified)
+
+### 6.1 Data Privacy
 
 **Priority**: 🟡 HIGH
 
 #### Tasks
 
-- [ ] **Application monitoring**
-  - Integrate Datadog, New Relic, or open-source alternatives (Prometheus + Grafana)
-  - Track request latency, error rates, throughput
-  - Set up alerts for anomalies
-  
-- [ ] **Logging infrastructure**
-  - Centralized logging (CloudWatch, Azure Monitor, ELK stack)
-  - Structured JSON logging
-  - Log retention policies
-  
-- [ ] **Health checks**
-  - Implement `/health` and `/ready` endpoints
-  - Configure load balancer health checks
-  - Add database connectivity checks
-  
-- [ ] **Distributed tracing**
-  - Implement OpenTelemetry
-  - Trace requests across services
-  - Visualize service dependencies
-
-```python
-# monitoring.py
-from prometheus_client import Counter, Histogram, generate_latest
-from fastapi import Request
-import time
-
-# Metrics
-request_count = Counter(
-    'felix_requests_total', 
-    'Total requests', 
-    ['method', 'endpoint', 'status']
-)
-request_duration = Histogram(
-    'felix_request_duration_seconds',
-    'Request duration',
-    ['method', 'endpoint']
-)
-
-@app.middleware("http")
-async def monitor_requests(request: Request, call_next):
-    start = time.time()
-    response = await call_next(request)
-    duration = time.time() - start
-    
-    request_count.labels(
-        method=request.method,
-        endpoint=request.url.path,
-        status=response.status_code
-    ).inc()
-    
-    request_duration.labels(
-        method=request.method,
-        endpoint=request.url.path
-    ).observe(duration)
-    
-    return response
-
-@app.get("/metrics")
-async def metrics():
-    return Response(generate_latest(), media_type="text/plain")
-```
-
----
-
-## 6. Compliance & Legal
-
-### 6.1 Data Privacy
-
-**Priority**: 🔴 CRITICAL
-
-#### Tasks
-
-- [ ] **GDPR compliance**
-  - Implement data export functionality (user can download all their data)
-  - Implement right to deletion (delete user and all associated data)
-  - Add privacy policy and terms of service
-  - Obtain consent for data collection
+- [ ] **GDPR compliance basics**
+  - Add privacy policy page
+  - Implement data export (Supabase dashboard supports this)
+  - Implement account deletion (deletes cascade automatically with RLS)
+  - Add cookie consent banner if needed
   
 - [ ] **Data encryption**
-  - Encrypt sensitive data at rest (database encryption)
-  - Encrypt data in transit (TLS 1.3)
-  - Encrypt backup files
+  - ✅ Supabase encrypts data at rest automatically
+  - ✅ HTTPS/TLS for data in transit (automatic)
+  - ✅ No additional work needed
   
-- [ ] **Audit logging**
-  - Log all data access and modifications
-  - Track who accessed what and when
-  - Retain audit logs for compliance period
+- [ ] **Terms of Service**
+  - Add ToS page
+  - Users accept ToS on signup
 
-### 6.2 Licensing & Usage Tracking
-
-**Priority**: 🟢 MEDIUM
-
-#### Tasks
-
-- [ ] **Subscription management**
-  - Integrate Stripe or similar payment processor
-  - Implement tiered pricing (free, pro, enterprise)
-  - Track usage limits (projects, devices, API calls)
-  
-- [ ] **License enforcement**
-  - Validate subscription status on critical operations
-  - Gracefully handle expired subscriptions
-  - Provide upgrade prompts
+### 6.2 Subscription Management (Future)
 
 ---
 
@@ -1063,193 +1190,81 @@ async def metrics():
   - Lazy load routes
   - Split vendor bundles
   - Implement dynamic imports
-  
-- [ ] **Asset optimization**
-  - Optimize images (WebP, compression)
-  - Use CSS/JS minification
-  - Implement lazy loading for images
-  
-- [ ] **Caching**
-  - Configure service worker for offline support
-  - Implement browser caching headers
-  - Use CDN caching
+**Priority**: 🟢 LOW (Future enhancement)
+
+- [ ] Integrate Stripe for payments
+- [ ] Track usage with Supabase (project count, device count, storage)
+- [ ] Implement usage limits based on tier
 
 ---
 
-## 8. Testing & Quality Assurance
+## 7. Testing & Quality (Minimal for MVP)
 
-### 8.1 Automated Testing
+### 7.1 Automated Testing
 
 **Priority**: 🟡 HIGH
 
 #### Tasks
 
 - [ ] **Backend tests**
-  - Unit tests for all business logic
-  - Integration tests for API endpoints
-  - E2E tests for critical workflows
-  - Target 80%+ code coverage
+  - Unit tests for critical business logic
+  - Integration tests for Supabase queries
+  - Target 60%+ code coverage for MVP
   
 - [ ] **Frontend tests**
-  - Unit tests for components
-  - Integration tests for user flows
-  - Visual regression tests (Percy, Chromatic)
+  - Unit tests for key components
+  - E2E tests for auth flow
   
 - [ ] **Tray app tests**
   - Unit tests for view models
-  - Integration tests for API communication
-  - UI automation tests
+  - Manual testing of device registration flow
 
-### 8.2 Security Testing
+### 7.2 Security Testing
 
 **Priority**: 🔴 CRITICAL
 
 #### Tasks
 
-- [ ] **Penetration testing**
-  - Hire security firm or use bug bounty program
-  - Test for OWASP Top 10 vulnerabilities
-  - Fix all critical and high-severity issues
+- [ ] **RLS policy testing**
+  - Verify users can't access other users' data
+  - Test with multiple accounts
+  - Check all CRUD operations
   
 - [ ] **Dependency scanning**
-  - Use Dependabot or Snyk
-  - Regularly update dependencies
-  - Scan for known vulnerabilities
+  - Use Dependabot (automatic in GitHub)
+  - Review and update dependencies monthly
   
-- [ ] **Code scanning**
-  - Static analysis (Bandit for Python, ESLint for JS)
-  - Secret scanning (prevent API keys in code)
+- [ ] **Basic security audit**
+  - Test authentication flows
+  - Verify HTTPS everywhere
+  - Check for exposed secrets
 
 ---
 
-## 9. Documentation & Support
+## 8. Documentation (Minimal for Launch)
 
-### 9.1 User Documentation
+### 8.1 User Documentation
 
 **Priority**: 🟢 MEDIUM
 
 #### Tasks
 
 - [ ] **Getting started guide**
-  - Account registration walkthrough
-  - Device setup instructions
-  - First project tutorial
+  - How to sign up and authenticate
+  - How to set up tray app
+  - How to connect first project
   
-- [ ] **API documentation**
-  - OpenAPI/Swagger documentation
-  - SDK/client library examples
-  - Rate limits and quotas
-  
-- [ ] **Troubleshooting guide**
-  - Common issues and solutions
-  - FAQ section
-  - Status page integration
+- [ ] **FAQ**
+  - Common questions
+  - Troubleshooting guide
 
-### 9.2 Support Infrastructure
+### 8.2 Developer Documentation
 
-**Priority**: 🟢 MEDIUM
+**Priority**: 🟢 LOW
 
-#### Tasks
-
-- [ ] **Support ticketing system**
-  - Integrate Zendesk, Intercom, or open-source alternative
-  - Implement in-app chat support
-  - SLA for response times
-  
-- [ ] **Community forum**
-  - Set up Discord or community platform
-  - Encourage user-to-user support
-  - Staff moderation
-
----
-
-## 10. Cost Optimization
-
-### 10.1 Infrastructure Costs
-
-**Priority**: 🟢 MEDIUM
-
-#### Tasks
-
-- [ ] **Right-sizing resources**
-  - Monitor actual resource usage
-  - Scale down over-provisioned instances
-  - Use auto-scaling for variable load
-  
-- [ ] **Reserved instances**
-  - Purchase reserved instances for predictable workloads
-  - Use spot instances for non-critical tasks
-  
-- [ ] **Data transfer optimization**
-  - Use CDN to reduce egress costs
-  - Compress responses
-  - Implement efficient data sync (delta uploads)
-
-### 10.2 Operational Efficiency
-
-**Priority**: 🟢 MEDIUM
-
-#### Tasks
-
-- [ ] **Automated scaling**
-  - Configure horizontal pod autoscaling (Kubernetes)
-  - Scale based on CPU, memory, and custom metrics
-  
-- [ ] **Cost monitoring**
-  - Set up billing alerts
-  - Track cost per customer
-  - Identify cost optimization opportunities
-
----
-
-## Implementation Roadmap
-
-### Phase 1: Core Security & Authentication (Weeks 1-4)
-**Critical for launch**
-
-```mermaid
-gantt
-    title Phase 1: Security & Auth
-    dateFormat  YYYY-MM-DD
-    
-    section Backend
-    OAuth integration           :crit, a1, 2026-02-01, 7d
-    JWT middleware             :crit, a2, after a1, 5d
-    Database setup             :crit, a3, 2026-02-01, 10d
-    
-    section Frontend
-    Auth context               :crit, b1, after a2, 5d
-    Login UI                   :crit, b2, after b1, 3d
-    
-    section Tray
-    Device registration        :crit, c1, after a1, 7d
-    Secure storage            :crit, c2, after c1, 3d
-```
-
-### Phase 2: Cloud Infrastructure (Weeks 5-8)
-**Enable multi-tenant operation**
-
-- Database migration complete
-- Object storage for artifacts
-- WebSocket scaling with Redis
-- HTTPS/WSS enforcement
-- Initial monitoring setup
-
-### Phase 3: Production Hardening (Weeks 9-12)
-**Make it bulletproof**
-
-- Rate limiting and security headers
-- Comprehensive logging
-- Auto-update for tray app
-- Performance optimization
-- Load testing
-
-### Phase 4: Polish & Launch Prep (Weeks 13-16)
-**Ready for customers**
-
-- Documentation complete
-- Support infrastructure
-- Compliance review
+- [ ] API documentation (FastAPI auto-generates `/docs`)
+- [ ] Database schema documentation
+- [ ] Deployment guide
 - Security audit
 - Beta testing program
 
@@ -1297,52 +1312,89 @@ Track these metrics to ensure production readiness:
 
 ---
 
-## Estimated Effort
+## 12. Risk Assessment (Updated with Supabase)on Roadmap (Streamlined with Supabase)
 
-**Total estimated effort**: 12-16 weeks (3-4 months) with 2-3 full-time engineers
+### Phase 1: Foundation (Weeks 1-2) 🔴 CRITICAL
+**Goal**: Get auth working end-to-end
 
-**Breakdown by priority**:
-- 🔴 Critical (must-have): 6-8 weeks
-- 🟡 High (should-have): 4-5 weeks
-- 🟢 Medium (nice-to-have): 2-3 weeks
+```mermaid
+gantt
+    title Phase 1: Core Auth & Database
+    dateFormat  YYYY-MM-DD
+    
+    section Supabase Setup
+    Create project & configure               :crit, a1, 2026-02-01, 2d
+    Database schema & RLS policies          :crit, a2, after a1, 3d
+    
+    section Frontend
+    Supabase client integration             :crit, b1, after a1, 2d
+    Auth UI (login/logout)                  :crit, b2, after b1, 2d
+    
+    section Tray App
+    Supabase HTTP client                    :crit, c1, after a2, 3d
+    Device registration flow                :crit, c2, after c1, 2d
+```
 
-**Recommended team structure**:
-- Backend engineer (authentication, database, infrastructure)
-- Frontend engineer (React UI, auth integration)
-- DevOps engineer (CI/CD, monitoring, deployment)
-- .NET engineer (Tray app enhancements, part-time)
+**Tasks:**
+- [ ] Set up Supabase project (dev + production)
+- [ ] Create database schema with RLS policies
+- [ ] Implement frontend auth (Supabase JS client)
+- [ ] Implement tray app auth (HTTP client)
+- [ ] Test end-to-end device registration
+
+**Deliverable**: Users can sign up, tray app can authenticate and register devices
 
 ---
 
-## Risk Assessment
+### Phase 2: Data Migration & Storage (Weeks 3-4) 🟡 HIGH
+**Goal**: Move from file-based to cloud storage
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Security breach | 🔴 Critical | 🟡 Medium | Comprehensive security audit, penetration testing |
-| Data loss | 🔴 Critical | 🟢 Low | Automated backups, disaster recovery plan |
-| Scaling issues | 🟡 High | 🟡 Medium | Load testing, auto-scaling, monitoring |
-| Third-party API outages | 🟡 High | 🟡 Medium | Circuit breakers, fallback mechanisms |
-| Database migration failures | 🟡 High | 🟢 Low | Thorough testing, rollback plan |
-| Cost overruns | 🟢 Medium | 🟡 Medium | Cost monitoring, right-sizing, alerts |
+**Tasks:**
+- [ ] Migrate existing data to Supabase database
+- [ ] Set up Supabase Storage buckets
+- [ ] Implement artifact upload from backend/tray
+- [ ] Replace custom WebSocket with Supabase Realtime
+- [ ] Test realtime updates in frontend
+
+**Deliverable**: All data in Supabase, realtime updates working
 
 ---
 
-## Conclusion
+### Phase 3: Production Deployment (Week 5) 🟡 HIGH
+**Goal**: Deploy to production platforms
 
-This production readiness plan transforms Felix from a local development tool into a robust, secure, scalable SaaS platform. The priorities are:
+**Tasks:**
+- [ ] Deploy frontend to Vercel/Netlify
+- [11.# Time Estimate
+**Total**: 6 weeks with 1-2 engineers
 
-1. **Security first**: Authentication, authorization, encryption
-2. **Cloud-native**: Stateless backend, distributed architecture
-3. **User experience**: Seamless device onboarding, reliable sync
-4. **Operational excellence**: Monitoring, logging, incident response
+| Phase | Duration | Engineer-weeks |
+|-------|----------|----------------|
+| Phase 1: Foundation | 2 weeks | 2-3 |
+| Phase 2: Migration | 2 weeks | 1-2 |
+| Phase 3: Deployment | 1 week | 0.5-1 |
+| Phase 4: Polish | 1 week | 1-2 |
+| **Total** | **6 weeks** | **4.5-8** |
 
-Follow the phased approach to de-risk the migration and ensure each component is production-ready before moving to the next phase.
+### Infrastructure Costs (Monthly)
 
-**Next immediate steps**:
-1. Set up development/staging environments matching production architecture
-2. Implement OAuth provider integration (GitHub OAuth is fastest to start)
-3. Create database schema and migration scripts
-4. Update backend to use environment-based configuration
-5. Begin security audit of existing codebase
+| Service | Tier | Cost | Notes |
+|---------|------|------|-------|
+| **Supabase** | Free → Pro | $0 → $25 | 500MB DB, 1GB storage, 2GB egress (free) |
+| **Vercel** | Hobby | $0 | 100GB bandwidth |
+| **Render/Railway** | Starter | $0 → $7 | 750 hrs free on Render |
+| **Sentry** | Developer | $0 | 5K errors/month |
+| **Domain** | - | $12/year | Optional |
+| **Total (MVP)** | - | **$0-15/month** | Scales with usage |
 
-Good luck! 🚀
+**Free tier limits:**
+- Up to ~50 active users
+- ~100 projects total
+- 2GB bandwidth/month
+- Perfect for beta testing and early customers
+
+**Pro tier ($50-100/month) supports:**
+- Hundreds of active users
+- Unlimited projects
+- 50GB+ bandwidth
+- Auto-scaling
