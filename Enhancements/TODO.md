@@ -185,10 +185,10 @@
 
 - Use `git filter-branch` or `git filter-repo` to remove from history
 - Add to `.gitignore`:
-    ```
-    felix/state.json
-    felix/requirements.json
-    ```
+  ```
+  felix/state.json
+  felix/requirements.json
+  ```
 - Document in README that these files are generated on first run
 - Consider adding template files (`state.template.json`) if needed for initialization
 - Update CI/CD to generate fresh state files per environment
