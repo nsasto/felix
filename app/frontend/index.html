@@ -31,6 +31,7 @@
             'spin-slow': 'spin 3s linear infinite',
             'in': 'enter 0.3s ease-out',
             'polling-pulse': 'polling-pulse 2s ease-in-out infinite',
+            'workflow-pulse': 'workflow-pulse 2s ease-in-out infinite',
           },
           keyframes: {
             enter: {
@@ -40,6 +41,16 @@
             'polling-pulse': {
               '0%, 100%': { opacity: '1' },
               '50%': { opacity: '0.6' },
+            },
+            'workflow-pulse': {
+              '0%, 100%': { 
+                boxShadow: '0 0 0 0 rgba(115, 142, 241, 0.4)',
+                borderColor: 'rgb(115, 142, 241)',
+              },
+              '50%': { 
+                boxShadow: '0 0 12px 4px rgba(115, 142, 241, 0.3)',
+                borderColor: 'rgb(157, 180, 247)',
+              },
             }
           }
         }

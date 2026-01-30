@@ -303,6 +303,29 @@ export interface AgentConfigsListResponse {
   agents: AgentConfigEntry[];
 }
 
+// --- Workflow Configuration Types (for S-0030: Agent Workflow Visualization) ---
+
+/**
+ * A single workflow stage definition from workflow.json
+ */
+export interface WorkflowStage {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  order: number;
+  conditional?: string;
+}
+
+/**
+ * Response containing workflow configuration for the visualization panel
+ */
+export interface WorkflowConfigResponse {
+  version: string;
+  layout: "horizontal" | "vertical";
+  stages: WorkflowStage[];
+}
+
 /**
  * Merged agent combining configuration from agents.json with runtime status from the registry.
  * Used by the Agent Orchestration Dashboard to display complete agent information.
@@ -324,6 +347,9 @@ export interface MergedAgent {
   last_heartbeat?: string | null;
   started_at?: string | null;
   stopped_at?: string | null;
+  // Workflow stage fields (S-0030: Agent Workflow Visualization)
+  current_workflow_stage?: string | null;
+  workflow_stage_timestamp?: string | null;
 }
 
 // --- Copilot Chat Types (for S-0017: Felix Copilot Chat Assistant) ---
@@ -732,6 +758,18 @@ class FelixApiService {
    */
   async getAgentsConfig(): Promise<AgentConfigsListResponse> {
     return this.request<AgentConfigsListResponse>("/agents/config");
+  }
+
+  // --- Workflow Configuration Endpoint (for S-0030: Agent Workflow Visualization) ---
+
+  /**
+   * Get workflow configuration for the agent workflow visualization panel.
+   * Loads felix/workflow.json from the project directory.
+   * Falls back to default workflow stages if file is missing or invalid.
+   */
+  async getWorkflowConfig(projectId?: string): Promise<WorkflowConfigResponse> {
+    const params = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+    return this.request<WorkflowConfigResponse>(`/agents/workflow-config${params}`);
   }
 
   // --- Global Settings Endpoints (project-independent) ---
