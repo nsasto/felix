@@ -173,9 +173,6 @@ const App: React.FC = () => {
     }
     hasAttemptedAutoLoad.current = true;
 
-    // Track if component is still mounted
-    let isMounted = true;
-
     const autoLoadLastProject = async () => {
       const savedProjectId = getLastProjectId();
       if (!savedProjectId) {
@@ -184,10 +181,8 @@ const App: React.FC = () => {
 
       try {
         const projectDetails = await felixApi.getProject(savedProjectId);
-        // Only apply auto-load if:
-        // 1. Component is still mounted
-        // 2. User hasn't manually interacted (selected project, navigated)
-        if (isMounted && projectDetails && !hasUserInteracted.current) {
+        // Only apply auto-load if user hasn't manually interacted
+        if (projectDetails && !hasUserInteracted.current) {
           setSelectedProjectId(savedProjectId);
           setSelectedProject(projectDetails);
           // Switch to kanban view after auto-loading
@@ -195,20 +190,12 @@ const App: React.FC = () => {
         }
       } catch (error) {
         // Project no longer exists or API error - clear the saved ID
-        // Only clear if we're still mounted to avoid state updates on unmounted component
-        if (isMounted) {
-          clearLastProjectId();
-          console.warn("Auto-load failed, clearing saved project ID:", error);
-        }
+        clearLastProjectId();
+        console.warn("Auto-load failed, clearing saved project ID:", error);
       }
     };
 
     autoLoadLastProject();
-
-    // Cleanup function to prevent state updates after unmount
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   const handleSelectProject = (projectId: string, details: ProjectDetails) => {
