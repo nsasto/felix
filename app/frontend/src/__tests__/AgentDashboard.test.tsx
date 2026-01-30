@@ -14,6 +14,8 @@ vi.mock('../../services/felixApi', () => ({
     listRuns: vi.fn(),
     startAgentWithRequirement: vi.fn(),
     stopAgent: vi.fn(),
+    // S-0030: WorkflowVisualization uses this when rendered inside LiveConsolePanel
+    getWorkflowConfig: vi.fn(),
   },
 }));
 
@@ -84,12 +86,23 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
     project_id: mockProjectId,
   };
 
+  // Mock workflow config for WorkflowVisualization component (S-0030)
+  const mockWorkflowConfig = {
+    version: '1.0',
+    layout: 'horizontal' as const,
+    stages: [
+      { id: 'select_requirement', name: 'Select', icon: 'target', description: 'Select requirement', order: 1 },
+      { id: 'execute_llm', name: 'LLM', icon: 'cpu', description: 'Execute LLM', order: 6 },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(felixApi.getAgentsConfig).mockResolvedValue(mockConfiguredAgents);
     vi.mocked(felixApi.getAgents).mockResolvedValue(mockRuntimeAgents);
     vi.mocked(felixApi.getRequirements).mockResolvedValue(mockRequirements);
     vi.mocked(felixApi.listRuns).mockResolvedValue(mockRuns);
+    vi.mocked(felixApi.getWorkflowConfig).mockResolvedValue(mockWorkflowConfig);
   });
 
   describe('Agent List Data Source Merge', () => {
@@ -253,6 +266,16 @@ describe('AgentDashboard (S-0023: Polling Mode Toggle)', () => {
     project_id: mockProjectId,
   };
 
+  // Mock workflow config for WorkflowVisualization component (S-0030)
+  const mockWorkflowConfig = {
+    version: '1.0',
+    layout: 'horizontal' as const,
+    stages: [
+      { id: 'select_requirement', name: 'Select', icon: 'target', description: 'Select requirement', order: 1 },
+      { id: 'execute_llm', name: 'LLM', icon: 'cpu', description: 'Execute LLM', order: 6 },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Clear localStorage before each test
@@ -261,6 +284,7 @@ describe('AgentDashboard (S-0023: Polling Mode Toggle)', () => {
     vi.mocked(felixApi.getAgents).mockResolvedValue(mockRuntimeAgents);
     vi.mocked(felixApi.getRequirements).mockResolvedValue(mockRequirements);
     vi.mocked(felixApi.listRuns).mockResolvedValue(mockRuns);
+    vi.mocked(felixApi.getWorkflowConfig).mockResolvedValue(mockWorkflowConfig);
   });
 
   afterEach(() => {
@@ -601,6 +625,16 @@ describe('AgentDashboard (S-0029: Connect Live Polling)', () => {
     project_id: mockProjectId,
   };
 
+  // Mock workflow config for WorkflowVisualization component (S-0030)
+  const mockWorkflowConfig = {
+    version: '1.0',
+    layout: 'horizontal' as const,
+    stages: [
+      { id: 'select_requirement', name: 'Select', icon: 'target', description: 'Select requirement', order: 1 },
+      { id: 'execute_llm', name: 'LLM', icon: 'cpu', description: 'Execute LLM', order: 6 },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem(POLLING_MODE_STORAGE_KEY);
@@ -608,6 +642,7 @@ describe('AgentDashboard (S-0029: Connect Live Polling)', () => {
     vi.mocked(felixApi.getAgents).mockResolvedValue(mockRuntimeAgents);
     vi.mocked(felixApi.getRequirements).mockResolvedValue(mockRequirements);
     vi.mocked(felixApi.listRuns).mockResolvedValue(mockRuns);
+    vi.mocked(felixApi.getWorkflowConfig).mockResolvedValue(mockWorkflowConfig);
   });
 
   afterEach(() => {
