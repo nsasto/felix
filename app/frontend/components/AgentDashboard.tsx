@@ -18,6 +18,8 @@ import {
   IconRefresh,
   IconPause,
   IconZap,
+  IconLock,
+  IconTrash,
 } from "./Icons";
 import { marked } from "marked";
 import Ansi from "ansi-to-react";
@@ -989,10 +991,10 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       className="h-full flex flex-col overflow-hidden"
       style={{ backgroundColor: "var(--bg-base)" }}
     >
-      {/* Console Section - 60% of space */}
+      {/* Console Section - Full height */}
       <div
-        className="flex-[0.6] flex flex-col overflow-hidden border-b min-h-0"
-        style={{ borderColor: "var(--border-default)" }}
+        className="flex-1 flex flex-col overflow-hidden min-h-0"
+        style={{ borderColor: "var(--border-default)", paddingBottom: "90px" }}
       >
         {/* Console Header */}
         <div
@@ -1038,7 +1040,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
               style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
               title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
             >
-              <span>📌</span>
+              <IconLock className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleClear}
@@ -1046,7 +1048,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
               style={{ color: "var(--text-muted)" }}
               title="Clear console"
             >
-              <span>🗑️</span>
+              <IconTrash className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -1124,17 +1126,23 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         </div>
       </div>
 
-      {/* Workflow Section - 40% of space */}
+      {/* Workflow Section - Fixed Footer Toolbar */}
       <div
-        className="flex-[0.4] flex flex-col overflow-hidden min-h-0"
+        className="flex flex-col flex-shrink-0"
         style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
           borderTop: "2px solid",
           borderColor: "var(--border-default)",
+          backgroundColor: "var(--bg-base)",
+          zIndex: 10,
         }}
       >
         {/* Workflow Header */}
         <div
-          className="px-6 py-3 border-b flex items-center gap-2 flex-shrink-0"
+          className="px-4 py-1.5 border-b flex items-center gap-2 flex-shrink-0"
           style={{ borderColor: "var(--border-default)" }}
         >
           <svg
@@ -1158,7 +1166,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         </div>
 
         {/* Workflow Visualization */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 min-h-0">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar min-h-0">
           {/* No agent selected */}
           {!selectedAgent && (
             <div className="h-full flex flex-col items-center justify-center opacity-20">
@@ -1175,29 +1183,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             </div>
           )}
 
-          {/* Agent selected with active run */}
-          {selectedAgent && selectedAgent?.agent?.current_run_id && (
+          {/* Agent selected - always show workflow visualization */}
+          {selectedAgent && (
             <WorkflowVisualization
               projectId={projectId}
               currentStage={selectedAgent?.agent?.current_workflow_stage}
               isAgentActive={isAgentActive}
             />
-          )}
-
-          {/* Agent selected without active run */}
-          {selectedAgent && !selectedAgent?.agent?.current_run_id && (
-            <div className="h-full flex flex-col items-center justify-center opacity-20">
-              <IconCpu
-                className="w-8 h-8 mb-2"
-                style={{ color: "var(--text-faint)" }}
-              />
-              <p
-                className="text-[10px] uppercase tracking-widest"
-                style={{ color: "var(--text-faint)" }}
-              >
-                No active run
-              </p>
-            </div>
           )}
         </div>
       </div>
@@ -1854,10 +1846,10 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       />
 
       {/* Three-Column Layout */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* Agent List Panel - Left Sidebar */}
         <div
-          className="w-80 flex-shrink-0 border-r"
+          className="w-80 flex-shrink-0 border-r overflow-hidden"
           style={{ borderColor: "var(--border-default)" }}
         >
           <AgentListPanel
@@ -1869,11 +1861,14 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         </div>
 
         {/* Middle and Right Panels - Split View */}
-        <div className="flex-1 flex">
+        <div className="flex-1 flex min-h-0">
           {/* Live Console Panel - Takes more space */}
           <div
             className="flex-1 border-r"
-            style={{ borderColor: "var(--border-default)" }}
+            style={{
+              borderColor: "var(--border-default)",
+              position: "relative",
+            }}
           >
             <LiveConsolePanel
               selectedAgent={selectedAgent}
@@ -1882,7 +1877,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
           </div>
 
           {/* Run History Panel - Right Side */}
-          <div className="w-96 flex-shrink-0">
+          <div className="w-96 flex-shrink-0 overflow-hidden">
             <RunHistoryPanel
               projectId={projectId}
               selectedAgentId={selectedAgent?.id ?? null}
