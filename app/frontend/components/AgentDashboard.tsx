@@ -992,77 +992,72 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       className="h-full flex flex-col overflow-hidden"
       style={{ backgroundColor: "var(--bg-base)" }}
     >
-      {/* Console Section - Full height */}
+      {/* Console Header - Fixed */}
       <div
-        className="flex-1 flex flex-col overflow-hidden min-h-0"
-        style={{ borderColor: "var(--border-default)", paddingBottom: "90px" }}
+        className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0"
+        style={{
+          borderColor: "var(--border-default)",
+        }}
       >
-        {/* Console Header */}
-        <div
-          className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0"
-          style={{
-            borderColor: "var(--border-default)",
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <IconTerminal className="w-4 h-4 text-felix-400" />
-            <span
-              className="text-xs font-bold"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {selectedAgent?.name || "Live Console"}
+        <div className="flex items-center gap-3">
+          <IconTerminal className="w-4 h-4 text-felix-400" />
+          <span
+            className="text-xs font-bold"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {selectedAgent?.name || "Live Console"}
+          </span>
+          {selectedAgent?.agent?.current_run_id && (
+            <span className="text-[10px] px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
+              {selectedAgent.agent.current_run_id}
             </span>
-            {selectedAgent?.agent?.current_run_id && (
-              <span className="text-[10px] px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
-                {selectedAgent.agent.current_run_id}
-              </span>
-            )}
-            {isAgentActive && (
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            )}
-            {selectedAgent && !isAgentActive && (
-              <span
-                className="text-[10px] px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                {selectedAgent.agent.status}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setScrollLocked(!scrollLocked)}
-              className={`p-1.5 rounded transition-colors ${
-                scrollLocked ? "bg-felix-500/10 text-felix-400" : ""
-              }`}
-              style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
-              title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
+          )}
+          {isAgentActive && (
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          )}
+          {selectedAgent && !isAgentActive && (
+            <span
+              className="text-[10px] px-2 py-0.5 rounded"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-muted)",
+              }}
             >
-              <IconLock className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleClear}
-              className="p-1.5 rounded transition-colors"
-              style={{ color: "var(--text-muted)" }}
-              title="Clear console"
-            >
-              <IconTrash className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              {selectedAgent.agent.status}
+            </span>
+          )}
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setScrollLocked(!scrollLocked)}
+            className={`p-1.5 rounded transition-colors ${
+              scrollLocked ? "bg-felix-500/10 text-felix-400" : ""
+            }`}
+            style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
+            title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
+          >
+            <IconLock className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleClear}
+            className="p-1.5 rounded transition-colors"
+            style={{ color: "var(--text-muted)" }}
+            title="Clear console"
+          >
+            <IconTrash className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
 
-        {/* Console output */}
-        <div
-          ref={consoleRef}
-          className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console min-h-0"
-          style={{
-            backgroundColor: "var(--bg-base)",
-            color: "var(--text-secondary)",
-          }}
-        >
+      {/* Console output */}
+      <div
+        ref={consoleRef}
+        className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console min-h-0"
+        style={{
+          backgroundColor: "var(--bg-base)",
+          color: "var(--text-secondary)",
+        }}
+      >
           {/* No agent selected state */}
           {!selectedAgent && (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1124,21 +1119,14 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
               <span>Waiting for output...</span>
             </div>
           )}
-        </div>
       </div>
 
-      {/* Workflow Section - Fixed Footer Toolbar */}
+      {/* Workflow Footer - Fixed at bottom */}
       <div
-        className="flex flex-col flex-shrink-0"
+        className="flex-shrink-0 border-t-2"
         style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          borderTop: "2px solid",
           borderColor: "var(--border-default)",
           backgroundColor: "var(--bg-base)",
-          zIndex: 10,
         }}
       >
         {/* Workflow Header */}
@@ -1159,7 +1147,10 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         </div>
 
         {/* Workflow Visualization */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar min-h-0">
+        <div
+          className="overflow-x-auto overflow-y-hidden custom-scrollbar"
+          style={{ height: "120px" }}
+        >
           {/* No agent selected */}
           {!selectedAgent && (
             <div className="h-full flex flex-col items-center justify-center opacity-20">
@@ -1854,13 +1845,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         </div>
 
         {/* Middle and Right Panels - Split View */}
-        <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Live Console Panel - Takes more space */}
           <div
-            className="flex-1 border-r"
+            className="flex-1 flex flex-col border-r overflow-hidden"
             style={{
               borderColor: "var(--border-default)",
-              position: "relative",
             }}
           >
             <LiveConsolePanel
