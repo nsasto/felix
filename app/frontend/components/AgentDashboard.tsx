@@ -8,11 +8,25 @@ import {
   MergedAgent,
   AgentConfigEntry,
 } from "../services/felixApi";
-import { IconFelix, IconCpu, IconTerminal, IconPlay, IconStop, IconSettings, IconRefresh, IconPause, IconZap } from "./Icons";
+import {
+  IconFelix,
+  IconCpu,
+  IconTerminal,
+  IconPlay,
+  IconStop,
+  IconSettings,
+  IconRefresh,
+  IconPause,
+  IconZap,
+  IconLock,
+  IconTrash,
+  IconWorkflow,
+} from "./Icons";
 import { marked } from "marked";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
 import RunCard from "./RunCard";
+import WorkflowVisualization from "./WorkflowVisualization";
 
 // --- Types ---
 
@@ -104,8 +118,9 @@ interface ToolbarProps {
   onRefresh: () => void;
   onSettings: () => void;
   actionInProgress: string | null;
-  pollingMode: 'live' | 'manual';
+  pollingMode: "live" | "manual";
   onTogglePollingMode: () => void;
+  isPollingActive: boolean;
 }
 
 const DashboardToolbar: React.FC<ToolbarProps> = ({
@@ -118,6 +133,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
   actionInProgress,
   pollingMode,
   onTogglePollingMode,
+  isPollingActive,
 }) => {
   const [showStartDropdown, setShowStartDropdown] = useState(false);
   const [showStopDropdown, setShowStopDropdown] = useState(false);
@@ -265,34 +281,43 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={onTogglePollingMode}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer hover:opacity-80 ${
-            pollingMode === 'live'
-              ? 'bg-emerald-500/10 border border-emerald-500/20'
-              : 'border'
+            pollingMode === "live"
+              ? "bg-emerald-500/10 border border-emerald-500/20"
+              : "border"
           }`}
           style={{
-            borderColor: pollingMode === 'manual' ? 'var(--border-default)' : undefined,
+            borderColor:
+              pollingMode === "manual" ? "var(--border-default)" : undefined,
           }}
           title="Click to toggle polling mode"
-          aria-label={`Polling mode: ${pollingMode === 'live' ? 'Live Polling Active' : 'Manual Polling Mode'}. Click to toggle.`}
+          aria-label={`Polling mode: ${pollingMode === "live" ? "Live Polling Active" : "Manual Polling Mode"}. Click to toggle.`}
         >
           <div
             className={`w-2 h-2 rounded-full ${
-              pollingMode === 'live' ? 'bg-emerald-500' : ''
+              pollingMode === "live" ? "bg-emerald-500" : ""
             }`}
             style={{
-              backgroundColor: pollingMode === 'manual' ? 'var(--text-muted)' : undefined,
-              animation: pollingMode === 'live' ? 'polling-pulse 2s ease-in-out infinite' : 'none',
+              backgroundColor:
+                pollingMode === "manual" ? "var(--text-muted)" : undefined,
+              // Show animation only when in live mode AND polling is actively running
+              // Static green dot when live mode enabled but first poll hasn't completed yet
+              animation:
+                pollingMode === "live" && isPollingActive
+                  ? "polling-pulse 2s ease-in-out infinite"
+                  : "none",
             }}
           />
           <span
             className={`text-[10px] font-bold uppercase ${
-              pollingMode === 'live' ? 'text-emerald-500' : ''
+              pollingMode === "live" ? "text-emerald-500" : ""
             }`}
             style={{
-              color: pollingMode === 'manual' ? 'var(--text-muted)' : undefined,
+              color: pollingMode === "manual" ? "var(--text-muted)" : undefined,
             }}
           >
-            {pollingMode === 'live' ? 'Live Polling Active' : 'Manual Polling Mode'}
+            {pollingMode === "live"
+              ? "Live Polling Active"
+              : "Manual Polling Mode"}
           </span>
         </button>
       </div>
@@ -790,6 +815,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
 
+  // Clear console output when agent changes
+  useEffect(() => {
+    setConsoleOutput("");
+    setScrollLocked(false);
+    setCurrentRunId(null);
+  }, [selectedAgent?.id]);
+
   // Auto-scroll to bottom when new content arrives
   useEffect(() => {
     if (!scrollLocked && consoleRef.current) {
@@ -921,138 +953,48 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         wsRef.current = null;
       }
     };
-  }, [selectedAgent?.name, selectedAgent?.agent.status]);
+  }, [selectedAgent?.id, selectedAgent?.agent.status]);
 
   const handleClear = () => {
     setConsoleOutput("");
   };
 
-  // Empty state - no agent selected
-  if (!selectedAgent) {
-    return (
-      <div
-        className="h-full flex flex-col"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
-        <div
-          className="px-6 py-4 border-b flex items-center justify-between"
-          style={{
-            borderColor: "var(--border-default)",
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <IconTerminal
-              className="w-4 h-4"
-              style={{ color: "var(--text-muted)" }}
-            />
-            <span
-              className="text-xs font-bold"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Live Console
-            </span>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-          <IconTerminal
-            className="w-12 h-12 mb-3"
-            style={{ color: "var(--text-faint)" }}
-          />
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Select an agent to view console output
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const isAgentActive = selectedAgent?.agent?.status === "active";
 
-  // Empty state - agent idle (not-started, stopped, inactive, or stale)
-  if (selectedAgent.agent.status !== "active") {
-    // Determine appropriate message based on status
-    const getStatusMessage = () => {
-      switch (selectedAgent.agent.status) {
-        case "not-started":
-          return {
-            primary: "Agent not running",
-            secondary: "Start the agent to see output",
-          };
-        case "stopped":
-          return {
-            primary: "Agent stopped",
-            secondary: "Restart the agent to see output",
-          };
-        default:
-          return {
-            primary: "Agent idle - waiting for work",
-            secondary: "Start a run to see live output",
-          };
-      }
-    };
-    const message = getStatusMessage();
+  // Determine status message for non-active agents
+  const getStatusMessage = () => {
+    if (!selectedAgent) return null;
+    if (isAgentActive) return null;
 
-    return (
-      <div
-        className="h-full flex flex-col"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
-        <div
-          className="px-6 py-4 border-b flex items-center justify-between"
-          style={{
-            borderColor: "var(--border-default)",
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <IconTerminal
-              className="w-4 h-4"
-              style={{ color: "var(--text-muted)" }}
-            />
-            <span
-              className="text-xs font-bold"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {selectedAgent.name}
-            </span>
-            <span
-              className="text-[10px] px-2 py-0.5 rounded"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                color: "var(--text-muted)",
-              }}
-            >
-              {selectedAgent.agent.status}
-            </span>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
-            style={{ backgroundColor: "var(--bg-surface)" }}
-          >
-            <IconFelix
-              className="w-6 h-6"
-              style={{ color: "var(--text-faint)" }}
-            />
-          </div>
-          <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
-            {message.primary}
-          </p>
-          <p className="text-[10px]" style={{ color: "var(--text-faint)" }}>
-            {message.secondary}
-          </p>
-        </div>
-      </div>
-    );
-  }
+    switch (selectedAgent.agent.status) {
+      case "not-started":
+        return {
+          primary: "Agent not running",
+          secondary: "Start the agent to see output",
+        };
+      case "stopped":
+        return {
+          primary: "Agent stopped",
+          secondary: "Restart the agent to see output",
+        };
+      default:
+        return {
+          primary: "Agent idle - waiting for work",
+          secondary: "Start a run to see live output",
+        };
+    }
+  };
+  const idleMessage = getStatusMessage();
 
-  // Active console view
+  // Main layout - always render structure with conditional content
   return (
     <div
-      className="h-full flex flex-col"
+      className="h-full flex flex-col overflow-hidden"
       style={{ backgroundColor: "var(--bg-base)" }}
     >
-      {/* Header */}
+      {/* Console Header - Fixed */}
       <div
-        className="px-6 py-4 border-b flex items-center justify-between"
+        className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0"
         style={{
           borderColor: "var(--border-default)",
         }}
@@ -1063,23 +1005,38 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             className="text-xs font-bold"
             style={{ color: "var(--text-secondary)" }}
           >
-            {selectedAgent.name}
+            {selectedAgent?.name || "Live Console"}
           </span>
-          {selectedAgent.agent.current_run_id && (
+          {selectedAgent?.agent?.current_run_id && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
               {selectedAgent.agent.current_run_id}
             </span>
           )}
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          {isAgentActive && (
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          )}
+          {selectedAgent && !isAgentActive && (
+            <span
+              className="text-[10px] px-2 py-0.5 rounded"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-muted)",
+              }}
+            >
+              {selectedAgent.agent.status}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setScrollLocked(!scrollLocked)}
-            className={`p-1.5 rounded transition-colors ${scrollLocked ? "bg-felix-500/10 text-felix-400" : ""}`}
+            className={`p-1.5 rounded transition-colors ${
+              scrollLocked ? "bg-felix-500/10 text-felix-400" : ""
+            }`}
             style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
             title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
           >
-            <span>📌</span>
+            <IconLock className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleClear}
@@ -1087,7 +1044,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             style={{ color: "var(--text-muted)" }}
             title="Clear console"
           >
-            <span>🗑️</span>
+            <IconTrash className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -1095,25 +1052,130 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       {/* Console output */}
       <div
         ref={consoleRef}
-        className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console"
+        className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console min-h-0"
         style={{
           backgroundColor: "var(--bg-base)",
           color: "var(--text-secondary)",
         }}
       >
-        {consoleOutput ? (
-          <pre className="whitespace-pre-wrap">
-            <Ansi useClasses>{consoleOutput}</Ansi>
-          </pre>
-        ) : (
-          <div
-            className="flex items-center gap-2"
+          {/* No agent selected state */}
+          {!selectedAgent && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <IconTerminal
+                className="w-12 h-12 mb-3"
+                style={{ color: "var(--text-faint)" }}
+              />
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Select an agent to view console output
+              </p>
+            </div>
+          )}
+
+          {/* Agent idle/stopped state */}
+          {selectedAgent && idleMessage && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
+                style={{ backgroundColor: "var(--bg-surface)" }}
+              >
+                <IconFelix
+                  className="w-6 h-6"
+                  style={{ color: "var(--text-faint)" }}
+                />
+              </div>
+              <p
+                className="text-xs mb-1"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {idleMessage.primary}
+              </p>
+              <p className="text-[10px]" style={{ color: "var(--text-faint)" }}>
+                {idleMessage.secondary}
+              </p>
+            </div>
+          )}
+
+          {/* Active agent - console output */}
+          {selectedAgent && !idleMessage && consoleOutput && (
+            <pre className="whitespace-pre-wrap">
+              {(() => {
+                try {
+                  return <Ansi useClasses>{consoleOutput}</Ansi>;
+                } catch (error) {
+                  console.error("Ansi parsing failed:", error);
+                  return consoleOutput;
+                }
+              })()}
+            </pre>
+          )}
+
+          {/* Active agent - waiting for output */}
+          {selectedAgent && !idleMessage && !consoleOutput && (
+            <div
+              className="flex items-center gap-2"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
+              <span>Waiting for output...</span>
+            </div>
+          )}
+      </div>
+
+      {/* Workflow Footer - Fixed at bottom */}
+      <div
+        className="flex-shrink-0 border-t-2"
+        style={{
+          borderColor: "var(--border-default)",
+          backgroundColor: "var(--bg-base)",
+        }}
+      >
+        {/* Workflow Header */}
+        <div
+          className="px-4 py-1.5 border-b flex items-center gap-2 flex-shrink-0"
+          style={{ borderColor: "var(--border-default)" }}
+        >
+          <IconWorkflow
+            className="w-4 h-4"
             style={{ color: "var(--text-muted)" }}
+          />
+          <span
+            className="text-xs font-bold uppercase tracking-wider"
+            style={{ color: "var(--text-tertiary)" }}
           >
-            <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
-            <span>Waiting for output...</span>
-          </div>
-        )}
+            Agent Workflow
+          </span>
+        </div>
+
+        {/* Workflow Visualization */}
+        <div
+          className="overflow-x-auto overflow-y-hidden custom-scrollbar"
+          style={{ height: "120px" }}
+        >
+          {/* No agent selected */}
+          {!selectedAgent && (
+            <div className="h-full flex flex-col items-center justify-center opacity-20">
+              <IconCpu
+                className="w-8 h-8 mb-2"
+                style={{ color: "var(--text-faint)" }}
+              />
+              <p
+                className="text-[10px] uppercase tracking-widest"
+                style={{ color: "var(--text-faint)" }}
+              >
+                Select an agent
+              </p>
+            </div>
+          )}
+
+          {/* Agent selected - always show workflow visualization */}
+          {selectedAgent && (
+            <WorkflowVisualization
+              projectId={projectId}
+              currentStage={selectedAgent?.agent?.current_workflow_stage}
+              isAgentActive={isAgentActive}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1123,11 +1185,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 
 interface RunHistoryPanelProps {
   projectId: string;
+  selectedAgentId: number | null;
   onSelectRun: (runId: string) => void;
 }
 
 const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
   projectId,
+  selectedAgentId,
   onSelectRun,
 }) => {
   const [runs, setRuns] = useState<RunHistoryEntry[]>([]);
@@ -1136,8 +1200,14 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch runs
+  // Fetch runs - only when agent is selected
   const fetchRuns = useCallback(async () => {
+    if (!selectedAgentId) {
+      setRuns([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await felixApi.listRuns(projectId);
       setRuns(response.runs);
@@ -1146,13 +1216,15 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, selectedAgentId]);
 
   useEffect(() => {
     fetchRuns();
-    const interval = setInterval(fetchRuns, 5000);
-    return () => clearInterval(interval);
-  }, [fetchRuns]);
+    if (selectedAgentId) {
+      const interval = setInterval(fetchRuns, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchRuns, selectedAgentId]);
 
   // Filter runs
   const filteredRuns = runs.filter((run) => {
@@ -1303,7 +1375,30 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
 
       {/* Run list */}
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-2">
-        {loading ? (
+        {!selectedAgentId ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <svg
+              className="w-8 h-8 mb-2"
+              style={{ color: "var(--text-faint)" }}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <p
+              className="text-[10px] font-mono uppercase tracking-widest"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Select an agent
+            </p>
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center py-8">
             <div
               className="w-6 h-6 border-2 rounded-full animate-spin"
@@ -1406,34 +1501,34 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
 
 // --- Polling Mode Types and Constants ---
 
-type PollingMode = 'live' | 'manual';
-const POLLING_MODE_STORAGE_KEY = 'felix_agent_polling_mode';
+type PollingMode = "live" | "manual";
+const POLLING_MODE_STORAGE_KEY = "felix_agent_polling_mode";
 
 /**
  * Get the stored polling mode from localStorage, or return the default ('live')
  */
 function getStoredPollingMode(): PollingMode {
-  if (typeof window === 'undefined') return 'live';
+  if (typeof window === "undefined") return "live";
   try {
     const stored = localStorage.getItem(POLLING_MODE_STORAGE_KEY);
-    if (stored === 'live' || stored === 'manual') {
+    if (stored === "live" || stored === "manual") {
       return stored;
     }
   } catch (e) {
-    console.warn('Could not read polling mode from localStorage:', e);
+    console.warn("Could not read polling mode from localStorage:", e);
   }
-  return 'live';
+  return "live";
 }
 
 /**
  * Save polling mode to localStorage
  */
 function storePollingMode(mode: PollingMode): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     localStorage.setItem(POLLING_MODE_STORAGE_KEY, mode);
   } catch (e) {
-    console.warn('Could not save polling mode to localStorage:', e);
+    console.warn("Could not save polling mode to localStorage:", e);
   }
 }
 
@@ -1449,22 +1544,73 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Polling mode state - persisted in localStorage
-  const [pollingMode, setPollingMode] = useState<PollingMode>(() => getStoredPollingMode());
-  
+  const [pollingMode, setPollingMode] = useState<PollingMode>(() =>
+    getStoredPollingMode(),
+  );
+
+  // Track whether polling is actively running (first successful fetch completed in live mode)
+  const [isPollingActive, setIsPollingActive] = useState(false);
+
+  // Debounce timer ref for animation start (prevents visual glitches from rapid mode switching)
+  const animationDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced setter for isPollingActive to prevent animation glitches during rapid mode switches
+  const setIsPollingActiveDebounced = useCallback((active: boolean) => {
+    // Clear any pending debounce timer
+    if (animationDebounceRef.current) {
+      clearTimeout(animationDebounceRef.current);
+      animationDebounceRef.current = null;
+    }
+
+    if (active) {
+      // Debounce activation by 150ms to prevent glitchy animation starts
+      animationDebounceRef.current = setTimeout(() => {
+        setIsPollingActive(true);
+        animationDebounceRef.current = null;
+      }, 150);
+    } else {
+      // Deactivation is immediate (no delay when stopping animation)
+      setIsPollingActive(false);
+    }
+  }, []);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (animationDebounceRef.current) {
+        clearTimeout(animationDebounceRef.current);
+      }
+    };
+  }, []);
+
   // Persist polling mode to localStorage whenever it changes
   useEffect(() => {
     storePollingMode(pollingMode);
   }, [pollingMode]);
-  
+
   // Toggle function for polling mode
   const togglePollingMode = useCallback(() => {
-    setPollingMode((prev) => (prev === 'live' ? 'manual' : 'live'));
+    setPollingMode((prev) => {
+      const newMode = prev === "live" ? "manual" : "live";
+      // When switching to manual mode, immediately set isPollingActive to false
+      // (no debounce needed for deactivation)
+      if (newMode === "manual") {
+        // Clear any pending animation activation
+        if (animationDebounceRef.current) {
+          clearTimeout(animationDebounceRef.current);
+          animationDebounceRef.current = null;
+        }
+        setIsPollingActive(false);
+      }
+      return newMode;
+    });
   }, []);
 
   // Fetch agents - merges configured agents with runtime status
-  const fetchAgents = useCallback(async () => {
+  // Returns true on success, false on failure (for polling activation tracking)
+  const fetchAgents = useCallback(async (): Promise<boolean> => {
     try {
       // Load both configured agents and runtime agents in parallel
       const [configResponse, runtimeResponse] = await Promise.all([
@@ -1497,6 +1643,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
           last_heartbeat: runtime.last_heartbeat,
           started_at: runtime.started_at,
           stopped_at: runtime.stopped_at,
+          // Workflow stage fields (S-0030)
+          current_workflow_stage: runtime.current_workflow_stage,
+          workflow_stage_timestamp: runtime.workflow_stage_timestamp,
         };
       });
 
@@ -1524,9 +1673,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
           });
         }
       }
+      return true; // Success
     } catch (err) {
       console.error("Failed to fetch agents:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch agents");
+      return false; // Failure
     } finally {
       setLoading(false);
     }
@@ -1542,20 +1693,45 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     }
   }, [projectId]);
 
+  // Track whether initial fetch has been done (to avoid duplicate fetches on mount)
+  const initialFetchDoneRef = useRef(false);
+
   // Initial fetch (always runs once on mount)
+  // In live mode, this will activate polling animation after first successful fetch
   useEffect(() => {
-    fetchAgents();
+    const initFetch = async () => {
+      const success = await fetchAgents();
+      // If in live mode and fetch succeeded, activate polling animation (debounced)
+      if (pollingMode === "live" && success) {
+        setIsPollingActiveDebounced(true);
+      }
+      initialFetchDoneRef.current = true;
+    };
+    initFetch();
     fetchRequirements();
   }, []); // Empty deps - run once on mount
-  
+
   // Agent polling - only in live mode
+  // Interval set to 5000ms (5 seconds) to match agent heartbeat frequency
   useEffect(() => {
-    if (pollingMode !== 'live') return;
-    
-    const agentInterval = setInterval(fetchAgents, 2000);
+    if (pollingMode !== "live") return;
+
+    // When switching to live mode (after initial fetch has been done),
+    // activate polling immediately without waiting for first interval (debounced)
+    if (initialFetchDoneRef.current && !isPollingActive) {
+      setIsPollingActiveDebounced(true);
+    }
+
+    const agentInterval = setInterval(async () => {
+      const success = await fetchAgents();
+      // Ensure polling stays active on successful fetches (debounced)
+      if (success && !isPollingActive) {
+        setIsPollingActiveDebounced(true);
+      }
+    }, 5000);
     return () => clearInterval(agentInterval);
-  }, [fetchAgents, pollingMode]);
-  
+  }, [fetchAgents, pollingMode, isPollingActive, setIsPollingActiveDebounced]);
+
   // Requirements polling - always runs (not affected by polling mode toggle)
   useEffect(() => {
     const reqInterval = setInterval(fetchRequirements, 10000);
@@ -1650,13 +1826,14 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         actionInProgress={actionInProgress}
         pollingMode={pollingMode}
         onTogglePollingMode={togglePollingMode}
+        isPollingActive={isPollingActive}
       />
 
       {/* Three-Column Layout */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* Agent List Panel - Left Sidebar */}
         <div
-          className="w-80 flex-shrink-0 border-r"
+          className="w-80 flex-shrink-0 border-r overflow-hidden"
           style={{ borderColor: "var(--border-default)" }}
         >
           <AgentListPanel
@@ -1668,11 +1845,13 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         </div>
 
         {/* Middle and Right Panels - Split View */}
-        <div className="flex-1 flex">
+        <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Live Console Panel - Takes more space */}
           <div
-            className="flex-1 border-r"
-            style={{ borderColor: "var(--border-default)" }}
+            className="flex-1 flex flex-col border-r overflow-hidden"
+            style={{
+              borderColor: "var(--border-default)",
+            }}
           >
             <LiveConsolePanel
               selectedAgent={selectedAgent}
@@ -1681,9 +1860,10 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
           </div>
 
           {/* Run History Panel - Right Side */}
-          <div className="w-96 flex-shrink-0">
+          <div className="w-96 flex-shrink-0 overflow-hidden">
             <RunHistoryPanel
               projectId={projectId}
+              selectedAgentId={selectedAgent?.id ?? null}
               onSelectRun={setSelectedRunId}
             />
           </div>

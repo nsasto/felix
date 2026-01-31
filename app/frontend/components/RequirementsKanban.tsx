@@ -212,6 +212,21 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
 
+  // Compact view state - persisted to localStorage
+  const [isCompactView, setIsCompactView] = useState<boolean>(() => {
+    // Initialize from localStorage on first render
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("felix-kanban-compact-view");
+      return stored === "true";
+    }
+    return false;
+  });
+
+  // Persist compact view preference to localStorage
+  useEffect(() => {
+    localStorage.setItem("felix-kanban-compact-view", String(isCompactView));
+  }, [isCompactView]);
+
   // Requirement status info for each requirement (maps requirement id -> status info)
   // This includes plan info and spec modification timestamps for drift detection
   const [requirementStatusMap, setRequirementStatusMap] = useState<
@@ -501,9 +516,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
   return (
     <div className="flex-1 flex flex-col theme-bg-deepest overflow-hidden">
-      {/* Sticky Drop Zones */}
+      {/* Sticky Drop Zones - Always show all columns including Done */}
       <StickyDropZones
-        visibleColumns={visibleColumns}
+        visibleColumns={COLUMNS}
         draggedItem={draggedItem}
         dragOverColumn={dragOverColumn}
         scrollOffset={scrollOffset}
@@ -578,6 +593,22 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
             title="Done = reviewed and accepted, ready for production"
           >
             Show Done
+          </span>
+        </label>
+
+        {/* Compact View toggle */}
+        <label className="flex items-center gap-2 cursor-pointer ml-2">
+          <input
+            type="checkbox"
+            checked={isCompactView}
+            onChange={(e) => setIsCompactView(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border theme-border bg-transparent checked:bg-felix-500 checked:border-felix-500 cursor-pointer accent-felix-500"
+          />
+          <span
+            className="text-[10px] font-bold theme-text-muted uppercase tracking-widest flex items-center gap-1"
+            title="Compact view shows smaller cards with less information"
+          >
+            Compact View
           </span>
         </label>
 
@@ -662,22 +693,27 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         onSelectRequirement?.(requirement);
                       }}
                       className={`
-                        theme-bg-base border theme-border p-4 rounded-xl 
-                        hover:border-felix-600/40 transition-all cursor-grab group 
+                        kanban-card theme-bg-base border theme-border rounded-xl 
+                        hover:border-felix-600/40 cursor-grab group 
+                        ${isCompactView ? "kanban-card-compact p-3" : "p-4"}
                         ${isDragging ? "opacity-50 scale-95" : ""}
                         ${hasBlockedDeps && requirement.status !== "blocked" ? "border-l-2 border-l-amber-500/50" : ""}
                       `}
                       style={{ boxShadow: "var(--shadow-lg)" }}
                     >
                       {/* Header row: ID + Priority + In-Progress Indicator */}
-                      <div className="flex justify-between items-start mb-2">
+                      <div
+                        className={`flex justify-between items-start ${isCompactView ? "mb-1" : "mb-2"}`}
+                      >
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-mono font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded border border-felix-500/20">
                             {requirement.id}
                           </span>
                           {/* In-progress indicator for actively worked on requirements */}
                           {requirement.status === "in_progress" && (
-                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                            <div
+                              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 ${isCompactView ? "scale-90" : ""}`}
+                            >
                               <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-lg shadow-amber-500/50" />
                               <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wide">
                                 Active
@@ -686,21 +722,24 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                           )}
                         </div>
                         <span
-                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border}`}
+                          className={`font-bold px-1.5 py-0.5 rounded uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border} ${isCompactView ? "text-[8px] scale-90" : "text-[9px]"}`}
                         >
                           {requirement.priority}
                         </span>
                       </div>
 
                       {/* Title */}
-                      <h4 className="text-sm font-semibold theme-text-primary mb-2 group-hover:text-felix-400 transition-colors line-clamp-2">
+                      <h4
+                        className={`font-semibold theme-text-primary group-hover:text-felix-400 ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}
+                      >
                         {requirement.title}
                       </h4>
 
                       {/* Dependencies warning with hover tooltip showing incomplete deps */}
+                      {/* In compact mode: icon + count only; in normal mode: full text */}
                       {hasBlockedDeps && requirement.status !== "blocked" && (
                         <div
-                          className="flex items-center gap-1.5 mb-2 text-[9px] text-amber-400 cursor-help"
+                          className={`flex items-center gap-1.5 text-amber-400 cursor-help ${isCompactView ? "mb-0 text-[8px]" : "mb-2 text-[9px]"}`}
                           title={depsTooltip}
                         >
                           <svg
@@ -716,18 +755,24 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                             />
                           </svg>
-                          <span>
-                            ⚠️ {incompleteDeps.length} incomplete{" "}
-                            {incompleteDeps.length === 1
-                              ? "dependency"
-                              : "dependencies"}
-                          </span>
+                          {isCompactView ? (
+                            <span>⚠️ {incompleteDeps.length}</span>
+                          ) : (
+                            <span>
+                              ⚠️ {incompleteDeps.length} incomplete{" "}
+                              {incompleteDeps.length === 1
+                                ? "dependency"
+                                : "dependencies"}
+                            </span>
+                          )}
                         </div>
                       )}
 
-                      {/* Labels */}
+                      {/* Labels - Animated hide/show with compact mode transition */}
                       {requirement.labels && requirement.labels.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
+                        <div
+                          className={`kanban-card-section kanban-card-section-hideable flex flex-wrap gap-1.5 ${isCompactView ? "" : "mb-2"}`}
+                        >
                           {requirement.labels.map((label) => (
                             <span
                               key={label}
@@ -739,9 +784,11 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Plan timestamp indicator with drift detection */}
+                      {/* Plan timestamp indicator with drift detection - Animated hide/show */}
                       {planTimestampInfo.hasPlan && (
-                        <div className="flex items-center gap-2 mb-2 text-[9px]">
+                        <div
+                          className={`kanban-card-section kanban-card-section-hideable flex items-center gap-2 text-[9px] ${isCompactView ? "" : "mb-2"}`}
+                        >
                           {/* Drift warning indicator - spec modified after plan */}
                           {planTimestampInfo.specModifiedAfterPlan ? (
                             <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/30">
@@ -786,8 +833,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Footer: Updated date + view spec link */}
-                      <div className="flex justify-between items-center pt-2 border-t theme-border-muted">
+                      {/* Footer: Updated date + view spec link - Animated hide/show */}
+                      <div
+                        className={`kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t theme-border-muted ${isCompactView ? "" : ""}`}
+                      >
                         <span className="text-[9px] font-mono theme-text-tertiary">
                           Updated: {requirement.updated_at}
                         </span>

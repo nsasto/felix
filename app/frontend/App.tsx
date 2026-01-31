@@ -10,7 +10,10 @@ import {
   IconCpu,
   IconKanban,
   IconPlus,
+  IconPulse,
 } from "./components/Icons";
+import felixLogo from "./img/felix_logo_small.png";
+import felixLogoHammer from "./img/felix_logo_hammer_small.png";
 import ProjectSelector from "./components/ProjectSelector";
 import RequirementsKanban from "./components/RequirementsKanban";
 import AgentControls from "./components/AgentControls";
@@ -23,6 +26,58 @@ import SettingsScreen from "./components/SettingsScreen";
 import AgentDashboard from "./components/AgentDashboard";
 import CopilotChat from "./components/CopilotChat";
 import { marked } from "marked";
+
+// localStorage key for remembering the last selected project
+const LAST_PROJECT_KEY = "felix-last-project-id";
+
+// Helper functions for safe localStorage operations
+const saveLastProjectId = (projectId: string): void => {
+  try {
+    localStorage.setItem(LAST_PROJECT_KEY, projectId);
+  } catch {
+    // Silently fail if localStorage is unavailable (e.g., private browsing)
+  }
+};
+
+/**
+ * Validate that a project ID has the expected format.
+ * Project IDs are 12-character hexadecimal strings (MD5 hash prefix).
+ * @param projectId - The project ID to validate
+ * @returns true if valid, false otherwise
+ */
+const isValidProjectId = (projectId: string): boolean => {
+  // Project IDs must be exactly 12 hex characters (a-f, 0-9)
+  return /^[a-f0-9]{12}$/i.test(projectId);
+};
+
+const getLastProjectId = (): string | null => {
+  try {
+    const stored = localStorage.getItem(LAST_PROJECT_KEY);
+    // Validate that the stored value is a non-empty string
+    if (stored && typeof stored === "string" && stored.trim().length > 0) {
+      const trimmed = stored.trim();
+      // Validate project ID format (12-char hex string)
+      if (isValidProjectId(trimmed)) {
+        return trimmed;
+      }
+      // Invalid format - clear corrupted data
+      clearLastProjectId();
+      return null;
+    }
+    return null;
+  } catch {
+    // Silently fail if localStorage is unavailable
+    return null;
+  }
+};
+
+const clearLastProjectId = (): void => {
+  try {
+    localStorage.removeItem(LAST_PROJECT_KEY);
+  } catch {
+    // Silently fail if localStorage is unavailable
+  }
+};
 
 const INITIAL_TASKS: Task[] = [
   {
@@ -71,6 +126,7 @@ type ExtendedUIState =
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [uiState, setUiState] = useState<ExtendedUIState>("projects"); // Start with projects view
+  const [logoHovered, setLogoHovered] = useState(false);
 
   // Project management state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -85,6 +141,12 @@ const App: React.FC = () => {
 
   // Run artifact viewer state
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
+  // Ref to ensure auto-load only happens once on initial app load
+  const hasAttemptedAutoLoad = useRef<boolean>(false);
+  // Ref to track if user has manually interacted (selected project, navigated)
+  // Used to prevent auto-load from overriding user actions
+  const hasUserInteracted = useRef<boolean>(false);
 
   // Check backend status on mount
   useEffect(() => {
@@ -104,9 +166,46 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Auto-load last selected project on app startup
+  useEffect(() => {
+    // Only attempt auto-load once on initial mount
+    if (hasAttemptedAutoLoad.current) {
+      return;
+    }
+    hasAttemptedAutoLoad.current = true;
+
+    const autoLoadLastProject = async () => {
+      const savedProjectId = getLastProjectId();
+      if (!savedProjectId) {
+        return;
+      }
+
+      try {
+        const projectDetails = await felixApi.getProject(savedProjectId);
+        // Only apply auto-load if user hasn't manually interacted
+        if (projectDetails && !hasUserInteracted.current) {
+          setSelectedProjectId(savedProjectId);
+          setSelectedProject(projectDetails);
+          // Switch to kanban view after auto-loading
+          setUiState("kanban");
+        }
+      } catch (error) {
+        // Project no longer exists or API error - clear the saved ID
+        clearLastProjectId();
+        console.warn("Auto-load failed, clearing saved project ID:", error);
+      }
+    };
+
+    autoLoadLastProject();
+  }, []);
+
   const handleSelectProject = (projectId: string, details: ProjectDetails) => {
+    // Mark that user has manually interacted (prevents auto-load from overriding)
+    hasUserInteracted.current = true;
     setSelectedProjectId(projectId);
     setSelectedProject(details);
+    // Save the selected project ID to localStorage for auto-load on next visit
+    saveLastProjectId(projectId);
     // Switch to kanban view after selecting a project
     if (uiState === "projects") {
       setUiState("kanban");
@@ -1136,10 +1235,23 @@ export const executeTask = (taskId: string) => {
       >
         <div
           onClick={() => setUiState("projects")}
-          className="p-2 bg-felix-600 rounded-2xl shadow-xl shadow-felix-900/50 transform hover:scale-110 transition-transform cursor-pointer group"
+          onMouseEnter={() => setLogoHovered(true)}
+          onMouseLeave={() => setLogoHovered(false)}
+          className="p-2 rounded-2xl transform hover:scale-110 transition-transform cursor-pointer relative"
           title="Projects"
         >
-          <IconFelix className="w-6 h-6 text-white group-hover:rotate-45 transition-transform duration-500" />
+          <img
+            src={felixLogo}
+            alt="Felix"
+            className="w-[45px] h-[45px] transition-opacity duration-300"
+            style={{ opacity: logoHovered ? 0 : 1 }}
+          />
+          <img
+            src={felixLogoHammer}
+            alt="Felix with hammer"
+            className="w-[45px] h-[45px] absolute top-2 left-2 transition-opacity duration-300"
+            style={{ opacity: logoHovered ? 1 : 0 }}
+          />
         </div>
         <div className="flex-1 flex flex-col items-center gap-4 w-full px-2">
           {/* Projects button */}
@@ -1210,7 +1322,7 @@ export const executeTask = (taskId: string) => {
             }}
             title="Agent Dashboard"
           >
-            <IconCpu className="w-5 h-5" />
+            <IconPulse className="w-5 h-5" />
             {uiState === "orchestration" && (
               <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
             )}

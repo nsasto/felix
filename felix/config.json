@@ -4,7 +4,6 @@
     "mode": "local",
     "max_iterations": 100,
     "default_mode": "planning",
-    "auto_transition": true,
     "commit_on_complete": true,
     "_note": "For testing without commits, use -NoCommit flag in felix-agent.ps1"
   },
@@ -29,7 +28,7 @@
     "max_retries": 3
   },
   "plugins": {
-    "enabled": true,
+    "enabled": false,
     "discovery_path": "felix/plugins", 
     "api_version": "v1",
     "disabled": [

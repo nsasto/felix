@@ -326,11 +326,11 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
         Stream LLM response based on configured provider.
 
         Yields SSE-formatted events:
-        - {"avatar_state": "thinking"} - Initial state
-        - {"avatar_state": "speaking"} - When streaming starts
-        - {"token": "text"} - Each token
-        - {"avatar_state": "idle", "done": true} - Complete
-        - {"error": "message", "avatar_state": "error"} - On error
+        - {"avatar_state": "thinking", "stream_id": "..."} - Initial state
+        - {"avatar_state": "speaking", "stream_id": "..."} - When streaming starts
+        - {"token": "text", "token_id": "...", "stream_id": "..."} - Each token
+        - {"avatar_state": "idle", "done": true, "stream_id": "..."} - Complete
+        - {"error": "message", "avatar_state": "error", "stream_id": "..."} - On error
 
         Args:
             messages: List of messages for the LLM
@@ -338,43 +338,49 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
         Yields:
             SSE event strings
         """
+        import uuid
+
+        # Generate unique stream ID for this response
+        stream_id = str(uuid.uuid4())
+
         # Validate configuration
         is_valid, error = self.validate_configuration()
         if not is_valid:
-            yield f"data: {json.dumps({'error': error, 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': error, 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
             return
 
-        # Signal thinking state
-        yield f"data: {json.dumps({'avatar_state': 'thinking'})}\n\n"
+        # Signal thinking state with stream ID
+        yield f"data: {json.dumps({'avatar_state': 'thinking', 'stream_id': stream_id})}\n\n"
 
         try:
             if self.config.provider == "openai":
-                async for event in self._stream_openai(messages):
+                async for event in self._stream_openai(messages, stream_id):
                     yield event
             elif self.config.provider == "anthropic":
-                async for event in self._stream_anthropic(messages):
+                async for event in self._stream_anthropic(messages, stream_id):
                     yield event
             else:
-                yield f"data: {json.dumps({'error': f'Unsupported provider: {self.config.provider}', 'avatar_state': 'error'})}\n\n"
+                yield f"data: {json.dumps({'error': f'Unsupported provider: {self.config.provider}', 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
                 return
 
-            # Signal completion
-            yield f"data: {json.dumps({'avatar_state': 'idle', 'done': True})}\n\n"
+            # Signal completion with stream ID
+            yield f"data: {json.dumps({'avatar_state': 'idle', 'done': True, 'stream_id': stream_id})}\n\n"
 
         except Exception as e:
             # Catch any unexpected errors not handled by provider-specific methods
-            yield f"data: {json.dumps({'error': str(e), 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': str(e), 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
 
     async def _stream_openai(
-        self, messages: List[Dict[str, str]]
+        self, messages: List[Dict[str, str]], stream_id: str
     ) -> AsyncGenerator[str, None]:
-        """Stream response from OpenAI API using official SDK"""
+        """Stream response from OpenAI API using official SDK with token deduplication"""
         try:
             client = AsyncOpenAI(api_key=self.api_key, timeout=60.0)
 
             # Signal speaking state
-            yield f"data: {json.dumps({'avatar_state': 'speaking'})}\n\n"
+            yield f"data: {json.dumps({'avatar_state': 'speaking', 'stream_id': stream_id})}\n\n"
 
+            token_counter = 0
             stream = await client.chat.completions.create(
                 model=self.config.model, messages=messages, stream=True, max_tokens=4000
             )
@@ -383,26 +389,33 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
                 if chunk.choices:
                     delta = chunk.choices[0].delta
                     if delta.content:
-                        yield f"data: {json.dumps({'token': delta.content})}\n\n"
+                        token_counter += 1
+                        # Include token counter for frontend deduplication
+                        event_data = {
+                            "token": delta.content,
+                            "token_id": f"{stream_id}_{token_counter}",
+                            "stream_id": stream_id,
+                        }
+                        yield f"data: {json.dumps(event_data)}\n\n"
 
         except RateLimitError:
-            yield f"data: {json.dumps({'error': 'Rate limit exceeded. Please try again later.', 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': 'Rate limit exceeded. Please try again later.', 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
         except APIConnectionError:
-            yield f"data: {json.dumps({'error': 'Connection failed. Check your network.', 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': 'Connection failed. Check your network.', 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
         except APITimeoutError:
-            yield f"data: {json.dumps({'error': 'Request timed out. Please try again.', 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': 'Request timed out. Please try again.', 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
         except APIError as e:
             error_msg = str(e)
             if "invalid" in error_msg.lower() and "api" in error_msg.lower():
                 error_msg = "Invalid API key"
-            yield f"data: {json.dumps({'error': error_msg, 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': error_msg, 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e), 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': str(e), 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
 
     async def _stream_anthropic(
-        self, messages: List[Dict[str, str]]
+        self, messages: List[Dict[str, str]], stream_id: str
     ) -> AsyncGenerator[str, None]:
-        """Stream response from Anthropic API using official SDK"""
+        """Stream response from Anthropic API using official SDK with token deduplication"""
         try:
             # Extract system prompt (Anthropic uses separate system parameter)
             system_content = ""
@@ -416,8 +429,9 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
             client = AsyncAnthropic(api_key=self.api_key, timeout=60.0)
 
             # Signal speaking state
-            yield f"data: {json.dumps({'avatar_state': 'speaking'})}\n\n"
+            yield f"data: {json.dumps({'avatar_state': 'speaking', 'stream_id': stream_id})}\n\n"
 
+            token_counter = 0
             async with client.messages.stream(
                 model=self.config.model,
                 max_tokens=4000,
@@ -425,7 +439,14 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
                 messages=api_messages,
             ) as stream:
                 async for text in stream.text_stream:
-                    yield f"data: {json.dumps({'token': text})}\n\n"
+                    if text:
+                        token_counter += 1
+                        event_data = {
+                            "token": text,
+                            "token_id": f"{stream_id}_{token_counter}",
+                            "stream_id": stream_id,
+                        }
+                        yield f"data: {json.dumps(event_data)}\n\n"
 
         except AnthropicAPIError as e:
             error_msg = str(e)
@@ -433,14 +454,14 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
                 error_msg = "Invalid API key"
             elif "rate limit" in error_msg.lower():
                 error_msg = "Rate limit exceeded. Please try again later."
-            yield f"data: {json.dumps({'error': error_msg, 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': error_msg, 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
         except Exception as e:
             error_msg = str(e)
             if "timeout" in error_msg.lower():
                 error_msg = "Request timed out. Please try again."
             elif "connection" in error_msg.lower():
                 error_msg = "Connection failed. Check your network."
-            yield f"data: {json.dumps({'error': error_msg, 'avatar_state': 'error'})}\n\n"
+            yield f"data: {json.dumps({'error': error_msg, 'avatar_state': 'error', 'stream_id': stream_id})}\n\n"
 
 
 def create_copilot_service_from_config(

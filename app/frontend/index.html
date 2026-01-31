@@ -31,6 +31,7 @@
             'spin-slow': 'spin 3s linear infinite',
             'in': 'enter 0.3s ease-out',
             'polling-pulse': 'polling-pulse 2s ease-in-out infinite',
+            'workflow-pulse': 'workflow-pulse 2s ease-in-out infinite',
           },
           keyframes: {
             enter: {
@@ -40,6 +41,16 @@
             'polling-pulse': {
               '0%, 100%': { opacity: '1' },
               '50%': { opacity: '0.6' },
+            },
+            'workflow-pulse': {
+              '0%, 100%': { 
+                boxShadow: '0 0 0 0 rgba(115, 142, 241, 0.4)',
+                borderColor: 'rgb(115, 142, 241)',
+              },
+              '50%': { 
+                boxShadow: '0 0 12px 4px rgba(115, 142, 241, 0.3)',
+                borderColor: 'rgb(157, 180, 247)',
+              },
             }
           }
         }
@@ -411,6 +422,74 @@
 
     .theme-border-subtle {
       border-color: var(--border-subtle);
+    }
+
+    /* ============================================
+       Kanban Card Styling
+       ============================================ */
+    
+    /* Base kanban card - transition for smooth mode switching */
+    .kanban-card {
+      transition: padding 300ms ease-in-out, 
+                  transform 300ms ease-in-out, 
+                  opacity 300ms ease-in-out,
+                  box-shadow 300ms ease-in-out,
+                  max-height 300ms ease-in-out;
+      min-height: 0;
+      will-change: transform, opacity, max-height;
+    }
+
+    /* Compact kanban card - reduced height and content */
+    .kanban-card-compact {
+      max-height: 80px;
+      /* Use clip instead of hidden to allow smooth animations */
+      overflow: clip;
+    }
+    
+    /* Card content sections that animate in/out */
+    .kanban-card-section {
+      transition: opacity 300ms ease-in-out, 
+                  max-height 300ms ease-in-out,
+                  margin 300ms ease-in-out,
+                  padding 300ms ease-in-out,
+                  border-color 300ms ease-in-out;
+      overflow: hidden;
+    }
+    
+    /* Hide sections in compact mode with smooth transition */
+    .kanban-card-compact .kanban-card-section-hideable {
+      opacity: 0;
+      max-height: 0;
+      margin-top: 0;
+      margin-bottom: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-color: transparent;
+      pointer-events: none;
+    }
+    
+    /* Show sections in normal mode */
+    .kanban-card-section-hideable {
+      opacity: 1;
+      max-height: 100px;
+    }
+
+    /* Single line truncation for compact title */
+    .line-clamp-1 {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Two line truncation for normal title */
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     /* ============================================
