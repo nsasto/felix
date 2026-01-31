@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
     "current_requirement_id": "S-0023",
     "last_run_id": null,
     "last_mode": "building",
@@ -19,3 +20,15 @@
         ]
     }
 }
+=======
+    "current_requirement_id":  "S-0030",
+    "last_run_id":  "S-0030-20260130-001816-it9",
+    "last_mode":  "building",
+    "last_iteration_outcome":  "success",
+    "updated_at":  "2026-01-30T00:18:16.3529792+00:00",
+    "current_iteration":  9,
+    "status":  "running",
+    "validation_retry_count":  0,
+    "blocked_task":  null
+}
+>>>>>>> origin/main

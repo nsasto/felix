@@ -108,6 +108,9 @@ export interface AgentEntry {
   started_at: string | null;
   last_heartbeat: string | null;
   stopped_at: string | null;
+  // Workflow stage fields (S-0030: Agent Workflow Visualization)
+  current_workflow_stage?: string | null;
+  workflow_stage_timestamp?: string | null;
 }
 
 export interface AgentRegistryResponse {
@@ -192,7 +195,7 @@ export interface BackpressureConfig {
 }
 
 export interface UIConfig {
-  theme: "dark" | "light" | "system";
+  // Currently empty - theme is now a local-only setting
 }
 
 // --- Copilot Config Types (for S-0016: Felix Copilot Settings) ---
@@ -303,6 +306,29 @@ export interface AgentConfigsListResponse {
   agents: AgentConfigEntry[];
 }
 
+// --- Workflow Configuration Types (for S-0030: Agent Workflow Visualization) ---
+
+/**
+ * A single workflow stage definition from workflow.json
+ */
+export interface WorkflowStage {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  order: number;
+  conditional?: string;
+}
+
+/**
+ * Response containing workflow configuration for the visualization panel
+ */
+export interface WorkflowConfigResponse {
+  version: string;
+  layout: "horizontal" | "vertical";
+  stages: WorkflowStage[];
+}
+
 /**
  * Merged agent combining configuration from agents.json with runtime status from the registry.
  * Used by the Agent Orchestration Dashboard to display complete agent information.
@@ -324,6 +350,9 @@ export interface MergedAgent {
   last_heartbeat?: string | null;
   started_at?: string | null;
   stopped_at?: string | null;
+  // Workflow stage fields (S-0030: Agent Workflow Visualization)
+  current_workflow_stage?: string | null;
+  workflow_stage_timestamp?: string | null;
 }
 
 // --- Copilot Chat Types (for S-0017: Felix Copilot Chat Assistant) ---
@@ -734,6 +763,18 @@ class FelixApiService {
     return this.request<AgentConfigsListResponse>("/agents/config");
   }
 
+  // --- Workflow Configuration Endpoint (for S-0030: Agent Workflow Visualization) ---
+
+  /**
+   * Get workflow configuration for the agent workflow visualization panel.
+   * Loads felix/workflow.json from the project directory.
+   * Falls back to default workflow stages if file is missing or invalid.
+   */
+  async getWorkflowConfig(projectId?: string): Promise<WorkflowConfigResponse> {
+    const params = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+    return this.request<WorkflowConfigResponse>(`/agents/workflow-config${params}`);
+  }
+
   // --- Global Settings Endpoints (project-independent) ---
 
   async getGlobalConfig(): Promise<ConfigContent> {
@@ -781,6 +822,7 @@ class FelixApiService {
     let eventCallback: ((event: CopilotStreamEvent) => void) | null = null;
     let errorCallback: ((error: Error) => void) | null = null;
     let completeCallback: (() => void) | null = null;
+    let processedEventIds = new Set<string>(); // Prevent duplicate events
 
     // Start the fetch request
     const startStream = async () => {
@@ -825,8 +867,13 @@ class FelixApiService {
 
         const decoder = new TextDecoder();
         let buffer = "";
+        let lineNumber = 0; // Track line numbers for deduplication
 
         while (true) {
+          if (abortController?.signal.aborted) {
+            break;
+          }
+
           const { done, value } = await reader.read();
 
           if (done) {
@@ -834,32 +881,75 @@ class FelixApiService {
             break;
           }
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
+          // Robust buffer management
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
 
-          // Keep the last incomplete line in the buffer
+          // Handle different line endings consistently
+          const lines = buffer.split(/\r?\n/);
+
+          // Keep incomplete line in buffer
           buffer = lines.pop() || "";
 
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6)) as CopilotStreamEvent;
-                eventCallback?.(data);
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            lineNumber++;
 
-                // Check if stream is done
-                if (data.done) {
+            if (!line || !line.startsWith("data: ")) {
+              continue;
+            }
+
+            try {
+              const dataStr = line.slice(6).trim();
+              if (!dataStr || dataStr === "[DONE]") {
+                if (dataStr === "[DONE]") {
                   completeCallback?.();
                   return;
                 }
-
-                // Check for errors
-                if (data.error) {
-                  errorCallback?.(new Error(data.error));
-                }
-              } catch (parseError) {
-                // Ignore JSON parse errors for malformed lines
-                console.warn("Failed to parse SSE data:", line);
+                continue;
               }
+
+              // Create unique event ID for deduplication
+              const eventId = `${lineNumber}_${dataStr.slice(0, 50)}`;
+              if (processedEventIds.has(eventId)) {
+                console.warn(
+                  "Duplicate SSE event detected, skipping:",
+                  eventId,
+                );
+                continue;
+              }
+              processedEventIds.add(eventId);
+
+              // Clean up old event IDs to prevent memory leak
+              if (processedEventIds.size > 1000) {
+                const oldestEvents = Array.from(processedEventIds).slice(
+                  0,
+                  500,
+                );
+                oldestEvents.forEach((id) => processedEventIds.delete(id));
+              }
+
+              const data = JSON.parse(dataStr) as CopilotStreamEvent;
+
+              // Only emit if stream hasn't been cancelled
+              if (!abortController?.signal.aborted && eventCallback) {
+                eventCallback(data);
+              }
+
+              // Handle completion
+              if (data.done) {
+                completeCallback?.();
+                return;
+              }
+
+              // Handle errors
+              if (data.error) {
+                errorCallback?.(new Error(data.error));
+                return;
+              }
+            } catch (parseError) {
+              console.warn("Failed to parse SSE data:", line, parseError);
+              // Continue processing other lines
             }
           }
         }
@@ -890,6 +980,11 @@ class FelixApiService {
       cancel: () => {
         abortController?.abort();
         abortController = null;
+        // Clear callbacks to prevent stale handler execution
+        eventCallback = null;
+        errorCallback = null;
+        completeCallback = null;
+        processedEventIds.clear();
       },
     };
   }

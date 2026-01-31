@@ -16,12 +16,28 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Mock ResizeObserver - must be a proper class constructor for react-resizable-panels
+class MockResizeObserver {
+  callback: ResizeObserverCallback;
+  
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+  
+  observe(_target: Element): void {
+    // Mock observe - do nothing
+  }
+  
+  unobserve(_target: Element): void {
+    // Mock unobserve - do nothing
+  }
+  
+  disconnect(): void {
+    // Mock disconnect - do nothing
+  }
+}
+
+global.ResizeObserver = MockResizeObserver;
 
 // Mock WebSocket to prevent actual network connections during tests
 // This avoids the Node.js internal assertion error when WebSocket tries to connect

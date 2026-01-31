@@ -33,7 +33,32 @@ Write-Host $ProjectPath -ForegroundColor Green
 Write-Host "Max requirements: " -NoNewline
 Write-Host $MaxRequirements -ForegroundColor Green
 Write-Host ""
+# Create process-specific lock file to track active loops
+$lockDir = Join-Path $ProjectPath "felix\.locks"
+if (-not (Test-Path $lockDir)) {
+    New-Item -Path $lockDir -ItemType Directory -Force | Out-Null
+}
 
+$lockFile = Join-Path $lockDir "loop-$PID.lock"
+$lockData = @{
+    pid     = $PID
+    started = Get-Date -Format "o"
+    project = $ProjectPath
+} | ConvertTo-Json
+
+Set-Content -Path $lockFile -Value $lockData
+Write-Host "[LOCK] Created loop lock: $lockFile" -ForegroundColor Cyan
+
+# Cleanup function
+function Remove-LoopLock {
+    if (Test-Path $lockFile) {
+        Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+        Write-Host "[LOCK] Removed loop lock" -ForegroundColor Cyan
+    }
+}
+
+# Register cleanup on exit
+Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action { Remove-LoopLock } | Out-Null
 function Select-NextRequirement {
     param([string]$RequirementsFilePath)
     
@@ -42,12 +67,24 @@ function Select-NextRequirement {
         return $null
     }
     
-    $requirements = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
+    try {
+        $requirements = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Host "ERROR: Failed to parse requirements.json: $_" -ForegroundColor Red
+        Write-Host "File may be corrupted or contain invalid JSON" -ForegroundColor Red
+        return $null
+    }
     
-    # Find first in_progress, then first planned
-    $req = $requirements.requirements | Where-Object { $_.status -eq "in_progress" } | Select-Object -First 1
+    # Find first in_progress, then first planned (explicitly exclude complete, blocked, done)
+    $req = $requirements.requirements | Where-Object { 
+        $_.status -eq "in_progress" 
+    } | Select-Object -First 1
+    
     if (-not $req) {
-        $req = $requirements.requirements | Where-Object { $_.status -eq "planned" } | Select-Object -First 1
+        $req = $requirements.requirements | Where-Object { 
+            $_.status -eq "planned" 
+        } | Select-Object -First 1
     }
     
     return $req
@@ -73,7 +110,39 @@ while ($requirementsProcessed -lt $MaxRequirements) {
     Write-Host "=============================================================" -ForegroundColor Cyan
     Write-Host ""
     
+    # Validate parameters before calling felix-agent
+    if (-not $nextReq.id) {
+        Write-Host "ERROR: nextReq.id is null or empty!" -ForegroundColor Red
+        Write-Host "nextReq object: $($nextReq | ConvertTo-Json -Depth 2)" -ForegroundColor Yellow
+        continue
+    }
+    
+    # Double-check requirement status immediately before processing (catch external changes)
+    try {
+        $freshReqs = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
+        $freshReq = $freshReqs.requirements | Where-Object { $_.id -eq $nextReq.id } | Select-Object -First 1
+        
+        if (-not $freshReq) {
+            Write-Host "â ï¸  Warning: Requirement $($nextReq.id) no longer exists in requirements.json" -ForegroundColor Yellow
+            Write-Host "Skipping to next requirement..." -ForegroundColor Yellow
+            continue
+        }
+        
+        if ($freshReq.status -notin @("planned", "in_progress")) {
+            Write-Host "â ï¸  Warning: Requirement $($nextReq.id) status changed to '$($freshReq.status)'" -ForegroundColor Yellow
+            Write-Host "Skipping to next requirement..." -ForegroundColor Yellow
+            continue
+        }
+    }
+    catch {
+        Write-Host "â ï¸  Warning: Failed to verify requirement status: $_" -ForegroundColor Yellow
+        Write-Host "Skipping to next requirement..." -ForegroundColor Yellow
+        continue
+    }
+    
     # Execute felix-agent for this specific requirement
+    Write-Host "[DEBUG] Calling felix-agent with ProjectPath='$ProjectPath' RequirementId='$($nextReq.id)'" -ForegroundColor DarkGray
+    
     if ($NoCommit) {
         & $AgentScript $ProjectPath -RequirementId $nextReq.id -NoCommit
     }
@@ -88,30 +157,48 @@ while ($requirementsProcessed -lt $MaxRequirements) {
     switch ($exitCode) {
         0 {
             # Success - requirement completed
-            Write-Host "✅ $($nextReq.id) completed successfully" -ForegroundColor Green
+            Write-Host "? $($nextReq.id) completed successfully" -ForegroundColor Green
+            
+            # Brief pause to ensure requirements.json is updated
+            Start-Sleep -Milliseconds 500
+            
+            # Verify the requirement was actually marked complete
+            $updatedReqs = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
+            $completedReq = $updatedReqs.requirements | Where-Object { $_.id -eq $nextReq.id }
+            
+            if ($completedReq -and ($completedReq.status -eq "complete" -or $completedReq.status -eq "done")) {
+                Write-Host "✅ Status verified: $($nextReq.id) marked as $($completedReq.status)" -ForegroundColor Green
+            }
+            elseif ($completedReq -and $completedReq.status -in @("in_progress", "planned")) {
+                Write-Host "⚠️  Warning: $($nextReq.id) still has status '$($completedReq.status)' after processing" -ForegroundColor Yellow
+            }
+            else {
+                Write-Host "⚠️  Warning: $($nextReq.id) status is '$($completedReq.status)' (expected 'complete')" -ForegroundColor Yellow
+            }
+            
             $requirementsProcessed++
         }
         2 {
             # Blocked due to backpressure failures
-            Write-Host "⚠️  $($nextReq.id) blocked (backpressure failures)" -ForegroundColor Yellow
+            Write-Host "??  $($nextReq.id) blocked (backpressure failures)" -ForegroundColor Yellow
             Write-Host "Moving to next requirement..." -ForegroundColor Yellow
             $requirementsProcessed++
         }
         3 {
             # Blocked due to validation failures
-            Write-Host "⚠️  $($nextReq.id) blocked (validation failures)" -ForegroundColor Yellow
+            Write-Host "??  $($nextReq.id) blocked (validation failures)" -ForegroundColor Yellow
             Write-Host "Moving to next requirement..." -ForegroundColor Yellow
             $requirementsProcessed++
         }
         1 {
             # Error - stop loop
-            Write-Host "❌ $($nextReq.id) encountered an error (exit code 1)" -ForegroundColor Red
+            Write-Host "? $($nextReq.id) encountered an error (exit code 1)" -ForegroundColor Red
             Write-Host "Stopping execution" -ForegroundColor Red
             exit 1
         }
         default {
             # Unknown exit code - stop loop
-            Write-Host "❌ $($nextReq.id) returned unexpected exit code: $exitCode" -ForegroundColor Red
+            Write-Host "? $($nextReq.id) returned unexpected exit code: $exitCode" -ForegroundColor Red
             Write-Host "Stopping execution" -ForegroundColor Red
             exit $exitCode
         }
@@ -126,4 +213,7 @@ Write-Host ""
 Write-Host "=============================================================" -ForegroundColor Yellow
 Write-Host "  Max requirements limit reached ($MaxRequirements)" -ForegroundColor Yellow
 Write-Host "=============================================================" -ForegroundColor Yellow
+
+# Cleanup
+Remove-LoopLock
 exit 0

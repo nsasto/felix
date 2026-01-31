@@ -115,3 +115,88 @@
 - If version mismatch, treat as fresh run (don't compare outputs)
 - Version format example: `1.2.0-a3f9d8` (script version + prompt hash)
 - Update validation scripts to be version-aware
+
+## TODO: Strengthen or Remove Loop Lock Mechanism
+
+**Current behavior:**
+
+- `felix-loop.ps1` creates a PID-based lock file (`felix/loop.lock`)
+- Lock file is only for tracking - doesn't prevent concurrent loops
+- No mutual exclusion: multiple loops can start simultaneously
+
+**Problem:**
+
+- In single-user dev environments, lock mechanism is unnecessary overhead
+- In multi-agent/CI environments, current lock provides false sense of safety
+- Lock file exists but doesn't actually lock anything
+
+**Proposed solutions:**
+
+**Option 1: Remove lock entirely (simple environments)**
+
+- Only run one felix-loop at a time manually
+- Single-user dev workflow
+- No automation/CI that could trigger overlapping loops
+- Benefits: Simpler code, less file I/O, no stale lock cleanup needed
+
+**Option 2: Strengthen to true mutual exclusion (shared environments)**
+
+- Check for existing lock on startup - abort if found
+- Validate lock PID is still running (handle stale locks)
+- Add timeout mechanism for abandoned locks
+- Benefits: Prevents concurrent loops in CI/CD, shared staging, automated workflows
+
+**Implementation notes (if strengthening):**
+
+- On startup: Check if `felix/loop.lock` exists and PID is active
+- If lock is stale (PID not running): claim it
+- If lock is active: exit with error code and message
+- On shutdown: Always clean up lock file
+- Add `--force` flag to override lock in emergency situations
+
+**Decision criteria:**
+
+- **Remove**: Single developer, no automation, manual execution only
+- **Strengthen**: CI/CD pipelines, multiple developers, shared environments, automated scheduling
+
+## TODO: Remove State and Requirements.json from Repo History
+
+**Current behavior:**
+
+- `felix/state.json` and `felix/requirements.json` are tracked in git
+- Contain runtime state, agent progress, and generated metadata
+- History pollutes repository with transient data
+- Merge conflicts on state files during parallel development
+
+**Proposed behavior:**
+
+- Remove both files from git history completely
+- Add to `.gitignore` to prevent future tracking
+- Treat as local runtime artifacts only
+
+**Benefits:**
+
+- Cleaner repository history
+- No merge conflicts on state files
+- Each developer/agent maintains independent state
+- State becomes truly local and disposable
+
+**Implementation notes:**
+
+- Use `git filter-branch` or `git filter-repo` to remove from history
+- Add to `.gitignore`:
+    ```
+    felix/state.json
+    felix/requirements.json
+    ```
+- Document in README that these files are generated on first run
+- Consider adding template files (`state.template.json`) if needed for initialization
+- Update CI/CD to generate fresh state files per environment
+
+**Migration steps:**
+
+1. Back up current state files if needed
+2. Remove from git history: `git filter-repo --path felix/state.json --path felix/requirements.json --invert-paths`
+3. Update `.gitignore`
+4. Commit and force push (coordinate with team)
+5. All developers re-clone or manually delete tracked files

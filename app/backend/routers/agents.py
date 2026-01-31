@@ -48,6 +48,9 @@ class AgentEntry(BaseModel):
     started_at: Optional[str] = None
     last_heartbeat: Optional[str] = None
     stopped_at: Optional[str] = None
+    # Workflow stage fields (S-0030: Agent Workflow Visualization)
+    current_workflow_stage: Optional[str] = Field(None, description="Current workflow stage ID from state.json")
+    workflow_stage_timestamp: Optional[str] = Field(None, description="ISO timestamp when workflow stage was set")
 
 
 class AgentRegistryResponse(BaseModel):
@@ -66,6 +69,9 @@ class AgentStatusResponse(BaseModel):
     started_at: Optional[str] = None
     last_heartbeat: Optional[str] = None
     stopped_at: Optional[str] = None
+    # Workflow stage fields (S-0030: Agent Workflow Visualization)
+    current_workflow_stage: Optional[str] = None
+    workflow_stage_timestamp: Optional[str] = None
 
 
 class AgentStopResponse(BaseModel):
@@ -111,6 +117,48 @@ class AgentConfigEntry(BaseModel):
 class AgentConfigsListResponse(BaseModel):
     """Response containing configured agents from agents.json"""
     agents: List[AgentConfigEntry]
+
+
+# --- Workflow Configuration Models (for S-0030: Agent Workflow Visualization) ---
+
+class WorkflowStage(BaseModel):
+    """A single workflow stage definition"""
+    id: str = Field(..., description="Unique stage identifier")
+    name: str = Field(..., description="Short display name")
+    icon: str = Field(..., description="Icon name for the stage")
+    description: str = Field(..., description="Full description of what this stage does")
+    order: int = Field(..., description="Order in the workflow sequence")
+    conditional: Optional[str] = Field(None, description="Condition when this stage applies (e.g., 'planning_mode')")
+
+
+class WorkflowConfigResponse(BaseModel):
+    """Response containing workflow configuration"""
+    version: str = Field(..., description="Workflow config version")
+    layout: str = Field(default="horizontal", description="Layout direction: horizontal or vertical")
+    stages: List[WorkflowStage] = Field(..., description="List of workflow stages in order")
+
+
+# Default workflow configuration (fallback when felix/workflow.json is missing or invalid)
+DEFAULT_WORKFLOW_CONFIG = WorkflowConfigResponse(
+    version="1.0",
+    layout="horizontal",
+    stages=[
+        WorkflowStage(id="select_requirement", name="Select Req", icon="target", description="Select next planned requirement", order=1),
+        WorkflowStage(id="start_iteration", name="Start", icon="play", description="Begin new agent iteration", order=2),
+        WorkflowStage(id="determine_mode", name="Mode", icon="git-branch", description="Determine planning vs building mode", order=3),
+        WorkflowStage(id="gather_context", name="Context", icon="folder", description="Load specs, requirements, git state", order=4),
+        WorkflowStage(id="build_prompt", name="Prompt", icon="file-text", description="Construct full prompt with context", order=5),
+        WorkflowStage(id="execute_llm", name="LLM", icon="cpu", description="Execute droid with prompt", order=6),
+        WorkflowStage(id="process_output", name="Output", icon="file-code", description="Parse and process LLM response", order=7),
+        WorkflowStage(id="check_guardrails", name="Guardrails", icon="shield", description="Planning mode safety checks", order=8, conditional="planning_mode"),
+        WorkflowStage(id="detect_task", name="Task Check", icon="check-square", description="Check for task completion signal", order=9),
+        WorkflowStage(id="run_backpressure", name="Tests", icon="flask", description="Run validation tests/build/lint", order=10),
+        WorkflowStage(id="commit_changes", name="Commit", icon="git-commit", description="Git add and commit changes", order=11),
+        WorkflowStage(id="validate_requirement", name="Validate", icon="check-circle", description="Run requirement validation", order=12),
+        WorkflowStage(id="update_status", name="Status", icon="bar-chart", description="Update requirement status", order=13),
+        WorkflowStage(id="iteration_complete", name="Done", icon="flag", description="Iteration complete, check continue", order=14),
+    ]
+)
 
 
 # --- Agent Registry File Operations ---
@@ -239,6 +287,77 @@ def update_agent_statuses(agents: Dict[int, AgentEntry]) -> Dict[int, AgentEntry
     return agents
 
 
+def _load_project_state(project_path: Path) -> Optional[dict]:
+    """
+    Load felix/state.json from a project directory.
+    
+    Returns:
+        dict: State data if successfully loaded, None otherwise
+    """
+    state_file = project_path / "felix" / "state.json"
+    
+    if not state_file.exists():
+        return None
+    
+    try:
+        return json.loads(state_file.read_text(encoding='utf-8-sig'))
+    except (json.JSONDecodeError, ValueError, IOError) as e:
+        print(f"Warning: Failed to parse state.json at {state_file}: {e}")
+        return None
+
+
+def populate_workflow_stage_fields(agents: Dict[int, AgentEntry]) -> Dict[int, AgentEntry]:
+    """
+    Populate workflow stage fields from state.json for active agents.
+    
+    This function reads felix/state.json from registered projects and populates
+    the current_workflow_stage and workflow_stage_timestamp fields on agents
+    that are currently working on requirements in those projects.
+    
+    The association is determined by:
+    1. Get all registered projects
+    2. For each project, read felix/state.json
+    3. Match the current_requirement_id from state.json to agent.current_run_id
+    4. Populate workflow stage fields from state.json
+    
+    Returns:
+        Updated agents dict with workflow stage fields populated
+    """
+    # Get all registered projects
+    projects = storage.get_all_projects()
+    
+    if not projects:
+        return agents
+    
+    # Build a map of current_requirement_id -> project state data
+    req_to_state_map: Dict[str, dict] = {}
+    
+    for project in projects:
+        project_path = Path(project.path)
+        state_data = _load_project_state(project_path)
+        
+        if state_data and "current_requirement_id" in state_data:
+            req_id = state_data.get("current_requirement_id")
+            if req_id:
+                req_to_state_map[req_id] = state_data
+    
+    # Populate workflow stage fields for matching agents
+    for agent_id, agent in agents.items():
+        # Reset workflow fields (they're not persisted in agents.json)
+        agent.current_workflow_stage = None
+        agent.workflow_stage_timestamp = None
+        
+        # Check if agent is working on a requirement that matches a project state
+        if agent.current_run_id and agent.status == "active":
+            state_data = req_to_state_map.get(agent.current_run_id)
+            
+            if state_data:
+                agent.current_workflow_stage = state_data.get("current_workflow_stage")
+                agent.workflow_stage_timestamp = state_data.get("workflow_stage_timestamp")
+    
+    return agents
+
+
 # --- API Endpoints ---
 
 @router.post("/register", response_model=AgentStatusResponse)
@@ -306,7 +425,9 @@ async def register_agent(request: AgentRegistration):
         current_run_id=agent_entry.current_run_id,
         started_at=agent_entry.started_at,
         last_heartbeat=agent_entry.last_heartbeat,
-        stopped_at=agent_entry.stopped_at
+        stopped_at=agent_entry.stopped_at,
+        current_workflow_stage=agent_entry.current_workflow_stage,
+        workflow_stage_timestamp=agent_entry.workflow_stage_timestamp
     )
 
 
@@ -349,7 +470,9 @@ async def agent_heartbeat(agent_id: int, request: AgentHeartbeat):
         current_run_id=agent.current_run_id,
         started_at=agent.started_at,
         last_heartbeat=agent.last_heartbeat,
-        stopped_at=agent.stopped_at
+        stopped_at=agent.stopped_at,
+        current_workflow_stage=agent.current_workflow_stage,
+        workflow_stage_timestamp=agent.workflow_stage_timestamp
     )
 
 
@@ -361,13 +484,19 @@ async def get_agents():
     Automatically updates status based on heartbeat staleness:
     - Agents with heartbeat > 10s old are marked 'inactive'
     - Stopped agents remain 'stopped'
+    
+    Also populates workflow stage fields from felix/state.json for active agents
+    (S-0030: Agent Workflow Visualization).
     """
     agents = load_agents_registry()
     
     # Update statuses based on liveness
     agents = update_agent_statuses(agents)
     
-    # Save updated statuses
+    # Populate workflow stage fields from state.json
+    agents = populate_workflow_stage_fields(agents)
+    
+    # Save updated statuses (but not workflow fields - they come from state.json)
     save_agents_registry(agents)
     
     return AgentRegistryResponse(agents=agents)
@@ -427,6 +556,77 @@ async def get_agents_config():
             )
         ]
         return AgentConfigsListResponse(agents=default_agents)
+
+
+@router.get("/workflow-config", response_model=WorkflowConfigResponse)
+async def get_workflow_config(project_id: Optional[str] = None):
+    """
+    Get workflow configuration for the agent workflow visualization.
+    
+    Loads felix/workflow.json from the project directory to define the workflow
+    stages displayed in the Agent Workflow Visualization panel.
+    
+    Args:
+        project_id: Optional project ID. If provided, loads workflow.json from that project.
+                   If not provided, uses the first registered project.
+    
+    Returns:
+        WorkflowConfigResponse with version, layout, and stages array
+    
+    Falls back to DEFAULT_WORKFLOW_CONFIG if:
+    - No projects are registered
+    - Project not found
+    - workflow.json is missing or invalid
+    """
+    # Get project path
+    project_path: Optional[Path] = None
+    
+    if project_id:
+        # Load specific project
+        project = storage.get_project_by_id(project_id)
+        if project:
+            project_path = Path(project.path)
+    else:
+        # Use first registered project
+        projects = storage.get_all_projects()
+        if projects:
+            project_path = Path(projects[0].path)
+    
+    if not project_path:
+        # No project available, return default
+        return DEFAULT_WORKFLOW_CONFIG
+    
+    # Try to load workflow.json from project
+    workflow_file = project_path / "felix" / "workflow.json"
+    
+    if not workflow_file.exists():
+        # File doesn't exist, return default
+        return DEFAULT_WORKFLOW_CONFIG
+    
+    try:
+        data = json.loads(workflow_file.read_text(encoding='utf-8'))
+        
+        # Validate required fields
+        version = data.get("version", "1.0")
+        layout = data.get("layout", "horizontal")
+        stages_data = data.get("stages", [])
+        
+        if not stages_data:
+            # No stages defined, return default
+            return DEFAULT_WORKFLOW_CONFIG
+        
+        # Convert to WorkflowStage objects
+        stages = [WorkflowStage(**stage) for stage in stages_data]
+        
+        return WorkflowConfigResponse(
+            version=version,
+            layout=layout,
+            stages=stages
+        )
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        # Parse error, return default
+        print(f"Warning: Failed to parse workflow.json: {e}")
+        return DEFAULT_WORKFLOW_CONFIG
 
 
 @router.post("/{agent_id}/stop", response_model=AgentStopResponse)
