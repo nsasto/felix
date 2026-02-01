@@ -714,17 +714,14 @@ class TestCopilotService:
         assert "unsupported" in error.lower()
 
     def test_service_load_context(self, tmp_path):
-        """Service loads project context files"""
+        """Service loads project context files (excluding requirements - S-0032)"""
         from services.copilot import CopilotService
 
         # Create test project files
         (tmp_path / "AGENTS.md").write_text("# Agent Guidelines", encoding="utf-8")
         (tmp_path / "LEARNINGS.md").write_text("# Project Learnings", encoding="utf-8")
         (tmp_path / "prompt.md").write_text("# Spec Template", encoding="utf-8")
-        (tmp_path / "felix").mkdir()
-        (tmp_path / "felix" / "requirements.json").write_text(
-            '{"requirements": []}', encoding="utf-8"
-        )
+        # Note: requirements.json file no longer loaded per S-0032
         (tmp_path / "specs").mkdir()
         (tmp_path / "specs" / "S-0001.md").write_text("# Spec 1", encoding="utf-8")
 
@@ -735,7 +732,8 @@ class TestCopilotService:
         assert "Agent Guidelines" in context["agents_md"]
         assert "learnings_md" in context
         assert "prompt_md" in context
-        assert "requirements" in context
+        # S-0032: requirements context removed - will be database-driven in Phase 0
+        assert "requirements" not in context
         assert "other_specs" in context
         assert "S-0001" in context["other_specs"]
 
@@ -774,20 +772,23 @@ class TestCopilotService:
         assert "Project Context" not in prompt
 
     def test_service_build_system_prompt_with_context(self):
-        """Service builds prompt with context sections"""
+        """Service builds prompt with context sections (excluding requirements - S-0032)"""
         from services.copilot import CopilotService
 
         service = CopilotService()
+        # S-0032: requirements context removed - will be database-driven in Phase 0
         context = {
             "agents_md": "# Agent Guidelines\nBuild fast.",
-            "requirements": '{"requirements": []}',
+            "learnings_md": "# Project Learnings\nImportant lesson.",
         }
         prompt = service.build_system_prompt(context)
 
         assert "Felix Copilot" in prompt
         assert "Project Context" in prompt
         assert "Agent Guidelines" in prompt
-        assert "requirements.json" in prompt
+        assert "Project Learnings" in prompt
+        # Requirements no longer included in system prompt per S-0032
+        assert "requirements.json" not in prompt
 
     def test_service_build_messages_with_history(self):
         """Service builds messages including history"""
