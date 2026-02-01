@@ -210,6 +210,190 @@ class TestHeartbeatEndpoint:
             assert "Database error" in response.json()["detail"]
 
 
+class TestStatusUpdateEndpoint:
+    """Tests for POST /api/agents/{agent_id}/status endpoint (S-0038)"""
+
+    @pytest.fixture
+    def mock_agent_writer_status(self):
+        """Create a mock AgentWriter for status update operations"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            
+            # Mock get_agent to return a valid agent (agent exists)
+            mock_agent_record = {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "project_id": "dev-project-id",
+                "name": "Test Agent",
+                "type": "ralph",
+                "status": "idle",
+                "heartbeat_at": "2026-01-01T00:00:00Z",
+                "metadata": {},
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+            }
+            mock_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            mock_writer.update_status = AsyncMock(return_value=None)
+            
+            yield mock_writer
+
+    @pytest.fixture
+    def mock_db_status(self):
+        """Mock database dependency for status tests"""
+        mock_database = MagicMock()
+        with patch('routers.agents.get_db', return_value=mock_database):
+            yield mock_database
+
+    def test_status_update_success(self, client, mock_agent_writer_status, mock_db_status):
+        """POST /api/agents/{agent_id}/status updates status and returns 200"""
+        response = client.post(
+            "/api/agents/550e8400-e29b-41d4-a716-446655440000/status",
+            json={"status": "running"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["agent_id"] == "550e8400-e29b-41d4-a716-446655440000"
+        assert data["new_status"] == "running"
+
+    def test_status_update_agent_not_found(self, client, mock_db_status):
+        """POST /api/agents/{agent_id}/status returns 404 for nonexistent agent"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            mock_writer.get_agent = AsyncMock(return_value=None)
+            
+            response = client.post(
+                "/api/agents/nonexistent-agent-id/status",
+                json={"status": "running"}
+            )
+            
+            assert response.status_code == 404
+            assert "Agent not found" in response.json()["detail"]
+
+    def test_status_update_invalid_status(self, client, mock_agent_writer_status, mock_db_status):
+        """POST /api/agents/{agent_id}/status returns 400 for invalid status"""
+        response = client.post(
+            "/api/agents/550e8400-e29b-41d4-a716-446655440000/status",
+            json={"status": "invalid_status"}
+        )
+        
+        assert response.status_code == 400
+        assert "Invalid status" in response.json()["detail"]
+
+    def test_status_update_database_error(self, client, mock_db_status):
+        """POST /api/agents/{agent_id}/status returns 500 on database error"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            mock_writer.get_agent = AsyncMock(side_effect=Exception("Database connection failed"))
+            
+            response = client.post(
+                "/api/agents/550e8400-e29b-41d4-a716-446655440000/status",
+                json={"status": "running"}
+            )
+            
+            assert response.status_code == 500
+            assert "Database error" in response.json()["detail"]
+
+
+class TestListAgentsEndpoint:
+    """Tests for GET /api/agents endpoint (S-0038)"""
+
+    @pytest.fixture
+    def mock_agent_writer_list(self):
+        """Create a mock AgentWriter for list operations"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            
+            # Mock list_agents to return a list of agents
+            mock_agents_list = [
+                {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "project_id": "dev-project-id",
+                    "name": "Test Agent 1",
+                    "type": "ralph",
+                    "status": "idle",
+                    "heartbeat_at": "2026-01-01T00:00:00Z",
+                    "metadata": {"version": "1.0"},
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                },
+                {
+                    "id": "550e8400-e29b-41d4-a716-446655440001",
+                    "project_id": "dev-project-id",
+                    "name": "Test Agent 2",
+                    "type": "droid",
+                    "status": "running",
+                    "heartbeat_at": "2026-01-01T00:00:00Z",
+                    "metadata": {},
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                },
+            ]
+            mock_writer.list_agents = AsyncMock(return_value=mock_agents_list)
+            
+            yield mock_writer
+
+    @pytest.fixture
+    def mock_agent_writer_list_empty(self):
+        """Create a mock AgentWriter that returns empty list"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            mock_writer.list_agents = AsyncMock(return_value=[])
+            
+            yield mock_writer
+
+    @pytest.fixture
+    def mock_db_list(self):
+        """Mock database dependency for list tests"""
+        mock_database = MagicMock()
+        with patch('routers.agents.get_db', return_value=mock_database):
+            yield mock_database
+
+    def test_list_agents_success(self, client, mock_agent_writer_list, mock_db_list):
+        """GET /api/agents returns list of agents with count"""
+        response = client.get("/api/agents")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "agents" in data
+        assert "count" in data
+        assert data["count"] == 2
+        assert len(data["agents"]) == 2
+        
+        # Verify first agent
+        agent_1 = data["agents"][0]
+        assert agent_1["id"] == "550e8400-e29b-41d4-a716-446655440000"
+        assert agent_1["name"] == "Test Agent 1"
+        assert agent_1["type"] == "ralph"
+        assert agent_1["status"] == "idle"
+
+    def test_list_agents_empty(self, client, mock_agent_writer_list_empty, mock_db_list):
+        """GET /api/agents returns empty list when no agents"""
+        response = client.get("/api/agents")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["agents"] == []
+        assert data["count"] == 0
+
+    def test_list_agents_database_error(self, client, mock_db_list):
+        """GET /api/agents returns 500 on database error"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            mock_writer.list_agents = AsyncMock(side_effect=Exception("Database connection failed"))
+            
+            response = client.get("/api/agents")
+            
+            assert response.status_code == 500
+            assert "Database error" in response.json()["detail"]
+
+
 class TestStubbedEndpoints:
     """Tests for remaining stubbed agent registry endpoints (S-0032)"""
 
@@ -229,14 +413,6 @@ class TestStubbedEndpoints:
         
         assert response.status_code == 501
         assert "temporarily disabled" in response.json()["detail"]
-
-    def test_get_agents_returns_empty_registry(self, client):
-        """GET /api/agents returns empty agents registry"""
-        response = client.get("/api/agents")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["agents"] == {}
 
 
 class TestAgentEntryModel:
