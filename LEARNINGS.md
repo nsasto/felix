@@ -305,57 +305,6 @@ if sys.platform == "win32":
 $env:PYTHONIOENCODING = "utf-8"
 ```
 
-### Issue 3: PowerShell Encoding Parameter Compatibility
-
-**Symptom**: Error when using `Set-Content` or `Out-File`: `Cannot bind parameter 'Encoding'. Cannot convert value "utf8NoBOM" to type "Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding"`
-
-**Root Cause**: PowerShell 5.1 (default on Windows) does not support the `utf8NoBOM` encoding parameter. This is only available in PowerShell 7+.
-
-**Version Differences**:
-
-PowerShell 5.1 (Windows PowerShell):
-
-- `UTF8` - UTF-8 with BOM (byte order mark)
-- `UTF7`, `UTF32`, `Unicode`, `ASCII`, etc.
-
-PowerShell 7+ (PowerShell Core):
-
-- `utf8NoBOM` - UTF-8 without BOM
-- `utf8BOM` - UTF-8 with BOM
-- All previous encodings
-
-**Anti-Pattern**:
-
-```powershell
-# ❌ WRONG - Fails in PowerShell 5.1
-Set-Content -Path "output.log" -Value $content -Encoding utf8NoBOM
-# Error: Cannot convert value "utf8NoBOM" to type...
-```
-
-**Pattern**:
-
-```powershell
-# ✅ CORRECT - Works in both PowerShell 5.1 and 7+
-Set-Content -Path "output.log" -Value $content -Encoding UTF8
-
-# For true UTF-8 without BOM in PowerShell 5.1, use .NET:
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
-[System.IO.File]::WriteAllText($filePath, $content, $utf8NoBom)
-```
-
-**When It Matters**:
-
-- Writing markdown files (report.md, output.log, plan.md) - UTF-8 with BOM is generally fine
-- Writing JSON files - BOM can cause parsing issues, use .NET approach
-- Writing files for cross-platform tools - some tools expect no BOM
-- Most modern tools handle BOM correctly, so `UTF8` is safe default
-
-**Why This Happened**:
-
-- PowerShell 7 added `utf8NoBOM` as default encoding (breaking change from 5.1)
-- Copying code from PowerShell 7 examples breaks on Windows default install
-- Always test scripts on PowerShell 5.1 if supporting Windows users
-
 ---
 
 ## Silent Killers Gallery
@@ -918,7 +867,6 @@ But fails when backticks are used for markdown formatting of file paths or techn
 3. **UI/Interaction Tests**: These should always be manual verification (cannot be scripted easily)
 4. **File References**: Don't use backticks for file paths in descriptions
 5. **Exit Code/Status**: Include expected outcome in parentheses for automated checks
-6. **Use Actual Commands, Not REST Descriptions**: Write `curl http://localhost:8080/api/endpoint` instead of `GET /api/endpoint`. The validation script executes commands literally.
 
 **Why This Matters**:
 
@@ -934,17 +882,9 @@ But fails when backticks are used for markdown formatting of file paths or techn
 
 - [ ] Tests pass: `cd app/backend && pytest` (exit code 0)
 
-✅ GOOD - Executable API check
-
-- [ ] Endpoint responds: `curl -s http://localhost:8080/api/runs` (status 200)
-
 ✅ GOOD - Manual verification
 
 - [x] UI displays correctly: Manual verification - open browser, verify layout
-
-❌ BAD - REST API description instead of command
-
-- [ ] Endpoint works: `GET /api/projects/{project_id}/runs?requirement_id=S-0011` returns matching runs
 
 ❌ BAD - File path in backticks
 
@@ -964,156 +904,7 @@ But fails when backticks are used for markdown formatting of file paths or techn
 
 ---
 
-## Frontend Development: Runtime Stability Directives
-
-### Context: Dashboard Component Failures
-
-When writing or modifying dashboard components in React/TypeScript, a single unhandled error can "brick" the entire interface. These directives prevent runtime exceptions that break the UI.
-
-### 1. The "Zero-Trust" Prop Policy
-
-**Directive:** Never assume API data exists.
-
-**Action:**
-
-- Use **Optional Chaining** (`?.`) for all deeply nested objects (e.g., `agent?.config?.metadata`)
-- Provide **Nullish Coalescing** (`??`) for UI strings to prevent "undefined" appearing in the dashboard
-
-**Example:**
-
-```tsx
-// ❌ WRONG - Will crash if agent is null
-<span>{selectedAgent.agent.current_workflow_stage}</span>
-
-// ✅ CORRECT - Safe with fallback
-<span>{selectedAgent?.agent?.current_workflow_stage ?? 'No stage'}</span>
-```
-
-### 2. The Flexbox "Chain of Height"
-
-**Directive:** Scrollable panels require a strict container hierarchy.
-
-**Action:**
-
-- The root must be `h-screen` or have explicit height
-- Every intermediate flex child must have `min-h-0` or `overflow-hidden` to prevent content from "stretching" the parent and breaking scroll
-- Use `flex-1` on scrollable content areas
-- Use `flex-shrink-0` on fixed-height panels
-
-**Example:**
-
-```tsx
-// ✅ CORRECT - Proper height chain
-<div className="h-full flex flex-col overflow-hidden">
-  {" "}
-  {/* Root with height */}
-  <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-    {" "}
-    {/* Scrollable area */}
-    <div className="flex-shrink-0">Header</div>
-    <div className="flex-1 overflow-y-auto">Scrollable content</div>
-  </div>
-  <div className="flex-shrink-0" style={{ height: "250px" }}>
-    Fixed panel
-  </div>
-</div>
-```
-
-### 3. Error Boundary Siloing
-
-**Directive:** Prevent one failing widget from killing the whole OS.
-
-**Action:**
-
-- Wrap high-risk components (like `WorkflowVisualization` or `Ansi` parsers) in local error boundaries or simple conditionals
-- Always provide fallback UI for null/undefined data
-
-**Example:**
-
-```tsx
-// ✅ CORRECT - Safe component rendering
-{
-  workflowData ? (
-    <WorkflowVisualization data={workflowData} />
-  ) : (
-    <div className="text-muted">No workflow data available</div>
-  );
-}
-```
-
-### 4. Dependency Sanitization
-
-**Directive:** External libraries (like `marked`, `ansi-to-react`) are high-risk points of failure.
-
-**Action:**
-
-- Always wrap library calls in a `try/catch` block
-- If the parser fails, return the raw string so the UI remains functional
-
-**Example:**
-
-```tsx
-// ✅ CORRECT - Wrapped parser
-try {
-  return <Ansi useClasses>{consoleOutput}</Ansi>;
-} catch (error) {
-  console.error("Ansi parsing failed:", error);
-  return <pre>{consoleOutput}</pre>; // Fallback to raw text
-}
-```
-
-### 5. Layout Scaffolding (Debug Technique)
-
-**Directive:** Use "Loud" debugging for invisible panels.
-
-**Action:**
-
-- If a panel isn't rendering, apply temporary debug styles: `border-2 border-magenta-500` and `bg-magenta-500/10`
-- **If you can't see the magenta:** Layout logic is broken (height chain, flex, overflow)
-- **If you see empty magenta box:** Data logic is broken (component not receiving data, conditional rendering hiding content)
-
-**Example:**
-
-```tsx
-// 🔍 DEBUG MODE - Make invisible panels visible
-<div
-  className="flex flex-col"
-  style={{
-    height: "250px",
-    border: "5px solid magenta", // Debug: Make it loud
-    backgroundColor: "rgba(255,0,255,0.1)", // Debug: Semi-transparent
-  }}
->
-  <WorkflowVisualization {...props} />
-</div>
-```
-
-### 6. Component Import Sanitization
-
-**Directive:** Unused or incorrect imports from external libraries can cause runtime errors.
-
-**Action:**
-
-- Remove unused library imports immediately
-- Verify component names match actual exports (e.g., `Group` not `PanelGroup` for react-resizable-panels)
-- Check library documentation for correct API before using
-
-**Example:**
-
-```tsx
-// ❌ WRONG - Incorrect exports
-import { PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-
-// ✅ CORRECT - Actual exports from library
-import { Group, Panel, Separator } from "react-resizable-panels";
-
-// ✅ BETTER - Remove if causing issues, use native CSS
-// (No import - use flex-based layout instead)
-```
-
----
-
-**Document Version**: 1.2  
-**Last Updated**: January 30, 2026  
+**Document Version**: 1.1  
+**Last Updated**: January 26, 2026  
 **Maintainer**: Felix Development Team  
 **Applies To**: Felix Agent v0.1.0+, Windows 10/11, PowerShell 7+, Python 3.8+

@@ -121,21 +121,13 @@ def get_project_details(project_id: str) -> Optional[ProjectDetails]:
     
     # Check for Felix artifacts
     specs_dir = project_path / "specs"
-    req_file = project_path / "felix" / "requirements.json"
-    state_file = project_path / "felix" / "state.json"
     
     spec_count = 0
     if specs_dir.exists():
         spec_count = len(list(specs_dir.glob("*.md")))
     
-    # Get current status from state.json
-    status = None
-    if state_file.exists():
-        try:
-            state_data = json.loads(state_file.read_text(encoding='utf-8-sig'))
-            status = state_data.get("status")
-        except (json.JSONDecodeError, ValueError):
-            pass
+    # S-0032: File operations removed - no longer read state.json or requirements.json
+    # has_requirements and status will be database-driven in Phase 0
     
     return ProjectDetails(
         id=project.id,
@@ -143,9 +135,9 @@ def get_project_details(project_id: str) -> Optional[ProjectDetails]:
         name=project.name,
         registered_at=project.registered_at,
         has_specs=specs_dir.exists(),
-        has_requirements=req_file.exists(),
+        has_requirements=False,  # Stubbed: will be database-driven
         spec_count=spec_count,
-        status=status
+        status=None  # Stubbed: will be database-driven
     )
 
 

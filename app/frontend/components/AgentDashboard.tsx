@@ -1058,67 +1058,64 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
           color: "var(--text-secondary)",
         }}
       >
-          {/* No agent selected state */}
-          {!selectedAgent && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <IconTerminal
-                className="w-12 h-12 mb-3"
+        {/* No agent selected state */}
+        {!selectedAgent && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <IconTerminal
+              className="w-12 h-12 mb-3"
+              style={{ color: "var(--text-faint)" }}
+            />
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Select an agent to view console output
+            </p>
+          </div>
+        )}
+
+        {/* Agent idle/stopped state */}
+        {selectedAgent && idleMessage && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
+              style={{ backgroundColor: "var(--bg-surface)" }}
+            >
+              <IconFelix
+                className="w-6 h-6"
                 style={{ color: "var(--text-faint)" }}
               />
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Select an agent to view console output
-              </p>
             </div>
-          )}
+            <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+              {idleMessage.primary}
+            </p>
+            <p className="text-[10px]" style={{ color: "var(--text-faint)" }}>
+              {idleMessage.secondary}
+            </p>
+          </div>
+        )}
 
-          {/* Agent idle/stopped state */}
-          {selectedAgent && idleMessage && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
-                style={{ backgroundColor: "var(--bg-surface)" }}
-              >
-                <IconFelix
-                  className="w-6 h-6"
-                  style={{ color: "var(--text-faint)" }}
-                />
-              </div>
-              <p
-                className="text-xs mb-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {idleMessage.primary}
-              </p>
-              <p className="text-[10px]" style={{ color: "var(--text-faint)" }}>
-                {idleMessage.secondary}
-              </p>
-            </div>
-          )}
+        {/* Active agent - console output */}
+        {selectedAgent && !idleMessage && consoleOutput && (
+          <pre className="whitespace-pre-wrap">
+            {(() => {
+              try {
+                return <Ansi useClasses>{consoleOutput}</Ansi>;
+              } catch (error) {
+                console.error("Ansi parsing failed:", error);
+                return consoleOutput;
+              }
+            })()}
+          </pre>
+        )}
 
-          {/* Active agent - console output */}
-          {selectedAgent && !idleMessage && consoleOutput && (
-            <pre className="whitespace-pre-wrap">
-              {(() => {
-                try {
-                  return <Ansi useClasses>{consoleOutput}</Ansi>;
-                } catch (error) {
-                  console.error("Ansi parsing failed:", error);
-                  return consoleOutput;
-                }
-              })()}
-            </pre>
-          )}
-
-          {/* Active agent - waiting for output */}
-          {selectedAgent && !idleMessage && !consoleOutput && (
-            <div
-              className="flex items-center gap-2"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
-              <span>Waiting for output...</span>
-            </div>
-          )}
+        {/* Active agent - waiting for output */}
+        {selectedAgent && !idleMessage && !consoleOutput && (
+          <div
+            className="flex items-center gap-2"
+            style={{ color: "var(--text-muted)" }}
+          >
+            <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
+            <span>Waiting for output...</span>
+          </div>
+        )}
       </div>
 
       {/* Workflow Footer - Fixed at bottom */}

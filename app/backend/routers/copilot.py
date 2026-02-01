@@ -305,16 +305,8 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
                 except Exception:
                     pass
 
-        if context_sources.get("requirements", True):
-            req_path = project / "felix" / "requirements.json"
-            if req_path.exists():
-                try:
-                    content = req_path.read_text(encoding="utf-8-sig")[:3000]
-                    context_parts.append(
-                        f"## requirements.json (Current Requirements)\n```json\n{content}\n```"
-                    )
-                except Exception:
-                    pass
+        # S-0032: requirements.json reading removed - will be database-driven in Phase 0
+        # Requirements context will be provided via database query in future implementation
 
         if context_parts:
             system_prompt += "\n\n# Project Context\n\n" + "\n\n".join(context_parts)

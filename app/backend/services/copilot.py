@@ -167,15 +167,8 @@ class CopilotService:
                 except Exception:
                     pass
 
-        # Load requirements.json
-        if sources.get("requirements", True):
-            req_path = project_path / "felix" / "requirements.json"
-            if req_path.exists():
-                try:
-                    content = req_path.read_text(encoding="utf-8-sig")
-                    context["requirements"] = self._trim_content(content, 3000)
-                except Exception:
-                    pass
+        # S-0032: requirements.json reading removed - will be database-driven in Phase 0
+        # Requirements context will be provided via database query in future implementation
 
         # Load other specs (summary only)
         if sources.get("other_specs", True):
@@ -239,10 +232,7 @@ Be concise, helpful, and maintain a professional yet friendly tone."""
                 f"## prompt.md (Spec Template)\n{context['prompt_md']}"
             )
 
-        if "requirements" in context:
-            context_parts.append(
-                f"## requirements.json (Current Requirements)\n```json\n{context['requirements']}\n```"
-            )
+        # S-0032: requirements context removed - will be database-driven in Phase 0
 
         if "other_specs" in context:
             context_parts.append(f"## Other Specs\n{context['other_specs']}")
