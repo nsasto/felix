@@ -1,16 +1,24 @@
 """
 Tests for the Agent Registry API (S-0013: Agent Settings Registry)
 
-These tests validate:
-1. Agent registers on startup via API
-2. Heartbeat updates agents.json
-3. Stale agents marked inactive
+NOTE: S-0032 - File-based agent registry has been removed.
+These tests validate the stubbed endpoints return appropriate responses.
+The following functionality is now stubbed:
+- POST /api/agents/register -> 501 Not Implemented
+- POST /api/agents/{id}/heartbeat -> 501 Not Implemented
+- POST /api/agents/{id}/stop -> 501 Not Implemented
+- POST /api/agents/{id}/start -> 501 Not Implemented
+- GET /api/agents -> Returns {"agents": {}}
+
+The following functionality is preserved:
+- GET /api/agents/config -> Returns agent configurations from global ~/.felix/agents.json
+- GET /api/agents/workflow-config -> Returns workflow configuration
+- WebSocket /api/agents/{id}/console -> Console streaming from runs/ directory
 """
 import json
 import pytest
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 # Import the FastAPI app and router
@@ -18,11 +26,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from main import app
-from routers.agents import (
-    AgentEntry,
-    check_agent_liveness,
-    get_agents_file_path,
-)
+from routers.agents import AgentEntry
 
 
 @pytest.fixture
@@ -31,326 +35,99 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture
-def mock_agents_file(tmp_path):
-    """Create a temporary agents.json file"""
-    agents_file = tmp_path / "felix" / "agents.json"
-    agents_file.parent.mkdir(parents=True, exist_ok=True)
-    agents_file.write_text(json.dumps({"agents": {}}), encoding='utf-8')
-    return agents_file
+class TestStubbedEndpoints:
+    """Tests for stubbed agent registry endpoints (S-0032)"""
 
-
-@pytest.fixture
-def mock_agents_registry(mock_agents_file):
-    """Patch the agents file path to use the temporary file"""
-    with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
-        yield mock_agents_file
-
-
-class TestAgentRegistration:
-    """Tests for agent registration (Validation criterion 1)"""
-
-    def test_register_new_agent(self, client, mock_agents_registry):
-        """Agent registers on startup via API"""
+    def test_register_agent_returns_501(self, client):
+        """POST /api/agents/register returns 501 Not Implemented"""
         response = client.post(
             "/api/agents/register",
             json={
                 "agent_id": 0,
                 "agent_name": "test-agent",
                 "pid": 12345,
-                "hostname": "test-host",
-                "started_at": datetime.now(timezone.utc).isoformat()
+                "hostname": "test-host"
             }
         )
         
-        assert response.status_code == 200
-        data = response.json()
-        assert data["agent_id"] == 0
-        assert data["agent_name"] == "test-agent"
-        assert data["status"] == "active"
-        assert data["pid"] == 12345
-        assert data["hostname"] == "test-host"
+        assert response.status_code == 501
+        assert "temporarily disabled" in response.json()["detail"]
 
-    def test_register_agent_persists_to_file(self, client, mock_agents_registry):
-        """Registration persists agent to agents.json"""
-        client.post(
-            "/api/agents/register",
-            json={
-                "agent_id": 1,
-                "agent_name": "persist-agent",
-                "pid": 99999,
-                "hostname": "persist-host"
-            }
-        )
-        
-        # Read the file directly - keys are now agent_id as strings
-        content = json.loads(mock_agents_registry.read_text(encoding='utf-8'))
-        assert "1" in content["agents"]
-        assert content["agents"]["1"]["pid"] == 99999
-        assert content["agents"]["1"]["hostname"] == "persist-host"
-        assert content["agents"]["1"]["status"] == "active"
-
-    def test_register_duplicate_active_agent_fails(self, client, mock_agents_registry):
-        """Cannot register agent with same ID if already active"""
-        # First registration
-        response1 = client.post(
-            "/api/agents/register",
-            json={
-                "agent_id": 2,
-                "agent_name": "duplicate-agent",
-                "pid": 11111,
-                "hostname": "host1"
-            }
-        )
-        assert response1.status_code == 200
-        
-        # Second registration with same ID should fail
-        response2 = client.post(
-            "/api/agents/register",
-            json={
-                "agent_id": 2,
-                "agent_name": "duplicate-agent",
-                "pid": 22222,
-                "hostname": "host2"
-            }
-        )
-        assert response2.status_code == 409
-        assert "already active" in response2.json()["detail"]
-
-    def test_register_reuses_stopped_agent_id(self, client, mock_agents_registry):
-        """Can re-register agent ID after it was stopped"""
-        # Register agent
-        client.post(
-            "/api/agents/register",
-            json={
-                "agent_id": 3,
-                "agent_name": "reuse-agent",
-                "pid": 11111,
-                "hostname": "host1"
-            }
-        )
-        
-        # Stop the agent using agent_id
-        client.post("/api/agents/3/stop")
-        
-        # Re-register with same ID - should succeed
+    def test_heartbeat_returns_501(self, client):
+        """POST /api/agents/{id}/heartbeat returns 501 Not Implemented"""
         response = client.post(
-            "/api/agents/register",
-            json={
-                "agent_id": 3,
-                "agent_name": "reuse-agent",
-                "pid": 22222,
-                "hostname": "host2"
-            }
-        )
-        assert response.status_code == 200
-        assert response.json()["pid"] == 22222
-
-    def test_register_agent_name_validation(self, client, mock_agents_registry):
-        """Agent name must be alphanumeric with hyphens/underscores"""
-        # Valid names
-        valid_names = ["test-agent", "test_agent", "TestAgent123", "AGENT_1"]
-        for idx, name in enumerate(valid_names):
-            response = client.post(
-                "/api/agents/register",
-                json={"agent_id": 100 + idx, "agent_name": name, "pid": 12345, "hostname": "host"}
-            )
-            assert response.status_code == 200, f"Expected {name} to be valid"
-            # Stop it so we can test next one cleanly
-            client.post(f"/api/agents/{100 + idx}/stop")
-        
-        # Invalid names
-        invalid_names = ["test agent", "test@agent", "test.agent", ""]
-        for idx, name in enumerate(invalid_names):
-            response = client.post(
-                "/api/agents/register",
-                json={"agent_id": 200 + idx, "agent_name": name, "pid": 12345, "hostname": "host"}
-            )
-            assert response.status_code == 400, f"Expected {name} to be invalid"
-
-
-class TestAgentHeartbeat:
-    """Tests for agent heartbeat (Validation criterion 2)"""
-
-    def test_heartbeat_updates_timestamp(self, client, mock_agents_registry):
-        """Heartbeat updates agents.json with new timestamp"""
-        # Register agent with agent_id
-        client.post(
-            "/api/agents/register",
-            json={"agent_id": 10, "agent_name": "heartbeat-agent", "pid": 12345, "hostname": "host"}
-        )
-        
-        # Wait a tiny bit then heartbeat using agent_id
-        response = client.post(
-            "/api/agents/10/heartbeat",
+            "/api/agents/0/heartbeat",
             json={"current_run_id": "S-0001"}
         )
         
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "active"
-        assert data["current_run_id"] == "S-0001"
-        assert data["last_heartbeat"] is not None
+        assert response.status_code == 501
+        assert "temporarily disabled" in response.json()["detail"]
 
-    def test_heartbeat_updates_current_run_id(self, client, mock_agents_registry):
-        """Heartbeat can update the current run ID"""
-        # Register agent with agent_id
-        client.post(
-            "/api/agents/register",
-            json={"agent_id": 11, "agent_name": "run-agent", "pid": 12345, "hostname": "host"}
-        )
+    def test_stop_agent_returns_501(self, client):
+        """POST /api/agents/{id}/stop returns 501 Not Implemented"""
+        response = client.post("/api/agents/0/stop")
         
-        # Heartbeat with run ID using agent_id
-        client.post(
-            "/api/agents/11/heartbeat",
-            json={"current_run_id": "S-0002"}
-        )
-        
-        # Verify in file - keys are now agent_id as strings
-        content = json.loads(mock_agents_registry.read_text(encoding='utf-8'))
-        assert content["agents"]["11"]["current_run_id"] == "S-0002"
+        assert response.status_code == 501
+        assert "temporarily disabled" in response.json()["detail"]
 
-    def test_heartbeat_nonexistent_agent_fails(self, client, mock_agents_registry):
-        """Heartbeat for non-existent agent returns 404"""
+    def test_start_agent_returns_501(self, client):
+        """POST /api/agents/{id}/start returns 501 Not Implemented"""
         response = client.post(
-            "/api/agents/99999/heartbeat",
-            json={"current_run_id": None}
-        )
-        assert response.status_code == 404
-
-
-class TestAgentLiveness:
-    """Tests for stale agent detection (Validation criterion 5)"""
-
-    def test_active_agent_with_recent_heartbeat(self):
-        """Agent with recent heartbeat is marked active"""
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        agent = AgentEntry(
-            agent_id=20,
-            agent_name="test-agent",
-            pid=12345,
-            hostname="host",
-            status="active",
-            last_heartbeat=now
+            "/api/agents/0/start",
+            json={"requirement_id": "S-0001"}
         )
         
-        status = check_agent_liveness(agent)
-        assert status == "active"
+        assert response.status_code == 501
+        assert "temporarily disabled" in response.json()["detail"]
 
-    def test_inactive_agent_with_stale_heartbeat(self):
-        """Agent with heartbeat > 10s old is marked inactive"""
-        stale_time = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat().replace('+00:00', 'Z')
-        agent = AgentEntry(
-            agent_id=21,
-            agent_name="test-agent",
-            pid=12345,
-            hostname="host",
-            status="active",
-            last_heartbeat=stale_time
-        )
-        
-        status = check_agent_liveness(agent)
-        assert status == "inactive"
-
-    def test_stopped_agent_stays_stopped(self):
-        """Stopped agent remains stopped regardless of heartbeat"""
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        agent = AgentEntry(
-            agent_id=22,
-            agent_name="test-agent",
-            pid=12345,
-            hostname="host",
-            status="stopped",
-            last_heartbeat=now,
-            stopped_at=now
-        )
-        
-        status = check_agent_liveness(agent)
-        assert status == "stopped"
-
-    def test_get_agents_updates_stale_status(self, client, mock_agents_registry):
-        """GET /api/agents marks stale agents as inactive"""
-        # Create agent with stale heartbeat directly in file - keys are now agent_id as strings
-        stale_time = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat().replace('+00:00', 'Z')
-        content = {
-            "agents": {
-                "23": {
-                    "agent_id": 23,
-                    "agent_name": "stale-agent",
-                    "pid": 12345,
-                    "hostname": "host",
-                    "status": "active",
-                    "current_run_id": None,
-                    "started_at": stale_time,
-                    "last_heartbeat": stale_time,
-                    "stopped_at": None
-                }
-            }
-        }
-        mock_agents_registry.write_text(json.dumps(content), encoding='utf-8')
-        
-        # Get agents - should update status
+    def test_get_agents_returns_empty_registry(self, client):
+        """GET /api/agents returns empty agents registry"""
         response = client.get("/api/agents")
-        assert response.status_code == 200
         
+        assert response.status_code == 200
         data = response.json()
-        assert data["agents"]["23"]["status"] == "inactive"
+        assert data["agents"] == {}
 
 
-class TestAgentStop:
-    """Tests for agent stop endpoint"""
+class TestAgentEntryModel:
+    """Tests for AgentEntry model - still used for type definitions"""
 
-    def test_stop_agent(self, client, mock_agents_registry):
-        """Stop endpoint marks agent as stopped"""
-        # Register agent with agent_id
-        client.post(
-            "/api/agents/register",
-            json={"agent_id": 30, "agent_name": "stop-agent", "pid": 12345, "hostname": "host"}
+    def test_agent_entry_model_fields(self):
+        """AgentEntry model has all required fields"""
+        agent = AgentEntry(
+            agent_id=0,
+            agent_name="test-agent",
+            pid=12345,
+            hostname="test-host",
+            status="active"
         )
         
-        # Stop agent using agent_id
-        response = client.post("/api/agents/30/stop")
-        assert response.status_code == 200
-        assert response.json()["status"] == "stopped"
+        assert agent.agent_id == 0
+        assert agent.agent_name == "test-agent"
+        assert agent.pid == 12345
+        assert agent.hostname == "test-host"
+        assert agent.status == "active"
+
+    def test_agent_entry_model_optional_fields(self):
+        """AgentEntry model handles optional fields"""
+        agent = AgentEntry(
+            agent_id=1,
+            agent_name="test-agent-2",
+            pid=99999,
+            hostname="host2",
+            status="active",
+            current_run_id="S-0030",
+            started_at="2026-01-29T12:00:00Z",
+            last_heartbeat="2026-01-29T12:05:00Z",
+            current_workflow_stage="execute_llm",
+            workflow_stage_timestamp="2026-01-29T12:00:00Z"
+        )
         
-        # Verify in file - keys are now agent_id as strings
-        content = json.loads(mock_agents_registry.read_text(encoding='utf-8'))
-        assert content["agents"]["30"]["status"] == "stopped"
-        assert content["agents"]["30"]["stopped_at"] is not None
-
-    def test_stop_nonexistent_agent_fails(self, client, mock_agents_registry):
-        """Stop for non-existent agent returns 404"""
-        response = client.post("/api/agents/99999/stop")
-        assert response.status_code == 404
-
-
-class TestGetAgents:
-    """Tests for GET /api/agents endpoint"""
-
-    def test_get_agents_empty_registry(self, client, mock_agents_registry):
-        """Get agents returns empty dict for empty registry"""
-        response = client.get("/api/agents")
-        assert response.status_code == 200
-        assert response.json()["agents"] == {}
-
-    def test_get_agents_returns_all_agents(self, client, mock_agents_registry):
-        """Get agents returns all registered agents"""
-        # Register multiple agents with agent_id
-        for i in range(3):
-            client.post(
-                "/api/agents/register",
-                json={"agent_id": 40 + i, "agent_name": f"agent-{i}", "pid": 10000 + i, "hostname": f"host-{i}"}
-            )
-        
-        response = client.get("/api/agents")
-        assert response.status_code == 200
-        
-        agents = response.json()["agents"]
-        assert len(agents) == 3
-        # Keys are now agent_id as strings
-        assert "40" in agents
-        assert "41" in agents
-        assert "42" in agents
+        assert agent.current_run_id == "S-0030"
+        assert agent.started_at == "2026-01-29T12:00:00Z"
+        assert agent.last_heartbeat == "2026-01-29T12:05:00Z"
+        assert agent.current_workflow_stage == "execute_llm"
+        assert agent.workflow_stage_timestamp == "2026-01-29T12:00:00Z"
 
 
 class TestGetAgentsConfig:
@@ -662,240 +439,3 @@ class TestGetWorkflowConfig:
         
         # Should return default config when stages array is empty
         assert len(data["stages"]) == 14
-
-
-class TestWorkflowStageFields:
-    """Tests for workflow stage field parsing from state.json (S-0030: Agent Workflow Visualization)"""
-
-    @pytest.fixture
-    def mock_project_with_state(self, tmp_path):
-        """Create a temporary project with state.json containing workflow stage"""
-        project_path = tmp_path / "state-test-project"
-        project_path.mkdir(parents=True, exist_ok=True)
-        
-        # Create required Felix structure
-        (project_path / "felix").mkdir(exist_ok=True)
-        (project_path / "specs").mkdir(exist_ok=True)
-        
-        # Create state.json with workflow stage
-        state_data = {
-            "current_requirement_id": "S-0030",
-            "last_run_id": "S-0030-20260129-120000-it1",
-            "last_mode": "building",
-            "status": "running",
-            "current_workflow_stage": "execute_llm",
-            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
-        }
-        state_file = project_path / "felix" / "state.json"
-        state_file.write_text(json.dumps(state_data, indent=2), encoding='utf-8')
-        
-        return project_path
-
-    def test_get_agents_includes_workflow_stage_fields(self, client, mock_agents_file, tmp_path):
-        """GET /api/agents includes workflow stage fields from state.json"""
-        # Create project with state.json
-        project_path = tmp_path / "workflow-project"
-        (project_path / "felix").mkdir(parents=True)
-        (project_path / "specs").mkdir()
-        
-        state_data = {
-            "current_requirement_id": "S-0030",
-            "current_workflow_stage": "execute_llm",
-            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
-        }
-        (project_path / "felix" / "state.json").write_text(json.dumps(state_data), encoding='utf-8')
-        
-        from models import Project
-        test_project = Project(id="test-id", path=str(project_path), name="Test")
-        
-        # Create agent registry with active agent working on S-0030
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        agents_data = {
-            "agents": {
-                "50": {
-                    "agent_id": 50,
-                    "agent_name": "workflow-agent",
-                    "pid": 12345,
-                    "hostname": "host",
-                    "status": "active",
-                    "current_run_id": "S-0030",
-                    "started_at": now,
-                    "last_heartbeat": now,
-                    "stopped_at": None
-                }
-            }
-        }
-        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
-        
-        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
-            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
-                response = client.get("/api/agents")
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        agent = data["agents"]["50"]
-        assert agent["current_workflow_stage"] == "execute_llm"
-        assert agent["workflow_stage_timestamp"] == "2026-01-29T12:00:00Z"
-
-    def test_workflow_stage_fields_null_when_no_state(self, client, mock_agents_file, tmp_path):
-        """Workflow stage fields are null when state.json doesn't exist"""
-        # Create project without state.json
-        project_path = tmp_path / "no-state-project"
-        (project_path / "felix").mkdir(parents=True)
-        (project_path / "specs").mkdir()
-        
-        from models import Project
-        test_project = Project(id="no-state-id", path=str(project_path), name="No State")
-        
-        # Create agent registry
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        agents_data = {
-            "agents": {
-                "51": {
-                    "agent_id": 51,
-                    "agent_name": "no-state-agent",
-                    "pid": 12345,
-                    "hostname": "host",
-                    "status": "active",
-                    "current_run_id": "S-0999",
-                    "started_at": now,
-                    "last_heartbeat": now,
-                    "stopped_at": None
-                }
-            }
-        }
-        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
-        
-        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
-            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
-                response = client.get("/api/agents")
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        agent = data["agents"]["51"]
-        assert agent["current_workflow_stage"] is None
-        assert agent["workflow_stage_timestamp"] is None
-
-    def test_workflow_stage_fields_null_for_inactive_agent(self, client, mock_agents_file, tmp_path):
-        """Workflow stage fields are null for inactive agents"""
-        # Create project with state.json
-        project_path = tmp_path / "inactive-agent-project"
-        (project_path / "felix").mkdir(parents=True)
-        (project_path / "specs").mkdir()
-        
-        state_data = {
-            "current_requirement_id": "S-0030",
-            "current_workflow_stage": "execute_llm",
-            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
-        }
-        (project_path / "felix" / "state.json").write_text(json.dumps(state_data), encoding='utf-8')
-        
-        from models import Project
-        test_project = Project(id="inactive-id", path=str(project_path), name="Inactive")
-        
-        # Create agent with stale heartbeat (will become inactive)
-        stale_time = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat().replace('+00:00', 'Z')
-        agents_data = {
-            "agents": {
-                "52": {
-                    "agent_id": 52,
-                    "agent_name": "inactive-agent",
-                    "pid": 12345,
-                    "hostname": "host",
-                    "status": "active",
-                    "current_run_id": "S-0030",
-                    "started_at": stale_time,
-                    "last_heartbeat": stale_time,
-                    "stopped_at": None
-                }
-            }
-        }
-        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
-        
-        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
-            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
-                response = client.get("/api/agents")
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        agent = data["agents"]["52"]
-        # Agent becomes inactive due to stale heartbeat
-        assert agent["status"] == "inactive"
-        # Workflow stage fields should be null for inactive agents
-        assert agent["current_workflow_stage"] is None
-        assert agent["workflow_stage_timestamp"] is None
-
-    def test_workflow_stage_fields_null_when_no_matching_run(self, client, mock_agents_file, tmp_path):
-        """Workflow stage fields are null when agent's run doesn't match state"""
-        # Create project with state.json
-        project_path = tmp_path / "no-match-project"
-        (project_path / "felix").mkdir(parents=True)
-        (project_path / "specs").mkdir()
-        
-        state_data = {
-            "current_requirement_id": "S-0030",
-            "current_workflow_stage": "execute_llm",
-            "workflow_stage_timestamp": "2026-01-29T12:00:00Z"
-        }
-        (project_path / "felix" / "state.json").write_text(json.dumps(state_data), encoding='utf-8')
-        
-        from models import Project
-        test_project = Project(id="no-match-id", path=str(project_path), name="No Match")
-        
-        # Create agent working on different requirement
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        agents_data = {
-            "agents": {
-                "53": {
-                    "agent_id": 53,
-                    "agent_name": "no-match-agent",
-                    "pid": 12345,
-                    "hostname": "host",
-                    "status": "active",
-                    "current_run_id": "S-0999",  # Different requirement
-                    "started_at": now,
-                    "last_heartbeat": now,
-                    "stopped_at": None
-                }
-            }
-        }
-        mock_agents_file.write_text(json.dumps(agents_data), encoding='utf-8')
-        
-        with patch('routers.agents.get_agents_file_path', return_value=mock_agents_file):
-            with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
-                response = client.get("/api/agents")
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        agent = data["agents"]["53"]
-        # Agent is working on different requirement, so no workflow stage
-        assert agent["current_workflow_stage"] is None
-        assert agent["workflow_stage_timestamp"] is None
-
-    def test_agent_entry_model_has_workflow_fields(self):
-        """AgentEntry model includes workflow stage fields"""
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        agent = AgentEntry(
-            agent_id=54,
-            agent_name="model-test-agent",
-            pid=12345,
-            hostname="host",
-            status="active",
-            current_run_id="S-0030",
-            started_at=now,
-            last_heartbeat=now,
-            current_workflow_stage="build_prompt",
-            workflow_stage_timestamp="2026-01-29T12:00:00Z"
-        )
-        
-        assert agent.current_workflow_stage == "build_prompt"
-        assert agent.workflow_stage_timestamp == "2026-01-29T12:00:00Z"
-        
-        # Test model_dump includes these fields
-        dumped = agent.model_dump()
-        assert "current_workflow_stage" in dumped
-        assert "workflow_stage_timestamp" in dumped

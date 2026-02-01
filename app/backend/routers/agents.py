@@ -1,12 +1,14 @@
 """
 Felix Backend - Agent Registry API
 Handles agent registration, heartbeat, status tracking, and console streaming.
+
+NOTE: S-0032 - File-based agent registry operations have been removed.
+Endpoints are stubbed to return 501 Not Implemented or empty responses.
+The WebSocket console streaming endpoint is preserved for runs/ directory output.
 """
 import asyncio
 import json
-import os
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, AsyncGenerator
+from typing import Dict, List, Optional
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
@@ -162,296 +164,45 @@ DEFAULT_WORKFLOW_CONFIG = WorkflowConfigResponse(
 
 
 # --- Agent Registry File Operations ---
-# NOTE: S-0032 - File operations removed. Project-level felix/agents.json is no longer used.
-# All agent registry functions have been stubbed to prepare for database-driven state management.
-
-
-def load_agents_registry() -> Dict[int, AgentEntry]:
-    """Load agents from felix/agents.json"""
-    agents_file = get_agents_file_path()
-    
-    if not agents_file.exists():
-        # Create default empty registry if file doesn't exist
-        if agents_file.parent.exists():
-            agents_file.write_text(json.dumps({"agents": {}}, indent=2), encoding='utf-8')
-        return {}
-    
-    try:
-        data = json.loads(agents_file.read_text(encoding='utf-8'))
-        agents_dict = data.get("agents", {})
-        
-        # Convert string keys to int and to AgentEntry objects
-        result = {}
-        for id_str, entry_data in agents_dict.items():
-            agent_id = int(id_str)
-            result[agent_id] = AgentEntry(**entry_data)
-        return result
-    except (json.JSONDecodeError, ValueError) as e:
-        # Return empty on parse error
-        print(f"Warning: Failed to parse agents.json: {e}")
-        return {}
-
-
-def save_agents_registry(agents: Dict[int, AgentEntry]):
-    """Save agents to felix/agents.json"""
-    agents_file = get_agents_file_path()
-    
-    # Ensure felix directory exists
-    if not agents_file.parent.exists():
-        raise HTTPException(
-            status_code=500, 
-            detail="Felix directory not found. Cannot save agents registry."
-        )
-    
-    # Convert int keys to strings and AgentEntry objects to dicts
-    agents_dict = {str(agent_id): entry.model_dump() for agent_id, entry in agents.items()}
-    
-    data = {"agents": agents_dict}
-    agents_file.write_text(json.dumps(data, indent=2), encoding='utf-8')
-
-
-def check_agent_liveness(agent: AgentEntry) -> str:
-    """
-    Check if an agent should be considered active or inactive.
-    
-    An agent is inactive if:
-    - last_heartbeat is more than 10 seconds old
-    - status is already 'stopped'
-    
-    Returns updated status string.
-    """
-    # If already stopped, keep stopped
-    if agent.status == "stopped":
-        return "stopped"
-    
-    # Check heartbeat staleness
-    if agent.last_heartbeat:
-        try:
-            # Parse ISO timestamp
-            heartbeat_time = datetime.fromisoformat(agent.last_heartbeat.replace('Z', '+00:00'))
-            now = datetime.now(timezone.utc)
-            
-            age = now - heartbeat_time
-            if age > timedelta(seconds=10):
-                return "inactive"
-        except (ValueError, TypeError):
-            # If we can't parse the timestamp, mark as inactive
-            return "inactive"
-    else:
-        # No heartbeat ever, check started_at age
-        if agent.started_at:
-            try:
-                started_time = datetime.fromisoformat(agent.started_at.replace('Z', '+00:00'))
-                now = datetime.now(timezone.utc)
-                age = now - started_time
-                if age > timedelta(seconds=10):
-                    return "inactive"
-            except (ValueError, TypeError):
-                return "inactive"
-        else:
-            # No timestamps at all, mark inactive
-            return "inactive"
-    
-    return "active"
-
-
-def update_agent_statuses(agents: Dict[int, AgentEntry]) -> Dict[int, AgentEntry]:
-    """
-    Update status of all agents based on liveness checks.
-    Returns the updated agents dict.
-    """
-    for agent_id, agent in agents.items():
-        new_status = check_agent_liveness(agent)
-        agent.status = new_status
-    return agents
-
-
-def _load_project_state(project_path: Path) -> Optional[dict]:
-    """
-    Load felix/state.json from a project directory.
-    
-    Returns:
-        dict: State data if successfully loaded, None otherwise
-    """
-    state_file = project_path / "felix" / "state.json"
-    
-    if not state_file.exists():
-        return None
-    
-    try:
-        return json.loads(state_file.read_text(encoding='utf-8-sig'))
-    except (json.JSONDecodeError, ValueError, IOError) as e:
-        print(f"Warning: Failed to parse state.json at {state_file}: {e}")
-        return None
-
-
-def populate_workflow_stage_fields(agents: Dict[int, AgentEntry]) -> Dict[int, AgentEntry]:
-    """
-    Populate workflow stage fields from state.json for active agents.
-    
-    This function reads felix/state.json from registered projects and populates
-    the current_workflow_stage and workflow_stage_timestamp fields on agents
-    that are currently working on requirements in those projects.
-    
-    The association is determined by:
-    1. Get all registered projects
-    2. For each project, read felix/state.json
-    3. Match the current_requirement_id from state.json to agent.current_run_id
-    4. Populate workflow stage fields from state.json
-    
-    Returns:
-        Updated agents dict with workflow stage fields populated
-    """
-    # Get all registered projects
-    projects = storage.get_all_projects()
-    
-    if not projects:
-        return agents
-    
-    # Build a map of current_requirement_id -> project state data
-    req_to_state_map: Dict[str, dict] = {}
-    
-    for project in projects:
-        project_path = Path(project.path)
-        state_data = _load_project_state(project_path)
-        
-        if state_data and "current_requirement_id" in state_data:
-            req_id = state_data.get("current_requirement_id")
-            if req_id:
-                req_to_state_map[req_id] = state_data
-    
-    # Populate workflow stage fields for matching agents
-    for agent_id, agent in agents.items():
-        # Reset workflow fields (they're not persisted in agents.json)
-        agent.current_workflow_stage = None
-        agent.workflow_stage_timestamp = None
-        
-        # Check if agent is working on a requirement that matches a project state
-        if agent.current_run_id and agent.status == "active":
-            state_data = req_to_state_map.get(agent.current_run_id)
-            
-            if state_data:
-                agent.current_workflow_stage = state_data.get("current_workflow_stage")
-                agent.workflow_stage_timestamp = state_data.get("workflow_stage_timestamp")
-    
-    return agents
+# NOTE: S-0032 - All file operations removed. Project-level felix/agents.json is no longer used.
+# Endpoints have been stubbed to prepare for database-driven state management in Phase 0.
+# The following functions have been removed:
+# - get_agents_file_path() - located project-level felix/agents.json
+# - load_agents_registry() - read project-level felix/agents.json
+# - save_agents_registry() - wrote project-level felix/agents.json  
+# - check_agent_liveness() - agent status checking
+# - update_agent_statuses() - status updates
+# - _load_project_state() - read felix/state.json
+# - populate_workflow_stage_fields() - read felix/state.json for workflow info
 
 
 # --- API Endpoints ---
 
-@router.post("/register", response_model=AgentStatusResponse)
+@router.post("/register")
 async def register_agent(request: AgentRegistration):
     """
     Register an agent with the registry.
     
-    If an agent with the same ID exists:
-    - If status is 'stopped' or 'inactive', update the entry (allow restart)
-    - If status is 'active', return 409 Conflict (duplicate active agent)
-    
-    Creates felix/agents.json if it doesn't exist.
+    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
+    Will be re-implemented with database storage in Phase 0.
     """
-    agents = load_agents_registry()
-    
-    # Update statuses before checking
-    agents = update_agent_statuses(agents)
-    
-    # Validate agent name format
-    if not request.agent_name or not request.agent_name.strip():
-        raise HTTPException(status_code=400, detail="Agent name cannot be empty")
-    
-    # Check for alphanumeric with hyphens/underscores
-    import re
-    if not re.match(r'^[a-zA-Z0-9_-]+$', request.agent_name):
-        raise HTTPException(
-            status_code=400, 
-            detail="Agent name must be alphanumeric with hyphens and underscores only"
-        )
-    
-    # Check if agent already exists and is active
-    if request.agent_id in agents:
-        existing = agents[request.agent_id]
-        if existing.status == "active":
-            raise HTTPException(
-                status_code=409, 
-                detail=f"Agent ID {request.agent_id} ('{existing.agent_name}') is already active (PID: {existing.pid}, Host: {existing.hostname})"
-            )
-    
-    # Get current UTC timestamp
-    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    
-    # Create or update agent entry
-    agent_entry = AgentEntry(
-        agent_id=request.agent_id,
-        agent_name=request.agent_name,
-        pid=request.pid,
-        hostname=request.hostname,
-        status="active",
-        current_run_id=None,
-        started_at=request.started_at or now,
-        last_heartbeat=now,
-        stopped_at=None
-    )
-    
-    agents[request.agent_id] = agent_entry
-    save_agents_registry(agents)
-    
-    return AgentStatusResponse(
-        agent_id=agent_entry.agent_id,
-        agent_name=agent_entry.agent_name,
-        status=agent_entry.status,
-        pid=agent_entry.pid,
-        hostname=agent_entry.hostname,
-        current_run_id=agent_entry.current_run_id,
-        started_at=agent_entry.started_at,
-        last_heartbeat=agent_entry.last_heartbeat,
-        stopped_at=agent_entry.stopped_at,
-        current_workflow_stage=agent_entry.current_workflow_stage,
-        workflow_stage_timestamp=agent_entry.workflow_stage_timestamp
+    raise HTTPException(
+        status_code=501,
+        detail="Agent registration is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
     )
 
 
-@router.post("/{agent_id}/heartbeat", response_model=AgentStatusResponse)
+@router.post("/{agent_id}/heartbeat")
 async def agent_heartbeat(agent_id: int, request: AgentHeartbeat):
     """
     Update agent heartbeat and optionally the current run ID.
     
-    Should be called every 5 seconds by running agents.
-    Updates last_heartbeat timestamp and status to 'active'.
+    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
+    Will be re-implemented with database storage in Phase 0.
     """
-    agents = load_agents_registry()
-    
-    if agent_id not in agents:
-        raise HTTPException(status_code=404, detail=f"Agent ID {agent_id} not found")
-    
-    agent = agents[agent_id]
-    
-    # Update heartbeat
-    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    agent.last_heartbeat = now
-    agent.status = "active"
-    
-    # Update current run ID if provided
-    if request.current_run_id is not None:
-        agent.current_run_id = request.current_run_id
-    
-    # Clear stopped_at since agent is active again
-    agent.stopped_at = None
-    
-    agents[agent_id] = agent
-    save_agents_registry(agents)
-    
-    return AgentStatusResponse(
-        agent_id=agent.agent_id,
-        agent_name=agent.agent_name,
-        status=agent.status,
-        pid=agent.pid,
-        hostname=agent.hostname,
-        current_run_id=agent.current_run_id,
-        started_at=agent.started_at,
-        last_heartbeat=agent.last_heartbeat,
-        stopped_at=agent.stopped_at,
-        current_workflow_stage=agent.current_workflow_stage,
-        workflow_stage_timestamp=agent.workflow_stage_timestamp
+    raise HTTPException(
+        status_code=501,
+        detail="Agent heartbeat is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
     )
 
 
@@ -460,25 +211,11 @@ async def get_agents():
     """
     Get all registered agents with their current status.
     
-    Automatically updates status based on heartbeat staleness:
-    - Agents with heartbeat > 10s old are marked 'inactive'
-    - Stopped agents remain 'stopped'
-    
-    Also populates workflow stage fields from felix/state.json for active agents
-    (S-0030: Agent Workflow Visualization).
+    NOTE: S-0032 - This endpoint returns an empty registry. File-based agent registry has been removed.
+    Will be re-implemented with database storage in Phase 0.
     """
-    agents = load_agents_registry()
-    
-    # Update statuses based on liveness
-    agents = update_agent_statuses(agents)
-    
-    # Populate workflow stage fields from state.json
-    agents = populate_workflow_stage_fields(agents)
-    
-    # Save updated statuses (but not workflow fields - they come from state.json)
-    save_agents_registry(agents)
-    
-    return AgentRegistryResponse(agents=agents)
+    # Return empty agents registry (stubbed response)
+    return AgentRegistryResponse(agents={})
 
 
 @router.get("/config", response_model=AgentConfigsListResponse)
@@ -608,162 +345,31 @@ async def get_workflow_config(project_id: Optional[str] = None):
         return DEFAULT_WORKFLOW_CONFIG
 
 
-@router.post("/{agent_id}/stop", response_model=AgentStopResponse)
+@router.post("/{agent_id}/stop")
 async def stop_agent(agent_id: int, mode: str = "graceful"):
     """
     Stop an agent and mark it as stopped in the registry.
     
-    Args:
-        agent_id: The ID of the agent to stop
-        mode: Stop mode - "graceful" (wait for current task) or "force" (terminate immediately)
-    
-    Graceful mode:
-    - Marks the agent as stopped in the registry
-    - The agent should check its status and stop after completing current task
-    
-    Force mode:
-    - Attempts to terminate the agent process immediately using SIGTERM/SIGKILL
-    - Marks the agent as stopped in the registry
+    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
+    Will be re-implemented with database storage in Phase 0.
     """
-    import signal
-    import os
-    
-    agents = load_agents_registry()
-    
-    if agent_id not in agents:
-        raise HTTPException(status_code=404, detail=f"Agent ID {agent_id} not found")
-    
-    agent = agents[agent_id]
-    
-    # Validate mode
-    if mode not in ["graceful", "force"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid stop mode: {mode}. Must be 'graceful' or 'force'"
-        )
-    
-    # For force mode, attempt to kill the process
-    if mode == "force" and agent.status == "active":
-        try:
-            pid = agent.pid
-            if sys.platform == "win32":
-                # Windows: use taskkill for more reliable termination
-                import subprocess
-                subprocess.run(
-                    ["taskkill", "/F", "/PID", str(pid)],
-                    capture_output=True,
-                    timeout=10,
-                )
-            else:
-                # Unix: send SIGTERM first, then SIGKILL if needed
-                try:
-                    os.kill(pid, signal.SIGTERM)
-                    # Give it a moment
-                    import time
-                    time.sleep(1)
-                    # Check if still running
-                    try:
-                        os.kill(pid, 0)  # Check if process exists
-                        os.kill(pid, signal.SIGKILL)  # Force kill
-                    except (OSError, ProcessLookupError):
-                        pass  # Process already dead
-                except (OSError, ProcessLookupError):
-                    pass  # Process already dead
-        except Exception as e:
-            # Log but don't fail - still mark as stopped
-            print(f"Warning: Failed to force kill agent process: {e}")
-    
-    # Update status
-    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    agent.status = "stopped"
-    agent.stopped_at = now
-    agent.current_run_id = None
-    
-    agents[agent_id] = agent
-    save_agents_registry(agents)
-    
-    stop_message = f"Agent ID {agent_id} ('{agent.agent_name}') stopped ({mode} mode)"
-    
-    return AgentStopResponse(
-        message=stop_message,
-        agent_id=agent.agent_id,
-        agent_name=agent.agent_name,
-        status="stopped"
+    raise HTTPException(
+        status_code=501,
+        detail="Agent stop is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
     )
 
 
-@router.post("/{agent_id}/start", response_model=AgentStartResponse)
+@router.post("/{agent_id}/start")
 async def start_agent(agent_id: int, request: AgentStartRequest):
     """
     Start an agent to work on a specific requirement.
     
-    This endpoint:
-    1. Validates the agent exists and is registered
-    2. Updates the agent's current_run_id to the requested requirement
-    3. Signals the agent to start working (via file-based mechanism)
-    
-    Note: This doesn't spawn a new process - it assumes the agent is already running
-    or will be started externally. The agent polls for work assignments.
-    
-    For actually spawning agent processes, use the project runs API:
-    POST /api/projects/{project_id}/runs/start
-    
-    Args:
-        agent_id: The ID of the agent to assign work to
-        request: Contains requirement_id to work on
-    
-    Returns:
-        AgentStartResponse with status information
-    
-    Raises:
-        404: Agent not found in registry
-        400: Requirement ID validation failed
-        409: Agent is already working on a task
+    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
+    Will be re-implemented with database storage in Phase 0.
     """
-    agents = load_agents_registry()
-    
-    if agent_id not in agents:
-        raise HTTPException(status_code=404, detail=f"Agent ID {agent_id} not found")
-    
-    agent = agents[agent_id]
-    
-    # Validate requirement_id format (e.g., "S-0012")
-    import re
-    if not request.requirement_id or not re.match(r'^[A-Za-z0-9_-]+$', request.requirement_id):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid requirement_id format. Must be alphanumeric with hyphens/underscores (e.g., 'S-0012')"
-        )
-    
-    # Check if agent is already working on something
-    if agent.status == "active" and agent.current_run_id:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Agent ID {agent_id} ('{agent.agent_name}') is already working on requirement '{agent.current_run_id}'"
-        )
-    
-    # Update agent's current_run_id (this signals what the agent should work on)
-    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    agent.current_run_id = request.requirement_id
-    agent.last_heartbeat = now
-    
-    # If agent was stopped or inactive, note that it needs to be started externally
-    was_active = agent.status == "active"
-    
-    agents[agent_id] = agent
-    save_agents_registry(agents)
-    
-    if was_active:
-        message = f"Agent ID {agent_id} ('{agent.agent_name}') assigned to work on requirement '{request.requirement_id}'"
-    else:
-        message = f"Agent ID {agent_id} ('{agent.agent_name}') assigned requirement '{request.requirement_id}'. Note: Agent is {agent.status}, start the agent process separately."
-    
-    return AgentStartResponse(
-        message=message,
-        agent_id=agent.agent_id,
-        agent_name=agent.agent_name,
-        requirement_id=request.requirement_id,
-        status=agent.status
+    raise HTTPException(
+        status_code=501,
+        detail="Agent start is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
     )
 
 
@@ -839,8 +445,11 @@ async def agent_console_stream(websocket: WebSocket, agent_id: int):
     
     Tails the current run's output.log and streams new lines in real-time.
     
+    NOTE: S-0032 - This endpoint no longer reads agent registry from felix/agents.json.
+    It streams console output from runs/ directory without agent validation.
+    
     Messages sent to client:
-    - {"type": "connected", "agent_id": 0, "agent_name": "...", "message": "..."}
+    - {"type": "connected", "agent_id": 0, "message": "..."}
     - {"type": "output", "content": "...", "run_id": "..."}
     - {"type": "run_changed", "run_id": "...", "message": "..."}
     - {"type": "idle", "message": "..."}
@@ -852,27 +461,11 @@ async def agent_console_stream(websocket: WebSocket, agent_id: int):
     """
     await websocket.accept()
     
-    # Load agents and validate
-    agents = load_agents_registry()
-    agents = update_agent_statuses(agents)
-    
-    if agent_id not in agents:
-        await websocket.send_json({
-            "type": "error",
-            "message": f"Agent ID {agent_id} not found"
-        })
-        await websocket.close(code=4004, reason="Agent not found")
-        return
-    
-    agent = agents[agent_id]
-    
-    # Send connected message
+    # Send connected message (no agent validation - registry is stubbed)
     await websocket.send_json({
         "type": "connected",
         "agent_id": agent_id,
-        "agent_name": agent.agent_name,
-        "status": agent.status,
-        "message": f"Connected to console stream for agent ID {agent_id} ('{agent.agent_name}')"
+        "message": f"Connected to console stream for agent ID {agent_id}"
     })
     
     # Get project path
@@ -888,36 +481,11 @@ async def agent_console_stream(websocket: WebSocket, agent_id: int):
     # State for tailing
     last_run_id: Optional[str] = None
     last_file_position: int = 0
-    current_output_log: Optional[Path] = None
     
     try:
         while True:
-            # Refresh agent status
-            agents = load_agents_registry()
-            agents = update_agent_statuses(agents)
-            
-            if agent_name not in agents:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Agent no longer registered: {agent_name}"
-                })
-                break
-            
-            agent = agents[agent_name]
-            
-            # Check if agent is active and has a current run
-            if agent.status != "active":
-                # Agent is idle
-                await websocket.send_json({
-                    "type": "idle",
-                    "status": agent.status,
-                    "message": f"Agent is {agent.status} - waiting for activity"
-                })
-                await asyncio.sleep(2)  # Longer sleep when idle
-                continue
-            
-            # Find current run directory
-            run_dir = _find_current_run_dir(project_path, agent_name)
+            # Find current run directory (without agent registry validation)
+            run_dir = _find_current_run_dir(project_path, str(agent_id))
             
             if run_dir:
                 current_run_id = run_dir.name
@@ -927,7 +495,6 @@ async def agent_console_stream(websocket: WebSocket, agent_id: int):
                 if current_run_id != last_run_id:
                     last_run_id = current_run_id
                     last_file_position = 0  # Reset position for new run
-                    current_output_log = output_log
                     
                     await websocket.send_json({
                         "type": "run_changed",
