@@ -710,6 +710,74 @@ async def create_run(
         )
 
 
+@router.post("/runs/{run_id}/stop", status_code=200)
+async def stop_run(
+    run_id: str,
+    db: Database = Depends(get_db),
+):
+    """
+    Stop a running run by sending STOP command to the agent.
+    
+    Verifies the run exists and the associated agent is connected, then sends a STOP
+    command via the control WebSocket. The agent is responsible for updating the run
+    status upon receiving the command.
+    
+    Args:
+        run_id: The run ID to stop (UUID string)
+        db: Database connection from dependency injection
+    
+    Returns:
+        {"status": "ok", "run_id": run_id, "message": "STOP command sent"}
+    
+    Raises:
+        HTTPException 404: If run not found
+        HTTPException 503: If agent not connected to control WebSocket
+        HTTPException 500: On database error
+    """
+    try:
+        # Verify run exists
+        run_writer = RunWriter(db)
+        run = await run_writer.get_run(run_id)
+        if not run:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Run not found: {run_id}"
+            )
+        
+        agent_id = str(run["agent_id"])
+        
+        # Verify agent is connected
+        if not control_manager.is_connected(agent_id):
+            raise HTTPException(
+                status_code=503,
+                detail=f"Agent not connected: {agent_id}. Cannot send STOP command."
+            )
+        
+        # Send STOP command via control WebSocket
+        command = {
+            "type": "command",
+            "command": CommandType.STOP.value,
+            "run_id": run_id,
+        }
+        await control_manager.send_command(agent_id, command)
+        
+        return {"status": "ok", "run_id": run_id, "message": "STOP command sent"}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except ValueError as e:
+        # ValueError from control_manager.send_command when agent disconnects
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to send command to agent: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error during run stop: {str(e)}"
+        )
+
+
 # --- Console Streaming WebSocket ---
 
 def _get_project_path_for_agent() -> Optional[Path]:
