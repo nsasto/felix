@@ -626,7 +626,7 @@
                              "id":  "S-0041",
                              "title":  "Console Streaming WebSocket",
                              "spec_path":  "specs/S-0041.md",
-                             "status":  "planned",
+                             "status":  "in_progress",
                              "priority":  "high",
                              "labels":  [
                                             "websocket",

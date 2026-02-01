@@ -991,67 +991,57 @@ async def agent_console_stream(
     """
     await websocket.accept()
     
-    # Send connected message (no agent validation - registry is stubbed)
-    await websocket.send_json({
-        "type": "connected",
-        "agent_id": agent_id,
-        "message": f"Connected to console stream for agent ID {agent_id}"
-    })
+    # Validate run_id is provided (required parameter)
+    if not run_id:
+        await websocket.send_json({"error": "run_id query parameter is required"})
+        await websocket.close()
+        return
     
     # Get project path
     project_path = _get_project_path_for_agent()
     if not project_path:
-        await websocket.send_json({
-            "type": "error",
-            "message": "No project registered. Cannot stream console output."
-        })
-        await websocket.close(code=4004, reason="No project")
+        await websocket.send_json({"error": "No project registered. Cannot stream console output."})
+        await websocket.close()
         return
     
+    # Construct log path from run_id
+    log_path = project_path / "runs" / run_id / "output.log"
+    
+    # Check if log file exists
+    if not log_path.exists():
+        await websocket.send_json({"error": f"Log file not found: runs/{run_id}/output.log"})
+        await websocket.close()
+        return
+    
+    # Send connected message
+    await websocket.send_json({
+        "type": "connected",
+        "agent_id": agent_id,
+        "message": f"Connected to console stream for run {run_id}",
+        "run_id": run_id
+    })
+    
     # State for tailing
-    last_run_id: Optional[str] = None
     last_file_position: int = 0
+    
+    # If not starting from beginning, seek to end of file
+    if not from_start:
+        try:
+            last_file_position = log_path.stat().st_size
+        except (IOError, OSError):
+            last_file_position = 0
     
     try:
         while True:
-            # Find current run directory (without agent registry validation)
-            run_dir = _find_current_run_dir(project_path, str(agent_id))
+            # Read new output from the log file
+            new_content, last_file_position = await _tail_file(log_path, last_file_position)
             
-            if run_dir:
-                current_run_id = run_dir.name
-                output_log = run_dir / "output.log"
-                
-                # Check if run changed
-                if current_run_id != last_run_id:
-                    last_run_id = current_run_id
-                    last_file_position = 0  # Reset position for new run
-                    
-                    await websocket.send_json({
-                        "type": "run_changed",
-                        "run_id": current_run_id,
-                        "message": f"Now streaming from run: {current_run_id}"
-                    })
-                
-                # Read new output
-                if output_log.exists():
-                    new_content, last_file_position = await _tail_file(output_log, last_file_position)
-                    
-                    if new_content:
-                        await websocket.send_json({
-                            "type": "output",
-                            "content": new_content,
-                            "run_id": current_run_id
-                        })
-            else:
-                # No run directory found
-                if last_run_id is not None:
-                    # Previously had a run, now gone
-                    await websocket.send_json({
-                        "type": "idle",
-                        "message": "No active run found"
-                    })
-                    last_run_id = None
-                    last_file_position = 0
+            if new_content:
+                await websocket.send_json({
+                    "type": "output",
+                    "content": new_content,
+                    "run_id": run_id
+                })
             
             # Poll interval
             await asyncio.sleep(0.5)  # 500ms for responsive streaming
@@ -1064,10 +1054,7 @@ async def agent_console_stream(
         pass
     except Exception as e:
         try:
-            await websocket.send_json({
-                "type": "error",
-                "message": f"Stream error: {str(e)}"
-            })
+            await websocket.send_json({"error": f"Stream error: {str(e)}"})
         except Exception:
             pass
     finally:
