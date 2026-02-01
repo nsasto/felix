@@ -1,11 +1,11 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import AgentDashboard from '../../components/AgentDashboard';
 import { ThemeProvider } from '../../hooks/ThemeProvider';
 import { felixApi } from '../../services/felixApi';
 
-// Mock the felixApi module
+// Mock the felixApi module (legacy API)
 vi.mock('../../services/felixApi', () => ({
   felixApi: {
     getAgentsConfig: vi.fn(),
@@ -18,6 +18,17 @@ vi.mock('../../services/felixApi', () => ({
     getWorkflowConfig: vi.fn(),
   },
 }));
+
+// Mock the new API client module (S-0042: database-backed API)
+vi.mock('../api/client', () => ({
+  listAgents: vi.fn(),
+  listRuns: vi.fn(),
+  createRun: vi.fn(),
+  stopRun: vi.fn(),
+}));
+
+// Import the mocked new API client
+import * as apiClient from '../api/client';
 
 // Helper to render with ThemeProvider
 const renderWithTheme = (ui: React.ReactElement) => {
@@ -94,6 +105,17 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
     ],
   };
 
+  // Mock data for new database-backed API (S-0042)
+  const mockDbAgents = {
+    agents: [],
+    count: 0,
+  };
+
+  const mockDbRuns = {
+    runs: [],
+    count: 0,
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(felixApi.getAgentsConfig).mockResolvedValue(mockConfiguredAgents);
@@ -101,6 +123,9 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
     vi.mocked(felixApi.getRequirements).mockResolvedValue(mockRequirements);
     vi.mocked(felixApi.listRuns).mockResolvedValue(mockRuns);
     vi.mocked(felixApi.getWorkflowConfig).mockResolvedValue(mockWorkflowConfig);
+    // S-0042: Mock new API client functions
+    vi.mocked(apiClient.listAgents).mockResolvedValue(mockDbAgents);
+    vi.mocked(apiClient.listRuns).mockResolvedValue(mockDbRuns);
   });
 
   describe('Agent List Data Source Merge', () => {
@@ -218,26 +243,26 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
     });
   });
 
-  // S-0033: Tests for static state after polling removal
-  describe('Static State Indicator (S-0033: Polling Removed)', () => {
-    it('shows "Manual Refresh Only" indicator in toolbar', async () => {
+  // S-0042: Tests for live polling (restored from S-0033 which removed polling)
+  describe('Live Polling Indicator (S-0042: Polling Restored)', () => {
+    it('shows "Live" indicator in toolbar', async () => {
       renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
 
       await waitFor(() => {
-        // Should show the manual refresh indicator
-        expect(screen.getByText('Manual Refresh Only')).toBeInTheDocument();
+        // Should show the live polling indicator
+        expect(screen.getByText('Live')).toBeInTheDocument();
       });
     });
 
-    it('manual refresh indicator has correct tooltip', async () => {
+    it('live indicator has correct tooltip', async () => {
       renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
 
       await waitFor(() => {
         // Find the wrapper div that has the title attribute
-        const indicator = screen.getByText('Manual Refresh Only').closest('div[title]');
+        const indicator = screen.getByText('Live').closest('div[title]');
         expect(indicator).toHaveAttribute(
           'title',
-          'Real-time updates unavailable - use Refresh button to update'
+          'Auto-refresh every 3 seconds'
         );
       });
     });
@@ -247,7 +272,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
 
       // Wait for initial render
       await waitFor(() => {
-        expect(screen.getByText('Manual Refresh Only')).toBeInTheDocument();
+        expect(screen.getByText('Live')).toBeInTheDocument();
       });
 
       // Clear mocks after initial fetch
@@ -273,9 +298,9 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
       renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
 
       // Component should still render even with fetch error
-      // The indicator should still be visible
+      // The Live indicator should still be visible
       await waitFor(() => {
-        expect(screen.getByText('Manual Refresh Only')).toBeInTheDocument();
+        expect(screen.getByText('Live')).toBeInTheDocument();
       });
     });
 
@@ -289,7 +314,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
 
       // Wait for component to render (initial fetch failed)
       await waitFor(() => {
-        expect(screen.getByText('Manual Refresh Only')).toBeInTheDocument();
+        expect(screen.getByText('Live')).toBeInTheDocument();
       });
 
       // Click refresh to retry
@@ -301,6 +326,74 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
       // Second call should have been made (retry after error)
       await waitFor(() => {
         expect(felixApi.getAgents).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  // S-0042: Tests for polling mechanism
+  describe('Polling Mechanism (S-0042)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('polls agents every 3 seconds', async () => {
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial fetch to complete
+      await vi.waitFor(() => {
+        expect(felixApi.getAgents).toHaveBeenCalled();
+      });
+
+      // Clear mocks after initial fetch
+      vi.mocked(felixApi.getAgents).mockClear();
+      vi.mocked(apiClient.listAgents).mockClear();
+
+      // Advance timer by 3 seconds (polling interval)
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      // Should have triggered polling fetches
+      await vi.waitFor(() => {
+        expect(felixApi.getAgents).toHaveBeenCalled();
+      });
+      await vi.waitFor(() => {
+        expect(apiClient.listAgents).toHaveBeenCalled();
+      });
+    });
+
+    it('polls runs every 3 seconds', async () => {
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial fetch
+      await vi.waitFor(() => {
+        expect(apiClient.listRuns).toHaveBeenCalled();
+      });
+
+      // Clear mocks after initial fetch
+      vi.mocked(apiClient.listRuns).mockClear();
+
+      // Advance timer by 3 seconds (polling interval)
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      // Should have triggered runs polling
+      await vi.waitFor(() => {
+        expect(apiClient.listRuns).toHaveBeenCalled();
+      });
+    });
+
+    it('calls listRuns with limit of 20', async () => {
+      renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
+
+      // Wait for initial fetch
+      await vi.waitFor(() => {
+        expect(apiClient.listRuns).toHaveBeenCalledWith(20);
       });
     });
   });
