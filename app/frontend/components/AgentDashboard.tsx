@@ -9,6 +9,13 @@ import {
   AgentConfigEntry,
 } from "../services/felixApi";
 import {
+  listAgents as apiListAgents,
+  listRuns as apiListRuns,
+  createRun as apiCreateRun,
+  stopRun as apiStopRun,
+} from "../src/api/client";
+import type { Agent, Run } from "../src/api/types";
+import {
   IconFelix,
   IconCpu,
   IconTerminal,
@@ -27,6 +34,10 @@ import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
 import RunCard from "./RunCard";
 import WorkflowVisualization from "./WorkflowVisualization";
+
+// --- Constants ---
+const POLLING_INTERVAL_MS = 3000; // 3-second polling interval
+const HEARTBEAT_TIMEOUT_MS = 60000; // 60 seconds to consider agent "connected"
 
 // --- Types ---
 
@@ -271,21 +282,20 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
             </div>
           </div>
         )}
-        {/* Manual Refresh Notice - Polling removed in S-0033 */}
+        {/* Live Polling Indicator - Restored in S-0042 */}
         <div
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
           style={{ borderColor: "var(--border-default)" }}
-          title="Real-time updates unavailable - use Refresh button to update"
+          title="Auto-refresh every 3 seconds"
         >
           <div
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: "var(--text-muted)" }}
+            className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
           />
           <span
             className="text-[10px] font-bold uppercase"
             style={{ color: "var(--text-muted)" }}
           >
-            Manual Refresh Only
+            Live
           </span>
         </div>
       </div>
@@ -1152,48 +1162,29 @@ interface RunHistoryPanelProps {
   projectId: string;
   selectedAgentId: number | null;
   onSelectRun: (runId: string) => void;
+  dbRuns: Run[]; // Database-backed runs from new API (S-0042)
+  loading?: boolean;
 }
 
 const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
   projectId,
   selectedAgentId,
   onSelectRun,
+  dbRuns,
+  loading: propsLoading,
 }) => {
-  const [runs, setRuns] = useState<RunHistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch runs - only when agent is selected
-  const fetchRuns = useCallback(async () => {
-    if (!selectedAgentId) {
-      setRuns([]);
-      setLoading(false);
-      return;
-    }
+  // Use the loading prop if provided, default to false (data comes from parent polling)
+  const loading = propsLoading ?? false;
 
-    try {
-      const response = await felixApi.listRuns(projectId);
-      setRuns(response.runs);
-    } catch (err) {
-      console.error("Failed to fetch runs:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId, selectedAgentId]);
-
-  // Initial fetch only - polling removed in S-0033
-  // Run list is static after load; use manual refresh or re-select agent to update
-  useEffect(() => {
-    fetchRuns();
-  }, [fetchRuns, selectedAgentId]);
-
-  // Filter runs
-  const filteredRuns = runs.filter((run) => {
+  // Filter runs (using database-backed runs from S-0042)
+  const filteredRuns = dbRuns.filter((run) => {
     if (
       searchQuery &&
-      !run.run_id.toLowerCase().includes(searchQuery.toLowerCase())
+      !run.id.toLowerCase().includes(searchQuery.toLowerCase())
     ) {
       return false;
     }
@@ -1398,11 +1389,90 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
           </div>
         ) : (
           filteredRuns.map((run) => (
-            <RunCard key={run.run_id} run={run} onClick={onSelectRun} />
+            <DbRunCard key={run.id} run={run} onClick={onSelectRun} />
           ))
         )}
       </div>
     </div>
+  );
+};
+
+// --- Database Run Card Component (S-0042) ---
+
+interface DbRunCardProps {
+  run: Run;
+  onClick: (runId: string) => void;
+}
+
+const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
+  // Format relative time
+  const formatRelativeTime = (isoString: string | null) => {
+    if (!isoString) return null;
+    try {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+      if (diff < 60) return `${diff}s ago`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    } catch {
+      return isoString;
+    }
+  };
+
+  // Status colors
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case "running":
+        return { bg: "bg-felix-500/10", text: "text-felix-400", border: "border-felix-500/20", icon: "🔄" };
+      case "completed":
+        return { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20", icon: "✅" };
+      case "failed":
+        return { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20", icon: "❌" };
+      case "cancelled":
+        return { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20", icon: "⚠️" };
+      case "pending":
+        return { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/20", icon: "⏳" };
+      default:
+        return { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/20", icon: "⏹️" };
+    }
+  };
+
+  const style = getStatusStyle(run.status);
+
+  return (
+    <button
+      onClick={() => onClick(run.id)}
+      className="w-full p-3 rounded-xl text-left transition-all border hover:border-felix-500/30"
+      style={{
+        backgroundColor: "var(--bg-base)",
+        borderColor: "var(--border-default)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-mono text-felix-400 truncate" style={{ maxWidth: "60%" }}>
+          {run.id.substring(0, 8)}...
+        </span>
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border ${style.bg} ${style.border}`}
+        >
+          <span className="text-xs">{style.icon}</span>
+          <span className={`text-[9px] font-bold uppercase ${style.text}`}>
+            {run.status}
+          </span>
+        </span>
+      </div>
+      <div className="flex items-center justify-between text-[10px]" style={{ color: "var(--text-muted)" }}>
+        <span>{run.agent_name || "Unknown Agent"}</span>
+        {run.started_at && <span>{formatRelativeTime(run.started_at)}</span>}
+      </div>
+      {run.requirement_id && (
+        <div className="mt-1 text-[10px]" style={{ color: "var(--text-faint)" }}>
+          Req: {run.requirement_id}
+        </div>
+      )}
+    </button>
   );
 };
 
@@ -1466,6 +1536,8 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
 
 const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [agents, setAgents] = useState<MergedAgent[]>([]);
+  const [dbAgents, setDbAgents] = useState<Agent[]>([]); // Database-backed agents from new API
+  const [dbRuns, setDbRuns] = useState<Run[]>([]); // Database-backed runs from new API
   const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
     null,
   );
@@ -1474,6 +1546,34 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Refs to track current selectedAgent for polling without recreating fetchAgents
+  const selectedAgentRef = useRef(selectedAgent);
+  useEffect(() => {
+    selectedAgentRef.current = selectedAgent;
+  }, [selectedAgent]);
+
+  // Fetch agents from database-backed API (S-0042)
+  const fetchDbAgents = useCallback(async () => {
+    try {
+      const response = await apiListAgents();
+      setDbAgents(response.agents);
+    } catch (err) {
+      console.error("Failed to fetch database agents:", err);
+      // Don't set error for db agents - fallback to legacy agents
+    }
+  }, []);
+
+  // Fetch runs from database-backed API (S-0042)
+  const fetchDbRuns = useCallback(async () => {
+    try {
+      const response = await apiListRuns(20);
+      setDbRuns(response.runs);
+    } catch (err) {
+      console.error("Failed to fetch database runs:", err);
+      // Don't set error - runs panel will show empty state
+    }
+  }, []);
 
   // Fetch agents - merges configured agents with runtime status
   const fetchAgents = useCallback(async () => {
@@ -1518,8 +1618,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       setAgents(mergedAgents);
       setError(null);
 
-      // Auto-select first active agent if none selected
-      if (!selectedAgent) {
+      // Auto-select first active agent if none selected (using ref for current value)
+      const currentSelected = selectedAgentRef.current;
+      if (!currentSelected) {
         const activeAgents = mergedAgents.filter((a) => a.status === "active");
         if (activeAgents.length > 0) {
           setSelectedAgent({
@@ -1530,7 +1631,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       } else {
         // Update selected agent data
         const updatedAgent = mergedAgents.find(
-          (a) => a.id === selectedAgent.id,
+          (a) => a.id === currentSelected.id,
         );
         if (updatedAgent) {
           setSelectedAgent({
@@ -1545,7 +1646,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedAgent]);
+  }, []); // Empty deps - uses ref for selectedAgent to avoid recreating
 
   // Fetch requirements
   const fetchRequirements = useCallback(async () => {
@@ -1557,21 +1658,56 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     }
   }, [projectId]);
 
-  // Initial fetch (runs once on mount) - polling removed in S-0033
-  // Data is now static after initial load; use manual refresh button to update
+  // Initial fetch on mount
   useEffect(() => {
     fetchAgents();
     fetchRequirements();
+    fetchDbAgents();
+    fetchDbRuns();
   }, []); // Empty deps - run once on mount
 
-  // Handle start agent
+  // 3-second polling for agents and runs (S-0042: restored live polling)
+  useEffect(() => {
+    const agentPollInterval = setInterval(() => {
+      fetchAgents();
+      fetchDbAgents();
+    }, POLLING_INTERVAL_MS);
+
+    const runsPollInterval = setInterval(() => {
+      fetchDbRuns();
+    }, POLLING_INTERVAL_MS);
+
+    // Cleanup intervals on unmount
+    return () => {
+      clearInterval(agentPollInterval);
+      clearInterval(runsPollInterval);
+    };
+  }, [fetchAgents, fetchDbAgents, fetchDbRuns]);
+
+  // Helper: Check if agent is "connected" based on heartbeat_at (within 60 seconds)
+  const isAgentConnected = useCallback((agent: Agent): boolean => {
+    if (!agent.heartbeat_at) return false;
+    try {
+      const heartbeatTime = new Date(agent.heartbeat_at).getTime();
+      const now = Date.now();
+      return (now - heartbeatTime) < HEARTBEAT_TIMEOUT_MS;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Handle start run using new API client (S-0042)
   const handleStart = async (requirementId: string) => {
     if (!selectedAgent) return;
     setActionInProgress("start");
     try {
-      // Start the agent with the specified requirement
+      // Try to use the new database-backed API first
+      // The agent_id for the new API is a string UUID, but we have numeric IDs from legacy
+      // For now, use the legacy API which starts the configured agent process
       await felixApi.startAgentWithRequirement(selectedAgent.id, requirementId);
       await fetchAgents();
+      await fetchDbAgents();
+      await fetchDbRuns();
     } catch (err) {
       console.error("Failed to start agent:", err);
       setError(err instanceof Error ? err.message : "Failed to start agent");
@@ -1580,14 +1716,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     }
   };
 
-  // Handle stop agent
+  // Handle stop run using new API client (S-0042)
   const handleStop = async (mode: "graceful" | "force") => {
     if (!selectedAgent) return;
     setActionInProgress("stop");
     try {
-      // Stop the agent with the specified mode
+      // Use the legacy API for stopping (which signals the running process)
       await felixApi.stopAgent(selectedAgent.id, mode);
       await fetchAgents();
+      await fetchDbAgents();
+      await fetchDbRuns();
     } catch (err) {
       console.error("Failed to stop agent:", err);
       setError(err instanceof Error ? err.message : "Failed to stop agent");
@@ -1600,6 +1738,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const handleRefresh = () => {
     fetchAgents();
     fetchRequirements();
+    fetchDbAgents();
+    fetchDbRuns();
   };
 
   // Handle settings (placeholder)
@@ -1688,6 +1828,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               projectId={projectId}
               selectedAgentId={selectedAgent?.id ?? null}
               onSelectRun={setSelectedRunId}
+              dbRuns={dbRuns}
+              loading={loading}
             />
           </div>
         </div>
