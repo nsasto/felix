@@ -19,7 +19,7 @@ import RequirementsKanban from "./components/RequirementsKanban";
 import AgentControls from "./components/AgentControls";
 import RunArtifactViewer from "./components/RunArtifactViewer";
 import SpecsEditor from "./components/SpecsEditor";
-import RunMonitor from "./components/RunMonitor";
+
 import ConfigPanel from "./components/ConfigPanel";
 import PlanViewer from "./components/PlanViewer";
 import SettingsScreen from "./components/SettingsScreen";
@@ -1155,16 +1155,7 @@ export const executeTask = (taskId: string) => {
                   </div>
                 </div>
 
-                {/* Run Monitor - Real-time Status */}
-                <div className="mb-6">
-                  <RunMonitor
-                    projectId={selectedProjectId!}
-                    onRunComplete={(data) => {
-                      // Refresh project details when a run completes
-                      console.log("Run completed:", data);
-                    }}
-                  />
-                </div>
+
 
                 {/* Agent Controls */}
                 <AgentControls
