@@ -512,7 +512,7 @@
                              "id":  "S-0034",
                              "title":  "Cleanup Verification and Documentation",
                              "spec_path":  "specs/S-0034.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
                                             "cleanup",

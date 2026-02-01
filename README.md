@@ -248,6 +248,18 @@ Blocked requirements must be manually reset to "planned" status in `felix/requir
 
 ---
 
+## Phase -1: Legacy Code Cleanup (Complete)
+
+As of v0.1-cleanup-complete, Felix has undergone Phase -1 cleanup in preparation for cloud migration:
+
+- **Removed**: File-based WebSocket infrastructure, frontend polling mechanisms
+- **Preserved**: Console streaming (SSE), agent spawn/stop, project management
+- **Status**: Backend returns stubbed data for agent registry and requirements until Phase 0 database implementation
+
+For details, see [Enhancements/PHASE_MINUS_ONE_COMPLETE.md](Enhancements/PHASE_MINUS_ONE_COMPLETE.md).
+
+---
+
 ## Contributing
 
 Felix is under active development. Contributions welcome via issues and pull requests.

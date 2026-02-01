@@ -2,6 +2,8 @@
 
 This file documents the configuration options in `felix/config.json` for customizing the Felix agent's behavior, particularly the LLM agent integration.
 
+> **Note (Phase -1)**: As of v0.1-cleanup-complete, **felix/state.json** is no longer read by the backend for runtime state management. The backend endpoints for agent registry and status are stubbed pending the Phase 0 database implementation. The state.json file is still written by felix-agent.ps1 for local agent execution, but the backend does not consume it.
+
 ## Agent Configuration
 
 The `agent` section configures which coding agent to use for LLM calls. Felix supports pluggable agents that accept prompts via stdin and output responses to stdout.
