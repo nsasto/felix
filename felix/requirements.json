@@ -480,7 +480,7 @@
                              "id":  "S-0032",
                              "title":  "Remove Backend File Operations",
                              "spec_path":  "specs/S-0032.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "high",
                              "labels":  [
                                             "cleanup",
