@@ -200,3 +200,43 @@
 3. Update `.gitignore`
 4. Commit and force push (coordinate with team)
 5. All developers re-clone or manually delete tracked files
+
+## TODO: Agent-Contributed Learnings in AGENTS.md
+
+**Current behavior:**
+
+- AGENTS.md is manually maintained
+- Knowledge gained from difficult problems stays in run logs only
+- No systematic way to capture agent solutions for future reference
+
+**Proposed behavior:**
+
+- Agents can append learnings to a dedicated section in AGENTS.md
+- Only significant discoveries: non-obvious solutions, edge cases, debugging patterns
+- Structured format to keep entries scannable
+
+**What qualifies as a learning:**
+
+- Problems that required multiple iterations to solve
+- Non-obvious workarounds for platform/tooling issues
+- Common pitfalls discovered during validation
+- Debugging techniques that proved effective
+
+**Benefits:**
+
+- Self-improving documentation
+- Future agents and developers benefit from past solutions
+- Reduces repeated trial-and-error on known issues
+- Living knowledge base that grows with the system
+
+**Implementation notes:**
+
+- Add "## Agent Learnings" section to AGENTS.md
+- Format: `- **[Date] [Agent-ID]**: Brief description of problem and solution`
+- Agent appends entry after successfully resolving difficult issues
+- Keep entries concise (2-3 sentences max)
+- Periodic human review to consolidate/refine entries
+- Example entry:
+  ```markdown
+  - **2025-01-15 DESKTOP-ABC-1234**: When backend tests fail with "port already in use", previous test process didn't clean up. Solution: Add `pytest --forked` flag to isolate test processes.
+  ```
