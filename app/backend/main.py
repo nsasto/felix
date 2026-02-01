@@ -14,6 +14,9 @@ from dotenv import load_dotenv
 # Load .env file for environment variables (like FELIX_COPILOT_API_KEY)
 load_dotenv()
 
+from fastapi import Depends
+from databases import Database
+
 from routers import (
     projects,
     files,
@@ -24,7 +27,8 @@ from routers import (
     agent_configs,
 )
 import storage
-from database.db import startup as db_startup, shutdown as db_shutdown
+from database.db import startup as db_startup, shutdown as db_shutdown, get_db
+from auth import get_current_user
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -240,6 +244,26 @@ async def root():
         "description": "Ralph-style autonomous software delivery system",
         "docs": "/docs",
         "health": "/health",
+    }
+
+
+@app.get("/test/db")
+async def test_db(
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    """
+    Test endpoint to verify database connection and authentication.
+
+    Returns:
+        JSON with user context and organization count from database.
+    """
+    result = await db.fetch_one("SELECT COUNT(*) as count FROM organizations")
+    org_count = result["count"] if result else 0
+
+    return {
+        "user": user,
+        "org_count": org_count,
     }
 
 
