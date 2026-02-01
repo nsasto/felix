@@ -610,7 +610,7 @@
                              "id":  "S-0040",
                              "title":  "Run Control API Endpoints",
                              "spec_path":  "specs/S-0040.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "critical",
                              "labels":  [
                                             "api",
