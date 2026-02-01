@@ -239,17 +239,50 @@ async def register_agent(
 
 
 @router.post("/{agent_id}/heartbeat")
-async def agent_heartbeat(agent_id: int, request: AgentHeartbeat):
+async def agent_heartbeat(
+    agent_id: str,
+    db: Database = Depends(get_db),
+):
     """
-    Update agent heartbeat and optionally the current run ID.
+    Update agent heartbeat timestamp.
     
-    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
-    Will be re-implemented with database storage in Phase 0.
+    Updates the heartbeat_at timestamp for the specified agent.
+    Should be called every 30-60 seconds by felix-agent.ps1.
+    
+    Args:
+        agent_id: The agent ID (string UUID)
+        db: Database connection from dependency injection
+    
+    Returns:
+        {"status": "ok", "agent_id": agent_id}
+    
+    Raises:
+        HTTPException 404: If agent not found
+        HTTPException 500: On database error
     """
-    raise HTTPException(
-        status_code=501,
-        detail="Agent heartbeat is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
-    )
+    try:
+        writer = AgentWriter(db)
+        
+        # Verify agent exists
+        agent = await writer.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent not found: {agent_id}"
+            )
+        
+        # Update heartbeat timestamp
+        await writer.update_heartbeat(agent_id)
+        
+        return {"status": "ok", "agent_id": agent_id}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error during heartbeat update: {str(e)}"
+        )
 
 
 @router.get("", response_model=AgentRegistryResponse)
