@@ -18,7 +18,6 @@ from routers import (
     projects,
     files,
     runs,
-    websocket,
     agents,
     settings,
     copilot,
@@ -177,11 +176,6 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("Felix Backend shutting down...")
 
-    # Shutdown WebSocket connection manager
-    ws_manager = websocket.get_connection_manager()
-    await ws_manager.shutdown()
-    print("WebSocket connections closed.")
-
     # Clean up any running agent processes
     running_agents = runs.get_running_agents()
     if running_agents:
@@ -217,7 +211,6 @@ app.add_middleware(
 app.include_router(projects.router)
 app.include_router(files.router)
 app.include_router(runs.router)
-app.include_router(websocket.router)
 app.include_router(agents.router)
 app.include_router(settings.router)
 app.include_router(copilot.router)

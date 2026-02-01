@@ -464,7 +464,7 @@
                              "id":  "S-0031",
                              "title":  "Remove File-Based WebSocket Infrastructure",
                              "spec_path":  "specs/S-0031.md",
-                             "status":  "planned",
+                             "status":  "in_progress",
                              "priority":  "high",
                              "labels":  [
                                             "cleanup",
