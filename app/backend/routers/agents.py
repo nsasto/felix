@@ -525,89 +525,10 @@ async def get_workflow_config(project_id: Optional[str] = None):
         return DEFAULT_WORKFLOW_CONFIG
 
 
-@router.get("/{agent_id}", response_model=AgentResponse)
-async def get_agent(
-    agent_id: str,
-    db: Database = Depends(get_db),
-):
-    """
-    Get a single agent by ID.
-    
-    Fetches the agent record from the database.
-    
-    Args:
-        agent_id: The agent ID (string UUID)
-        db: Database connection from dependency injection
-    
-    Returns:
-        AgentResponse with the agent data
-    
-    Raises:
-        HTTPException 404: If agent not found
-        HTTPException 500: On database error
-    """
-    try:
-        writer = AgentWriter(db)
-        
-        # Fetch agent from database
-        agent = await writer.get_agent(agent_id)
-        if not agent:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Agent not found: {agent_id}"
-            )
-        
-        # Transform to AgentResponse
-        return AgentResponse(
-            id=agent["id"],
-            project_id=agent["project_id"],
-            name=agent["name"],
-            type=agent["type"],
-            status=agent["status"],
-            heartbeat_at=agent.get("heartbeat_at"),
-            metadata=agent.get("metadata") or {},
-            created_at=agent["created_at"],
-            updated_at=agent["updated_at"],
-        )
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Database error while fetching agent: {str(e)}"
-        )
-
-
-@router.post("/{agent_id}/stop")
-async def stop_agent(agent_id: str, mode: str = "graceful"):
-    """
-    Stop an agent and mark it as stopped in the registry.
-    
-    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
-    Will be re-implemented with database storage in Phase 0.
-    """
-    raise HTTPException(
-        status_code=501,
-        detail="Agent stop is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
-    )
-
-
-@router.post("/{agent_id}/start")
-async def start_agent(agent_id: str, request: AgentStartRequest):
-    """
-    Start an agent to work on a specific requirement.
-    
-    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
-    Will be re-implemented with database storage in Phase 0.
-    """
-    raise HTTPException(
-        status_code=501,
-        detail="Agent start is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
-    )
-
-
 # --- Run Control Endpoints (S-0040) ---
+# NOTE: These endpoints are declared before /{agent_id} to ensure proper route matching.
+# FastAPI matches routes in order, so /runs must be declared before /{agent_id}
+# to prevent "runs" from being interpreted as an agent_id parameter.
 
 @router.post("/runs", response_model=RunResponse, status_code=201)
 async def create_run(
@@ -890,6 +811,92 @@ async def get_run(
             status_code=500,
             detail=f"Database error while fetching run: {str(e)}"
         )
+
+
+# --- Agent ID-Parameterized Endpoints ---
+# NOTE: These endpoints use /{agent_id} path parameter and must be declared AFTER
+# the /runs endpoints above to prevent "runs" from being interpreted as an agent_id.
+
+@router.get("/{agent_id}", response_model=AgentResponse)
+async def get_agent(
+    agent_id: str,
+    db: Database = Depends(get_db),
+):
+    """
+    Get a single agent by ID.
+    
+    Fetches the agent record from the database.
+    
+    Args:
+        agent_id: The agent ID (string UUID)
+        db: Database connection from dependency injection
+    
+    Returns:
+        AgentResponse with the agent data
+    
+    Raises:
+        HTTPException 404: If agent not found
+        HTTPException 500: On database error
+    """
+    try:
+        writer = AgentWriter(db)
+        
+        # Fetch agent from database
+        agent = await writer.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent not found: {agent_id}"
+            )
+        
+        # Transform to AgentResponse
+        return AgentResponse(
+            id=agent["id"],
+            project_id=agent["project_id"],
+            name=agent["name"],
+            type=agent["type"],
+            status=agent["status"],
+            heartbeat_at=agent.get("heartbeat_at"),
+            metadata=agent.get("metadata") or {},
+            created_at=agent["created_at"],
+            updated_at=agent["updated_at"],
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error while fetching agent: {str(e)}"
+        )
+
+
+@router.post("/{agent_id}/stop")
+async def stop_agent(agent_id: str, mode: str = "graceful"):
+    """
+    Stop an agent and mark it as stopped in the registry.
+    
+    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
+    Will be re-implemented with database storage in Phase 0.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail="Agent stop is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
+    )
+
+
+@router.post("/{agent_id}/start")
+async def start_agent(agent_id: str, request: AgentStartRequest):
+    """
+    Start an agent to work on a specific requirement.
+    
+    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
+    Will be re-implemented with database storage in Phase 0.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail="Agent start is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
+    )
 
 
 # --- Console Streaming WebSocket ---
