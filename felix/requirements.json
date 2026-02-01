@@ -530,7 +530,7 @@
                              "id":  "S-0035",
                              "title":  "Database Schema and Migrations Setup",
                              "spec_path":  "specs/S-0035.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "critical",
                              "labels":  [
                                             "database",
