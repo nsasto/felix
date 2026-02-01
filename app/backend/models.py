@@ -61,3 +61,19 @@ class AgentRegisterRequest(BaseModel):
 class AgentStatusUpdate(BaseModel):
     """Request body for updating an agent's status"""
     status: str = Field(..., description="New status for the agent (idle, running, stopped, error)")
+
+
+class AgentResponse(BaseModel):
+    """Response model for a single agent from the database"""
+    id: str = Field(..., description="Unique agent identifier (UUID string)")
+    project_id: str = Field(..., description="Project ID the agent belongs to")
+    name: str = Field(..., description="Display name for the agent")
+    type: str = Field(..., description="Agent type (e.g., 'ralph', 'builder', 'planner')")
+    status: str = Field(..., description="Current status (idle, running, stopped, error)")
+    heartbeat_at: Optional[datetime] = Field(None, description="Last heartbeat timestamp")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Agent metadata as JSON")
+    created_at: datetime = Field(..., description="When the agent was created")
+    updated_at: datetime = Field(..., description="When the agent was last updated")
+    
+    class Config:
+        from_attributes = True
