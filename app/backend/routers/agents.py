@@ -285,6 +285,67 @@ async def agent_heartbeat(
         )
 
 
+# Valid status values for agents
+VALID_AGENT_STATUSES = {"idle", "running", "stopped", "error"}
+
+
+@router.post("/{agent_id}/status")
+async def update_agent_status(
+    agent_id: str,
+    request: AgentStatusUpdate,
+    db: Database = Depends(get_db),
+):
+    """
+    Update an agent's status.
+    
+    Updates the status field for the specified agent.
+    Called when agent starts, stops, or encounters an error.
+    
+    Args:
+        agent_id: The agent ID (string UUID)
+        request: AgentStatusUpdate with new status value
+        db: Database connection from dependency injection
+    
+    Returns:
+        {"status": "ok", "agent_id": agent_id, "new_status": status}
+    
+    Raises:
+        HTTPException 400: If status is not valid (idle, running, stopped, error)
+        HTTPException 404: If agent not found
+        HTTPException 500: On database error
+    """
+    try:
+        # Validate status value
+        if request.status not in VALID_AGENT_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status '{request.status}'. Must be one of: {', '.join(sorted(VALID_AGENT_STATUSES))}"
+            )
+        
+        writer = AgentWriter(db)
+        
+        # Verify agent exists
+        agent = await writer.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent not found: {agent_id}"
+            )
+        
+        # Update agent status
+        await writer.update_status(agent_id, request.status)
+        
+        return {"status": "ok", "agent_id": agent_id, "new_status": request.status}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error during status update: {str(e)}"
+        )
+
+
 @router.get("", response_model=AgentRegistryResponse)
 async def get_agents():
     """
