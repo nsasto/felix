@@ -24,8 +24,9 @@ import config
 from auth import get_current_user
 from database.db import get_db
 from database.writers import AgentWriter
-from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse
-from websocket.control import control_manager
+from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse, RunCreateRequest, RunResponse
+from websocket.control import control_manager, CommandType
+from database.writers import AgentWriter, RunWriter
 
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -604,6 +605,109 @@ async def start_agent(agent_id: str, request: AgentStartRequest):
         status_code=501,
         detail="Agent start is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
     )
+
+
+# --- Run Control Endpoints (S-0040) ---
+
+@router.post("/runs", response_model=RunResponse, status_code=201)
+async def create_run(
+    request: RunCreateRequest,
+    db: Database = Depends(get_db),
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Create a new run and send START command to the agent.
+    
+    Creates a run record in the database with status='pending', then sends a START
+    command to the agent via the control WebSocket. If the command is sent successfully,
+    the run status is updated to 'running'.
+    
+    Args:
+        request: RunCreateRequest with agent_id, optional requirement_id, and metadata
+        db: Database connection from dependency injection
+        user: Current user from authentication dependency
+    
+    Returns:
+        RunResponse with the created run data (status 201)
+    
+    Raises:
+        HTTPException 404: If agent not found
+        HTTPException 503: If agent not connected to control WebSocket
+        HTTPException 500: On database error
+    """
+    try:
+        # Get project_id from config (dev mode)
+        project_id = config.DEV_PROJECT_ID
+        
+        # Verify agent exists
+        agent_writer = AgentWriter(db)
+        agent = await agent_writer.get_agent(request.agent_id)
+        if not agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent not found: {request.agent_id}"
+            )
+        
+        # Verify agent is connected
+        if not control_manager.is_connected(request.agent_id):
+            raise HTTPException(
+                status_code=503,
+                detail=f"Agent not connected: {request.agent_id}. Agent must connect to the control WebSocket before runs can be created."
+            )
+        
+        # Create run in database with status='pending'
+        run_writer = RunWriter(db)
+        run_record = await run_writer.create_run(
+            project_id=project_id,
+            agent_id=request.agent_id,
+            requirement_id=request.requirement_id,
+            metadata=request.metadata,
+        )
+        
+        run_id = str(run_record["id"])
+        
+        # Send START command via control WebSocket
+        command = {
+            "type": "command",
+            "command": CommandType.START.value,
+            "run_id": run_id,
+            "requirement_id": request.requirement_id,
+            "metadata": request.metadata,
+        }
+        await control_manager.send_command(request.agent_id, command)
+        
+        # Update run status to 'running'
+        await run_writer.update_run_status(run_id, "running")
+        
+        # Fetch updated run to return
+        updated_run = await run_writer.get_run(run_id)
+        
+        return RunResponse(
+            id=str(updated_run["id"]),
+            project_id=str(updated_run["project_id"]),
+            agent_id=str(updated_run["agent_id"]),
+            requirement_id=updated_run.get("requirement_id"),
+            status=updated_run["status"],
+            started_at=updated_run.get("started_at"),
+            completed_at=updated_run.get("completed_at"),
+            error=updated_run.get("error"),
+            metadata=updated_run.get("metadata") or {},
+            agent_name=agent.get("name"),  # Include agent name from earlier lookup
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except ValueError as e:
+        # ValueError from control_manager.send_command when agent disconnects
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to send command to agent: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error during run creation: {str(e)}"
+        )
 
 
 # --- Console Streaming WebSocket ---
