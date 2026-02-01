@@ -24,7 +24,7 @@ import config
 from auth import get_current_user
 from database.db import get_db
 from database.writers import AgentWriter
-from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse, RunCreateRequest, RunResponse
+from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse, RunCreateRequest, RunResponse, RunListResponse
 from websocket.control import control_manager, CommandType
 from database.writers import AgentWriter, RunWriter
 
@@ -775,6 +775,120 @@ async def stop_run(
         raise HTTPException(
             status_code=500,
             detail=f"Database error during run stop: {str(e)}"
+        )
+
+
+@router.get("/runs", response_model=RunListResponse)
+async def list_runs(
+    limit: int = 50,
+    db: Database = Depends(get_db),
+):
+    """
+    List recent runs for the current project.
+    
+    Returns runs ordered by creation time (most recent first), with a configurable
+    limit on the number of results.
+    
+    Args:
+        limit: Maximum number of runs to return (default: 50)
+        db: Database connection from dependency injection
+    
+    Returns:
+        RunListResponse with runs list and count
+    
+    Raises:
+        HTTPException 500: On database error
+    """
+    try:
+        # Get project_id from config (dev mode)
+        project_id = config.DEV_PROJECT_ID
+        
+        # Fetch runs from database
+        run_writer = RunWriter(db)
+        run_records = await run_writer.list_runs(project_id, limit=limit)
+        
+        # Transform database records to RunResponse objects
+        runs = [
+            RunResponse(
+                id=str(record["id"]),
+                project_id=str(record["project_id"]),
+                agent_id=str(record["agent_id"]),
+                requirement_id=record.get("requirement_id"),
+                status=record["status"],
+                started_at=record.get("started_at"),
+                completed_at=record.get("completed_at"),
+                error=record.get("error"),
+                metadata=record.get("metadata") or {},
+                agent_name=record.get("agent_name"),
+            )
+            for record in run_records
+        ]
+        
+        return RunListResponse(runs=runs, count=len(runs))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error while fetching runs: {str(e)}"
+        )
+
+
+@router.get("/runs/{run_id}", response_model=RunResponse)
+async def get_run(
+    run_id: str,
+    db: Database = Depends(get_db),
+):
+    """
+    Get a single run by ID.
+    
+    Fetches the run record from the database along with the associated agent name.
+    
+    Args:
+        run_id: The run ID (UUID string)
+        db: Database connection from dependency injection
+    
+    Returns:
+        RunResponse with the run data
+    
+    Raises:
+        HTTPException 404: If run not found
+        HTTPException 500: On database error
+    """
+    try:
+        run_writer = RunWriter(db)
+        
+        # Fetch run from database
+        run = await run_writer.get_run(run_id)
+        if not run:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Run not found: {run_id}"
+            )
+        
+        # Fetch agent name for the response
+        agent_writer = AgentWriter(db)
+        agent = await agent_writer.get_agent(str(run["agent_id"]))
+        agent_name = agent.get("name") if agent else None
+        
+        # Transform to RunResponse
+        return RunResponse(
+            id=str(run["id"]),
+            project_id=str(run["project_id"]),
+            agent_id=str(run["agent_id"]),
+            requirement_id=run.get("requirement_id"),
+            status=run["status"],
+            started_at=run.get("started_at"),
+            completed_at=run.get("completed_at"),
+            error=run.get("error"),
+            metadata=run.get("metadata") or {},
+            agent_name=agent_name,
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error while fetching run: {str(e)}"
         )
 
 
