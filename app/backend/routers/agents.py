@@ -578,7 +578,7 @@ async def get_agent(
 
 
 @router.post("/{agent_id}/stop")
-async def stop_agent(agent_id: int, mode: str = "graceful"):
+async def stop_agent(agent_id: str, mode: str = "graceful"):
     """
     Stop an agent and mark it as stopped in the registry.
     
@@ -592,7 +592,7 @@ async def stop_agent(agent_id: int, mode: str = "graceful"):
 
 
 @router.post("/{agent_id}/start")
-async def start_agent(agent_id: int, request: AgentStartRequest):
+async def start_agent(agent_id: str, request: AgentStartRequest):
     """
     Start an agent to work on a specific requirement.
     
