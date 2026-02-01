@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, De
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from databases import Database
+import aiofiles
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -938,7 +939,10 @@ def _find_current_run_dir(project_path: Path, agent_name: str) -> Optional[Path]
 
 async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]:
     """
-    Read new content from a file starting from last_position.
+    Read new content from a file starting from last_position using async I/O.
+    
+    Handles file rotation: if the file size shrinks (indicating truncation or rotation),
+    resets position to the beginning of the file.
     
     Returns:
         tuple: (new_content, new_position)
@@ -949,15 +953,15 @@ async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]
         
         file_size = file_path.stat().st_size
         
-        # If file was truncated, start from beginning
+        # If file was truncated/rotated (size shrunk), start from beginning
         if file_size < last_position:
             last_position = 0
         
-        # Read new content
-        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-            f.seek(last_position)
-            new_content = f.read()
-            new_position = f.tell()
+        # Read new content using async file I/O
+        async with aiofiles.open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            await f.seek(last_position)
+            new_content = await f.read()
+            new_position = await f.tell()
         
         return new_content, new_position
     except (IOError, OSError) as e:
@@ -1043,8 +1047,8 @@ async def agent_console_stream(
                     "run_id": run_id
                 })
             
-            # Poll interval
-            await asyncio.sleep(0.5)  # 500ms for responsive streaming
+            # Poll interval - 100ms for responsive streaming
+            await asyncio.sleep(0.1)
             
     except WebSocketDisconnect:
         # Client disconnected normally
