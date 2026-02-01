@@ -346,16 +346,54 @@ async def update_agent_status(
         )
 
 
-@router.get("", response_model=AgentRegistryResponse)
-async def get_agents():
+@router.get("", response_model=AgentListResponse)
+async def get_agents(
+    db: Database = Depends(get_db),
+):
     """
-    Get all registered agents with their current status.
+    Get all registered agents for the current project.
     
-    NOTE: S-0032 - This endpoint returns an empty registry. File-based agent registry has been removed.
-    Will be re-implemented with database storage in Phase 0.
+    Returns a list of agents from the database-backed registry.
+    
+    Args:
+        db: Database connection from dependency injection
+    
+    Returns:
+        AgentListResponse with agents list and count
+    
+    Raises:
+        HTTPException 500: On database error
     """
-    # Return empty agents registry (stubbed response)
-    return AgentRegistryResponse(agents={})
+    try:
+        # Get project_id from config (dev mode)
+        project_id = config.DEV_PROJECT_ID
+        
+        # Fetch agents from database
+        writer = AgentWriter(db)
+        agent_records = await writer.list_agents(project_id)
+        
+        # Transform database records to AgentResponse objects
+        agents = [
+            AgentResponse(
+                id=record["id"],
+                project_id=record["project_id"],
+                name=record["name"],
+                type=record["type"],
+                status=record["status"],
+                heartbeat_at=record.get("heartbeat_at"),
+                metadata=record.get("metadata") or {},
+                created_at=record["created_at"],
+                updated_at=record["updated_at"],
+            )
+            for record in agent_records
+        ]
+        
+        return AgentListResponse(agents=agents, count=len(agents))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error while fetching agents: {str(e)}"
+        )
 
 
 @router.get("/config", response_model=AgentConfigsListResponse)
