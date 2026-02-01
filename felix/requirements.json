@@ -594,7 +594,7 @@
                              "id":  "S-0039",
                              "title":  "Control WebSocket Infrastructure",
                              "spec_path":  "specs/S-0039.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "critical",
                              "labels":  [
                                             "websocket",
