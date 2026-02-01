@@ -210,7 +210,3 @@ __marimo__/
 # Felix agent state
 felix/state.json
 felix/workflow.json
-
-# Felix agent state
-felix/state.json
-felix/workflow.json
