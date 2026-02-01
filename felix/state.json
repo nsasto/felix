@@ -1,54 +1,26 @@
 ﻿{
-    "current_requirement_id":  "S-0032",
-    "last_run_id":  "S-0032-20260201-191057-it7",
-    "last_mode":  "building",
-    "last_iteration_outcome":  "success",
-    "updated_at":  "2026-02-01T19:10:58.4715425+00:00",
-    "current_iteration":  7,
-    "status":  "running",
-    "validation_retry_count":  0,
     "blocked_task":  null,
+    "updated_at":  "2026-02-01T19:32:21.1438213+00:00",
+    "current_requirement_id":  "S-0033",
+    "last_run_id":  "S-0033-20260201-193220-it3",
+    "current_iteration":  3,
+    "last_mode":  "building",
+    "validation_retry_count":  0,
+    "last_iteration_outcome":  "success",
+    "status":  "running",
     "current_workflow_stage":  "execute_llm",
-    "workflow_stage_timestamp":  "2026-02-01T19:10:58.4715425+00:00",
+    "workflow_stage_timestamp":  "2026-02-01T19:32:21.1438213+00:00",
     "workflow_stage_history":  [
                                    {
-                                       "timestamp":  "2026-02-01T18:42:41.6659751+00:00",
+                                       "timestamp":  "2026-02-01T19:32:20.3873842+00:00",
                                        "stage":  "gather_context"
                                    },
                                    {
-                                       "timestamp":  "2026-02-01T18:42:41.7182485+00:00",
+                                       "timestamp":  "2026-02-01T19:32:20.4414030+00:00",
                                        "stage":  "build_prompt"
                                    },
                                    {
-                                       "timestamp":  "2026-02-01T18:42:42.5121371+00:00",
-                                       "stage":  "execute_llm"
-                                   },
-                                   {
-                                       "timestamp":  "2026-02-01T18:47:45.3610959+00:00",
-                                       "stage":  "process_output"
-                                   },
-                                   {
-                                       "timestamp":  "2026-02-01T18:47:45.4152897+00:00",
-                                       "stage":  "detect_task"
-                                   },
-                                   {
-                                       "timestamp":  "2026-02-01T18:47:45.4680994+00:00",
-                                       "stage":  "run_backpressure"
-                                   },
-                                   {
-                                       "timestamp":  "2026-02-01T18:48:33.8871067+00:00",
-                                       "stage":  "commit_changes"
-                                   },
-                                   {
-                                       "timestamp":  "2026-02-01T19:10:57.6797481+00:00",
-                                       "stage":  "gather_context"
-                                   },
-                                   {
-                                       "timestamp":  "2026-02-01T19:10:57.7477421+00:00",
-                                       "stage":  "build_prompt"
-                                   },
-                                   {
-                                       "timestamp":  "2026-02-01T19:10:58.4715425+00:00",
+                                       "timestamp":  "2026-02-01T19:32:21.1438213+00:00",
                                        "stage":  "execute_llm"
                                    }
                                ]

@@ -67,27 +67,11 @@ const AgentControls: React.FC<AgentControlsProps> = ({
   }, [projectId, loading, onStatusChange]);
 
   useEffect(() => {
+    // Initial fetch on mount - no polling (removed for Phase -1 cleanup)
+    // Real-time updates will be added via Supabase Realtime in Phase 3
     fetchStatus();
     fetchRunHistory();
-
-    // Poll status every 5 seconds when agent is running
-    const interval = setInterval(() => {
-      if (status?.running) {
-        fetchStatus();
-        fetchRunHistory(); // Also refresh history when agent is running
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
   }, [projectId]); // Only depend on projectId for initial fetch
-
-  // Separate effect for polling when running
-  useEffect(() => {
-    if (!status?.running) return;
-
-    const interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
-  }, [status?.running, fetchStatus]);
 
   const handleStartAgent = async () => {
     setActionInProgress("start");
@@ -420,13 +404,18 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         className="px-6 py-4 flex items-center justify-between border-b"
         style={{ borderColor: "var(--border-default)" }}
       >
-        <button
-          onClick={fetchStatus}
-          className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors flex items-center gap-1.5"
-        >
-          <IconCpu className="w-3 h-3" />
-          Refresh Status
-        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={fetchStatus}
+            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors flex items-center gap-1.5"
+          >
+            <IconCpu className="w-3 h-3" />
+            Refresh Status
+          </button>
+          <span className="text-[8px] font-mono theme-text-faint">
+            Status may be outdated
+          </span>
+        </div>
 
         {isRunning ? (
           <button
