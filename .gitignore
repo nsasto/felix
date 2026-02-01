@@ -207,3 +207,6 @@ marimo/_lsp/
 __marimo__/
 #felix run iterations
 /runs
+# Felix agent state
+felix/state.json
+felix/workflow.json
