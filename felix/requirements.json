@@ -562,7 +562,7 @@
                              "id":  "S-0037",
                              "title":  "Database Writers Implementation",
                              "spec_path":  "specs/S-0037.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "critical",
                              "labels":  [
                                             "database",
