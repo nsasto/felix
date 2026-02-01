@@ -57,10 +57,11 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
   const mockRuntimeAgents = {
     agents: {
       0: {
+        agent_id: 0,
         agent_name: 'felix-primary',
         pid: 12345,
         hostname: 'localhost',
-        status: 'active',
+        status: 'active' as const,
         current_run_id: 'S-0001',
         started_at: new Date().toISOString(),
         last_heartbeat: new Date().toISOString(),
