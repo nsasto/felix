@@ -1287,9 +1287,88 @@ else {
 
 $RequirementId = $currentReq.id
 
+# Helper function to convert PSCustomObject to hashtable recursively
+function ConvertTo-Hashtable {
+    param([Parameter(ValueFromPipeline)]$InputObject)
+    
+    process {
+        if ($null -eq $InputObject) { return $null }
+        
+        if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
+            $collection = @(
+                foreach ($object in $InputObject) { ConvertTo-Hashtable $object }
+            )
+            return , $collection
+        }
+        elseif ($InputObject -is [PSCustomObject]) {
+            $hashtable = @{}
+            foreach ($property in $InputObject.PSObject.Properties) {
+                $hashtable[$property.Name] = ConvertTo-Hashtable $property.Value
+            }
+            return $hashtable
+        }
+        else {
+            return $InputObject
+        }
+    }
+}
+
 # Load or initialize state
 $state = if (Test-Path $StateFile) {
-    Get-Content $StateFile -Raw | ConvertFrom-Json
+    try {
+        $rawContent = Get-Content $StateFile -Raw
+        if ([string]::IsNullOrWhiteSpace($rawContent)) {
+            Write-Host "[WARNING] State file is empty, initializing new state" -ForegroundColor Yellow
+            @{
+                current_requirement_id = $null
+                current_iteration      = 0
+                last_mode              = $null
+                status                 = "idle"
+                validation_retry_count = 0
+            }
+        }
+        else {
+            $loadedState = $rawContent | ConvertFrom-Json
+            if ($null -eq $loadedState) {
+                Write-Host "[WARNING] State file loaded but resulted in null, initializing new state" -ForegroundColor Yellow
+                @{
+                    current_requirement_id = $null
+                    current_iteration      = 0
+                    last_mode              = $null
+                    status                 = "idle"
+                    validation_retry_count = 0
+                }
+            }
+            else {
+                # Convert PSCustomObject to hashtable for mutability (including nested objects)
+                $converted = ConvertTo-Hashtable $loadedState
+                if ($null -eq $converted) {
+                    Write-Host "[WARNING] Conversion to hashtable failed, initializing new state" -ForegroundColor Yellow
+                    @{
+                        current_requirement_id = $null
+                        current_iteration      = 0
+                        last_mode              = $null
+                        status                 = "idle"
+                        validation_retry_count = 0
+                    }
+                }
+                else {
+                    $converted
+                }
+            }
+        }
+    }
+    catch {
+        Write-Host "[WARNING] Failed to load state file: $_" -ForegroundColor Yellow
+        Write-Host "[WARNING] Initializing new state" -ForegroundColor Yellow
+        @{
+            current_requirement_id = $null
+            current_iteration      = 0
+            last_mode              = $null
+            status                 = "idle"
+            validation_retry_count = 0
+        }
+    }
 }
 else {
     @{
@@ -1302,8 +1381,8 @@ else {
 }
 
 # Initialize validation retry counter if it doesn't exist
-if ($null -eq $state.validation_retry_count) {
-    $state | Add-Member -MemberType NoteProperty -Name validation_retry_count -Value 0 -Force
+if ($null -ne $state -and -not $state.ContainsKey('validation_retry_count')) {
+    $state.validation_retry_count = 0
 }
 
 # Reset validation retry counter if we're starting a new requirement
