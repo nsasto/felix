@@ -787,6 +787,22 @@ if (-not (Test-Path $AgentsJsonFile)) {
                 working_directory = "."
                 environment       = @{}
             }
+            @{
+                id                = 1
+                name              = "codex-cli"
+                executable        = "codex"
+                args              = @("-C", ".", "-s", "workspace-write", "-a", "never", "exec", "--color", "never", "-")
+                working_directory = "."
+                environment       = @{}
+            }
+            @{
+                id                = 2
+                name              = "claude-code"
+                executable        = "claude"
+                args              = @("-p", "--output-format", "text")
+                working_directory = "."
+                environment       = @{}
+            }
         )
     }
     
@@ -1633,10 +1649,11 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
 
     # Execute agent
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Executing droid in $mode mode..." -ForegroundColor White
+    Write-Host "Executing agent '$agentName' in $mode mode..." -ForegroundColor White
 
     $executable = $agentConfig.executable
     $agentArgs = $agentConfig.args
+    $agentWorkingDir = if ($agentConfig.working_directory) { $agentConfig.working_directory } else { "." }
     $startTime = Get-Date
 
     # Hook: OnPreExecution
@@ -1652,7 +1669,38 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     }
 
     # Execute the agent and capture output
-    $output = $fullPrompt | & $executable @agentArgs 2>&1 | Out-String
+    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
+        $agentWorkingDir
+    }
+    else {
+        Join-Path $ProjectPath $agentWorkingDir
+    }
+
+    $envBackup = @{}
+    try {
+        # Apply agent environment variables (best-effort)
+        if ($agentConfig.environment) {
+            foreach ($prop in $agentConfig.environment.PSObject.Properties) {
+                $key = $prop.Name
+                $value = [string]$prop.Value
+                $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+            }
+        }
+
+        Push-Location $agentCwd
+        try {
+            $output = $fullPrompt | & $executable @agentArgs 2>&1 | Out-String
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    finally {
+        foreach ($key in $envBackup.Keys) {
+            [Environment]::SetEnvironmentVariable($key, $envBackup[$key], "Process")
+        }
+    }
     $duration = (Get-Date) - $startTime
 
     # Write raw output to run directory
