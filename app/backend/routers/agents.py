@@ -8,6 +8,7 @@ The WebSocket console streaming endpoint is preserved for runs/ directory output
 """
 import asyncio
 import json
+import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
@@ -937,7 +938,7 @@ def _find_current_run_dir(project_path: Path, agent_name: str) -> Optional[Path]
     return None
 
 
-async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]:
+async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int, str | None]:
     """
     Read new content from a file starting from last_position using async I/O.
     
@@ -945,11 +946,11 @@ async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]
     resets position to the beginning of the file.
     
     Returns:
-        tuple: (new_content, new_position)
+        tuple: (new_content, new_position, error_message or None)
     """
     try:
         if not file_path.exists():
-            return "", last_position
+            return "", last_position, None
         
         file_size = file_path.stat().st_size
         
@@ -963,9 +964,9 @@ async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]
             new_content = await f.read()
             new_position = await f.tell()
         
-        return new_content, new_position
+        return new_content, new_position, None
     except (IOError, OSError) as e:
-        return f"[Error reading file: {e}]", last_position
+        return "", last_position, f"File I/O error: {e}"
 
 
 @router.websocket("/{agent_id}/console")
@@ -1035,10 +1036,19 @@ async def agent_console_stream(
         except (IOError, OSError):
             last_file_position = 0
     
+    # Logger for console WebSocket errors
+    logger = logging.getLogger(__name__)
+    
     try:
         while True:
             # Read new output from the log file
-            new_content, last_file_position = await _tail_file(log_path, last_file_position)
+            new_content, last_file_position, file_error = await _tail_file(log_path, last_file_position)
+            
+            # Handle file I/O errors
+            if file_error:
+                logger.error(f"Console WebSocket file I/O error for run {run_id}: {file_error}")
+                await websocket.send_json({"error": file_error})
+                # Continue polling - file may become available again
             
             if new_content:
                 await websocket.send_json({
@@ -1052,11 +1062,12 @@ async def agent_console_stream(
             
     except WebSocketDisconnect:
         # Client disconnected normally
-        pass
+        logger.debug(f"Console WebSocket client disconnected for run {run_id}")
     except asyncio.CancelledError:
         # Task was cancelled
-        pass
+        logger.debug(f"Console WebSocket task cancelled for run {run_id}")
     except Exception as e:
+        logger.error(f"Console WebSocket unexpected error for run {run_id}: {e}")
         try:
             await websocket.send_json({"error": f"Stream error: {str(e)}"})
         except Exception:
@@ -1071,7 +1082,6 @@ async def agent_console_stream(
 # --- Control WebSocket for Bidirectional Agent Communication ---
 
 # Configure logger for control WebSocket
-import logging
 _control_logger = logging.getLogger(__name__)
 
 
