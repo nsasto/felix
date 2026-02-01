@@ -25,6 +25,7 @@ from auth import get_current_user
 from database.db import get_db
 from database.writers import AgentWriter
 from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse
+from websocket.control import control_manager
 
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -777,3 +778,101 @@ async def agent_console_stream(websocket: WebSocket, agent_id: int):
             await websocket.close()
         except Exception:
             pass
+
+
+# --- Control WebSocket for Bidirectional Agent Communication ---
+
+# Configure logger for control WebSocket
+import logging
+_control_logger = logging.getLogger(__name__)
+
+
+@router.websocket("/{agent_id}/control")
+async def agent_control_websocket(
+    websocket: WebSocket,
+    agent_id: str,
+    db: Database = Depends(get_db),
+):
+    """
+    WebSocket endpoint for bidirectional agent control communication.
+    
+    This endpoint allows:
+    - Backend to send commands to agents (START, STOP, PAUSE, RESUME)
+    - Agents to send status updates and heartbeats to the backend
+    
+    Message Protocol:
+    
+    Commands (backend → agent):
+        {"type": "command", "command": "START|STOP|PAUSE|RESUME", "run_id": "...", "requirement_id": "..."}
+    
+    Status (agent → backend):
+        {"type": "status", "status": "running|idle|stopped|error", "run_id": "..."}
+    
+    Heartbeat (agent → backend):
+        {"type": "heartbeat"}
+    
+    Args:
+        websocket: The WebSocket connection
+        agent_id: The agent ID (string UUID)
+        db: Database connection from dependency injection
+    
+    Note:
+        This is distinct from the console WebSocket endpoint which only streams
+        logs unidirectionally (backend → frontend).
+    """
+    # Accept connection via control manager
+    await control_manager.connect(agent_id, websocket)
+    
+    try:
+        # Create writer for database operations
+        writer = AgentWriter(db)
+        
+        # Receive loop for incoming messages from agent
+        while True:
+            # Receive message from agent
+            data = await websocket.receive_json()
+            message_type = data.get("type")
+            
+            if message_type == "heartbeat":
+                # Update heartbeat timestamp in database
+                try:
+                    await writer.update_heartbeat(agent_id)
+                    _control_logger.debug(f"Agent {agent_id}: heartbeat received")
+                except Exception as e:
+                    _control_logger.error(f"Agent {agent_id}: failed to update heartbeat: {e}")
+            
+            elif message_type == "status":
+                # Update agent status in database
+                status_value = data.get("status")
+                run_id = data.get("run_id")
+                
+                if status_value:
+                    try:
+                        await writer.update_status(agent_id, status_value)
+                        _control_logger.info(f"Agent {agent_id}: status updated to {status_value}")
+                        
+                        # Broadcast status for future Supabase Realtime integration
+                        await control_manager.broadcast_status(agent_id, {
+                            "status": status_value,
+                            "run_id": run_id,
+                        })
+                    except Exception as e:
+                        _control_logger.error(f"Agent {agent_id}: failed to update status: {e}")
+                else:
+                    _control_logger.warning(f"Agent {agent_id}: status message missing 'status' field")
+            
+            else:
+                # Unknown message type
+                _control_logger.warning(f"Agent {agent_id}: unknown message type '{message_type}'")
+    
+    except WebSocketDisconnect:
+        # Agent disconnected normally - not an error
+        _control_logger.info(f"Agent {agent_id}: disconnected from control WebSocket")
+    
+    except Exception as e:
+        # Log unexpected errors
+        _control_logger.error(f"Agent {agent_id}: control WebSocket error: {e}")
+    
+    finally:
+        # Clean up connection
+        await control_manager.disconnect(agent_id)
