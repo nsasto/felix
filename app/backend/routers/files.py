@@ -474,32 +474,15 @@ async def update_spec(
 @router.get("/{project_id}/requirements", response_model=RequirementsContent)
 async def read_requirements(project_id: str = PathParam(..., description="Project ID")):
     """
-    Read the project's felix/requirements.json.
+    Read the project's requirements.
+
+    NOTE: Stubbed for Phase 0 database migration (S-0032).
+    Returns empty requirements list until database-driven state management is implemented.
     """
-    project_path = get_project_path(project_id)
-    req_path = project_path / "felix" / "requirements.json"
+    # Validate project exists (preserves existing behavior for 404 on invalid project)
+    get_project_path(project_id)
 
-    if not req_path.exists():
-        raise HTTPException(status_code=404, detail="felix/requirements.json not found")
-
-    try:
-        import json
-
-        data = json.loads(req_path.read_text(encoding="utf-8-sig"))
-
-        requirements = [Requirement(**r) for r in data.get("requirements", [])]
-
-        return RequirementsContent(
-            requirements=requirements, path=str(req_path.relative_to(project_path))
-        )
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to read requirements: {str(e)}"
-        )
+    return RequirementsContent(requirements=[], path="felix/requirements.json")
 
 
 # --- README Endpoint ---
@@ -536,43 +519,18 @@ async def update_requirements(
     project_id: str = PathParam(..., description="Project ID"),
 ):
     """
-    Update the project's felix/requirements.json.
+    Update the project's requirements.
 
-    Validates path against project policies (allowlist/denylist).
+    NOTE: Stubbed for Phase 0 database migration (S-0032).
+    Returns 501 Not Implemented until database-driven state management is implemented.
     """
-    project_path = get_project_path(project_id)
-    req_path = project_path / "felix" / "requirements.json"
+    # Validate project exists (preserves existing behavior for 404 on invalid project)
+    get_project_path(project_id)
 
-    # Ensure felix directory exists
-    felix_dir = project_path / "felix"
-    if not felix_dir.exists():
-        raise HTTPException(status_code=400, detail="Project has no felix/ directory")
-
-    # Validate path against policies
-    is_allowed, error_msg = validate_path_against_policies(
-        "felix/requirements.json", project_path, operation="write"
+    raise HTTPException(
+        status_code=501,
+        detail="Requirements update not implemented. Database migration pending (S-0032).",
     )
-    if not is_allowed:
-        raise HTTPException(status_code=400, detail=f"Policy violation: {error_msg}")
-
-    try:
-        # Convert requirements to dict format for JSON
-        requirements_data = {
-            "requirements": [r.model_dump() for r in request.requirements]
-        }
-
-        req_path.write_text(
-            json.dumps(requirements_data, indent=2), encoding="utf-8-sig"
-        )
-
-        return RequirementsContent(
-            requirements=request.requirements,
-            path=str(req_path.relative_to(project_path)),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to write requirements: {str(e)}"
-        )
 
 
 # --- Create New Spec Endpoint ---
@@ -583,7 +541,10 @@ async def create_spec(
     request: SpecCreate, project_id: str = PathParam(..., description="Project ID")
 ):
     """
-    Create a new spec file and add it to requirements.json.
+    Create a new spec file.
+
+    NOTE: Updated for Phase 0 database migration (S-0032).
+    requirements.json update logic removed - spec file creation preserved.
 
     Returns 409 Conflict if the file already exists.
     Validates path against project policies (allowlist/denylist).
@@ -620,47 +581,8 @@ async def create_spec(
         # Write the spec file
         spec_path.write_text(request.content, encoding="utf-8")
 
-        # Extract spec ID and title from filename (e.g., "S-0007-settings-page.md")
-        import re
-        from datetime import datetime
-
-        match = re.match(r"^(S-\d{4})-(.+)\.md$", request.filename)
-        if match:
-            spec_id = match.group(1)
-            title_slug = match.group(2)
-            # Convert slug to title (e.g., "settings-page" -> "Settings Page")
-            title = " ".join(word.capitalize() for word in title_slug.split("-"))
-
-            # Update requirements.json
-            req_path = project_path / "felix" / "requirements.json"
-            if req_path.exists():
-                try:
-                    data = json.loads(req_path.read_text(encoding="utf-8-sig"))
-                    requirements = data.get("requirements", [])
-
-                    # Check if this requirement already exists
-                    if not any(r.get("id") == spec_id for r in requirements):
-                        # Add new requirement
-                        new_requirement = {
-                            "id": spec_id,
-                            "title": title,
-                            "spec_path": f"specs/{request.filename}",
-                            "status": "draft",
-                            "priority": "medium",
-                            "labels": [],
-                            "depends_on": [],
-                            "updated_at": datetime.now().strftime("%Y-%m-%d"),
-                        }
-                        requirements.append(new_requirement)
-
-                        # Write updated requirements
-                        data["requirements"] = requirements
-                        req_path.write_text(
-                            json.dumps(data, indent=4), encoding="utf-8-sig"
-                        )
-                except Exception as req_err:
-                    # Log error but don't fail the spec creation
-                    print(f"Warning: Failed to update requirements.json: {req_err}")
+        # NOTE: requirements.json update removed for Phase 0 database migration (S-0032)
+        # Requirement registration will be handled by database in future phases
 
         return SpecContent(filename=request.filename, content=request.content)
     except Exception as e:
@@ -895,68 +817,18 @@ async def get_requirement_status(
     requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
 ):
     """
-    Get the status of a specific requirement, including whether it has a plan.
+    Get the status of a specific requirement.
 
-    Used by the frontend to determine if warnings should be shown when editing specs.
+    NOTE: Stubbed for Phase 0 database migration (S-0032).
+    Returns 501 Not Implemented until database-driven state management is implemented.
     """
-    project_path = get_project_path(project_id)
-    req_path = project_path / "felix" / "requirements.json"
+    # Validate project exists (preserves existing behavior for 404 on invalid project)
+    get_project_path(project_id)
 
-    if not req_path.exists():
-        raise HTTPException(status_code=404, detail="felix/requirements.json not found")
-
-    try:
-        data = json.loads(req_path.read_text(encoding="utf-8-sig"))
-        requirements = data.get("requirements", [])
-
-        # Find the specific requirement
-        requirement = None
-        for req in requirements:
-            if req.get("id") == requirement_id:
-                requirement = req
-                break
-
-        if not requirement:
-            raise HTTPException(
-                status_code=404, detail=f"Requirement not found: {requirement_id}"
-            )
-
-        # Check if a plan exists for this requirement
-        plan_info = find_plan_for_requirement(project_path, requirement_id)
-        has_plan = plan_info is not None
-        plan_path = None
-        plan_modified_at = None
-
-        if plan_info:
-            plan_file, run_id = plan_info
-            plan_path = str(plan_file.relative_to(project_path))
-            plan_modified_at = str(plan_file.stat().st_mtime)
-
-        # Get spec modification time
-        spec_path_str = requirement.get("spec_path")
-        spec_modified_at = None
-        if spec_path_str:
-            spec_path = project_path / spec_path_str
-            if spec_path.exists():
-                spec_modified_at = str(spec_path.stat().st_mtime)
-
-        return RequirementStatusResponse(
-            id=requirement_id,
-            status=requirement.get("status", "draft"),
-            title=requirement.get("title", ""),
-            has_plan=has_plan,
-            plan_path=plan_path,
-            plan_modified_at=plan_modified_at,
-            spec_modified_at=spec_modified_at,
-        )
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get requirement status: {str(e)}"
-        )
+    raise HTTPException(
+        status_code=501,
+        detail="Requirement status retrieval not implemented. Database migration pending (S-0032).",
+    )
 
 
 @router.put(
@@ -971,82 +843,16 @@ async def update_requirement_status(
     """
     Update the status of a specific requirement.
 
-    Used to set requirement to 'blocked' status when user chooses to block and edit,
-    or 'done' when a user manually marks a requirement as accepted/reviewed.
-    Valid status values: draft, planned, in_progress, complete, blocked, done
+    NOTE: Stubbed for Phase 0 database migration (S-0032).
+    Returns 501 Not Implemented until database-driven state management is implemented.
     """
-    valid_statuses = {"draft", "planned", "in_progress", "complete", "blocked", "done"}
-    if request.status not in valid_statuses:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
-        )
+    # Validate project exists (preserves existing behavior for 404 on invalid project)
+    get_project_path(project_id)
 
-    project_path = get_project_path(project_id)
-    req_path = project_path / "felix" / "requirements.json"
-
-    if not req_path.exists():
-        raise HTTPException(status_code=404, detail="felix/requirements.json not found")
-
-    try:
-        data = json.loads(req_path.read_text(encoding="utf-8-sig"))
-        requirements = data.get("requirements", [])
-
-        # Find and update the specific requirement
-        updated = False
-        requirement = None
-        for req in requirements:
-            if req.get("id") == requirement_id:
-                req["status"] = request.status
-                req["updated_at"] = str(__import__("datetime").date.today())
-                requirement = req
-                updated = True
-                break
-
-        if not updated:
-            raise HTTPException(
-                status_code=404, detail=f"Requirement not found: {requirement_id}"
-            )
-
-        # Write back the updated requirements
-        req_path.write_text(json.dumps(data, indent=2), encoding="utf-8-sig")
-
-        # Get plan info for response
-        plan_info = find_plan_for_requirement(project_path, requirement_id)
-        has_plan = plan_info is not None
-        plan_path = None
-        plan_modified_at = None
-
-        if plan_info:
-            plan_file, run_id = plan_info
-            plan_path = str(plan_file.relative_to(project_path))
-            plan_modified_at = str(plan_file.stat().st_mtime)
-
-        # Get spec modification time
-        spec_path_str = requirement.get("spec_path")
-        spec_modified_at = None
-        if spec_path_str:
-            spec_path = project_path / spec_path_str
-            if spec_path.exists():
-                spec_modified_at = str(spec_path.stat().st_mtime)
-
-        return RequirementStatusResponse(
-            id=requirement_id,
-            status=request.status,
-            title=requirement.get("title", ""),
-            has_plan=has_plan,
-            plan_path=plan_path,
-            plan_modified_at=plan_modified_at,
-            spec_modified_at=spec_modified_at,
-        )
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to update requirement status: {str(e)}"
-        )
+    raise HTTPException(
+        status_code=501,
+        detail="Requirement status update not implemented. Database migration pending (S-0032).",
+    )
 
 
 @router.get("/{project_id}/plans/{requirement_id}", response_model=PlanInfo)
