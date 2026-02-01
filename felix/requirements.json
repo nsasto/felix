@@ -546,7 +546,7 @@
                              "id":  "S-0036",
                              "title":  "Backend Database Integration Layer",
                              "spec_path":  "specs/S-0036.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "critical",
                              "labels":  [
                                             "database",
