@@ -162,29 +162,8 @@ DEFAULT_WORKFLOW_CONFIG = WorkflowConfigResponse(
 
 
 # --- Agent Registry File Operations ---
-
-def get_agents_file_path() -> Path:
-    """
-    Get the path to felix/agents.json.
-    Uses the Felix project in current working directory.
-    """
-    # The backend runs from the project root, so felix/agents.json is relative
-    # Check if we're in app/backend and adjust accordingly
-    cwd = Path.cwd()
-    
-    # Check multiple possible locations
-    possible_paths = [
-        cwd / "felix" / "agents.json",
-        cwd.parent.parent / "felix" / "agents.json",  # If running from app/backend
-        Path(__file__).parent.parent.parent.parent / "felix" / "agents.json",  # Relative to this file
-    ]
-    
-    for path in possible_paths:
-        if path.parent.exists():
-            return path
-    
-    # Default to cwd-relative
-    return cwd / "felix" / "agents.json"
+# NOTE: S-0032 - File operations removed. Project-level felix/agents.json is no longer used.
+# All agent registry functions have been stubbed to prepare for database-driven state management.
 
 
 def load_agents_registry() -> Dict[int, AgentEntry]:
