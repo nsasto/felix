@@ -77,3 +77,9 @@ class AgentResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class AgentListResponse(BaseModel):
+    """Response model for listing agents"""
+    agents: List[AgentResponse] = Field(default_factory=list, description="List of agents")
+    count: int = Field(..., description="Total number of agents returned")
