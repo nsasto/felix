@@ -496,7 +496,7 @@
                              "id":  "S-0033",
                              "title":  "Remove Frontend Polling Mechanisms",
                              "spec_path":  "specs/S-0033.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "high",
                              "labels":  [
                                             "cleanup",
