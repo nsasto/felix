@@ -965,25 +965,29 @@ async def _tail_file(file_path: Path, last_position: int = 0) -> tuple[str, int]
 
 
 @router.websocket("/{agent_id}/console")
-async def agent_console_stream(websocket: WebSocket, agent_id: int):
+async def agent_console_stream(
+    websocket: WebSocket,
+    agent_id: int,
+    run_id: str = None,
+    from_start: bool = False,
+):
     """
     WebSocket endpoint for streaming agent console output.
     
-    Tails the current run's output.log and streams new lines in real-time.
+    Streams console output from runs/{run_id}/output.log in real-time.
     
-    NOTE: S-0032 - This endpoint no longer reads agent registry from felix/agents.json.
-    It streams console output from runs/ directory without agent validation.
+    Query parameters:
+    - run_id: Run ID to stream logs for (required)
+    - from_start: If true, stream from beginning of file (default: false, stream from end)
     
     Messages sent to client:
-    - {"type": "connected", "agent_id": 0, "message": "..."}
+    - {"type": "connected", "agent_id": 0, "message": "...", "run_id": "..."}
     - {"type": "output", "content": "...", "run_id": "..."}
-    - {"type": "run_changed", "run_id": "...", "message": "..."}
-    - {"type": "idle", "message": "..."}
-    - {"type": "error", "message": "..."}
+    - {"error": "..."} - Error message
     
-    The client can send:
-    - {"type": "ping"} - keepalive
-    - Any message to keep connection alive
+    Error responses:
+    - {"error": "run_id query parameter is required"} - when run_id is not provided
+    - {"error": "Log file not found: runs/{run_id}/output.log"} - when log file doesn't exist
     """
     await websocket.accept()
     
