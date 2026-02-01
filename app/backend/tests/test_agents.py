@@ -394,6 +394,77 @@ class TestListAgentsEndpoint:
             assert "Database error" in response.json()["detail"]
 
 
+class TestGetAgentEndpoint:
+    """Tests for GET /api/agents/{agent_id} endpoint (S-0038)"""
+
+    @pytest.fixture
+    def mock_agent_writer_get(self):
+        """Create a mock AgentWriter for get agent operations"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            
+            # Mock get_agent to return a valid agent
+            mock_agent_record = {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "project_id": "dev-project-id",
+                "name": "Test Agent",
+                "type": "ralph",
+                "status": "idle",
+                "heartbeat_at": "2026-01-01T00:00:00Z",
+                "metadata": {"version": "1.0"},
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+            }
+            mock_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            
+            yield mock_writer
+
+    @pytest.fixture
+    def mock_db_get(self):
+        """Mock database dependency for get agent tests"""
+        mock_database = MagicMock()
+        with patch('routers.agents.get_db', return_value=mock_database):
+            yield mock_database
+
+    def test_get_agent_success(self, client, mock_agent_writer_get, mock_db_get):
+        """GET /api/agents/{agent_id} returns agent data"""
+        response = client.get("/api/agents/550e8400-e29b-41d4-a716-446655440000")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "550e8400-e29b-41d4-a716-446655440000"
+        assert data["name"] == "Test Agent"
+        assert data["type"] == "ralph"
+        assert data["status"] == "idle"
+        assert data["project_id"] == "dev-project-id"
+        assert data["metadata"] == {"version": "1.0"}
+
+    def test_get_agent_not_found(self, client, mock_db_get):
+        """GET /api/agents/{agent_id} returns 404 for nonexistent agent"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            mock_writer.get_agent = AsyncMock(return_value=None)
+            
+            response = client.get("/api/agents/nonexistent-agent-id")
+            
+            assert response.status_code == 404
+            assert "Agent not found" in response.json()["detail"]
+
+    def test_get_agent_database_error(self, client, mock_db_get):
+        """GET /api/agents/{agent_id} returns 500 on database error"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            mock_writer.get_agent = AsyncMock(side_effect=Exception("Database connection failed"))
+            
+            response = client.get("/api/agents/550e8400-e29b-41d4-a716-446655440000")
+            
+            assert response.status_code == 500
+            assert "Database error" in response.json()["detail"]
+
+
 class TestStubbedEndpoints:
     """Tests for remaining stubbed agent registry endpoints (S-0032)"""
 

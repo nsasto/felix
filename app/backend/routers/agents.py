@@ -523,6 +523,60 @@ async def get_workflow_config(project_id: Optional[str] = None):
         return DEFAULT_WORKFLOW_CONFIG
 
 
+@router.get("/{agent_id}", response_model=AgentResponse)
+async def get_agent(
+    agent_id: str,
+    db: Database = Depends(get_db),
+):
+    """
+    Get a single agent by ID.
+    
+    Fetches the agent record from the database.
+    
+    Args:
+        agent_id: The agent ID (string UUID)
+        db: Database connection from dependency injection
+    
+    Returns:
+        AgentResponse with the agent data
+    
+    Raises:
+        HTTPException 404: If agent not found
+        HTTPException 500: On database error
+    """
+    try:
+        writer = AgentWriter(db)
+        
+        # Fetch agent from database
+        agent = await writer.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent not found: {agent_id}"
+            )
+        
+        # Transform to AgentResponse
+        return AgentResponse(
+            id=agent["id"],
+            project_id=agent["project_id"],
+            name=agent["name"],
+            type=agent["type"],
+            status=agent["status"],
+            heartbeat_at=agent.get("heartbeat_at"),
+            metadata=agent.get("metadata") or {},
+            created_at=agent["created_at"],
+            updated_at=agent["updated_at"],
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error while fetching agent: {str(e)}"
+        )
+
+
 @router.post("/{agent_id}/stop")
 async def stop_agent(agent_id: int, mode: str = "graceful"):
     """
