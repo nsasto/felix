@@ -2,12 +2,11 @@
 Tests for the Agent Registry API (S-0013: Agent Settings Registry)
 
 NOTE: S-0032 - File-based agent registry has been removed.
-These tests validate the stubbed endpoints return appropriate responses.
-The following functionality is now stubbed:
-- POST /api/agents/register -> 501 Not Implemented
-- POST /api/agents/{id}/heartbeat -> 501 Not Implemented
-- POST /api/agents/{id}/stop -> 501 Not Implemented
-- POST /api/agents/{id}/start -> 501 Not Implemented
+Database-backed endpoints implemented in S-0038:
+- POST /api/agents/register -> Database-backed agent registration
+- POST /api/agents/{id}/heartbeat -> 501 Not Implemented (stubbed)
+- POST /api/agents/{id}/stop -> 501 Not Implemented (stubbed)
+- POST /api/agents/{id}/start -> 501 Not Implemented (stubbed)
 - GET /api/agents -> Returns {"agents": {}}
 
 The following functionality is preserved:
@@ -18,7 +17,7 @@ The following functionality is preserved:
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 # Import the FastAPI app and router
@@ -35,23 +34,110 @@ def client():
     return TestClient(app)
 
 
-class TestStubbedEndpoints:
-    """Tests for stubbed agent registry endpoints (S-0032)"""
+class TestRegisterAgentEndpoint:
+    """Tests for POST /api/agents/register endpoint (S-0038)"""
 
-    def test_register_agent_returns_501(self, client):
-        """POST /api/agents/register returns 501 Not Implemented"""
+    @pytest.fixture
+    def mock_agent_writer(self):
+        """Create a mock AgentWriter that returns a valid agent record"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            # Create mock instance
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            
+            # Mock upsert_agent to return a valid agent record
+            mock_agent_record = {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "project_id": "dev-project-id",
+                "name": "Test Agent",
+                "type": "ralph",
+                "status": "idle",
+                "heartbeat_at": None,
+                "metadata": {"version": "1.0"},
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+            }
+            mock_writer.upsert_agent = AsyncMock(return_value=mock_agent_record)
+            
+            yield mock_writer
+
+    @pytest.fixture
+    def mock_db(self):
+        """Mock database dependency"""
+        mock_database = MagicMock()
+        with patch('routers.agents.get_db', return_value=mock_database):
+            yield mock_database
+
+    @pytest.fixture
+    def mock_auth(self):
+        """Mock authentication dependency"""
+        with patch('routers.agents.get_current_user', return_value={"user_id": "dev-user"}):
+            yield
+
+    def test_register_agent_success(self, client, mock_agent_writer, mock_db, mock_auth):
+        """POST /api/agents/register creates agent and returns 201"""
         response = client.post(
             "/api/agents/register",
             json={
-                "agent_id": 0,
-                "agent_name": "test-agent",
-                "pid": 12345,
-                "hostname": "test-host"
+                "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+                "name": "Test Agent",
+                "type": "ralph",
+                "metadata": {"version": "1.0"}
             }
         )
         
-        assert response.status_code == 501
-        assert "temporarily disabled" in response.json()["detail"]
+        assert response.status_code == 201
+        data = response.json()
+        assert data["id"] == "550e8400-e29b-41d4-a716-446655440000"
+        assert data["name"] == "Test Agent"
+        assert data["type"] == "ralph"
+        assert data["status"] == "idle"
+
+    def test_register_agent_with_default_type(self, client, mock_agent_writer, mock_db, mock_auth):
+        """POST /api/agents/register uses default type when not specified"""
+        response = client.post(
+            "/api/agents/register",
+            json={
+                "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+                "name": "Test Agent",
+            }
+        )
+        
+        assert response.status_code == 201
+
+    def test_register_agent_missing_required_fields(self, client, mock_db, mock_auth):
+        """POST /api/agents/register returns 422 when required fields are missing"""
+        response = client.post(
+            "/api/agents/register",
+            json={
+                "name": "Test Agent",
+                # Missing agent_id
+            }
+        )
+        
+        assert response.status_code == 422
+
+    def test_register_agent_database_error(self, client, mock_db, mock_auth):
+        """POST /api/agents/register returns 500 on database error"""
+        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+            mock_writer = MagicMock()
+            MockAgentWriter.return_value = mock_writer
+            mock_writer.upsert_agent = AsyncMock(side_effect=Exception("Database connection failed"))
+            
+            response = client.post(
+                "/api/agents/register",
+                json={
+                    "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "name": "Test Agent",
+                }
+            )
+            
+            assert response.status_code == 500
+            assert "Database error" in response.json()["detail"]
+
+
+class TestStubbedEndpoints:
+    """Tests for remaining stubbed agent registry endpoints (S-0032)"""
 
     def test_heartbeat_returns_501(self, client):
         """POST /api/agents/{id}/heartbeat returns 501 Not Implemented"""
