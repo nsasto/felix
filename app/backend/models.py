@@ -2,7 +2,7 @@
 Felix Backend - Pydantic Models
 Data validation and serialization schemas.
 """
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pathlib import Path
@@ -46,3 +46,13 @@ class ProjectsStore(BaseModel):
     """Schema for ~/.felix/projects.json"""
     projects: List[Project] = Field(default_factory=list)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+# --- Agent API Models ---
+
+class AgentRegisterRequest(BaseModel):
+    """Request body for registering an agent via database-backed API"""
+    agent_id: str = Field(..., description="Unique agent identifier (UUID string)")
+    name: str = Field(..., description="Display name for the agent")
+    type: str = Field(default="ralph", description="Agent type (e.g., 'ralph', 'builder', 'planner')")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Optional JSON metadata for the agent")
