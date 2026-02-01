@@ -578,7 +578,7 @@
                              "id":  "S-0038",
                              "title":  "Agent Registration and Heartbeat API",
                              "spec_path":  "specs/S-0038.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "critical",
                              "labels":  [
                                             "api",
