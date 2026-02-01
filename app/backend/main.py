@@ -24,6 +24,7 @@ from routers import (
     agent_configs,
 )
 import storage
+from database.db import startup as db_startup, shutdown as db_shutdown
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -172,9 +173,17 @@ async def lifespan(app: FastAPI):
         migrate_agent_config()
     except Exception as e:
         logger.error(f"Agent config migration failed: {e}")
+
+    # Connect to database
+    await db_startup()
+
     yield
+
     # Shutdown
     print("Felix Backend shutting down...")
+
+    # Disconnect from database
+    await db_shutdown()
 
     # Clean up any running agent processes
     running_agents = runs.get_running_agents()
