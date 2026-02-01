@@ -56,3 +56,8 @@ class AgentRegisterRequest(BaseModel):
     name: str = Field(..., description="Display name for the agent")
     type: str = Field(default="ralph", description="Agent type (e.g., 'ralph', 'builder', 'planner')")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Optional JSON metadata for the agent")
+
+
+class AgentStatusUpdate(BaseModel):
+    """Request body for updating an agent's status"""
+    status: str = Field(..., description="New status for the agent (idle, running, stopped, error)")
