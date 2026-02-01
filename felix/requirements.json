@@ -642,7 +642,7 @@
                              "id":  "S-0042",
                              "title":  "Frontend API Client and Dashboard",
                              "spec_path":  "specs/S-0042.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "critical",
                              "labels":  [
                                             "frontend",
