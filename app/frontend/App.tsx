@@ -148,7 +148,7 @@ const App: React.FC = () => {
   // Used to prevent auto-load from overriding user actions
   const hasUserInteracted = useRef<boolean>(false);
 
-  // Check backend status on mount
+  // Check backend status once on mount (polling removed in S-0033)
   useEffect(() => {
     const checkBackend = async () => {
       try {
@@ -160,10 +160,6 @@ const App: React.FC = () => {
       }
     };
     checkBackend();
-
-    // Periodically check backend status
-    const interval = setInterval(checkBackend, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   // Auto-load last selected project on app startup
