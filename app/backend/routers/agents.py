@@ -3,21 +3,28 @@ Felix Backend - Agent Registry API
 Handles agent registration, heartbeat, status tracking, and console streaming.
 
 NOTE: S-0032 - File-based agent registry operations have been removed.
-Endpoints are stubbed to return 501 Not Implemented or empty responses.
+Database-backed endpoints implemented in S-0038.
 The WebSocket console streaming endpoint is preserved for runs/ directory output.
 """
 import asyncio
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from databases import Database
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import storage
+import config
+from auth import get_current_user
+from database.db import get_db
+from database.writers import AgentWriter
+from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse
 
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -178,18 +185,57 @@ DEFAULT_WORKFLOW_CONFIG = WorkflowConfigResponse(
 
 # --- API Endpoints ---
 
-@router.post("/register")
-async def register_agent(request: AgentRegistration):
+@router.post("/register", response_model=AgentResponse, status_code=201)
+async def register_agent(
+    request: AgentRegisterRequest,
+    db: Database = Depends(get_db),
+    user: Dict[str, Any] = Depends(get_current_user),
+):
     """
-    Register an agent with the registry.
+    Register an agent with the database-backed registry.
     
-    NOTE: S-0032 - This endpoint is stubbed. File-based agent registry has been removed.
-    Will be re-implemented with database storage in Phase 0.
+    Creates a new agent or updates an existing one (upsert).
+    Returns the agent record with status 201.
+    
+    Args:
+        request: AgentRegisterRequest with agent_id, name, type, metadata
+        db: Database connection from dependency injection
+        user: Current user from authentication dependency
+    
+    Returns:
+        AgentResponse with the created/updated agent data
     """
-    raise HTTPException(
-        status_code=501,
-        detail="Agent registration is temporarily disabled. File-based registry has been removed in preparation for database-driven state management."
-    )
+    try:
+        # Get project_id from config (dev mode)
+        project_id = config.DEV_PROJECT_ID
+        
+        # Create writer and upsert agent
+        writer = AgentWriter(db)
+        agent_record = await writer.upsert_agent(
+            agent_id=request.agent_id,
+            project_id=project_id,
+            name=request.name,
+            type=request.type,
+            metadata=request.metadata,
+        )
+        
+        # Convert to response model
+        return AgentResponse(
+            id=agent_record["id"],
+            project_id=agent_record["project_id"],
+            name=agent_record["name"],
+            type=agent_record["type"],
+            status=agent_record["status"],
+            heartbeat_at=agent_record.get("heartbeat_at"),
+            metadata=agent_record.get("metadata") or {},
+            created_at=agent_record["created_at"],
+            updated_at=agent_record["updated_at"],
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error during agent registration: {str(e)}"
+        )
 
 
 @router.post("/{agent_id}/heartbeat")
