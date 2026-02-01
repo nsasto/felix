@@ -414,6 +414,18 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
         </div>
       )}
 
+      {/* Agent idle message */}
+      {!isAgentActive && (
+        <div
+          className="mb-2 px-2 py-1 rounded"
+          style={{ backgroundColor: "var(--bg-base)" }}
+        >
+          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            Agent idle - workflow inactive
+          </span>
+        </div>
+      )}
+
       {/* Workflow stages - horizontal scrollable */}
       <div className="overflow-x-auto overflow-y-hidden custom-scrollbar">
         <div className="flex items-center min-w-max pb-1">
