@@ -213,3 +213,4 @@ felix/workflow.json
 # 
 **/bin
 **/obj
+clean_droid_and_ignore.ps1
