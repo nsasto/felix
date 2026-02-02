@@ -787,6 +787,22 @@ if (-not (Test-Path $AgentsJsonFile)) {
                 working_directory = "."
                 environment       = @{}
             }
+            @{
+                id                = 1
+                name              = "codex-cli"
+                executable        = "codex"
+                args              = @("-C", ".", "-s", "workspace-write", "-a", "never", "exec", "--color", "never", "-")
+                working_directory = "."
+                environment       = @{}
+            }
+            @{
+                id                = 2
+                name              = "claude-code"
+                executable        = "claude"
+                args              = @("-p", "--output-format", "text")
+                working_directory = "."
+                environment       = @{}
+            }
         )
     }
     
@@ -1287,9 +1303,88 @@ else {
 
 $RequirementId = $currentReq.id
 
+# Helper function to convert PSCustomObject to hashtable recursively
+function ConvertTo-Hashtable {
+    param([Parameter(ValueFromPipeline)]$InputObject)
+    
+    process {
+        if ($null -eq $InputObject) { return $null }
+        
+        if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
+            $collection = @(
+                foreach ($object in $InputObject) { ConvertTo-Hashtable $object }
+            )
+            return , $collection
+        }
+        elseif ($InputObject -is [PSCustomObject]) {
+            $hashtable = @{}
+            foreach ($property in $InputObject.PSObject.Properties) {
+                $hashtable[$property.Name] = ConvertTo-Hashtable $property.Value
+            }
+            return $hashtable
+        }
+        else {
+            return $InputObject
+        }
+    }
+}
+
 # Load or initialize state
 $state = if (Test-Path $StateFile) {
-    Get-Content $StateFile -Raw | ConvertFrom-Json
+    try {
+        $rawContent = Get-Content $StateFile -Raw
+        if ([string]::IsNullOrWhiteSpace($rawContent)) {
+            Write-Host "[WARNING] State file is empty, initializing new state" -ForegroundColor Yellow
+            @{
+                current_requirement_id = $null
+                current_iteration      = 0
+                last_mode              = $null
+                status                 = "idle"
+                validation_retry_count = 0
+            }
+        }
+        else {
+            $loadedState = $rawContent | ConvertFrom-Json
+            if ($null -eq $loadedState) {
+                Write-Host "[WARNING] State file loaded but resulted in null, initializing new state" -ForegroundColor Yellow
+                @{
+                    current_requirement_id = $null
+                    current_iteration      = 0
+                    last_mode              = $null
+                    status                 = "idle"
+                    validation_retry_count = 0
+                }
+            }
+            else {
+                # Convert PSCustomObject to hashtable for mutability (including nested objects)
+                $converted = ConvertTo-Hashtable $loadedState
+                if ($null -eq $converted) {
+                    Write-Host "[WARNING] Conversion to hashtable failed, initializing new state" -ForegroundColor Yellow
+                    @{
+                        current_requirement_id = $null
+                        current_iteration      = 0
+                        last_mode              = $null
+                        status                 = "idle"
+                        validation_retry_count = 0
+                    }
+                }
+                else {
+                    $converted
+                }
+            }
+        }
+    }
+    catch {
+        Write-Host "[WARNING] Failed to load state file: $_" -ForegroundColor Yellow
+        Write-Host "[WARNING] Initializing new state" -ForegroundColor Yellow
+        @{
+            current_requirement_id = $null
+            current_iteration      = 0
+            last_mode              = $null
+            status                 = "idle"
+            validation_retry_count = 0
+        }
+    }
 }
 else {
     @{
@@ -1302,8 +1397,8 @@ else {
 }
 
 # Initialize validation retry counter if it doesn't exist
-if ($null -eq $state.validation_retry_count) {
-    $state | Add-Member -MemberType NoteProperty -Name validation_retry_count -Value 0 -Force
+if ($null -ne $state -and -not $state.ContainsKey('validation_retry_count')) {
+    $state.validation_retry_count = 0
 }
 
 # Reset validation retry counter if we're starting a new requirement
@@ -1529,7 +1624,16 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $fullPrompt = "$promptTemplate`n`n---`n`n# Project Context`n`n$context"
 
     # Hook: OnContextGathering
-    $gitDiff = if (Test-Path (Join-Path $ProjectPath ".git")) { git diff 2>$null } else { "" }
+    $gitDiff = ""
+    if (Test-Path (Join-Path $ProjectPath ".git")) {
+        Push-Location $ProjectPath
+        try {
+            $gitDiff = git diff 2>$null
+        }
+        finally {
+            Pop-Location
+        }
+    }
     $hookResult = Invoke-PluginHookSafely -HookName "OnContextGathering" -RunId $runId -HookData @{
         Mode               = $mode
         CurrentRequirement = $currentReq
@@ -1547,17 +1651,24 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $beforeState = if ($mode -eq "planning") { Get-GitState -WorkingDir $ProjectPath } else { $null }
 
     # Capture commit hash before execution to detect agent-created commits
-    $beforeCommitHash = git rev-parse HEAD 2>&1
+    Push-Location $ProjectPath
+    try {
+        $beforeCommitHash = git rev-parse HEAD 2>$null
+    }
+    finally {
+        Pop-Location
+    }
 
     # Workflow Stage: execute_llm
     Set-WorkflowStage -Stage "execute_llm" -ProjectPath $ProjectPath
 
     # Execute agent
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Executing droid in $mode mode..." -ForegroundColor White
+    Write-Host "Executing agent '$($script:agentName)' in $mode mode..." -ForegroundColor White
 
     $executable = $agentConfig.executable
     $agentArgs = $agentConfig.args
+    $agentWorkingDir = if ($agentConfig.working_directory) { $agentConfig.working_directory } else { "." }
     $startTime = Get-Date
 
     # Hook: OnPreExecution
@@ -1573,7 +1684,38 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     }
 
     # Execute the agent and capture output
-    $output = $fullPrompt | & $executable @agentArgs 2>&1 | Out-String
+    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
+        $agentWorkingDir
+    }
+    else {
+        Join-Path $ProjectPath $agentWorkingDir
+    }
+
+    $envBackup = @{}
+    try {
+        # Apply agent environment variables (best-effort)
+        if ($agentConfig.environment) {
+            foreach ($prop in $agentConfig.environment.PSObject.Properties) {
+                $key = $prop.Name
+                $value = [string]$prop.Value
+                $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+            }
+        }
+
+        Push-Location $agentCwd
+        try {
+            $output = $fullPrompt | & $executable @agentArgs 2>&1 | Out-String
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    finally {
+        foreach ($key in $envBackup.Keys) {
+            [Environment]::SetEnvironmentVariable($key, $envBackup[$key], "Process")
+        }
+    }
     $duration = (Get-Date) - $startTime
 
     # Write raw output to run directory
@@ -1767,15 +1909,33 @@ This task requires manual intervention.
         Set-WorkflowStage -Stage "commit_changes" -ProjectPath $ProjectPath
 
         # Check if agent already committed changes
-        $afterCommitHash = git rev-parse HEAD 2>&1
+        Push-Location $ProjectPath
+        try {
+            $afterCommitHash = git rev-parse HEAD 2>$null
+        }
+        finally {
+            Pop-Location
+        }
         if ($beforeCommitHash -ne $afterCommitHash) {
             # Agent created commit - capture diff from the commit
-            $commitHash = git rev-parse --short HEAD 2>&1
-            $commitMsg = git log -1 --pretty=%B 2>&1
+            Push-Location $ProjectPath
+            try {
+                $commitHash = git rev-parse --short HEAD 2>$null
+                $commitMsg = git log -1 --pretty=%B 2>$null
+            }
+            finally {
+                Pop-Location
+            }
             Write-Host "[COMMIT] ✅ $commitHash - $commitMsg"
             
             Write-Host "[ARTIFACTS] Capturing git diff from commit..."
-            $diffOutput = git show HEAD --no-color 2>&1
+            Push-Location $ProjectPath
+            try {
+                $diffOutput = git show HEAD --no-color 2>$null
+            }
+            finally {
+                Pop-Location
+            }
             $diffPath = Join-Path $runDir "diff.patch"
             Set-Content $diffPath $diffOutput -Encoding UTF8
             Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
@@ -1783,8 +1943,21 @@ This task requires manual intervention.
         else {
             # PowerShell handles staging and commit
             Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
-            git add -A 2>&1 | Out-Null
-            $diffOutput = git diff --cached 2>&1
+            $prevErrorAction = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                Push-Location $ProjectPath
+                try {
+                    git add -A 2>$null | Out-Null
+                    $diffOutput = git diff --cached 2>$null
+                }
+                finally {
+                    Pop-Location
+                }
+            }
+            finally {
+                $ErrorActionPreference = $prevErrorAction
+            }
             if ($diffOutput) {
                 $diffPath = Join-Path $runDir "diff.patch"
                 Set-Content $diffPath $diffOutput -Encoding UTF8
@@ -1795,9 +1968,28 @@ This task requires manual intervention.
             $shouldCommit = $config.executor.commit_on_complete -and -not $NoCommit
             if ($shouldCommit) {
                 $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
-                $commitOutput = git commit -m $commitMsg 2>&1
+                $prevErrorAction = $ErrorActionPreference
+                $ErrorActionPreference = "Continue"
+                try {
+                    Push-Location $ProjectPath
+                    try {
+                        $commitOutput = git commit -m $commitMsg 2>&1
+                    }
+                    finally {
+                        Pop-Location
+                    }
+                }
+                finally {
+                    $ErrorActionPreference = $prevErrorAction
+                }
                 if ($LASTEXITCODE -eq 0) {
-                    $commitHash = git rev-parse --short HEAD 2>&1
+                    Push-Location $ProjectPath
+                    try {
+                        $commitHash = git rev-parse --short HEAD 2>$null
+                    }
+                    finally {
+                        Pop-Location
+                    }
                     Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
                 }
                 else {
