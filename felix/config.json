@@ -8,14 +8,7 @@
     "_note": "For testing without commits, use -NoCommit flag in felix-agent.ps1"
   },
   "agent": {
-    "name": "felix-primary",
-    "executable": "droid",
-    "args": [
-      "exec",
-      "--skip-permissions-unsafe"
-    ],
-    "working_directory": ".",
-    "environment": {}
+    "agent_id": 0
   },
   "paths": {
     "specs": "specs",
@@ -40,7 +33,9 @@
     "circuit_breaker_max_failures": 3,
     "commands": []
   },
-  "ui": {},
+  "ui": {
+    "theme": "light"
+  },
   "copilot": {
     "enabled": true,
     "provider": "openai",

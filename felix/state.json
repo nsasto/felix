@@ -1,0 +1,34 @@
+{
+<<<<<<< HEAD
+    "current_requirement_id": "S-0023",
+    "last_run_id": null,
+    "last_mode": "building",
+    "last_iteration_outcome": "max_iterations",
+    "updated_at": "2026-01-29T12:23:54.4799191+00:00",
+    "current_iteration": 1,
+    "status": "running",
+    "validation_retry_count": 0,
+    "blocked_task": {
+        "iteration": 1,
+        "description": "Fix validation failure for Task 2.1 - WebSocket mock for test setup",
+        "retry_count": 1,
+        "max_retries": 3,
+        "blocked_at": "2026-01-28T23:23:35.9804818+00:00",
+        "reason": "validation_failed",
+        "failed_commands": [
+            "[test] powershell -File .\\scripts\\test-backend.ps1 (exit: 1)"
+        ]
+    }
+}
+=======
+    "current_requirement_id":  "S-0030",
+    "last_run_id":  "S-0030-20260130-001816-it9",
+    "last_mode":  "building",
+    "last_iteration_outcome":  "success",
+    "updated_at":  "2026-01-30T00:18:16.3529792+00:00",
+    "current_iteration":  9,
+    "status":  "running",
+    "validation_retry_count":  0,
+    "blocked_task":  null
+}
+>>>>>>> origin/main

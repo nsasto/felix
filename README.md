@@ -30,7 +30,7 @@ npm run dev
 .\felix-agent.ps1 path\to\your\project
 ```
 
-📘 **[Complete setup guide →](tuts/GETTING_STARTED.md)**
+📘 **[Complete setup guide →](HOW_TO_USE.md)**
 
 ---
 
@@ -43,7 +43,7 @@ Felix implements Ralph as a production system with four key principles:
 - **📁 Artifact-based state**: Durable files carry memory, not chat transcripts
 - **🤖 Autonomous by default**: Runs to completion without human intervention
 
-**The Golden Rule**: Spec files (`specs/*.md`) are test suites (run forever), Plan files (`runs/*/plan-*.md`) are to-do lists (check off once). See [Artifacts Guide](tuts/ARTIFACTS_GUIDE.md) for details.
+**The Golden Rule**: Spec files (`specs/*.md`) are test suites (run forever), Plan files (`runs/*/plan-*.md`) are to-do lists (check off once). See [Artifacts](tuts/FELIX_EXPLAINED.md) for details.
 
 ---
 
@@ -103,7 +103,7 @@ your-project/
 └── AGENTS.md                       # Operational guide (how to run/test)
 ```
 
-📚 **[Complete artifacts reference →](tuts/ARTIFACTS_GUIDE.md)**
+📚 **[Complete artifacts reference →](tuts/FELIX_EXPLAINED.md)**
 
 ---
 
@@ -155,7 +155,7 @@ Felix consists of three independent components:
 
 **Felix positioning**: Deterministic, artifact-driven execution layer that implements the Ralph Playbook² as enforceable system behavior, not prompt suggestions.
 
-📖 **[Detailed comparison →](tuts/RALPH_PHILOSOPHY.md)**
+📖 **[Detailed comparison →](tuts/RALPH_EXPLAINED.md)**
 
 ---
 
@@ -185,7 +185,7 @@ If the plan is stale, wrong, or cluttered, regenerate. Cheaper than letting the 
 
 Bias toward searching and confirming existing functionality to avoid duplication and regressions.¹
 
-📐 **[Design patterns in depth →](tuts/DESIGN_PATTERNS.md)**
+📐 Design patterns in depth → _(Coming soon)_
 
 ---
 
@@ -204,19 +204,19 @@ Blocked requirements must be manually reset to "planned" status in `felix/requir
 
 ### Getting Started
 
-- 📘 **[Installation & Setup](tuts/GETTING_STARTED.md)** - First time setup, running your first agent
-- 🎓 **[Ralph Philosophy](tuts/RALPH_PHILOSOPHY.md)** - The Ralph Playbook, why it works, comparisons
+- 📘 **[Installation & Setup](HOW_TO_USE.md)** - First time setup, running your first agent
+- 🎓 **[Ralph Philosophy](tuts/RALPH_EXPLAINED.md)** - The Ralph Playbook, why it works, comparisons
 
 ### Technical Reference
 
 - 📊 **[Execution Flow](tuts/EXECUTION_FLOW.md)** - Detailed flow diagram, phase descriptions, exit codes
-- 📚 **[Artifacts Guide](tuts/ARTIFACTS_GUIDE.md)** - File structure, the Golden Rule, artifact lifecycle
-- 🔧 **[Agent Configuration](felix/agents.md)** - Agent profiles, registration, runtime management
+- 📚 **[Artifacts](tuts/FELIX_EXPLAINED.md)** - Durable memory, plans, and artifact lifecycle
+- 🔧 **[Agent Configuration](tuts/AGENT_CONFIG_EXPLAINED.md)** - Agent profiles, registration, runtime management
 
 ### Advanced
 
-- 📐 **[Design Patterns](tuts/DESIGN_PATTERNS.md)** _(Coming soon)_ - Principles with examples, common patterns
-- 🔌 **[API Reference](tuts/API_REFERENCE.md)** _(Coming soon)_ - Backend API, WebSocket events
+- 📐 Design Patterns _(Coming soon)_ - Principles with examples, common patterns
+- 🔌 API Reference _(Coming soon)_ - Backend API, WebSocket events
 
 ---
 
