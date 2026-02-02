@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -303,7 +304,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async void TestConnection()
+    private async Task TestConnection()
     {
         if (SelectedAgent == null) return;
 
