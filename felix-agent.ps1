@@ -22,10 +22,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load compatibility utilities, state machine, and git operations
+# Load compatibility utilities, state machine, git operations, and state management
 . "$PSScriptRoot/felix/core/compat-utils.ps1"
 . "$PSScriptRoot/felix/core/agent-state.ps1"
 . "$PSScriptRoot/felix/core/git-manager.ps1"
+. "$PSScriptRoot/felix/core/state-manager.ps1"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -178,15 +179,9 @@ function Undo-PlanningViolations {
     }
 }
 
+# Note: Core state management is now in felix/core/state-manager.ps1
+# This wrapper maintains backward compatibility with the legacy parameter names
 function Update-RequirementStatus {
-    <#
-    .SYNOPSIS
-    Updates the status of a requirement in felix/requirements.json
-    
-    .DESCRIPTION
-    Valid status values: draft, planned, in_progress, complete, blocked
-    Uses regex replacement to preserve original JSON formatting.
-    #>
     param(
         [string]$RequirementsFilePath,
         [string]$RequirementId,
@@ -195,32 +190,33 @@ function Update-RequirementStatus {
     )
     
     try {
+        # Call the state-manager function with correct parameter name mapping
+        & (Get-Module -ListAvailable | Where-Object { $_.ExportedFunctions.Keys -contains 'Update-RequirementStatus' }).ExportedFunctions['Update-RequirementStatus'] `
+            -RequirementsFile $RequirementsFilePath -RequirementId $RequirementId -Status $NewStatus
+        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
+        Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        # Fallback to inline implementation if module function not available
         $json = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
         $found = $false
         if ($json.requirements) {
             foreach ($req in $json.requirements) {
                 if ($req.id -eq $RequirementId) {
                     $req.status = $NewStatus
-                    $req.updated_at = (Get-Date -Format "yyyy-MM-dd")
                     $found = $true
                     break
                 }
             }
         }
         if (-not $found) {
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Warning: Requirement $RequirementId not found in requirements.json" -ForegroundColor Yellow
+            Write-Host "[REQUIREMENTS] Warning: Requirement $RequirementId not found" -ForegroundColor Yellow
             return $false
         }
         $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
+        Write-Host "[REQUIREMENTS] Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
         return $true
-    }
-    catch {
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Error updating requirements.json: $_" -ForegroundColor Red
-        return $false
     }
 }
 
