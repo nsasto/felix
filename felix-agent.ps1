@@ -22,7 +22,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load compatibility utilities, state machine, git operations, state management, plugins, validator, workflow, and agent registration
+# Load compatibility utilities, state machine, git operations, state management, plugins, validator, workflow, agent registration, guardrails, and python utils
 . "$PSScriptRoot/felix/core/compat-utils.ps1"
 . "$PSScriptRoot/felix/core/agent-state.ps1"
 . "$PSScriptRoot/felix/core/git-manager.ps1"
@@ -31,6 +31,8 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot/felix/core/validator.ps1"
 . "$PSScriptRoot/felix/core/workflow.ps1"
 . "$PSScriptRoot/felix/core/agent-registration.ps1"
+. "$PSScriptRoot/felix/core/guardrails.ps1"
+. "$PSScriptRoot/felix/core/python-utils.ps1"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -58,130 +60,9 @@ Write-Host $ProjectPath -ForegroundColor Cyan
 # Mode Guardrails Functions
 # ============================================================================
 # Note: Get-GitState is now in felix/core/git-manager.ps1
+# Note: Test-PlanningModeGuardrails is now in felix/core/guardrails.ps1
 
-function Test-PlanningModeGuardrails {
-    <#
-    .SYNOPSIS
-    Checks if planning mode guardrails were violated (code files modified or committed)
-    Returns a hashtable with violation details
-    #>
-    param(
-        [string]$WorkingDir,
-        [hashtable]$BeforeState,
-        [string]$RunId
-    )
-    
-    Push-Location $WorkingDir
-    try {
-        $violations = @{
-            CommitMade        = $false
-            UnauthorizedFiles = @()
-            HasViolations     = $false
-        }
-        
-        # Allowed paths for planning mode (relative paths)
-        $allowedPatterns = @(
-            "^runs/",                          # Run directories
-            "^felix/state\.json$",             # State file
-            "^felix/requirements\.json$"       # Requirements file
-        )
-        
-        # Get current git state
-        $afterState = Get-GitState -WorkingDir $WorkingDir
-        
-        # Check if a new commit was made
-        if ($afterState.commitHash -ne $BeforeState.commitHash) {
-            $violations.CommitMade = $true
-            $violations.HasViolations = $true
-            Write-Host "[GUARDRAIL VIOLATION] " -NoNewline -ForegroundColor Red
-            Write-Host "New commit detected during planning mode!" -ForegroundColor Yellow
-        }
-        
-        # Check for unauthorized file modifications
-        $allModifiedFiles = @($afterState.modifiedFiles) + @($afterState.untrackedFiles) | 
-        Where-Object { $_ -and $_.Trim() -ne "" } |
-        Select-Object -Unique
-        
-        foreach ($file in $allModifiedFiles) {
-            # Skip if file was already modified before
-            if ($BeforeState.modifiedFiles -contains $file -or $BeforeState.untrackedFiles -contains $file) {
-                continue
-            }
-            
-            # Check if file matches allowed patterns
-            $isAllowed = $false
-            $normalizedFile = $file -replace '\\', '/'
-            foreach ($pattern in $allowedPatterns) {
-                if ($normalizedFile -match $pattern) {
-                    $isAllowed = $true
-                    break
-                }
-            }
-            
-            if (-not $isAllowed) {
-                $violations.UnauthorizedFiles += $file
-                $violations.HasViolations = $true
-            }
-        }
-        
-        if ($violations.UnauthorizedFiles.Count -gt 0) {
-            Write-Host "[GUARDRAIL VIOLATION] " -NoNewline -ForegroundColor Red
-            Write-Host "Unauthorized files modified in planning mode:" -ForegroundColor Yellow
-            foreach ($file in $violations.UnauthorizedFiles) {
-                Write-Host "  - $file"
-            }
-        }
-        
-        return $violations
-    }
-    finally {
-        Pop-Location
-    }
-}
-
-function Undo-PlanningViolations {
-    <#
-    .SYNOPSIS
-    Reverts unauthorized changes made during planning mode
-    #>
-    param(
-        [string]$WorkingDir,
-        [hashtable]$BeforeState,
-        [hashtable]$Violations
-    )
-    
-    Push-Location $WorkingDir
-    try {
-        # Revert commit if one was made
-        if ($Violations.CommitMade) {
-            Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
-            Write-Host "Reverting unauthorized commit..." -ForegroundColor Yellow
-            git reset --soft $BeforeState.commitHash 2>$null
-        }
-        
-        # Revert unauthorized file changes
-        foreach ($file in $Violations.UnauthorizedFiles) {
-            if (Test-Path $file) {
-                # Check if it was an existing file (modified) or new file
-                $wasTracked = git ls-files $file 2>$null
-                if ($wasTracked) {
-                    Write-Host "[GUARDRAIL] Reverting changes to: $file"
-                    git checkout HEAD -- $file 2>$null
-                }
-                else {
-                    Write-Host "[GUARDRAIL] Removing unauthorized new file: $file"
-                    Remove-Item $file -Force
-                }
-            }
-        }
-        
-        Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Green
-        Write-Host "Violations reverted." -ForegroundColor Green
-    }
-    finally {
-        Pop-Location
-    }
-}
+# Note: Undo-PlanningViolations is now in felix/core/guardrails.ps1
 
 # Note: Core state management is now in felix/core/state-manager.ps1
 # This wrapper maintains backward compatibility with the legacy parameter names
@@ -273,58 +154,7 @@ function Update-RequirementRunId {
     }
 }
 
-function Resolve-PythonCommand {
-    <#
-    .SYNOPSIS
-    Resolves a usable Python command (application only) with optional args
-    #>
-    param(
-        [object]$Config
-    )
-    
-    $pythonCmd = $null
-    $pythonArgs = @()
-    
-    if ($Config -and $Config.python -and $Config.python.executable) {
-        $candidate = $Config.python.executable
-        if ($Config.python.args) {
-            $pythonArgs = @($Config.python.args)
-        }
-        
-        if (Test-Path $candidate) {
-            $pythonCmd = (Resolve-Path $candidate).Path
-        }
-        else {
-            $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
-            if ($cmd -and $cmd.CommandType -eq "Application") {
-                $pythonCmd = $cmd.Source
-            }
-        }
-        
-        if (-not $pythonCmd) {
-            throw "Python executable not found or not an application: $candidate"
-        }
-        
-        return @{ cmd = $pythonCmd; args = $pythonArgs }
-    }
-    
-    $cmd = Get-Command py -ErrorAction SilentlyContinue
-    if ($cmd -and $cmd.CommandType -eq "Application") {
-        return @{ cmd = $cmd.Source; args = @("-3") }
-    }
-    
-    $cmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($cmd -and $cmd.CommandType -eq "Application") {
-        return @{ cmd = $cmd.Source; args = @() }
-    }
-    
-    $cmd = Get-Command python3 -ErrorAction SilentlyContinue
-    if ($cmd -and $cmd.CommandType -eq "Application") {
-        return @{ cmd = $cmd.Source; args = @() }
-    }
-    
-    throw "Python executable not found. Set felix/config.json -> python.executable (and optional python.args) or install Python."
-}
+# Note: Resolve-PythonCommand is now in felix/core/python-utils.ps1
 
 # Set-WorkflowStage: Now in felix/core/workflow.ps1
 
