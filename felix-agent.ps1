@@ -22,8 +22,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load compatibility utilities
+# Load compatibility utilities and state machine
 . "$PSScriptRoot/felix/core/compat-utils.ps1"
+. "$PSScriptRoot/felix/core/agent-state.ps1"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -1407,6 +1408,11 @@ if ($null -ne $state -and -not $state.ContainsKey('validation_retry_count')) {
     $state.validation_retry_count = 0
 }
 
+# Initialize state machine for this execution
+$agentState = New-AgentState -InitialMode "Planning"
+$agentState.RequirementId = $RequirementId
+Write-Host "[STATE-MACHINE] Initialized in Planning mode for requirement $RequirementId" -ForegroundColor DarkGray
+
 # Reset validation retry counter if we're starting a new requirement
 if ($state.current_requirement_id -ne $currentReq.id) {
     $state.validation_retry_count = 0
@@ -1476,6 +1482,12 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $mode = "building"
         Write-Host "[MODE] Found existing plan, using BUILDING mode" -ForegroundColor Yellow
         
+        # Transition state machine to Building
+        if ($agentState.Mode -ne "Building") {
+            $agentState.TransitionTo('Building')
+            Write-Host "[STATE-MACHINE] Transitioned to Building mode" -ForegroundColor DarkGray
+        }
+        
         # Copy plan to current run directory for audit trail
         $planSnapshotPath = Join-Path $runDir "plan-$($currentReq.id).md"
         Copy-Item $latestPlanPath $planSnapshotPath -Force
@@ -1488,6 +1500,8 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
             Write-Host "[MODE] No plan found, falling back to PLANNING mode" -ForegroundColor Yellow
             $mode = "planning"
         }
+        # State machine stays in Planning mode (default)
+        Write-Host "[STATE-MACHINE] Remaining in Planning mode" -ForegroundColor DarkGray
         $latestPlanPath = $null
         $planContent = $null
     }
@@ -1822,6 +1836,12 @@ Planning mode is for creating/refining plans only.
             # Workflow Stage: run_backpressure
             Set-WorkflowStage -Stage "run_backpressure" -ProjectPath $ProjectPath
             
+            # Transition to Validating state before running backpressure
+            if ($agentState.Mode -eq "Building" -and $agentState.CanTransitionTo('Validating')) {
+                $agentState.TransitionTo('Validating')
+                Write-Host "[STATE-MACHINE] Transitioned to Validating mode (running backpressure)" -ForegroundColor DarkGray
+            }
+            
             # Run backpressure validation BEFORE committing
             $backpressureResult = Invoke-BackpressureValidation `
                 -WorkingDir $ProjectPath `
@@ -1888,6 +1908,13 @@ This task requires manual intervention.
 "@
                 Set-Content (Join-Path $runDir "max-retries-exceeded.md") $maxRetriesReport -Encoding UTF8
                 Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "blocked"
+                
+                # Transition state machine to Blocked
+                if ($agentState.CanTransitionTo('Blocked')) {
+                    $agentState.TransitionTo('Blocked')
+                    Write-Host "[STATE-MACHINE] Transitioned to Blocked mode (max retries exceeded)" -ForegroundColor DarkGray
+                }
+                
                 Exit-FelixAgent -ExitCode 2
             }
 
@@ -1905,11 +1932,24 @@ This task requires manual intervention.
             }
             $state.updated_at = Get-Date -Format "o"
             $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
+            
+            # Transition state machine to Blocked (temporary, will retry)
+            if ($agentState.CanTransitionTo('Blocked')) {
+                $agentState.TransitionTo('Blocked')
+                Write-Host "[STATE-MACHINE] Transitioned to Blocked mode (will retry)" -ForegroundColor DarkGray
+            }
+            
             continue
         }
 
-        # Clear blocked status on success
+        # Clear blocked status on success and transition back to Building
         $state.blocked_task = $null
+        
+        if ($agentState.Mode -eq "Validating") {
+            # Validation passed, back to Building for next iteration
+            $agentState.TransitionTo('Building')
+            Write-Host "[STATE-MACHINE] Transitioned back to Building mode (validation passed)" -ForegroundColor DarkGray
+        }
 
         # Workflow Stage: commit_changes
         Set-WorkflowStage -Stage "commit_changes" -ProjectPath $ProjectPath
@@ -2023,12 +2063,35 @@ This task requires manual intervention.
         Write-Host ""
         Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"
         $state.last_mode = "building"
+        
+        # Transition state machine to Building
+        if ($agentState.Mode -ne "Building") {
+            $agentState.TransitionTo('Building')
+            Write-Host "[STATE-MACHINE] Transitioned to Building mode" -ForegroundColor DarkGray
+        }
     }
 
     # All requirements met?
     if ($output -match '<promise>ALL_REQUIREMENTS_MET</promise>') {
         # Workflow Stage: update_status
         Set-WorkflowStage -Stage "update_status" -ProjectPath $ProjectPath
+        
+        # Transition state machine to Complete
+        if ($agentState.Mode -ne "Complete") {
+            if ($agentState.CanTransitionTo('Complete')) {
+                $agentState.TransitionTo('Complete')
+                Write-Host "[STATE-MACHINE] Transitioned to Complete mode" -ForegroundColor DarkGray
+            }
+            else {
+                # Need to go through Validating first
+                if ($agentState.Mode -eq "Building") {
+                    $agentState.TransitionTo('Validating')
+                    Write-Host "[STATE-MACHINE] Transitioned to Validating mode" -ForegroundColor DarkGray
+                }
+                $agentState.TransitionTo('Complete')
+                Write-Host "[STATE-MACHINE] Transitioned to Complete mode" -ForegroundColor DarkGray
+            }
+        }
         
         # Check validation logic...
         Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $currentReq.id -NewStatus "complete"
