@@ -210,6 +210,10 @@ __marimo__/
 # Felix agent state
 felix/state.json
 felix/workflow.json
-scripts/clean_droid_and_ignore.ps1
+# Build outputs - ignore bin and obj folders anywhere in the project
+**/bin/
+**/obj/
 /bin
 /obj
+# Temp script
+clean_droid_and_ignore.ps1
