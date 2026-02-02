@@ -34,19 +34,20 @@ CONFIG_JSON_TEMPLATE = """{
   // executor.max_iterations: Maximum iterations before stopping (safety limit)
   // executor.default_mode: Starting mode - "planning" or "building"
   // executor.auto_transition: Auto-transition from planning to building when plan is complete
-  
+  // executor.commit_on_complete: Create a git commit after each successful task
+  //
+  // agent.agent_id: Which agent preset to use from ~/.felix/agents.json
+
   "version": "0.1.0",
   "executor": {
     "mode": "local",
     "max_iterations": 100,
     "default_mode": "building",
-    "auto_transition": true
+    "auto_transition": true,
+    "commit_on_complete": true
   },
   "agent": {
-    "executable": "droid",
-    "args": ["exec", "--skip-permissions-unsafe"],
-    "working_directory": ".",
-    "environment": {}
+    "agent_id": 0
   },
   "paths": {
     "specs": "specs",
@@ -56,8 +57,10 @@ CONFIG_JSON_TEMPLATE = """{
   "backpressure": {
     // enabled: Run tests/lint after each building iteration
     // commands: Array of commands to run (parsed from AGENTS.md if empty)
+    // max_retries: How many consecutive failures before blocking the requirement
     "enabled": true,
-    "commands": []
+    "commands": [],
+    "max_retries": 3
   }
 }
 """
@@ -69,13 +72,11 @@ CONFIG_JSON_CLEAN = """{
     "mode": "local",
     "max_iterations": 100,
     "default_mode": "building",
-    "auto_transition": true
+    "auto_transition": true,
+    "commit_on_complete": true
   },
   "agent": {
-    "executable": "droid",
-    "args": ["exec", "--skip-permissions-unsafe"],
-    "working_directory": ".",
-    "environment": {}
+    "agent_id": 0
   },
   "paths": {
     "specs": "specs",
@@ -84,7 +85,8 @@ CONFIG_JSON_CLEAN = """{
   },
   "backpressure": {
     "enabled": true,
-    "commands": []
+    "commands": [],
+    "max_retries": 3
   }
 }
 """

@@ -787,6 +787,22 @@ if (-not (Test-Path $AgentsJsonFile)) {
                 working_directory = "."
                 environment       = @{}
             }
+            @{
+                id                = 1
+                name              = "codex-cli"
+                executable        = "codex"
+                args              = @("-C", ".", "-s", "workspace-write", "-a", "never", "exec", "--color", "never", "-")
+                working_directory = "."
+                environment       = @{}
+            }
+            @{
+                id                = 2
+                name              = "claude-code"
+                executable        = "claude"
+                args              = @("-p", "--output-format", "text")
+                working_directory = "."
+                environment       = @{}
+            }
         )
     }
     
@@ -1608,7 +1624,16 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $fullPrompt = "$promptTemplate`n`n---`n`n# Project Context`n`n$context"
 
     # Hook: OnContextGathering
-    $gitDiff = if (Test-Path (Join-Path $ProjectPath ".git")) { git diff 2>$null } else { "" }
+    $gitDiff = ""
+    if (Test-Path (Join-Path $ProjectPath ".git")) {
+        Push-Location $ProjectPath
+        try {
+            $gitDiff = git diff 2>$null
+        }
+        finally {
+            Pop-Location
+        }
+    }
     $hookResult = Invoke-PluginHookSafely -HookName "OnContextGathering" -RunId $runId -HookData @{
         Mode               = $mode
         CurrentRequirement = $currentReq
@@ -1626,17 +1651,24 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     $beforeState = if ($mode -eq "planning") { Get-GitState -WorkingDir $ProjectPath } else { $null }
 
     # Capture commit hash before execution to detect agent-created commits
-    $beforeCommitHash = git rev-parse HEAD 2>&1
+    Push-Location $ProjectPath
+    try {
+        $beforeCommitHash = git rev-parse HEAD 2>$null
+    }
+    finally {
+        Pop-Location
+    }
 
     # Workflow Stage: execute_llm
     Set-WorkflowStage -Stage "execute_llm" -ProjectPath $ProjectPath
 
     # Execute agent
     Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Executing droid in $mode mode..." -ForegroundColor White
+    Write-Host "Executing agent '$($script:agentName)' in $mode mode..." -ForegroundColor White
 
     $executable = $agentConfig.executable
     $agentArgs = $agentConfig.args
+    $agentWorkingDir = if ($agentConfig.working_directory) { $agentConfig.working_directory } else { "." }
     $startTime = Get-Date
 
     # Hook: OnPreExecution
@@ -1652,7 +1684,38 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
     }
 
     # Execute the agent and capture output
-    $output = $fullPrompt | & $executable @agentArgs 2>&1 | Out-String
+    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
+        $agentWorkingDir
+    }
+    else {
+        Join-Path $ProjectPath $agentWorkingDir
+    }
+
+    $envBackup = @{}
+    try {
+        # Apply agent environment variables (best-effort)
+        if ($agentConfig.environment) {
+            foreach ($prop in $agentConfig.environment.PSObject.Properties) {
+                $key = $prop.Name
+                $value = [string]$prop.Value
+                $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+            }
+        }
+
+        Push-Location $agentCwd
+        try {
+            $output = $fullPrompt | & $executable @agentArgs 2>&1 | Out-String
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    finally {
+        foreach ($key in $envBackup.Keys) {
+            [Environment]::SetEnvironmentVariable($key, $envBackup[$key], "Process")
+        }
+    }
     $duration = (Get-Date) - $startTime
 
     # Write raw output to run directory
@@ -1846,15 +1909,33 @@ This task requires manual intervention.
         Set-WorkflowStage -Stage "commit_changes" -ProjectPath $ProjectPath
 
         # Check if agent already committed changes
-        $afterCommitHash = git rev-parse HEAD 2>&1
+        Push-Location $ProjectPath
+        try {
+            $afterCommitHash = git rev-parse HEAD 2>$null
+        }
+        finally {
+            Pop-Location
+        }
         if ($beforeCommitHash -ne $afterCommitHash) {
             # Agent created commit - capture diff from the commit
-            $commitHash = git rev-parse --short HEAD 2>&1
-            $commitMsg = git log -1 --pretty=%B 2>&1
+            Push-Location $ProjectPath
+            try {
+                $commitHash = git rev-parse --short HEAD 2>$null
+                $commitMsg = git log -1 --pretty=%B 2>$null
+            }
+            finally {
+                Pop-Location
+            }
             Write-Host "[COMMIT] ✅ $commitHash - $commitMsg"
             
             Write-Host "[ARTIFACTS] Capturing git diff from commit..."
-            $diffOutput = git show HEAD --no-color 2>&1
+            Push-Location $ProjectPath
+            try {
+                $diffOutput = git show HEAD --no-color 2>$null
+            }
+            finally {
+                Pop-Location
+            }
             $diffPath = Join-Path $runDir "diff.patch"
             Set-Content $diffPath $diffOutput -Encoding UTF8
             Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
@@ -1862,8 +1943,21 @@ This task requires manual intervention.
         else {
             # PowerShell handles staging and commit
             Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
-            git add -A 2>&1 | Out-Null
-            $diffOutput = git diff --cached 2>&1
+            $prevErrorAction = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                Push-Location $ProjectPath
+                try {
+                    git add -A 2>$null | Out-Null
+                    $diffOutput = git diff --cached 2>$null
+                }
+                finally {
+                    Pop-Location
+                }
+            }
+            finally {
+                $ErrorActionPreference = $prevErrorAction
+            }
             if ($diffOutput) {
                 $diffPath = Join-Path $runDir "diff.patch"
                 Set-Content $diffPath $diffOutput -Encoding UTF8
@@ -1874,9 +1968,28 @@ This task requires manual intervention.
             $shouldCommit = $config.executor.commit_on_complete -and -not $NoCommit
             if ($shouldCommit) {
                 $commitMsg = "Felix ($($currentReq.id)): $taskDesc"
-                $commitOutput = git commit -m $commitMsg 2>&1
+                $prevErrorAction = $ErrorActionPreference
+                $ErrorActionPreference = "Continue"
+                try {
+                    Push-Location $ProjectPath
+                    try {
+                        $commitOutput = git commit -m $commitMsg 2>&1
+                    }
+                    finally {
+                        Pop-Location
+                    }
+                }
+                finally {
+                    $ErrorActionPreference = $prevErrorAction
+                }
                 if ($LASTEXITCODE -eq 0) {
-                    $commitHash = git rev-parse --short HEAD 2>&1
+                    Push-Location $ProjectPath
+                    try {
+                        $commitHash = git rev-parse --short HEAD 2>$null
+                    }
+                    finally {
+                        Pop-Location
+                    }
                     Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
                 }
                 else {
