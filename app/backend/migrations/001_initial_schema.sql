@@ -1,6 +1,15 @@
 -- Felix Database Schema Migration 001
--- Creates the initial 8-table schema for Felix Phase 0
--- Tables: organizations, organization_members, projects, requirements, agents, agent_states, runs, run_artifacts
+-- Creates the initial 9-table schema for Felix Phase 0
+-- Tables: schema_migrations, organizations, organization_members, projects, requirements, agents, agent_states, runs, run_artifacts
+
+-- ============================================================================
+-- TABLE 0: schema_migrations (Migration Tracking)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    id SERIAL PRIMARY KEY,
+    version TEXT NOT NULL UNIQUE,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- ============================================================================
 -- TABLE 1: organizations

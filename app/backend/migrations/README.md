@@ -15,6 +15,7 @@ postgresql://postgres@localhost:5432/felix
 ```
 
 For connecting with psql:
+
 ```bash
 psql -U postgres -d felix
 ```
@@ -22,15 +23,18 @@ psql -U postgres -d felix
 ## Naming Convention
 
 Migration files follow this naming pattern:
+
 ```
 NNN_description.sql
 ```
 
 Where:
+
 - **NNN** - Three-digit sequence number (001, 002, 003, etc.)
 - **description** - Brief snake_case description of the migration
 
 Examples:
+
 - `001_initial_schema.sql`
 - `002_add_user_preferences.sql`
 - `003_add_run_logs_table.sql`
@@ -46,6 +50,7 @@ psql -U postgres -d felix -f app/backend/migrations/001_initial_schema.sql
 ### Running All Migrations (in order)
 
 From the project root:
+
 ```bash
 for file in app/backend/migrations/*.sql; do
   psql -U postgres -d felix -f "$file"
@@ -53,6 +58,7 @@ done
 ```
 
 On Windows PowerShell:
+
 ```powershell
 Get-ChildItem app/backend/migrations/*.sql | Sort-Object Name | ForEach-Object {
   psql -U postgres -d felix -f $_.FullName
@@ -75,6 +81,7 @@ Get-ChildItem app/backend/migrations/*.sql | Sort-Object Name | ForEach-Object {
 If a migration causes issues:
 
 1. Drop the database and recreate:
+
    ```bash
    psql -U postgres -c "DROP DATABASE felix;"
    psql -U postgres -c "CREATE DATABASE felix;"
@@ -86,7 +93,45 @@ For production environments, always write explicit rollback scripts.
 
 ## Current Migrations
 
-| File | Description |
-|------|-------------|
-| 001_initial_schema.sql | Core tables: organizations, projects, agents, runs, requirements |
-| 001_seed_dev_data.sql | Development seed data for local testing |
+| File                   | Description                                                                         | Applied      |
+| ---------------------- | ----------------------------------------------------------------------------------- | ------------ |
+| 001_initial_schema.sql | Core tables: schema_migrations, organizations, projects, agents, runs, requirements | Auto-tracked |
+| 001_seed_dev_data.sql  | Development seed data for local testing                                             | Auto-tracked |
+
+## Migration Tracking
+
+The `schema_migrations` table tracks which migrations have been applied:
+
+```sql
+SELECT * FROM schema_migrations ORDER BY applied_at;
+```
+
+Output:
+
+```
+ id |           version            |          applied_at
+----+------------------------------+-------------------------------
+  1 | 001_initial_schema.sql       | 2026-02-02 10:30:00.123456+00
+  2 | 001_seed_dev_data.sql        | 2026-02-02 10:30:01.234567+00
+```
+
+## Quick Setup
+
+Run the automated setup script:
+
+```powershell
+.\scripts\setup-db.ps1
+```
+
+This will:
+
+- Create the database if it doesn't exist
+- Create the migration tracking table
+- Run all pending migrations
+- Verify the schema
+
+To force a fresh start (destroys all data):
+
+```powershell
+.\scripts\setup-db.ps1 -Force
+```
