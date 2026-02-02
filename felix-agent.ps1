@@ -22,13 +22,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load compatibility utilities, state machine, git operations, state management, plugins, and validator
+# Load compatibility utilities, state machine, git operations, state management, plugins, validator, workflow, and agent registration
 . "$PSScriptRoot/felix/core/compat-utils.ps1"
 . "$PSScriptRoot/felix/core/agent-state.ps1"
 . "$PSScriptRoot/felix/core/git-manager.ps1"
 . "$PSScriptRoot/felix/core/state-manager.ps1"
 . "$PSScriptRoot/felix/core/plugin-manager.ps1"
 . "$PSScriptRoot/felix/core/validator.ps1"
+. "$PSScriptRoot/felix/core/workflow.ps1"
+. "$PSScriptRoot/felix/core/agent-registration.ps1"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -324,59 +326,7 @@ function Resolve-PythonCommand {
     throw "Python executable not found. Set felix/config.json -> python.executable (and optional python.args) or install Python."
 }
 
-function Set-WorkflowStage {
-    <#
-    .SYNOPSIS
-    Updates the current workflow stage in state.json for live visualization
-    
-    .DESCRIPTION
-    Calls the set-workflow-stage.ps1 helper script to update:
-    - current_workflow_stage
-    - workflow_stage_timestamp
-    - workflow_stage_history (last 10 entries)
-    
-    This is a wrapper that handles errors silently to not disrupt agent execution.
-    
-    .PARAMETER Stage
-    The workflow stage ID (e.g., "execute_llm", "run_backpressure")
-    
-    .PARAMETER ProjectPath
-    The Felix project path
-    
-    .PARAMETER Clear
-    Optional switch to clear the current stage
-    #>
-    param(
-        [Parameter(Mandatory = $false)]
-        [string]$Stage,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$ProjectPath,
-        
-        [Parameter(Mandatory = $false)]
-        [switch]$Clear
-    )
-    
-    $helperScript = Join-Path $ProjectPath "felix\scripts\set-workflow-stage.ps1"
-    
-    # If helper script doesn't exist, silently skip (backwards compatibility)
-    if (-not (Test-Path $helperScript)) {
-        return
-    }
-    
-    try {
-        if ($Clear) {
-            & $helperScript -Clear -ProjectPath $ProjectPath 2>$null | Out-Null
-        }
-        elseif ($Stage) {
-            & $helperScript -Stage $Stage -ProjectPath $ProjectPath 2>$null | Out-Null
-        }
-    }
-    catch {
-        # Silently ignore workflow stage update errors - visualization is non-critical
-        Write-Verbose "[WORKFLOW] Failed to update stage: $_"
-    }
-}
+# Set-WorkflowStage: Now in felix/core/workflow.ps1
 
 function Invoke-RequirementValidation {
     <#
@@ -541,158 +491,43 @@ Write-Host "Executable: $($agentConfig.executable) $($agentConfig.args -join ' '
 $script:BackendBaseUrl = "http://localhost:8080"
 $script:HeartbeatJob = $null
 
+# Agent registration functions: Now in felix/core/agent-registration.ps1
+# Create script-scoped aliases to avoid naming conflicts with wrappers
+New-Alias -Name 'Register-AgentInternal' -Value 'Register-Agent' -Scope Script -Force
+New-Alias -Name 'Send-AgentHeartbeatInternal' -Value 'Send-AgentHeartbeat' -Scope Script -Force
+New-Alias -Name 'Start-HeartbeatJobInternal' -Value 'Start-HeartbeatJob' -Scope Script -Force
+New-Alias -Name 'Stop-HeartbeatJobInternal' -Value 'Stop-HeartbeatJob' -Scope Script -Force
+New-Alias -Name 'Unregister-AgentInternal' -Value 'Unregister-Agent' -Scope Script -Force
+
+# Wrappers provide backward compatibility with script-scoped $BackendBaseUrl
 function Register-Agent {
-    <#
-    .SYNOPSIS
-    Registers the agent with the backend API
-    #>
-    param(
-        [int]$AgentId,
-        [string]$AgentName,
-        [int]$ProcessId,
-        [string]$Hostname
-    )
-    
-    $registration = @{
-        agent_id   = $AgentId
-        agent_name = $AgentName
-        pid        = $ProcessId
-        hostname   = $Hostname
-        started_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    }
-    
-    try {
-        $body = $registration | ConvertTo-Json
-        $null = Invoke-RestMethod -Method POST `
-            -Uri "$script:BackendBaseUrl/api/agents/register" `
-            -Body $body `
-            -ContentType "application/json" `
-            -ErrorAction Stop
-        
-        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Registered as agent ID $AgentId ('$AgentName', PID: $ProcessId)" -ForegroundColor Green
-        return $true
-    }
-    catch {
-        # Registration is best-effort - don't fail if backend is unreachable
-        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Registration failed (backend may be unavailable): $_" -ForegroundColor Yellow
-        return $false
-    }
+    param([int]$AgentId, [string]$AgentName, [int]$ProcessId, [string]$Hostname)
+    return Register-AgentInternal -AgentId $AgentId -AgentName $AgentName -ProcessId $ProcessId -Hostname $Hostname -BackendBaseUrl $script:BackendBaseUrl
 }
 
 function Send-AgentHeartbeat {
-    <#
-    .SYNOPSIS
-    Sends a heartbeat to the backend API
-    #>
-    param(
-        [int]$AgentId,
-        [string]$CurrentRequirementId
-    )
-    
-    $heartbeat = @{
-        current_run_id = $CurrentRequirementId
-    }
-    
-    try {
-        $body = $heartbeat | ConvertTo-Json
-        Invoke-RestMethod -Method POST `
-            -Uri "$script:BackendBaseUrl/api/agents/$AgentId/heartbeat" `
-            -Body $body `
-            -ContentType "application/json" `
-            -ErrorAction Stop | Out-Null
-        return $true
-    }
-    catch {
-        # Heartbeat failures are non-fatal
-        return $false
-    }
+    param([int]$AgentId, [string]$CurrentRequirementId)
+    return Send-AgentHeartbeatInternal -AgentId $AgentId -CurrentRequirementId $CurrentRequirementId -BackendBaseUrl $script:BackendBaseUrl
 }
 
 function Start-HeartbeatJob {
-    <#
-    .SYNOPSIS
-    Starts a background job that sends heartbeats every 5 seconds
-    #>
-    param(
-        [int]$AgentId,
-        [string]$BaseUrl
-    )
-    
-    # Stop any existing heartbeat job
+    param([int]$AgentId, [string]$BaseUrl)
     if ($script:HeartbeatJob) {
-        Stop-HeartbeatJob
+        Stop-HeartbeatJobInternal -Job $script:HeartbeatJob
     }
-    
-    $script:HeartbeatJob = Start-Job -Name "FelixHeartbeat" -ScriptBlock {
-        param($AgentId, $BaseUrl)
-        
-        while ($true) {
-            Start-Sleep -Seconds 5
-            
-            try {
-                # Read current requirement from state file if available
-                $stateFile = "felix/state.json"
-                $currentReqId = $null
-                if (Test-Path $stateFile) {
-                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
-                    $currentReqId = $state.current_requirement_id
-                }
-                
-                $heartbeat = @{
-                    current_run_id = $currentReqId
-                } | ConvertTo-Json
-                
-                Invoke-RestMethod -Method POST `
-                    -Uri "$BaseUrl/api/agents/$AgentId/heartbeat" `
-                    -Body $heartbeat `
-                    -ContentType "application/json" `
-                    -ErrorAction SilentlyContinue | Out-Null
-            }
-            catch {
-                # Silently continue on heartbeat failures
-            }
-        }
-    } -ArgumentList $AgentId, $BaseUrl
-    
-    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Started heartbeat job (every 5s)" -ForegroundColor Green
+    $script:HeartbeatJob = Start-HeartbeatJobInternal -AgentId $AgentId -BackendBaseUrl $BaseUrl
 }
 
 function Stop-HeartbeatJob {
-    <#
-    .SYNOPSIS
-    Stops the background heartbeat job
-    #>
     if ($script:HeartbeatJob) {
-        Stop-Job -Job $script:HeartbeatJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $script:HeartbeatJob -Force -ErrorAction SilentlyContinue
+        Stop-HeartbeatJobInternal -Job $script:HeartbeatJob
         $script:HeartbeatJob = $null
     }
 }
 
 function Unregister-Agent {
-    <#
-    .SYNOPSIS
-    Marks the agent as stopped in the registry
-    #>
-    param(
-        [int]$AgentId
-    )
-    
-    try {
-        Invoke-RestMethod -Method POST `
-            -Uri "$script:BackendBaseUrl/api/agents/$AgentId/stop" `
-            -ContentType "application/json" `
-            -ErrorAction Stop | Out-Null
-        
-        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Agent ID $AgentId marked as stopped" -ForegroundColor Yellow
-    }
-    catch {
-        # Best-effort - don't fail on unregister errors
-    }
+    param([int]$AgentId)
+    Unregister-AgentInternal -AgentId $AgentId -BackendBaseUrl $script:BackendBaseUrl
 }
 
 function Exit-FelixAgent {
