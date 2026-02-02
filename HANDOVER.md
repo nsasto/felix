@@ -1,61 +1,50 @@
 # Felix Agent Refactoring - Handover Document
 
 **Date:** February 2, 2026  
-**Status:** Day 6 (Validation Module) - Partially Complete  
-**Next Agent:** Continue Day 6 and proceed through Day 8
+**Status:** Day 7 (Main Script Refactor) - In Progress  
+**Next Agent:** Continue Day 7 to reach <200 lines, then proceed to Day 8
 
 ---
 
 ## Current Status Summary
 
-### Completed Work (Days 1-5)
+### Completed Work (Days 1-6)
 
 ✅ **Day 1:** Test framework + compatibility layer (Commit 5020b57)
-
-- Created `felix/tests/test-framework.ps1` (127 lines) - Custom Describe/It/Assert functions
-- Created `felix/core/compat-utils.ps1` (81 lines) - Coalesce-Value, Ternary, Safe-Interpolate, Invoke-SafeCommand
-- 13/13 tests passing
-- Replaced Invoke-Expression with safe scriptblock execution
-
 ✅ **Day 2:** State machine (Commit 5e296ed)
-
-- Created `felix/core/agent-state.ps1` (63 lines) - AgentState class with validated transitions
-- 14/14 tests passing
-- Integrated into felix-agent.ps1 at 5 key transition points
-
 ✅ **Day 3:** Git operations (Commit e5b0108)
-
-- Created `felix/core/git-manager.ps1` (156 lines) - Initialize-FeatureBranch, Get-GitState, Test-GitChanges, Invoke-GitCommit, Invoke-GitRevert
-- 12/12 tests passing
-- Updated property names to camelCase (commitHash, modifiedFiles, untrackedFiles)
-
 ✅ **Day 4:** State management (Commit 1533038)
-
-- Created `felix/core/state-manager.ps1` (126 lines) - Requirements.json operations
-- 11/11 tests passing
-- Created backward-compatible wrapper in felix-agent.ps1
-
 ✅ **Day 5:** Plugin system (Commit 2ef7705)
+✅ **Day 6:** Utilities extraction (Commits fe714d6, 3c0ef27) - COMPLETE
 
-- Created `felix/core/plugin-manager.ps1` (221 lines) - Plugin discovery, circuit breaker pattern
-- Created `felix/tests/test-plugin-manager.ps1` - 9/9 tests passing
-- Reduced felix-agent.ps1 from 2116 to 1819 lines (-297 lines)
+- Validator functions removed from felix-agent.ps1
+- Created workflow module (felix/core/workflow.ps1)
+- Created agent-registration module (felix/core/agent-registration.ps1)
+- 80 tests passing
 
-### In-Progress Work (Day 6)
+### In-Progress Work (Day 7)
 
-🟡 **Day 6:** Validation & utilities extraction
+🔄 **Day 7:** Main script refactor - Extract remaining helper functions
 
-- ✅ Created `felix/core/validator.ps1` (297 lines) - Get-BackpressureCommands, Invoke-BackpressureValidation
-- ✅ Created `felix/tests/test-validator.ps1` - 9/9 tests passing
-- ✅ Added validator import to felix-agent.ps1
-- ⚠️ **INCOMPLETE:** Validator functions are still in felix-agent.ps1 (lines 418-537+)
-  - Only the function declarations were commented, but the function bodies remain
-  - felix-agent.ps1 is still ~1940 lines (should be reduced)
+**Completed:**
+
+- ✅ Created guardrails module (felix/core/guardrails.ps1) - 7 tests passing
+- ✅ Created python-utils module (felix/core/python-utils.ps1) - 4 tests passing
+- ✅ Reduced felix-agent.ps1 from 1367 to 1198 lines (-169 lines)
+- ✅ Total: 91 tests passing
+
+**Remaining:**
+
+- 🔲 felix-agent.ps1 is 1198 lines (target: <200 lines)
+- 🔲 Extract remaining functions: Update-RequirementStatus, Update-RequirementRunId, Invoke-RequirementValidation, Exit-FelixAgent, ConvertTo-Hashtable
+- 🔲 Move configuration setup code to initialization module
+- 🔲 Move main execution loop to executor module
+- 🔲 Final cleanup and testing
 
 ### Test Results
 
-- **Total tests passing:** 59/59 (100% success rate)
-- **PowerShell version:** 5.1.26100.7462 (all modules compatible)
+- **Total tests passing:** 91/91 (100% success rate)
+- **Modules:** 13 compat-utils + 14 agent-state + 12 git-manager + 11 state-manager + 9 plugin-manager + 9 validator + 4 workflow + 8 agent-registration + 7 guardrails + 4 python-utils
 
 ---
 
@@ -135,90 +124,206 @@ When a module function has different parameter names than the original:
 
 ## Next Steps (Priority Order)
 
-### Immediate (Complete Day 6)
+### Complete Day 7 (Reduce to <200 Lines)
 
-1. **Remove validator function bodies from felix-agent.ps1**
-   - Read lines 418-540 and 539-710 to find exact boundaries
-   - Replace entire functions with single comment lines
-   - Verify line count drops to ~1650
+**Current:** 1198 lines → **Target:** <200 lines → **Need to extract:** ~1000 lines
 
-2. **Commit validator extraction**
+#### Phase 1: Extract Remaining Helper Functions (30-40 minutes)
 
-   ```powershell
-   git add .
-   git commit -m "refactor: Extract backpressure validation to module (Day 6 - partial)`n`n- Created felix/core/validator.ps1 with validation functions`n- Created comprehensive tests (9/9 passing)`n- Reduced felix-agent.ps1 by ~290 lines"
-   ```
+1. **Create requirements-utils.ps1 module**
+   - Extract: `Update-RequirementStatus`, `Update-RequirementRunId`, `Invoke-RequirementValidation`
+   - These are thin wrappers around state-manager and Python validation script
+   - Create `felix/tests/test-requirements-utils.ps1` (basic tests)
+   - Expected reduction: ~150 lines
 
-3. **Extract logger functions**
-   - Search for `^function Write-FelixLog` in felix-agent.ps1
-   - Create `felix/core/logger.ps1`
-   - Create tests `felix/tests/test-logger.ps1`
-   - Target: Simple logging with color support, no complex dependencies
+2. **Create exit-handler.ps1 module**
+   - Extract: `Exit-FelixAgent`, `ConvertTo-Hashtable`
+   - Handles cleanup on agent termination
+   - Create `felix/tests/test-exit-handler.ps1`
+   - Expected reduction: ~60 lines
 
-4. **Extract workflow functions**
-   - Search for `^function Set-WorkflowStage` in felix-agent.ps1
-   - Create `felix/core/workflow.ps1`
-   - Create tests `felix/tests/test-workflow.ps1`
-   - This should be lightweight
+**Commit checkpoint:**
 
-5. **Extract agent-registration functions**
-   - Search for `^function (Register-Agent|Send-AgentHeartbeat|Start-HeartbeatJob|Stop-HeartbeatJob)`
-   - Create `felix/core/agent-registration.ps1`
-   - Create tests `felix/tests/test-agent-registration.ps1`
-   - These functions interact with external services - mock carefully in tests
+```powershell
+git commit -m "refactor: Extract requirements-utils and exit-handler (Day 7 - part 2)"
+```
 
-6. **Commit Day 6 complete**
-   ```powershell
-   git commit -m "refactor: Complete Day 6 - utilities extraction`n`n- Extracted logger, workflow, and agent-registration modules`n- All tests passing`n- felix-agent.ps1 reduced to ~800-1000 lines"
-   ```
+#### Phase 2: Extract Configuration and Initialization (40-60 minutes)
 
-### Day 7: Main Script Refactor
+3. **Create config-loader.ps1 module**
+   - Function: `Initialize-FelixConfiguration`
+   - Consolidate all config loading: felix/config.json, ~/.felix/agents.json, path validation
+   - Returns structured configuration object
+   - Expected reduction: ~200 lines
 
-**Goal:** Reduce felix-agent.ps1 to <200 lines
+4. **Create initialization.ps1 module**
+   - Function: `Initialize-FelixAgent`
+   - Consolidate: state loading, Python resolution, plugin setup, agent registration
+   - Returns initialized agent context
+   - Expected reduction: ~150 lines
 
-**Strategy:**
+**Commit checkpoint:**
 
-1. felix-agent.ps1 should only contain:
-   - Module imports (dot-sourcing)
-   - Parameter validation
-   - Main execution loop
-   - Exit handlers
-2. All helper functions should be in modules
-3. Look for these candidates to extract:
-   - `Exit-FelixAgent` function
-   - Any remaining utility functions
-   - Configuration loading logic
+```powershell
+git commit -m "refactor: Extract config-loader and initialization (Day 7 - part 3)"
+```
 
-**Testing:**
+#### Phase 3: Extract Main Execution Loop (60-90 minutes)
 
-- Run actual felix agent with a test requirement
-- Verify all module functions are accessible
-- Check that state machine transitions still work
+5. **Create executor.ps1 module**
+   - Function: `Invoke-FelixExecutionLoop`
+   - Move the entire main loop logic (~600-700 lines)
+   - Parameters: agent context, configuration, requirement ID
+   - This is the heart of the agent - careful testing required
 
-### Day 8: Documentation & Final Testing
+6. **Simplify felix-agent.ps1 to orchestrator only**
+   - Final structure (~150 lines):
+
+     ```powershell
+     # Parameters
+     param([string]$ProjectPath, [string]$RequirementId, [switch]$NoCommit)
+
+     # Module imports (12 lines)
+     . "$PSScriptRoot/felix/core/*.ps1"
+
+     # Initialize
+     $config = Initialize-FelixConfiguration -ProjectPath $ProjectPath
+     $context = Initialize-FelixAgent -Config $config
+
+     # Execute
+     try {
+         Invoke-FelixExecutionLoop -Context $context -RequirementId $RequirementId
+     }
+     finally {
+         Exit-FelixAgent -Context $context
+     }
+     ```
+
+7. **Create comprehensive integration test**
+   - Test full agent execution with a minimal requirement
+   - Verify state transitions, git operations, backpressure validation
+   - Run existing test suite to ensure nothing broke
+
+**Final commit:**
+
+```powershell
+git commit -m "refactor: Complete Day 7 - Main script refactor`n`n- Extracted executor.ps1 with main loop`n- Reduced felix-agent.ps1 to <200 lines (orchestrator only)`n- All 91+ tests passing`n- Integration test verified"
+```
+
+#### Testing Strategy for Day 7
+
+After each phase:
+
+1. Run all unit tests: `Get-ChildItem felix/tests/test-*.ps1 | ForEach-Object { & $_.FullName }`
+2. Verify no syntax errors: Check file can be dot-sourced
+3. Run a simple agent invocation: `.\felix-agent.ps1 C:\path\to\test-project -RequirementId S-TEST`
+
+### Day 8: Documentation & Verification (2-3 hours)
+
+### Day 8: Documentation & Verification (2-3 hours)
 
 1. **Run comprehensive test suite**
 
    ```powershell
-   # Should run all 70+ tests
-   Get-ChildItem felix/tests/test-*.ps1 | ForEach-Object { & $_.FullName }
+   # Run all 90+ tests
+   Get-ChildItem felix/tests/test-*.ps1 | ForEach-Object {
+       Write-Host "`n=== $($_.Name) ===" -ForegroundColor Cyan
+       & $_.FullName
+   }
    ```
 
 2. **Update AGENTS.md**
-   - Document new module structure
-   - Update "How to Run Tests" section to include module tests
-   - Add module import pattern for future development
+   - Add section: "## Module Architecture"
+   - Document each core module with 1-sentence description
+   - Update test running section to include module tests
+   - Add troubleshooting section for module import issues
 
-3. **Create module documentation**
-   - `felix/core/README.md` explaining each module
-   - API documentation for exported functions
-   - Examples of usage
+3. **Create felix/core/README.md**
 
-4. **Final commit & verification**
-   - Verify all tests pass
-   - Check felix-agent.ps1 is <200 lines
-   - Verify actual agent execution works
-   - Branch ready for PR
+   ```markdown
+   # Felix Core Modules
+
+   ## Architecture Overview
+
+   The Felix agent is built on a modular architecture with clear separation of concerns.
+
+   ## Module Descriptions
+
+   - **compat-utils.ps1** - PowerShell 5.1 compatibility (Coalesce-Value, Ternary, etc.)
+   - **agent-state.ps1** - Formal state machine with validated transitions
+   - **git-manager.ps1** - All git operations (branch, commit, state tracking)
+   - **state-manager.ps1** - Requirements.json CRUD operations
+   - **plugin-manager.ps1** - Plugin discovery, loading, and circuit breaker
+   - **validator.ps1** - Backpressure validation (tests, builds, lints)
+   - **workflow.ps1** - Workflow stage tracking for UI visualization
+   - **agent-registration.ps1** - Backend API communication (registration, heartbeats)
+   - **guardrails.ps1** - Planning mode enforcement (prevent unauthorized changes)
+   - **python-utils.ps1** - Python executable resolution
+   - **requirements-utils.ps1** - Requirement status updates and validation
+   - **exit-handler.ps1** - Clean shutdown and resource cleanup
+   - **config-loader.ps1** - Configuration loading and validation
+   - **initialization.ps1** - Agent initialization and setup
+   - **executor.ps1** - Main execution loop (Planning/Building modes)
+   ```
+
+4. **Integration test run**
+   - Start backend: `python app/backend/main.py`
+   - Run agent on seed requirement: `.\felix-agent.ps1 C:\dev\Felix -RequirementId S-0001`
+   - Verify: Planning mode works, Building mode works, Backpressure runs, Git commits happen
+   - Check: All module functions accessible, no import errors
+
+5. **Final verification checklist**
+   - [ ] All 90+ tests passing
+   - [ ] felix-agent.ps1 < 200 lines
+   - [ ] No syntax errors in any file
+   - [ ] Agent successfully completes a full requirement
+   - [ ] Documentation updated (AGENTS.md, felix/core/README.md)
+   - [ ] Git history clean (meaningful commits)
+
+6. **Final commit**
+   ```powershell
+   git commit -m "refactor: Complete Day 8 - Documentation and final verification`n`n- Updated AGENTS.md with module architecture`n- Created felix/core/README.md`n- All integration tests passing`n- Ready for PR"
+   ```
+
+---
+
+## Key Architectural Decisions
+
+### Why This Module Structure?
+
+1. **Separation of Concerns**: Each module handles one responsibility
+2. **Testability**: Every module can be tested in isolation
+3. **Reusability**: Modules can be used by other tools (felix-loop.ps1, future agents)
+4. **Maintainability**: Changes to one area don't ripple across the codebase
+5. **Clarity**: New developers can understand each piece independently
+
+### Module Dependencies
+
+```
+felix-agent.ps1 (orchestrator)
+  ├── compat-utils.ps1 (no deps)
+  ├── agent-state.ps1 (no deps)
+  ├── git-manager.ps1 (no deps)
+  ├── state-manager.ps1 (no deps)
+  ├── plugin-manager.ps1 (uses compat-utils)
+  ├── validator.ps1 (uses git-manager for backpressure)
+  ├── workflow.ps1 (no deps)
+  ├── agent-registration.ps1 (no deps)
+  ├── guardrails.ps1 (uses git-manager)
+  ├── python-utils.ps1 (no deps)
+  ├── requirements-utils.ps1 (uses state-manager)
+  ├── exit-handler.ps1 (uses workflow, agent-registration)
+  ├── config-loader.ps1 (uses python-utils)
+  ├── initialization.ps1 (uses config-loader, state-manager, plugin-manager)
+  └── executor.ps1 (uses all above modules)
+```
+
+### Critical Design Patterns
+
+1. **Backward-Compatible Wrappers**: When module functions have different signatures than original code, create wrapper functions in felix-agent.ps1 that translate parameters
+2. **Script-Scoped Variables**: Use aliases to avoid recursive calls when wrapping functions with the same name
+3. **Error Handling**: Modules fail gracefully and return structured results (hashtables with success/failure indicators)
+4. **No Side Effects**: Modules don't modify global state unless explicitly designed to (like state-manager.ps1)
 
 ---
 
@@ -230,22 +335,43 @@ felix/
 │   ├── agent-state.ps1            # State machine (Day 2)
 │   ├── compat-utils.ps1           # PS 5.1 compatibility (Day 1)
 │   ├── git-manager.ps1            # Git operations (Day 3)
-│   ├── plugin-manager.ps1         # Plugin system (Day 5)
 │   ├── state-manager.ps1          # Requirements.json (Day 4)
-│   └── validator.ps1              # Backpressure validation (Day 6)
+│   ├── plugin-manager.ps1         # Plugin system (Day 5)
+│   ├── validator.ps1              # Backpressure validation (Day 6)
+│   ├── workflow.ps1               # Workflow stage tracking (Day 6)
+│   ├── agent-registration.ps1     # Backend API communication (Day 6)
+│   ├── guardrails.ps1             # Planning mode enforcement (Day 7)
+│   ├── python-utils.ps1           # Python command resolution (Day 7)
+│   ├── requirements-utils.ps1     # Requirement operations (Day 7 - todo)
+│   ├── exit-handler.ps1           # Clean shutdown (Day 7 - todo)
+│   ├── config-loader.ps1          # Configuration loading (Day 7 - todo)
+│   ├── initialization.ps1         # Agent setup (Day 7 - todo)
+│   ├── executor.ps1               # Main execution loop (Day 7 - todo)
+│   └── README.md                  # Module documentation (Day 8)
 │
 ├── tests/                          # Test files
 │   ├── test-framework.ps1         # Test infrastructure (Day 1)
 │   ├── test-helpers.ps1           # Test utilities (Day 1)
-│   ├── test-agent-state.ps1       # State machine tests (Day 2)
-│   ├── test-compat-utils.ps1      # Compatibility tests (Day 1)
-│   ├── test-git-manager.ps1       # Git tests (Day 3)
-│   ├── test-plugin-manager.ps1    # Plugin tests (Day 5)
-│   ├── test-state-manager.ps1     # State management tests (Day 4)
-│   └── test-validator.ps1         # Validator tests (Day 6)
+│   ├── test-agent-state.ps1       # State machine tests (Day 2) - 14 tests
+│   ├── test-compat-utils.ps1      # Compatibility tests (Day 1) - 13 tests
+│   ├── test-git-manager.ps1       # Git tests (Day 3) - 12 tests
+│   ├── test-state-manager.ps1     # State management tests (Day 4) - 11 tests
+│   ├── test-plugin-manager.ps1    # Plugin tests (Day 5) - 9 tests
+│   ├── test-validator.ps1         # Validator tests (Day 6) - 9 tests
+│   ├── test-workflow.ps1          # Workflow tests (Day 6) - 4 tests
+│   ├── test-agent-registration.ps1 # Agent registration tests (Day 6) - 8 tests
+│   ├── test-guardrails.ps1        # Guardrails tests (Day 7) - 7 tests
+│   ├── test-python-utils.ps1      # Python utils tests (Day 7) - 4 tests
+│   ├── test-requirements-utils.ps1 # Requirements tests (Day 7 - todo)
+│   ├── test-exit-handler.ps1      # Exit handler tests (Day 7 - todo)
+│   ├── test-config-loader.ps1     # Config loader tests (Day 7 - todo)
+│   ├── test-initialization.ps1    # Initialization tests (Day 7 - todo)
+│   └── test-executor.ps1          # Executor tests (Day 7 - todo)
 │
-felix-agent.ps1                     # Main script (1940 lines → target <200)
+felix-agent.ps1                     # Main orchestrator (1198→<200 lines)
 ```
+
+**Current Progress:** 10/15 modules complete, 91 tests passing
 
 ---
 
