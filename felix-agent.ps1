@@ -22,7 +22,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load compatibility utilities, state machine, git operations, state management, plugins, validator, workflow, agent registration, guardrails, and python utils
+# Load compatibility utilities, state machine, git operations, state management, plugins, validator, workflow, agent registration, guardrails, python utils, requirements utils, and exit handler
 . "$PSScriptRoot/felix/core/compat-utils.ps1"
 . "$PSScriptRoot/felix/core/agent-state.ps1"
 . "$PSScriptRoot/felix/core/git-manager.ps1"
@@ -33,6 +33,8 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot/felix/core/agent-registration.ps1"
 . "$PSScriptRoot/felix/core/guardrails.ps1"
 . "$PSScriptRoot/felix/core/python-utils.ps1"
+. "$PSScriptRoot/felix/core/requirements-utils.ps1"
+. "$PSScriptRoot/felix/core/exit-handler.ps1"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -64,136 +66,15 @@ Write-Host $ProjectPath -ForegroundColor Cyan
 
 # Note: Undo-PlanningViolations is now in felix/core/guardrails.ps1
 
-# Note: Core state management is now in felix/core/state-manager.ps1
-# This wrapper maintains backward compatibility with the legacy parameter names
-function Update-RequirementStatus {
-    param(
-        [string]$RequirementsFilePath,
-        [string]$RequirementId,
-        [ValidateSet('draft', 'planned', 'in_progress', 'complete', 'blocked')]
-        [string]$NewStatus
-    )
-    
-    try {
-        # Call the state-manager function with correct parameter name mapping
-        & (Get-Module -ListAvailable | Where-Object { $_.ExportedFunctions.Keys -contains 'Update-RequirementStatus' }).ExportedFunctions['Update-RequirementStatus'] `
-            -RequirementsFile $RequirementsFilePath -RequirementId $RequirementId -Status $NewStatus
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
-        return $true
-    }
-    catch {
-        # Fallback to inline implementation if module function not available
-        $json = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
-        $found = $false
-        if ($json.requirements) {
-            foreach ($req in $json.requirements) {
-                if ($req.id -eq $RequirementId) {
-                    $req.status = $NewStatus
-                    $found = $true
-                    break
-                }
-            }
-        }
-        if (-not $found) {
-            Write-Host "[REQUIREMENTS] Warning: Requirement $RequirementId not found" -ForegroundColor Yellow
-            return $false
-        }
-        $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
-        Write-Host "[REQUIREMENTS] Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
-        return $true
-    }
-}
+# Note: Update-RequirementStatus is now in felix/core/requirements-utils.ps1
 
-function Update-RequirementRunId {
-    <#
-    .SYNOPSIS
-    Updates the last_run_id field for a specific requirement in requirements.json
-    #>
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$RequirementsFilePath,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$RequirementId,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$RunId
-    )
-    
-    try {
-        if (-not (Test-Path $RequirementsFilePath)) {
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Requirements file not found: $RequirementsFilePath" -ForegroundColor Red
-            return $false
-        }
-        $json = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
-        $found = $false
-        foreach ($req in $json.requirements) {
-            if ($req.id -eq $RequirementId) {
-                # Always use Add-Member with -Force to handle both new and existing properties
-                $req | Add-Member -NotePropertyName "last_run_id" -NotePropertyValue $RunId -Force
-                $found = $true
-                break
-            }
-        }
-        if (-not $found) {
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Could not find requirement $RequirementId in requirements.json" -ForegroundColor Yellow
-            return $false
-        }
-        $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Updated $RequirementId with last_run_id: $RunId" -ForegroundColor Green
-        return $true
-    }
-    catch {
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Error updating last_run_id: $_" -ForegroundColor Red
-        return $false
-    }
-}
+# Note: Update-RequirementRunId is now in felix/core/requirements-utils.ps1
 
 # Note: Resolve-PythonCommand is now in felix/core/python-utils.ps1
 
 # Set-WorkflowStage: Now in felix/core/workflow.ps1
 
-function Invoke-RequirementValidation {
-    <#
-    .SYNOPSIS
-    Runs scripts/validate-requirement.ps1 (PowerShell validation script)
-    #>
-    param(
-        [string]$ValidationScript,
-        [string]$RequirementId
-    )
-    
-    Write-Host "[VALIDATION] Script: $ValidationScript"
-    Write-Host "[VALIDATION] Requirement: $RequirementId"
-    
-    # Call PowerShell validation script directly
-    $prevErrorAction = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    
-    try {
-        # Execute the PowerShell validation script
-        $output = & $ValidationScript $RequirementId 2>&1 | Out-String
-        $exitCode = $LASTEXITCODE
-        
-        if ($null -eq $exitCode) {
-            $exitCode = 0
-        }
-    }
-    catch {
-        $output = $_.Exception.Message
-        $exitCode = 1
-    }
-    finally {
-        $ErrorActionPreference = $prevErrorAction
-    }
-    
-    return @{ output = $output; exitCode = $exitCode }
-}
+# Note: Invoke-RequirementValidation is now in felix/core/requirements-utils.ps1
 
 # Get-BackpressureCommands: Now in felix/core/validator.ps1
 
@@ -360,29 +241,11 @@ function Unregister-Agent {
     Unregister-AgentInternal -AgentId $AgentId -BackendBaseUrl $script:BackendBaseUrl
 }
 
+# Exit-FelixAgent: Now in felix/core/exit-handler.ps1
+# Wrapper provides backward compatibility with script-scoped variables
 function Exit-FelixAgent {
-    <#
-    .SYNOPSIS
-    Cleanly exit the agent with proper cleanup
-    #>
-    param(
-        [int]$ExitCode = 0
-    )
-    
-    # Clear workflow stage on exit
-    if ($script:ProjectPath) {
-        Set-WorkflowStage -Clear -ProjectPath $script:ProjectPath
-    }
-    
-    # Stop heartbeat job
-    Stop-HeartbeatJob
-    
-    # Unregister agent if we have an agent ID
-    if ($script:agentId) {
-        Unregister-Agent -AgentId $script:agentId
-    }
-    
-    exit $ExitCode
+    param([int]$ExitCode = 0)
+    Exit-FelixAgent -ExitCode $ExitCode -ProjectPath $script:ProjectPath -AgentId $script:agentId -HeartbeatJob $script:HeartbeatJob
 }
 
 # Store agent name and ID in script scope for cleanup function
@@ -483,30 +346,7 @@ else {
 $RequirementId = $currentReq.id
 
 # Helper function to convert PSCustomObject to hashtable recursively
-function ConvertTo-Hashtable {
-    param([Parameter(ValueFromPipeline)]$InputObject)
-    
-    process {
-        if ($null -eq $InputObject) { return $null }
-        
-        if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
-            $collection = @(
-                foreach ($object in $InputObject) { ConvertTo-Hashtable $object }
-            )
-            return , $collection
-        }
-        elseif ($InputObject -is [PSCustomObject]) {
-            $hashtable = @{}
-            foreach ($property in $InputObject.PSObject.Properties) {
-                $hashtable[$property.Name] = ConvertTo-Hashtable $property.Value
-            }
-            return $hashtable
-        }
-        else {
-            return $InputObject
-        }
-    }
-}
+# Note: ConvertTo-Hashtable is now in felix/core/exit-handler.ps1
 
 # Load or initialize state
 $state = if (Test-Path $StateFile) {
