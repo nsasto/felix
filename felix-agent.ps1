@@ -22,6 +22,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Load compatibility utilities
+. "$PSScriptRoot/felix/core/compat-utils.ps1"
+
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
 chcp 65001 | Out-Null
@@ -643,10 +646,13 @@ function Invoke-BackpressureValidation {
             Write-Host "  [$($cmd.type)] Executing: $($cmd.command)"
             
             try {
-                # Execute the command
+                # Execute the command safely without Invoke-Expression
                 $prevErrorAction = $ErrorActionPreference
                 $ErrorActionPreference = "Continue"
-                $cmdOutput = Invoke-Expression $cmd.command 2>&1
+                
+                # Use PowerShell's call operator with scriptblock for safe execution
+                $scriptBlock = [scriptblock]::Create($cmd.command)
+                $cmdOutput = & $scriptBlock 2>&1
                 $exitCode = $LASTEXITCODE
                 $ErrorActionPreference = $prevErrorAction
                 
