@@ -156,6 +156,30 @@ public partial class MainWindow
         }
     }
 
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            // Double-click to maximize/restore
+            MaximizeButton_Click(sender, e);
+        }
+        else
+        {
+            // Single click to drag
+            DragMove();
+        }
+    }
+
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         // Save settings and hide window (keep app running in tray)
