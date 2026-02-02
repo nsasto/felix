@@ -498,9 +498,9 @@ runs/2026-01-27T14-30-00/
 
 ## Related Documentation
 
-- [Artifacts Guide](ARTIFACTS_GUIDE.md) - File structure and artifact lifecycle
-- [Ralph Philosophy](RALPH_PHILOSOPHY.md) - Why this execution model works
-- [Agent Configuration](../felix/agents.md) - Agent profiles and registration
+- [Artifacts](FELIX_EXPLAINED.md) - Durable memory, plans, and artifact lifecycle
+- [Ralph Explained](RALPH_EXPLAINED.md) - Why this execution model works
+- [Agent Config Explained](AGENT_CONFIG_EXPLAINED.md) - Agent profiles and registration
 
 ---
 
