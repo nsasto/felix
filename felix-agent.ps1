@@ -22,9 +22,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load compatibility utilities and state machine
+# Load compatibility utilities, state machine, and git operations
 . "$PSScriptRoot/felix/core/compat-utils.ps1"
 . "$PSScriptRoot/felix/core/agent-state.ps1"
+. "$PSScriptRoot/felix/core/git-manager.ps1"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -51,41 +52,7 @@ Write-Host $ProjectPath -ForegroundColor Cyan
 # ============================================================================
 # Mode Guardrails Functions
 # ============================================================================
-
-function Get-GitState {
-    <#
-    .SYNOPSIS
-    Captures the current git state for guardrail comparison
-    #>
-    param([string]$WorkingDir)
-    
-    Push-Location $WorkingDir
-    try {
-        $state = @{
-            CommitHash     = $null
-            ModifiedFiles  = @()
-            UntrackedFiles = @()
-        }
-        
-        # Get current commit hash
-        $state.CommitHash = git rev-parse HEAD 2>$null
-        
-        # Get list of modified files (staged and unstaged)
-        $state.ModifiedFiles = @(git diff --name-only HEAD 2>$null)
-        $staged = @(git diff --name-only --cached 2>$null)
-        if ($staged) {
-            $state.ModifiedFiles = @($state.ModifiedFiles) + @($staged) | Select-Object -Unique
-        }
-        
-        # Get untracked files
-        $state.UntrackedFiles = @(git ls-files --others --exclude-standard 2>$null)
-        
-        return $state
-    }
-    finally {
-        Pop-Location
-    }
-}
+# Note: Get-GitState is now in felix/core/git-manager.ps1
 
 function Test-PlanningModeGuardrails {
     <#
@@ -118,7 +85,7 @@ function Test-PlanningModeGuardrails {
         $afterState = Get-GitState -WorkingDir $WorkingDir
         
         # Check if a new commit was made
-        if ($afterState.CommitHash -ne $BeforeState.CommitHash) {
+        if ($afterState.commitHash -ne $BeforeState.commitHash) {
             $violations.CommitMade = $true
             $violations.HasViolations = $true
             Write-Host "[GUARDRAIL VIOLATION] " -NoNewline -ForegroundColor Red
@@ -126,13 +93,13 @@ function Test-PlanningModeGuardrails {
         }
         
         # Check for unauthorized file modifications
-        $allModifiedFiles = @($afterState.ModifiedFiles) + @($afterState.UntrackedFiles) | 
+        $allModifiedFiles = @($afterState.modifiedFiles) + @($afterState.untrackedFiles) | 
         Where-Object { $_ -and $_.Trim() -ne "" } |
         Select-Object -Unique
         
         foreach ($file in $allModifiedFiles) {
             # Skip if file was already modified before
-            if ($BeforeState.ModifiedFiles -contains $file -or $BeforeState.UntrackedFiles -contains $file) {
+            if ($BeforeState.modifiedFiles -contains $file -or $BeforeState.untrackedFiles -contains $file) {
                 continue
             }
             
@@ -184,7 +151,7 @@ function Undo-PlanningViolations {
         if ($Violations.CommitMade) {
             Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
             Write-Host "Reverting unauthorized commit..." -ForegroundColor Yellow
-            git reset --soft $BeforeState.CommitHash 2>$null
+            git reset --soft $BeforeState.commitHash 2>$null
         }
         
         # Revert unauthorized file changes
