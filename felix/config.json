@@ -33,7 +33,9 @@
     "circuit_breaker_max_failures": 3,
     "commands": []
   },
-  "ui": {},
+  "ui": {
+    "theme": "light"
+  },
   "copilot": {
     "enabled": true,
     "provider": "openai",
