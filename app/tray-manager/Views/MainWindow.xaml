@@ -1,0 +1,637 @@
+<ui:FluentWindow x:Class="FelixTrayApp.Views.MainWindow"
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                xmlns:vm="clr-namespace:FelixTrayApp.ViewModels"
+                xmlns:md="clr-namespace:MdXaml;assembly=MdXaml"
+                mc:Ignorable="d"
+                Title="Felix Tray App"
+                Width="1100"
+                Height="700"
+                WindowBackdropType="Mica"
+                WindowCornerPreference="Round"
+                ExtendsContentIntoTitleBar="True"
+                WindowStartupLocation="CenterScreen">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        
+        <!-- Markdown Style -->
+        <Style x:Key="MarkdownStyle" TargetType="FlowDocument">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Emoji, Segoe UI Symbol, Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{DynamicResource MainBackgroundBrush}">
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="60" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Navigation Panel -->
+        <Border Grid.Column="0" 
+                Background="{DynamicResource SidebarBackgroundBrush}" 
+                BorderBrush="{DynamicResource SidebarBorderBrush}" 
+                BorderThickness="0,0,1,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="50" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- App Title -->
+                <Image Grid.Row="0" Source="pack://application:,,,/Assets/app.ico" 
+                       Width="32" Height="32"
+                       VerticalAlignment="Center" HorizontalAlignment="Center" />
+
+                <!-- Navigation Items -->
+                <StackPanel Grid.Row="1" Margin="0,20,0,0" HorizontalAlignment="Center">
+                    <ui:Button Icon="{ui:SymbolIcon Desktop24}" 
+                              Appearance="Secondary"
+                              ToolTip="Agents"
+                              Margin="0,4" />
+                    <ui:Button Icon="{ui:SymbolIcon DocumentText24}" 
+                              Appearance="Secondary"
+                              ToolTip="Logs"
+                              Margin="0,4" />
+                    <ui:Button Icon="{ui:SymbolIcon Settings24}" 
+                              Appearance="Secondary"
+                              ToolTip="Global Settings"
+                              Command="{Binding ShowGlobalSettingsViewCommand}"
+                              Margin="0,4" />
+                </StackPanel>
+
+                <!-- Footer with User Info -->
+                <Border Grid.Row="2" Margin="8" Padding="8" 
+                        Background="{DynamicResource FooterBackgroundBrush}" 
+                        CornerRadius="8">
+                    <ui:SymbolIcon Symbol="Person24" FontSize="20" 
+                                  Foreground="{DynamicResource PrimaryTextBrush}"
+                                  HorizontalAlignment="Center"
+                                  ToolTip="{Binding Path=UserName, FallbackValue='User'}" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Top Toolbar -->
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource ToolbarBackgroundBrush}" 
+                    BorderBrush="{DynamicResource ToolbarBorderBrush}" 
+                    BorderThickness="0,0,0,1" Padding="20,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Title -->
+                    <TextBlock Grid.Column="0" Text="Felix Agent Manager" 
+                              FontSize="16" FontWeight="SemiBold"
+                              Foreground="{DynamicResource PrimaryTextBrush}"
+                              VerticalAlignment="Center" />
+
+                    <!-- Controls -->
+                    <ui:Button Grid.Column="1" 
+                              Icon="{ui:SymbolIcon Dismiss24}" 
+                              ToolTip="Close Window"
+                              Appearance="Secondary"
+                              Click="CloseButton_Click" />
+                </Grid>
+            </Border>
+
+            <!-- Search and Filter Bar -->
+            <Border Grid.Row="1" 
+                    Background="{DynamicResource SearchBarBackgroundBrush}" 
+                    Padding="20,12" 
+                    Visibility="{Binding ShowAgentsList, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <ui:TextBox PlaceholderText="search agents" 
+                                   Icon="{ui:SymbolIcon Search24}" Width="300" 
+                                   Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" 
+                                   Margin="0,0,12,0" />
+                        <ui:Button Content="Add Agent" Icon="{ui:SymbolIcon AddCircle24}" 
+                                  Appearance="Primary" Command="{Binding AddAgentCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SecondaryTextBrush}">
+                        <Run Text="{Binding FilteredAgents.Count, Mode=OneWay}" />
+                        <Run Text="agent(s) configured" />
+                    </TextBlock>
+                </Grid>
+            </Border>
+
+            <!-- Agents Table -->
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowAgentsList, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Section Title -->
+                <TextBlock Grid.Row="0" Text="Agents" FontSize="18" FontWeight="SemiBold" 
+                           Foreground="{DynamicResource PrimaryTextBrush}"
+                           Margin="0,0,0,12" />
+
+                <!-- DataGrid -->
+                <DataGrid x:Name="AgentsDataGrid" Grid.Row="1" 
+                          ItemsSource="{Binding FilteredAgents}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserReorderColumns="False"
+                          CanUserResizeRows="False"
+                          CanUserSortColumns="True"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          SelectionMode="Single"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          RowBackground="{DynamicResource DataGridRowBrush}"
+                          AlternatingRowBackground="{DynamicResource DataGridAlternateRowBrush}"
+                          RowHeight="48">
+
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="{DynamicResource DataGridHeaderBackgroundBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource DataGridHeaderTextBrush}" />
+                            <Setter Property="Padding" Value="12,8" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource DataGridBorderBrush}" />
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                            <Setter Property="Padding" Value="12,0" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="DataGridCell">
+                                        <Border Background="{TemplateBinding Background}" 
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter VerticalAlignment="Center" />
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource DataGridSelectedRowBrush}" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.CellStyle>
+
+                    <DataGrid.Columns>
+                        <!-- Connection Status Column -->
+                        <DataGridTemplateColumn Header="" Width="30">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Ellipse Width="8" Height="8" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="#4CAF50" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                                                        <Setter Property="Fill" Value="#F44336" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn x:Name="AgentNameColumn" Header="Name" Binding="{Binding DisplayName}" Width="*" />
+                        
+                        <!-- Status Column with Icon -->
+                        <DataGridTemplateColumn x:Name="AgentStatusColumn" Header="Status" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon FontSize="16" Margin="0,0,8,0">
+                                            <ui:SymbolIcon.Style>
+                                                <Style TargetType="ui:SymbolIcon">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Disabled">
+                                                            <Setter Property="Symbol" Value="Dismiss24" />
+                                                            <Setter Property="Foreground" Value="#757575" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Idle">
+                                                            <Setter Property="Symbol" Value="Record24" />
+                                                            <Setter Property="Foreground" Value="#9E9E9E" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Busy">
+                                                            <Setter Property="Symbol" Value="ArrowSync24" />
+                                                            <Setter Property="Foreground" Value="#4CAF50" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding DisplayStatus}" Value="Error">
+                                                            <Setter Property="Symbol" Value="ErrorCircle24" />
+                                                            <Setter Property="Foreground" Value="#F44336" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ui:SymbolIcon.Style>
+                                        </ui:SymbolIcon>
+                                        <TextBlock Text="{Binding DisplayStatus}" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn x:Name="AgentLastRunColumn" Header="Last Run" Binding="{Binding LastRunFormatted}" Width="160" />
+                        <DataGridTextColumn x:Name="AgentLastFeatureColumn" Header="Last Feature Name" Binding="{Binding LastFeatureName}" Width="250" />
+
+                        <!-- Operations Column with Buttons -->
+                        <DataGridTemplateColumn x:Name="AgentOperationsColumn" Header="Operations" Width="250">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:Button Icon="{ui:SymbolIcon Settings24}" 
+                                                  Appearance="Secondary"
+                                                  ToolTip="Configure Agent"
+                                                  Command="{Binding DataContext.ConfigureAgentCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" Margin="0,0,8,0" />
+                                        <ui:Button Icon="{ui:SymbolIcon History24}" 
+                                                  Appearance="Secondary"
+                                                  ToolTip="View Run History"
+                                                  Command="{Binding DataContext.ShowRunHistoryCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" Margin="0,0,8,0" />
+                                        <ui:Button ToolTip="Toggle Active Status" 
+                                                  Appearance="Secondary"
+                                                  Command="{Binding DataContext.ToggleAgentActiveCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" Margin="0,0,8,0">
+                                            <ui:Button.Style>
+                                                <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter Property="Icon" Value="{ui:SymbolIcon Checkmark24}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                            <Setter Property="Icon" Value="{ui:SymbolIcon Dismiss24}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ui:Button.Style>
+                                        </ui:Button>
+                                        <ui:Button Icon="{ui:SymbolIcon Delete24}" 
+                                                  Appearance="Secondary"
+                                                  ToolTip="Remove Agent"
+                                                  Command="{Binding DataContext.RemoveAgentCommand, 
+                                                           RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+
+            <!-- Agent Settings Form -->
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowAgentSettings, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Section Title -->
+                <TextBlock Grid.Row="0" Text="Agent Settings" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,20" Foreground="{DynamicResource PrimaryTextBrush}" />
+
+                <!-- Settings Form -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="600" HorizontalAlignment="Left">
+                        
+                        <!-- Name (Auto) -->
+                        <TextBlock Text="Name (auto-generated)" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
+                        <ui:TextBox Text="{Binding SelectedAgent.Name}" 
+                                   IsReadOnly="True"
+                                   Margin="0,0,0,20" />
+
+                        <!-- Friendly Name -->
+                        <TextBlock Text="Friendly Name" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
+                        <ui:TextBox Text="{Binding SelectedAgent.FriendlyName, UpdateSourceTrigger=PropertyChanged}" 
+                                   PlaceholderText="Enter a custom display name"
+                                   Margin="0,0,0,20" />
+
+                        <!-- Path to Agent -->
+                        <TextBlock Text="Path to Agent Script" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" 
+                                       Text="{Binding SelectedAgent.AgentPath, UpdateSourceTrigger=PropertyChanged}" 
+                                       PlaceholderText="C:\path\to\felix-agent.ps1"
+                                       Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="1" 
+                                      Content="Browse..." 
+                                      Command="{Binding BrowseAgentPathCommand}" />
+                        </Grid>
+
+                        <!-- Project Folder -->
+                        <TextBlock Text="Project Folder" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" 
+                                       Text="{Binding SelectedAgent.ProjectFolder, UpdateSourceTrigger=PropertyChanged}" 
+                                       PlaceholderText="C:\projects\roboza\felix"
+                                       Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="1" 
+                                      Content="Browse..." 
+                                      Command="{Binding BrowseProjectFolderCommand}" />
+                        </Grid>
+
+                        <!-- Server Address -->
+                        <TextBlock Text="Server Address" Foreground="{DynamicResource FormLabelBrush}" FontSize="13" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0" 
+                                       Text="{Binding SelectedAgent.ServerAddress, UpdateSourceTrigger=PropertyChanged}" 
+                                       PlaceholderText="http://localhost:8080"
+                                       Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="1" 
+                                      Content="Test" 
+                                      Icon="{ui:SymbolIcon CheckmarkCircle24}"
+                                      Command="{Binding TestConnectionCommand}" />
+                        </Grid>
+
+                        <!-- Enabled Toggle -->
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Enabled" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="14" VerticalAlignment="Center" />
+                            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SelectedAgent.IsActive}" />
+                        </Grid>
+
+                        <!-- Enable Logging Toggle -->
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Enable Logging" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="14" VerticalAlignment="Center" />
+                            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SelectedAgent.EnableLogging}" />
+                        </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Action Buttons -->
+                <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,20,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:Button Grid.Column="0" 
+                                  Content="Delete" 
+                                  Icon="{ui:SymbolIcon Delete24}"
+                                  Appearance="Danger"
+                                  Command="{Binding DeleteAgentCommand}" />
+
+                        <ui:Button Grid.Column="2" 
+                                  Content="Cancel" 
+                                  Appearance="Secondary"
+                                  Command="{Binding CancelSettingsCommand}"
+                                  Margin="0,0,12,0" />
+
+                        <ui:Button Grid.Column="3" 
+                                  Content="Save" 
+                                  Icon="{ui:SymbolIcon Save24}"
+                                  Appearance="Primary"
+                                  Command="{Binding SaveAgentCommand}" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Run History View -->
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowRunHistoryView, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Header with Back Button -->
+                <Grid Grid.Row="0" Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:Button Grid.Column="0" 
+                              Content="Back to Agents" 
+                              Icon="{ui:SymbolIcon ArrowLeft24}"
+                              Command="{Binding BackToAgentsListCommand}"
+                              Margin="0,0,20,0" />
+                    
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Run History" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock Text="{Binding SelectedAgent.DisplayName}" FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Split View: Runs List and Details -->
+                <Grid Grid.Row="1" x:Name="RunHistoryGrid">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="RunHistoryLeftColumn" Width="300" MinWidth="200" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" MinWidth="300" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Runs List -->
+                    <Border Grid.Column="0" Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Margin="0,0,5,0" Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="Recent Runs" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,12" />
+                            
+                            <ListBox Grid.Row="1" 
+                                    ItemsSource="{Binding RunHistoryItems}"
+                                    SelectedItem="{Binding SelectedRun}"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" Padding="8,4">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- GridSplitter -->
+                    <GridSplitter Grid.Column="1" 
+                                 Width="10" 
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Stretch"
+                                 Background="{DynamicResource DataGridHeaderBackgroundBrush}"
+                                 ShowsPreview="False"
+                                 ResizeBehavior="PreviousAndNext"
+                                 ResizeDirection="Columns"
+                                 DragCompleted="GridSplitter_DragCompleted" />
+
+                    <!-- Run Details with Tabs -->
+                    <Border Grid.Column="2" Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Margin="5,0,0,0" Padding="12">
+                        <TabControl>
+                            <TabItem Header="Plan">
+                                <md:MarkdownScrollViewer Markdown="{Binding PlanContent, Mode=OneWay}"
+                                                        Background="Transparent"
+                                                        MarkdownStyle="{StaticResource MarkdownStyle}"
+                                                        Padding="12" />
+                            </TabItem>
+                            <TabItem Header="Output">
+                                <md:MarkdownScrollViewer Markdown="{Binding OutputContent, Mode=OneWay}"
+                                                        Background="Transparent"
+                                                        MarkdownStyle="{StaticResource MarkdownStyle}"
+                                                        Padding="12" />
+                            </TabItem>
+                            <TabItem Header="Report">
+                                <md:MarkdownScrollViewer Markdown="{Binding ReportContent, Mode=OneWay}"
+                                                        Background="Transparent"
+                                                        MarkdownStyle="{StaticResource MarkdownStyle}"
+                                                        Padding="12" />
+                            </TabItem>
+                        </TabControl>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!-- Global Settings View -->
+            <Grid Grid.Row="2" Margin="20" Visibility="{Binding ShowGlobalSettings, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Grid Grid.Row="0" Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:Button Grid.Column="0" 
+                              Content="Back to Agents" 
+                              Icon="{ui:SymbolIcon ArrowLeft24}"
+                              Command="{Binding BackToAgentsListCommand}"
+                              Margin="0,0,20,0" />
+                    
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Global Settings" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock Text="Application preferences and configuration" FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Settings Content -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="600" HorizontalAlignment="Left">
+                        
+                        <!-- Theme Section -->
+                        <Border Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Padding="20" Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,12" />
+                                <TextBlock Text="Choose your preferred theme" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,16" />
+                                
+                                <!-- Theme Options -->
+                                <StackPanel>
+                                    <RadioButton GroupName="Theme" 
+                                               Content="Light" 
+                                               IsChecked="{Binding SelectedTheme, Converter={StaticResource ThemeToCheckedConverter}, ConverterParameter=Light}"
+                                               Foreground="{DynamicResource PrimaryTextBrush}"
+                                               Margin="0,0,0,12" />
+                                    
+                                    <RadioButton GroupName="Theme" 
+                                               Content="Dark" 
+                                               IsChecked="{Binding SelectedTheme, Converter={StaticResource ThemeToCheckedConverter}, ConverterParameter=Dark}"
+                                               Foreground="{DynamicResource PrimaryTextBrush}"
+                                               Margin="0,0,0,12" />
+                                    
+                                    <RadioButton GroupName="Theme" 
+                                               Content="System (Use Windows theme)" 
+                                               IsChecked="{Binding SelectedTheme, Converter={StaticResource ThemeToCheckedConverter}, ConverterParameter=System}"
+                                               Foreground="{DynamicResource PrimaryTextBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Additional Settings Placeholder -->
+                        <Border Background="{DynamicResource SectionCardBackgroundBrush}" CornerRadius="8" Padding="20">
+                            <StackPanel>
+                                <TextBlock Text="About" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,12" />
+                                <TextBlock Text="Felix Tray App" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4" />
+                                <TextBlock Text="Version 1.0.0" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4" />
+                                <TextBlock Text="Agent management and monitoring" Foreground="{DynamicResource SecondaryTextBrush}" />
+                            </StackPanel>
+                        </Border>
+                        
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>
