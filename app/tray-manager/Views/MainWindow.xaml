@@ -10,6 +10,9 @@
                 Title="Felix Tray App"
                 Width="1100"
                 Height="700"
+                MinWidth="800"
+                MinHeight="600"
+                ResizeMode="CanResizeWithGrip"
                 WindowBackdropType="Mica"
                 WindowCornerPreference="Round"
                 ExtendsContentIntoTitleBar="True"
@@ -37,6 +40,37 @@
             <ColumnDefinition Width="60" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
+
+        <!-- Draggable Title Bar Area -->
+        <Border Grid.Column="0" Grid.ColumnSpan="2" 
+                Height="40" 
+                VerticalAlignment="Top" 
+                Panel.ZIndex="999"
+                Background="Transparent"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" />
+
+        <!-- Custom Window Control Buttons -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" 
+                    Margin="0,8,8,0" Panel.ZIndex="1000">
+            <ui:Button Icon="{ui:SymbolIcon Subtract20}" 
+                      Appearance="Secondary"
+                      Width="40" Height="32"
+                      ToolTip="Minimize"
+                      Click="MinimizeButton_Click"
+                      Margin="4,0" />
+            <ui:Button Icon="{ui:SymbolIcon Square20}" 
+                      Appearance="Secondary"
+                      Width="40" Height="32"
+                      ToolTip="Maximize"
+                      Click="MaximizeButton_Click"
+                      Margin="4,0" />
+            <ui:Button Icon="{ui:SymbolIcon Dismiss20}" 
+                      Appearance="Secondary"
+                      Width="40" Height="32"
+                      ToolTip="Close"
+                      Click="CloseButton_Click"
+                      Margin="4,0" />
+        </StackPanel>
 
         <!-- Left Navigation Panel -->
         <Border Grid.Column="0" 
@@ -108,13 +142,6 @@
                               FontSize="16" FontWeight="SemiBold"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               VerticalAlignment="Center" />
-
-                    <!-- Controls -->
-                    <ui:Button Grid.Column="1" 
-                              Icon="{ui:SymbolIcon Dismiss24}" 
-                              ToolTip="Close Window"
-                              Appearance="Secondary"
-                              Click="CloseButton_Click" />
                 </Grid>
             </Border>
 
