@@ -22,7 +22,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load compatibility utilities, state machine, git operations, state management, plugins, validator, workflow, agent registration, guardrails, python utils, requirements utils, and exit handler
+# Load core modules
 . "$PSScriptRoot/felix/core/compat-utils.ps1"
 . "$PSScriptRoot/felix/core/agent-state.ps1"
 . "$PSScriptRoot/felix/core/git-manager.ps1"
@@ -35,6 +35,8 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot/felix/core/python-utils.ps1"
 . "$PSScriptRoot/felix/core/requirements-utils.ps1"
 . "$PSScriptRoot/felix/core/exit-handler.ps1"
+. "$PSScriptRoot/felix/core/config-loader.ps1"
+. "$PSScriptRoot/felix/core/initialization.ps1"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -46,7 +48,6 @@ $env:PYTHONIOENCODING = "utf-8"
 # Resolve project path
 try {
     $ProjectPath = Resolve-Path $ProjectPath -ErrorAction Stop
-    # Store in script scope for Exit-FelixAgent cleanup
     $script:ProjectPath = $ProjectPath
 }
 catch {
@@ -58,105 +59,35 @@ catch {
 Write-Host "Felix Agent starting for: " -NoNewline
 Write-Host $ProjectPath -ForegroundColor Cyan
 
-# ============================================================================
-# Mode Guardrails Functions
-# ============================================================================
-# Note: Get-GitState is now in felix/core/git-manager.ps1
-# Note: Test-PlanningModeGuardrails is now in felix/core/guardrails.ps1
+# Get project paths and validate structure
+$paths = Get-ProjectPaths -ProjectPath $ProjectPath
+if (-not (Test-ProjectStructure -Paths $paths)) {
+    exit 1
+}
 
-# Note: Undo-PlanningViolations is now in felix/core/guardrails.ps1
-
-# Note: Update-RequirementStatus is now in felix/core/requirements-utils.ps1
-
-# Note: Update-RequirementRunId is now in felix/core/requirements-utils.ps1
-
-# Note: Resolve-PythonCommand is now in felix/core/python-utils.ps1
-
-# Set-WorkflowStage: Now in felix/core/workflow.ps1
-
-# Note: Invoke-RequirementValidation is now in felix/core/requirements-utils.ps1
-
-# Get-BackpressureCommands: Now in felix/core/validator.ps1
-
-# Invoke-BackpressureValidation: Now in felix/core/validator.ps1
-
-# Key paths
-$SpecsDir = Join-Path $ProjectPath "specs"
-$FelixDir = Join-Path $ProjectPath "felix"
-$RunsDir = Join-Path $ProjectPath "runs"
-$AgentsFile = Join-Path $ProjectPath "AGENTS.md"
-$ConfigFile = Join-Path $FelixDir "config.json"
-$StateFile = Join-Path $FelixDir "state.json"
-$RequirementsFile = Join-Path $FelixDir "requirements.json"
-$PromptsDir = Join-Path $FelixDir "prompts"
+# Extract paths for convenience
+$SpecsDir = $paths.SpecsDir
+$FelixDir = $paths.FelixDir
+$RunsDir = $paths.RunsDir
+$AgentsFile = $paths.AgentsFile
+$ConfigFile = $paths.ConfigFile
+$StateFile = $paths.StateFile
+$RequirementsFile = $paths.RequirementsFile
+$PromptsDir = $paths.PromptsDir
 
 Write-Host "[DEBUG] StateFile: $StateFile" -ForegroundColor DarkGray
 Write-Host "[DEBUG] RequirementsFile: $RequirementsFile" -ForegroundColor DarkGray
 
-# Validate project structure
-$requiredPaths = @($SpecsDir, $FelixDir, $ConfigFile, $RequirementsFile)
-foreach ($path in $requiredPaths) {
-    if (-not (Test-Path $path)) {
-        Write-Host "ERROR: " -NoNewline -ForegroundColor Red
-        Write-Host "Required path not found: $path" -ForegroundColor Red
-        Write-Host "This doesn't appear to be a valid Felix project." -ForegroundColor Yellow
-        exit 1
-    }
+# Load configuration
+$config = Get-FelixConfig -ConfigFile $ConfigFile
+if (-not $config) {
+    exit 1
 }
 
-# Load config
-$config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
 $maxIterations = $config.executor.max_iterations
 $defaultMode = $config.executor.default_mode
 
-# Clear any cached plugin state from previous runs
-$script:PluginCache = $null
-$script:PluginCircuitBreaker = @{}
-$script:PluginPermissions = $null
-
-# Load agent configuration from global ~/.felix/agents.json via agent_id
-$FelixHome = if ($env:FELIX_HOME) { $env:FELIX_HOME } else { Join-Path $env:USERPROFILE ".felix" }
-$AgentsJsonFile = Join-Path $FelixHome "agents.json"
-
-# Create default agents.json if it doesn't exist
-if (-not (Test-Path $AgentsJsonFile)) {
-    Write-Host "[CONFIG] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Creating default agents.json at: $AgentsJsonFile" -ForegroundColor Yellow
-    
-    $defaultAgentsConfig = @{
-        agents = @(
-            @{
-                id                = 0
-                name              = "felix-primary"
-                executable        = "droid"
-                args              = @("exec", "--skip-permissions-unsafe")
-                working_directory = "."
-                environment       = @{}
-            }
-            @{
-                id                = 1
-                name              = "codex-cli"
-                executable        = "codex"
-                args              = @("-C", ".", "-s", "workspace-write", "-a", "never", "exec", "--color", "never", "-")
-                working_directory = "."
-                environment       = @{}
-            }
-            @{
-                id                = 2
-                name              = "claude-code"
-                executable        = "claude"
-                args              = @("-p", "--output-format", "text")
-                working_directory = "."
-                environment       = @{}
-            }
-        )
-    }
-    
-    New-Item -Path (Split-Path $AgentsJsonFile -Parent) -ItemType Directory -Force | Out-Null
-    $defaultAgentsConfig | ConvertTo-Json -Depth 10 | Set-Content $AgentsJsonFile
-}
-
-$agentsData = Get-Content $AgentsJsonFile -Raw | ConvertFrom-Json
+# Load agent configuration
 $agentId = if ($config.agent -and $null -ne $config.agent.agent_id) { 
     $config.agent.agent_id 
 }
@@ -164,36 +95,20 @@ else {
     0  # Default to agent ID 0
 }
 
-# Find agent by ID
-$agentConfig = $agentsData.agents | Where-Object { $_.id -eq $agentId }
+$agentsData = Get-AgentsConfiguration
+if (-not $agentsData) {
+    exit 1
+}
 
+$agentConfig = Get-AgentConfig -AgentsData $agentsData -AgentId $agentId -ConfigFile $ConfigFile
 if (-not $agentConfig) {
-    Write-Host "WARNING: " -NoNewline -ForegroundColor Yellow
-    Write-Host "Agent ID $agentId not found in agents.json. Falling back to system default (ID 0)." -ForegroundColor Yellow
-    $agentConfig = $agentsData.agents | Where-Object { $_.id -eq 0 }
-    
-    if (-not $agentConfig) {
-        Write-Host "ERROR: " -NoNewline -ForegroundColor Red
-        Write-Host "System default agent (ID 0) not found in agents.json" -ForegroundColor Red
-        exit 1
-    }
-    
-    # Auto-correct config.json to reference agent ID 0
-    $config.agent.agent_id = 0
-    $config | ConvertTo-Json -Depth 10 | Set-Content $ConfigFile
-    Write-Host "[CONFIG] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Auto-corrected config.json to reference agent ID 0" -ForegroundColor Green
+    exit 1
 }
 
 $agentName = $agentConfig.name
 $script:agentName = $agentName
 $script:agentId = $agentConfig.id
 $script:agentConfig = $agentConfig
-
-Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-Write-Host "Using agent: $agentName (ID: $($agentConfig.id))" -ForegroundColor White
-Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-Write-Host "Executable: $($agentConfig.executable) $($agentConfig.args -join ' ')" -ForegroundColor Gray
 
 # ============================================================================
 # Agent Registration and Heartbeat Functions
@@ -248,10 +163,6 @@ function Exit-FelixAgent {
     Exit-FelixAgent -ExitCode $ExitCode -ProjectPath $script:ProjectPath -AgentId $script:agentId -HeartbeatJob $script:HeartbeatJob
 }
 
-# Store agent name and ID in script scope for cleanup function
-$script:agentName = $null
-$script:agentId = $null
-
 # Resolve python upfront (hard stop if unavailable)
 try {
     $null = Resolve-PythonCommand -Config $config
@@ -262,163 +173,19 @@ catch {
     exit 1
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Plugin System Infrastructure
-# ═══════════════════════════════════════════════════════════════════════════
+# Initialize plugin state
+Initialize-PluginState
 
-# Global plugin state
-$script:PluginCache = @{}
-$script:PluginCircuitBreaker = @{}
-
-# Permission constants
-$script:PluginPermissions = @{
-    "read:specs"       = @{ Description = "Read spec files from specs/" }
-    "read:state"       = @{ Description = "Read felix/state.json and felix/requirements.json" }
-    "read:runs"        = @{ Description = "Read run artifacts from runs/" }
-    "write:runs"       = @{ Description = "Write to run artifacts in runs/" }
-    "write:logs"       = @{ Description = "Write to log files" }
-    "execute:commands" = @{ Description = "Execute external commands" }
-    "network:http"     = @{ Description = "Make HTTP requests" }
-    "git:read"         = @{ Description = "Read git state" }
-    "git:write"        = @{ Description = "Execute git commands" }
-}
-
-# Initialize-PluginSystem: Now in felix/core/plugin-manager.ps1
-
-# Invoke-PluginHook: Now in felix/core/plugin-manager.ps1
-
-# Invoke-PluginHookSafely: Now in felix/core/plugin-manager.ps1
-
-# ============================================================================
-# Main Execution Logic
-# ============================================================================
-
-# Load requirements
-if (-not (Test-Path $RequirementsFile)) {
-    Write-Host "ERROR: Requirements file not found: $RequirementsFile" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "[DEBUG] Loading requirements from: $RequirementsFile" -ForegroundColor DarkGray
-$requirements = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
-Write-Host "[DEBUG] Total requirements loaded: $($requirements.requirements.Count)" -ForegroundColor DarkGray
-$currentReq = $null
-
-if ($RequirementId) {
-    $currentReq = $requirements.requirements | Where-Object { $_.id -eq $RequirementId }
-    if (-not $currentReq) {
-        Write-Host "ERROR: Requirement $RequirementId not found." -ForegroundColor Red
-        exit 1
-    }
-    
-    # Debug: Show requirement details
-    Write-Host "[DEBUG] Found requirement: $($currentReq.id) - $($currentReq.title)" -ForegroundColor DarkGray
-    Write-Host "[DEBUG] Status: $($currentReq.status)" -ForegroundColor DarkGray
-    
-    # Check if requirement is already complete
-    if ($currentReq.status -in @("complete", "done")) {
-        Write-Host "Requirement $RequirementId is already $($currentReq.status) - nothing to do." -ForegroundColor Green
-        
-        # Clean up stale state if needed
-        if (Test-Path $StateFile) {
-            $state = Get-Content $StateFile -Raw | ConvertFrom-Json
-            if ($state.current_requirement_id -eq $RequirementId) {
-                Write-Host "[STATE] Clearing stale state for completed requirement $RequirementId" -ForegroundColor Cyan
-                $state.current_requirement_id = $null
-                $state.status = "ready"
-                $state.last_iteration_outcome = "already_complete"
-                $state.updated_at = Get-Date -Format "o"
-                $state | ConvertTo-Json | Set-Content $StateFile
-            }
-        }
-        exit 0
-    }
-}
-else {
-    # Find first planned or in_progress requirement
-    $currentReq = $requirements.requirements | Where-Object { $_.status -eq "planned" -or $_.status -eq "in_progress" } | Select-Object -First 1
-    if (-not $currentReq) {
-        Write-Host "No planned or in-progress requirements found." -ForegroundColor Green
-        exit 0
-    }
+# Load requirements and select current requirement
+$currentReq = Get-CurrentRequirement -RequirementsFile $RequirementsFile -RequirementId $RequirementId -StateFile $StateFile
+if (-not $currentReq) {
+    exit 0
 }
 
 $RequirementId = $currentReq.id
 
-# Helper function to convert PSCustomObject to hashtable recursively
-# Note: ConvertTo-Hashtable is now in felix/core/exit-handler.ps1
-
-# Load or initialize state
-$state = if (Test-Path $StateFile) {
-    try {
-        $rawContent = Get-Content $StateFile -Raw
-        if ([string]::IsNullOrWhiteSpace($rawContent)) {
-            Write-Host "[WARNING] State file is empty, initializing new state" -ForegroundColor Yellow
-            @{
-                current_requirement_id = $null
-                current_iteration      = 0
-                last_mode              = $null
-                status                 = "idle"
-                validation_retry_count = 0
-            }
-        }
-        else {
-            $loadedState = $rawContent | ConvertFrom-Json
-            if ($null -eq $loadedState) {
-                Write-Host "[WARNING] State file loaded but resulted in null, initializing new state" -ForegroundColor Yellow
-                @{
-                    current_requirement_id = $null
-                    current_iteration      = 0
-                    last_mode              = $null
-                    status                 = "idle"
-                    validation_retry_count = 0
-                }
-            }
-            else {
-                # Convert PSCustomObject to hashtable for mutability (including nested objects)
-                $converted = ConvertTo-Hashtable $loadedState
-                if ($null -eq $converted) {
-                    Write-Host "[WARNING] Conversion to hashtable failed, initializing new state" -ForegroundColor Yellow
-                    @{
-                        current_requirement_id = $null
-                        current_iteration      = 0
-                        last_mode              = $null
-                        status                 = "idle"
-                        validation_retry_count = 0
-                    }
-                }
-                else {
-                    $converted
-                }
-            }
-        }
-    }
-    catch {
-        Write-Host "[WARNING] Failed to load state file: $_" -ForegroundColor Yellow
-        Write-Host "[WARNING] Initializing new state" -ForegroundColor Yellow
-        @{
-            current_requirement_id = $null
-            current_iteration      = 0
-            last_mode              = $null
-            status                 = "idle"
-            validation_retry_count = 0
-        }
-    }
-}
-else {
-    @{
-        current_requirement_id = $null
-        current_iteration      = 0
-        last_mode              = $null
-        status                 = "idle"
-        validation_retry_count = 0
-    }
-}
-
-# Initialize validation retry counter if it doesn't exist
-if ($null -ne $state -and -not $state.ContainsKey('validation_retry_count')) {
-    $state.validation_retry_count = 0
-}
+# Load or initialize execution state
+$state = Initialize-ExecutionState -StateFile $StateFile
 
 # Initialize state machine for this execution
 $agentState = New-AgentState -InitialMode "Planning"
@@ -426,15 +193,7 @@ $agentState.RequirementId = $RequirementId
 Write-Host "[STATE-MACHINE] Initialized in Planning mode for requirement $RequirementId" -ForegroundColor DarkGray
 
 # Reset validation retry counter if we're starting a new requirement
-if ($state.current_requirement_id -ne $currentReq.id) {
-    $state.validation_retry_count = 0
-    $state.current_requirement_id = $currentReq.id
-    $state.current_iteration = 0
-    $state.status = "ready"
-    $state.last_iteration_outcome = $null
-    $state.blocked_task = $null
-    Write-Host "[STATE] Starting new requirement, reset all state counters" -ForegroundColor Cyan
-}
+$state = Initialize-StateForRequirement -State $state -Requirement $currentReq
 
 # ============================================================================
 # Agent Registration at Startup
