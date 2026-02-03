@@ -989,7 +989,8 @@ function Commit-TaskChanges {
         $requirementCommitSetting = $CurrentRequirement.commit_on_complete
         if ($null -ne $requirementCommitSetting) {
             $shouldCommit = $requirementCommitSetting -and -not $NoCommit
-        } else {
+        }
+        else {
             $shouldCommit = $Config.executor.commit_on_complete -and -not $NoCommit
         }
         if ($shouldCommit) {
