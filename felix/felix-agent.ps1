@@ -118,52 +118,7 @@ $script:agentConfig = $agentConfig
 $script:BackendBaseUrl = "http://localhost:8080"
 $script:HeartbeatJob = $null
 
-# Agent registration functions: Now in felix/core/agent-registration.ps1
-# Create script-scoped aliases to avoid naming conflicts with wrappers
-New-Alias -Name 'Register-AgentInternal' -Value 'Register-Agent' -Scope Script -Force
-New-Alias -Name 'Send-AgentHeartbeatInternal' -Value 'Send-AgentHeartbeat' -Scope Script -Force
-New-Alias -Name 'Start-HeartbeatJobInternal' -Value 'Start-HeartbeatJob' -Scope Script -Force
-New-Alias -Name 'Stop-HeartbeatJobInternal' -Value 'Stop-HeartbeatJob' -Scope Script -Force
-New-Alias -Name 'Unregister-AgentInternal' -Value 'Unregister-Agent' -Scope Script -Force
-New-Alias -Name 'Exit-FelixAgentInternal' -Value 'Exit-FelixAgent' -Scope Script -Force
-
-# Wrappers provide backward compatibility with script-scoped $BackendBaseUrl
-function Register-Agent {
-    param([int]$AgentId, [string]$AgentName, [int]$ProcessId, [string]$Hostname)
-    return Register-AgentInternal -AgentId $AgentId -AgentName $AgentName -ProcessId $ProcessId -Hostname $Hostname -BackendBaseUrl $script:BackendBaseUrl
-}
-
-function Send-AgentHeartbeat {
-    param([int]$AgentId, [string]$CurrentRequirementId)
-    return Send-AgentHeartbeatInternal -AgentId $AgentId -CurrentRequirementId $CurrentRequirementId -BackendBaseUrl $script:BackendBaseUrl
-}
-
-function Start-HeartbeatJob {
-    param([int]$AgentId, [string]$BaseUrl)
-    if ($script:HeartbeatJob) {
-        Stop-HeartbeatJobInternal -Job $script:HeartbeatJob
-    }
-    $script:HeartbeatJob = Start-HeartbeatJobInternal -AgentId $AgentId -BackendBaseUrl $BaseUrl
-}
-
-function Stop-HeartbeatJob {
-    if ($script:HeartbeatJob) {
-        Stop-HeartbeatJobInternal -Job $script:HeartbeatJob
-        $script:HeartbeatJob = $null
-    }
-}
-
-function Unregister-Agent {
-    param([int]$AgentId)
-    Unregister-AgentInternal -AgentId $AgentId -BackendBaseUrl $script:BackendBaseUrl
-}
-
-# Exit-FelixAgent: Now in felix/core/exit-handler.ps1
-# Wrapper provides backward compatibility with script-scoped variables
-function Exit-FelixAgent {
-    param([int]$ExitCode = 0)
-    Exit-FelixAgentInternal -ExitCode $ExitCode -ProjectPath $script:ProjectPath -AgentId $script:agentId -HeartbeatJob $script:HeartbeatJob
-}
+# No wrappers needed - call module functions directly with all parameters
 
 # Resolve python upfront (hard stop if unavailable)
 try {
@@ -198,9 +153,9 @@ Write-Host "[STATE-MACHINE] Initialized in Planning mode for requirement $Requir
 $state = Initialize-StateForRequirement -State $state -Requirement $currentReq
 
 # Register agent with backend
-$registrationSucceeded = Register-Agent -AgentId $agentConfig.id -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME
+$registrationSucceeded = Register-Agent -AgentId $agentConfig.id -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME -BackendBaseUrl $script:BackendBaseUrl
 if ($registrationSucceeded) {
-    Start-HeartbeatJob -AgentId $agentConfig.id -BaseUrl $script:BackendBaseUrl
+    $script:HeartbeatJob = Start-HeartbeatJob -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl
 }
 
 # Main iteration loop
@@ -217,7 +172,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         -NoCommit:$NoCommit
     
     if (-not $result.Continue) {
-        Exit-FelixAgent -ExitCode $result.ExitCode
+        Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob
     }
 }
 
@@ -227,4 +182,4 @@ Write-Host "[WARNING] Reached max iterations ($maxIterations)"
 $state.status = "incomplete"
 $state.updated_at = Get-Date -Format "o"
 $state | ConvertTo-Json | Set-Content $StateFile
-Exit-FelixAgent -ExitCode 0
+Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob
