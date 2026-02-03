@@ -22,10 +22,10 @@ function Assert-True {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\\..")).Path
-$felixAgentScript = Join-Path $repoRoot "felix-agent.ps1"
+$felixAgentScript = Join-Path $repoRoot "felix\\felix-agent.ps1"
 $shimScript = Join-Path $repoRoot "felix\\tests\\agent-shim.ps1"
 
-Assert-True (Test-Path $felixAgentScript) "Missing felix-agent.ps1 at $felixAgentScript"
+Assert-True (Test-Path $felixAgentScript) "Missing felix/felix-agent.ps1 at $felixAgentScript"
 Assert-True (Test-Path $shimScript) "Missing agent shim at $shimScript"
 
 $projectRoot = New-TempDir -Prefix "felix-agent-invoke-project"
@@ -50,10 +50,10 @@ try {
     $requirements = @{
         requirements = @(
             @{
-                id = "S-0001"
-                title = "Smoke"
-                spec_path = "specs/S-0001-smoke.md"
-                status = "planned"
+                id         = "S-0001"
+                title      = "Smoke"
+                spec_path  = "specs/S-0001-smoke.md"
+                status     = "planned"
                 depends_on = @()
                 updated_at = (Get-Date -Format "yyyy-MM-dd")
             }
@@ -93,16 +93,16 @@ try {
     $agentsJson = @{
         agents = @(
             @{
-                id = $agentId
-                name = "shim-agent"
-                executable = "powershell"
-                args = @(
+                id                = $agentId
+                name              = "shim-agent"
+                executable        = "powershell"
+                args              = @(
                     "-NoProfile",
                     "-ExecutionPolicy", "Bypass",
                     "-File", $shimScript
                 )
                 working_directory = $agentWorkDirRel
-                environment = @{
+                environment       = @{
                     FELIX_AGENT_TEST = "1"
                 }
             }
@@ -112,36 +112,36 @@ try {
     Set-Content (Join-Path $felixHome "agents.json") $agentsJson -Encoding UTF8
 
     $config = @{
-        version = "0.1.0"
-        executor = @{
-            mode = "local"
-            max_iterations = 1
-            default_mode = "planning"
+        version      = "0.1.0"
+        executor     = @{
+            mode               = "local"
+            max_iterations     = 1
+            default_mode       = "planning"
             commit_on_complete = $false
         }
-        agent = @{
+        agent        = @{
             agent_id = $agentId
         }
-        paths = @{
-            specs = "specs"
+        paths        = @{
+            specs  = "specs"
             agents = "AGENTS.md"
-            runs = "runs"
+            runs   = "runs"
         }
         backpressure = @{
-            enabled = $false
-            commands = @()
+            enabled     = $false
+            commands    = @()
             max_retries = 0
         }
-        plugins = @{
-            enabled = $false
-            discovery_path = "felix/plugins"
-            api_version = "v1"
-            disabled = @()
-            state_retention_days = 7
+        plugins      = @{
+            enabled                      = $false
+            discovery_path               = "felix/plugins"
+            api_version                  = "v1"
+            disabled                     = @()
+            state_retention_days         = 7
             circuit_breaker_max_failures = 3
-            commands = @()
+            commands                     = @()
         }
-        ui = @{}
+        ui           = @{}
     } | ConvertTo-Json -Depth 10
     Set-Content (Join-Path $felixDir "config.json") $config -Encoding UTF8
 

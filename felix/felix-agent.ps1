@@ -125,6 +125,7 @@ New-Alias -Name 'Send-AgentHeartbeatInternal' -Value 'Send-AgentHeartbeat' -Scop
 New-Alias -Name 'Start-HeartbeatJobInternal' -Value 'Start-HeartbeatJob' -Scope Script -Force
 New-Alias -Name 'Stop-HeartbeatJobInternal' -Value 'Stop-HeartbeatJob' -Scope Script -Force
 New-Alias -Name 'Unregister-AgentInternal' -Value 'Unregister-Agent' -Scope Script -Force
+New-Alias -Name 'Exit-FelixAgentInternal' -Value 'Exit-FelixAgent' -Scope Script -Force
 
 # Wrappers provide backward compatibility with script-scoped $BackendBaseUrl
 function Register-Agent {
@@ -161,7 +162,7 @@ function Unregister-Agent {
 # Wrapper provides backward compatibility with script-scoped variables
 function Exit-FelixAgent {
     param([int]$ExitCode = 0)
-    Exit-FelixAgent -ExitCode $ExitCode -ProjectPath $script:ProjectPath -AgentId $script:agentId -HeartbeatJob $script:HeartbeatJob
+    Exit-FelixAgentInternal -ExitCode $ExitCode -ProjectPath $script:ProjectPath -AgentId $script:agentId -HeartbeatJob $script:HeartbeatJob
 }
 
 # Resolve python upfront (hard stop if unavailable)
