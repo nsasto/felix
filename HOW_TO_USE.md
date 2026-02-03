@@ -255,13 +255,35 @@ Those live in Markdown.
       "priority": "high",
       "labels": ["backend", "security"],
       "depends_on": [],
-      "updated_at": "2026-01-24"
+      "updated_at": "2026-01-24",
+      "commit_on_complete": false // optional: override global commit setting
     }
   ]
 }
 ```
 
 Keep this boring and stable. JSON grows painful when it tries to express nuance.
+
+### Requirement properties
+
+**Required fields:**
+
+- **id** - Unique identifier (e.g., S-0001)
+- **title** - Brief description
+- **spec_path** - Path to the spec file
+- **status** - Current state (see status values below)
+- **priority** - Importance level (high, medium, low, critical)
+- **labels** - Array of tags for categorization
+- **depends_on** - Array of requirement IDs that must complete first
+- **updated_at** - Last modification date
+
+**Optional fields:**
+
+- **commit_on_complete** - Boolean to override global commit behavior
+  - If `true`: creates git commits after each task (even if global setting is `false`)
+  - If `false`: skips commits (even if global setting is `true`)
+  - If omitted: uses `felix/config.json` → `executor.commit_on_complete` setting
+  - Useful for experimental requirements or when you want finer control
 
 ### Requirement status values
 
