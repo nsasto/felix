@@ -9,7 +9,7 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 ### Agent Core
 
 - [x] Standalone PowerShell script (`felix-agent.ps1`) executable without backend
-- [x] Loads Felix artifacts on startup: specs/, AGENTS.md, felix/requirements.json, felix/config.json
+- [x] Loads Felix artifacts on startup: specs/, AGENTS.md, ..felix/requirements.json, ..felix/config.json
 - [x] Validates project structure before execution
 - [x] Runs autonomous loop to completion (configurable max iterations)
 - [x] Exits with clear status codes (success, blocked, error)
@@ -18,22 +18,22 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 
 - [x] Implements planning mode: reads specs, generates/updates per-requirement plans in runs/<run-id>/plan-<req-id>.md, cannot modify code
 - [x] Implements building mode: picks one task, investigates code, implements, validates, commits
-- [x] Auto-transition: automatically switches from planning to building when `auto_transition: true` in felix/config.json
+- [x] Auto-transition: automatically switches from planning to building when `auto_transition: true` in ..felix/config.json
 - [x] Mode guardrails enforced at runtime (planning cannot commit code)
 
 ### LLM Integration
 
 - [x] Calls LLM via droid exec (existing Factory tooling)
-- [x] Loads mode-specific prompts from felix/prompts/planning.md and felix/prompts/building.md
+- [x] Loads mode-specific prompts from ..felix/prompts/planning.md and ..felix/prompts/building.md
 - [x] Gathers fresh context each iteration (specs + plan + AGENTS + codebase state)
 - [x] Handles authentication via FACTORY_API_KEY environment variable
 
 ### State Management
 
-- [x] Writes felix/state.json after each iteration (current_requirement_id, last_mode, status, iteration count)
+- [x] Writes ..felix/state.json after each iteration (current_requirement_id, last_mode, status, iteration count)
 - [x] Creates run directories in runs/<timestamp>/ for each iteration
 - [x] Writes run artifacts: report.md, output.log, plan.snapshot.md, diff.patch
-- [x] Updates felix/requirements.json with task/requirement status changes
+- [x] Updates ..felix/requirements.json with task/requirement status changes
 
 ### Backpressure & Validation
 
@@ -73,3 +73,5 @@ As a developer, I need a standalone PowerShell agent that implements the Ralph m
 ## Dependencies
 
 None - this is the foundation. Backend and frontend depend on this agent being functional.
+
+

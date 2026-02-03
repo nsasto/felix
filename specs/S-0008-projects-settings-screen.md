@@ -9,7 +9,7 @@ As a Felix user managing multiple projects, I need a projects management screen 
 ### Projects List View
 
 - [ ] "Projects" category appears in settings left sidebar menu
-- [ ] Projects list displays all registered projects from ~/.felix/projects.json
+- [ ] Projects list displays all registered projects from ~/...felix/projects.json
 - [ ] Each project card shows: name, path, registration date, last activity
 - [ ] Projects sorted by last activity (most recent first)
 - [ ] Empty state message when no projects registered
@@ -28,8 +28,8 @@ As a Felix user managing multiple projects, I need a projects management screen 
 
 - [ ] "Register New Project" button at top of projects list
 - [ ] Button opens directory picker dialog
-- [ ] Selected directory validated for Felix structure (specs/, felix/)
-- [ ] Project added to ~/.felix/projects.json on success
+- [ ] Selected directory validated for Felix structure (specs/, ..felix/)
+- [ ] Project added to ~/...felix/projects.json on success
 - [ ] Success notification shown after registration
 - [ ] Project list automatically refreshes
 
@@ -45,7 +45,7 @@ As a Felix user managing multiple projects, I need a projects management screen 
 
 - [ ] Click "Unregister" opens confirmation dialog
 - [ ] Dialog warns about removal from Felix (files remain on disk)
-- [ ] Confirm button removes project from ~/.felix/projects.json
+- [ ] Confirm button removes project from ~/...felix/projects.json
 - [ ] Project disappears from list after unregistration
 - [ ] Cannot unregister currently active project
 
@@ -68,7 +68,7 @@ As a Felix user managing multiple projects, I need a projects management screen 
 
 **Architecture:** Projects Settings Screen is a new category within the SettingsScreen component. It reads from backend API endpoint GET /api/projects for registered projects list.
 
-**Storage:** Projects metadata stored in ~/.felix/projects.json (or user's home directory equivalent on Windows). Backend API manages read/write operations to this file.
+**Storage:** Projects metadata stored in ~/...felix/projects.json (or user's home directory equivalent on Windows). Backend API manages read/write operations to this file.
 
 **Integration Points:**
 
@@ -79,7 +79,7 @@ As a Felix user managing multiple projects, I need a projects management screen 
 
 **State Management:** Fetch projects list on mount. Local state tracks selected project for configuration. Mutations trigger refetch of projects list to stay in sync.
 
-**Validation:** Check project path exists and contains required Felix structure (specs/ directory, felix/ directory with config.json). Prevent duplicate paths.
+**Validation:** Check project path exists and contains required Felix structure (specs/ directory, ..felix/ directory with config.json). Prevent duplicate paths.
 
 **Don't assume not implemented:** Backend already has project registration and listing. Check existing storage.py and routers for available endpoints before creating new ones.
 
@@ -105,3 +105,5 @@ As a Felix user managing multiple projects, I need a projects management screen 
 - [ ] Project configuration saves: Edit project name, save, verify persisted
 - [ ] Search filters projects: Type in search box, verify list filters correctly
 - [ ] Open project switches workspace: Click Open, verify project loads in main view
+
+

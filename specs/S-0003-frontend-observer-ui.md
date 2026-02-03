@@ -32,7 +32,7 @@ As a developer, I need a lightweight React UI that allows me to register project
 
 - [ ] Column-based view: Draft → Planned → In Progress → Done → Blocked
 - [ ] Cards show requirement ID, title, priority, labels
-- [ ] Drag-and-drop to update status (updates felix/requirements.json)
+- [ ] Drag-and-drop to update status (updates ..felix/requirements.json)
 - [ ] Click card to view full spec
 - [ ] Filter by labels, priority, dependencies
 
@@ -63,7 +63,7 @@ As a developer, I need a lightweight React UI that allows me to register project
 
 ### Configuration Panel
 
-- [ ] Edit felix/config.json settings (max_iterations, auto_transition, default_mode)
+- [ ] Edit ..felix/config.json settings (max_iterations, auto_transition, default_mode)
 - [ ] Save via backend API
 - [ ] Input validation for numeric/boolean fields
 
@@ -78,7 +78,7 @@ As a developer, I need a lightweight React UI that allows me to register project
 **Existing code:** Current app/frontend/ has React scaffolding with Kanban, markdown editor, Gemini integration. Refactor to align with Felix architecture:
 
 - Remove Gemini integration (replaced by droid in agent)
-- Adapt Kanban to felix/requirements.json schema
+- Adapt Kanban to ..felix/requirements.json schema
 - Adapt markdown editor to specs editing
 - Add WebSocket integration for run monitoring
 
@@ -99,3 +99,5 @@ As a developer, I need a lightweight React UI that allows me to register project
 
 - S-0002 (backend API must exist)
 - S-0001 (agent must be working to make UI useful)
+
+

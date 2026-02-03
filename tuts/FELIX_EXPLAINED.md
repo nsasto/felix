@@ -23,7 +23,7 @@ That sounds scary until you hand them:
 - A blueprint (`specs/*.md`)
 - Working plans scoped to each requirement (`runs/<run-id>/plan-<req-id>.md`)
 - An operations manual (`AGENTS.md`)
-- A clipboard with status checkboxes (`felix/requirements.json`, `felix/state.json`)
+- A clipboard with status checkboxes (`..felix/requirements.json`, `..felix/state.json`)
 - A folder of receipts (everything under `runs/`)
 
 Every "day" (iteration), the builder reads the same small set of documents, does one unit of work, updates the documents, and goes back to sleep.
@@ -65,7 +65,7 @@ Here's the codebase as a map you can keep in your head:
 ### Runtime + agent
 
 - `felix-agent.ps1` - the current Felix agent (PowerShell). This runs the loop.
-- `felix/` - Felix's "artifact directory" (prompts, policies, config, state).
+- `..felix/` - Felix's "artifact directory" (prompts, policies, config, state).
 - `runs/` - per-iteration run artifacts (logs, snapshots, reports).
 
 ### Backend (optional, but very useful)
@@ -74,7 +74,7 @@ Here's the codebase as a map you can keep in your head:
 - `app/backend/routers/projects.py` - register/list projects.
 - `app/backend/routers/files.py` - read/write specs, plan, requirements; includes path-policy enforcement.
 - `app/backend/routers/runs.py` - spawn agent processes + track run status in memory.
-- `app/backend/storage.py` - persists the project registry in `~/.felix/projects.json`.
+- `app/backend/storage.py` - persists the project registry in `~/...felix/projects.json`.
 - `app/backend/models.py` - Pydantic request/response models.
 
 ### Frontend (currently a scaffold)
@@ -112,7 +112,7 @@ The plan is not sacred scripture; it's a whiteboard that gets regenerated when n
 Felix loads this file into context, so it's intentionally operational-only:
 install commands, dev server commands, build commands. No diaries.
 
-### `felix/requirements.json`: "What's the status?"
+### `..felix/requirements.json`: "What's the status?"
 
 Machine-readable registry of requirements:
 
@@ -121,7 +121,7 @@ Machine-readable registry of requirements:
 
 This is what a UI can safely rely on without parsing prose.
 
-### `felix/state.json`: "Where am I in the loop?"
+### `..felix/state.json`: "Where am I in the loop?"
 
 Minimal control state for the agent and observers:
 
@@ -150,7 +150,7 @@ The current agent is PowerShell (`felix-agent.ps1`) because Felix is designed to
 The agent requires a minimum structure in the target project:
 
 - `specs/`
-- `felix/` with `config.json` and `requirements.json`
+- `..felix/` with `config.json` and `requirements.json`
 
 If those aren't present, it exits early instead of doing something wild.
 
@@ -184,7 +184,7 @@ The agent builds one big prompt from:
 - `AGENTS.md`
 - the current requirement's spec file only (narrow scope)
 - `runs/<run-id>/plan-<req-id>.md` (only in building mode)
-- `felix/requirements.json` (embedded as JSON)
+- `..felix/requirements.json` (embedded as JSON)
 - the current requirement ID
 
 Note: The agent loads only the current requirement's spec, not all specs. This keeps context narrow and focused.
@@ -222,7 +222,7 @@ The backend is FastAPI (`app/backend/main.py`) and it plays three roles:
 2. File gateway: safe read/write access for the UI
 3. Process spawner: start agent runs and track status
 
-### Project registry (`~/.felix/projects.json`)
+### Project registry (`~/...felix/projects.json`)
 
 `app/backend/storage.py` stores registered projects in the user's home directory.
 
@@ -245,7 +245,7 @@ Important details:
 
 `app/backend/routers/files.py` is where Felix gets serious about safety.
 
-It validates writes against `felix/policies/allowlist.json` and `felix/policies/denylist.json`:
+It validates writes against `..felix/policies/allowlist.json` and `..felix/policies/denylist.json`:
 
 - "You may write to `specs/**` and `runs/**`..."
 - "...but not to prompt templates or policies themselves."
@@ -269,7 +269,7 @@ The `specs/S-0003-frontend-observer-ui.md` file lays out the intended refactor:
 - project registration + selection
 - specs editor (real `specs/*.md`)
 - plan view (per-requirement plans from `runs/`)
-- requirement kanban (real `felix/requirements.json`)
+- requirement kanban (real `..felix/requirements.json`)
 - run monitor (eventually via WebSockets + filesystem watching)
 
 So the frontend is a "future observer console", but it hasn't been plumbed in yet.
@@ -463,3 +463,5 @@ If the pilot checks those boxes with a permanent marker on Day 1, **they can nev
 | :-------- | :------------------- | :---------------------------------------------------------------- |
 | **Spec**  | Validation & Testing | **Use `[ ]`** (Active Test) <br> Use `[x]` (Disabled/Manual Test) |
 | **Plan**  | Construction Steps   | **Use `[x]`** (Task Done)                                         |
+
+

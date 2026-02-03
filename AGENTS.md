@@ -85,7 +85,7 @@ Run validation checks for a specific requirement. The validation script reads ac
 # Validate a specific requirement
 py -3 scripts/validate-requirement.py S-0002
 
-# If `py -3` is not available, use `python` or set the full Python executable path in `felix/config.json` under `python.executable`.
+# If `py -3` is not available, use `python` or set the full Python executable path in `.felix/config.json` under `python.executable`.
 
 # Example output:
 # Validating Requirement: S-0002
@@ -109,10 +109,10 @@ py -3 scripts/validate-requirement.py S-0002
 - `2` - Blocked: backpressure failures exceeded max retries (default: 3 attempts)
 - `3` - Blocked: validation failures exceeded max retries (default: 2 attempts)
 
-When the agent exits with code 2 or 3, the requirement is automatically marked as "blocked" in `felix/requirements.json`. To unblock:
+When the agent exits with code 2 or 3, the requirement is automatically marked as "blocked" in `.felix/requirements.json`. To unblock:
 
 1. Fix the underlying issues (tests, validation criteria, or code)
-2. Manually edit `felix/requirements.json` and change status from `"blocked"` to `"planned"`
+2. Manually edit `.felix/requirements.json` and change status from `"blocked"` to `"planned"`
 3. Restart the agent - it will pick up the unblocked requirement
 
 ### Validation Criteria Format
@@ -142,3 +142,4 @@ The validation script executes anything in backticks as a shell command. If it's
 - No planning or status updates
 - No long explanations
 - If it wouldn't help a new engineer run the repo, it doesn't belong here
+

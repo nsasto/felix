@@ -208,11 +208,11 @@ __marimo__/
 #felix run iterations
 /runs
 # Felix agent state
-felix/state.json
-felix/workflow.json
+.felix/state.json
+.felix/workflow.json
 
 # Felix loop locks
-felix/.locks/
+.felix/.locks/
 *.lock
 
 # Build outputs - ignore bin and obj folders anywhere in the project

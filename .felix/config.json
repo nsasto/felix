@@ -1,0 +1,56 @@
+{
+  "version": "0.1.0",
+  "executor": {
+    "mode": "local",
+    "max_iterations": 100,
+    "default_mode": "planning",
+    "commit_on_complete": true,
+    "_note": "For testing without commits, use -NoCommit flag in felix-agent.ps1"
+  },
+  "agent": {
+    "agent_id": 0
+  },
+  "paths": {
+    "specs": "specs",
+    "agents": "AGENTS.md",
+    "runs": "runs"
+  },
+  "backpressure": {
+    "enabled": true,
+    "commands": [],
+    "max_retries": 3
+  },
+  "plugins": {
+    "enabled": false,
+    "discovery_path": ".felix/plugins", 
+    "api_version": "v1",
+    "disabled": [
+      "prompt-enhancer",
+      "metrics-collector", 
+      "slack-notifier"
+    ],
+    "state_retention_days": 7,
+    "circuit_breaker_max_failures": 3,
+    "commands": []
+  },
+  "ui": {
+    "theme": "light"
+  },
+  "copilot": {
+    "enabled": true,
+    "provider": "openai",
+    "model": "gpt-4o",
+    "context_sources": {
+      "agents_md": true,
+      "learnings_md": true,
+      "prompt_md": true,
+      "requirements": true,
+      "other_specs": true
+    },
+    "features": {
+      "streaming": true,
+      "auto_suggest": true,
+      "context_aware": true
+    }
+  }
+}

@@ -8,8 +8,8 @@ As a Felix user, I want to manage all agent configurations in one centralized lo
 
 Currently, agent configuration is split between two locations:
 
-- `felix/agents.json` contains a list of available agent configurations
-- `felix/config.json` contains the active agent configuration inline
+- `..felix/agents.json` contains a list of available agent configurations
+- `..felix/config.json` contains the active agent configuration inline
 
 This creates several issues:
 
@@ -23,8 +23,8 @@ This creates several issues:
 
 Implement an ID-based reference system where:
 
-1. `felix/agents.json` is the single source of truth for all agent configurations
-2. `felix/config.json` references the active agent by ID: `agent.agent_id`
+1. `..felix/agents.json` is the single source of truth for all agent configurations
+2. `..felix/config.json` references the active agent by ID: `agent.agent_id`
 3. Agent ID 0 is the system default and cannot be deleted
 4. UI clearly shows which agent is active and which is the protected default
 
@@ -40,7 +40,7 @@ Implement an ID-based reference system where:
 
 ### Configuration Structure
 
-- [ ] `felix/config.json` contains `agent.agent_id` (integer) instead of full agent object
+- [ ] `..felix/config.json` contains `agent.agent_id` (integer) instead of full agent object
 - [ ] Felix agent reads `agent.agent_id` from config.json at startup
 - [ ] Felix agent looks up full agent configuration from agents.json by ID
 - [ ] If referenced agent_id doesn't exist, fallback to ID 0 with warning logged
@@ -99,7 +99,7 @@ Implement an ID-based reference system where:
 
 ## Technical Notes
 
-**felix/agents.json Schema:**
+**..felix/agents.json Schema:**
 
 ```json
 {
@@ -124,7 +124,7 @@ Implement an ID-based reference system where:
 }
 ```
 
-**felix/config.json Changes:**
+**..felix/config.json Changes:**
 
 ```json
 {
@@ -146,11 +146,11 @@ Implement an ID-based reference system where:
 
 ```powershell
 # Load config
-$config = Get-Content "felix/config.json" | ConvertFrom-Json
+$config = Get-Content "..felix/config.json" | ConvertFrom-Json
 $agentId = $config.agent.agent_id
 
 # Load agents registry
-$agentsData = Get-Content "felix/agents.json" | ConvertFrom-Json
+$agentsData = Get-Content "..felix/agents.json" | ConvertFrom-Json
 $agent = $agentsData.agents | Where-Object { $_.id -eq $agentId }
 
 if (-not $agent) {
@@ -159,7 +159,7 @@ if (-not $agent) {
 
     # Auto-correct config
     $config.agent.agent_id = 0
-    $config | ConvertTo-Json -Depth 10 | Set-Content "felix/config.json"
+    $config | ConvertTo-Json -Depth 10 | Set-Content "..felix/config.json"
 }
 
 # Use $agent.executable, $agent.args, etc.
@@ -218,3 +218,5 @@ def delete_agent(agent_id: int):
 - [x] Delete disabled for ID 0: Manual verification - confirm delete button disabled/hidden for agent ID 0
 - [x] Set active works: Manual verification - click "Set as Active" on different agent, verify config.json updated
 - [x] Orphaned reference handled: Manual verification - manually edit config.json with invalid agent_id, verify fallback to ID 0 with warning
+
+

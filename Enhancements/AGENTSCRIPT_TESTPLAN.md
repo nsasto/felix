@@ -17,7 +17,7 @@ This document outlines comprehensive testing strategies for the Felix agent refa
 ### Test Framework Setup
 
 ```powershell
-# filepath: felix/tests/test-framework.ps1
+# filepath: .felix/tests/test-framework.ps1
 <#
 .SYNOPSIS
 Lightweight test framework for PowerShell 5.1+ compatibility
@@ -149,7 +149,7 @@ Export-ModuleMember -Function Describe, It, Assert-*, Get-TestResults
 ### Test Helper Utilities
 
 ```powershell
-# filepath: felix/tests/test-helpers.ps1
+# filepath: .felix/tests/test-helpers.ps1
 <#
 .SYNOPSIS
 Helper functions for testing
@@ -188,12 +188,12 @@ function New-TestRepository {
         plugins = @{
             disabled = @()
         }
-    } | ConvertTo-Json -Depth 10 | Set-Content "felix/config.json"
+    } | ConvertTo-Json -Depth 10 | Set-Content ".felix/config.json"
 
     # Create minimal requirements
     @{
         requirements = @()
-    } | ConvertTo-Json -Depth 10 | Set-Content "felix/requirements.json"
+    } | ConvertTo-Json -Depth 10 | Set-Content ".felix/requirements.json"
 
     # Initial commit
     git add . | Out-Null
@@ -237,7 +237,7 @@ function Set-TestRequirements {
         [array]$Requirements
     )
 
-    $requirementsFile = Join-Path $RepoPath "felix/requirements.json"
+    $requirementsFile = Join-Path $RepoPath ".felix/requirements.json"
     @{
         requirements = $Requirements
     } | ConvertTo-Json -Depth 10 | Set-Content $requirementsFile
@@ -253,7 +253,7 @@ Export-ModuleMember -Function New-TestRepository, Remove-TestRepository, New-Tes
 ### 1. Compatibility Utilities Tests
 
 ```powershell
-# filepath: felix/tests/test-compat-utils.ps1
+# filepath: .felix/tests/test-compat-utils.ps1
 <#
 .SYNOPSIS
 Tests for PowerShell 5.1 compatibility utilities
@@ -352,7 +352,7 @@ Get-TestResults
 ### 2. State Machine Tests
 
 ```powershell
-# filepath: felix/tests/test-agent-state.ps1
+# filepath: .felix/tests/test-agent-state.ps1
 <#
 .SYNOPSIS
 Tests for agent state machine
@@ -467,7 +467,7 @@ Get-TestResults
 ### 3. Git Manager Tests
 
 ```powershell
-# filepath: felix/tests/test-git-manager.ps1
+# filepath: .felix/tests/test-git-manager.ps1
 <#
 .SYNOPSIS
 Tests for git operations
@@ -556,12 +556,12 @@ Describe "Git State Capture" {
         Push-Location $repoPath
 
         # Modify a file
-        "changed" | Out-File "felix/config.json"
+        "changed" | Out-File ".felix/config.json"
 
         $state = Get-GitState
 
         Assert-True ($state.modifiedFiles.Count -gt 0)
-        Assert-Contains $state.modifiedFiles "felix/config.json"
+        Assert-Contains $state.modifiedFiles ".felix/config.json"
 
         Pop-Location
         Remove-TestRepository $repoPath
@@ -602,7 +602,7 @@ Describe "Git Change Detection" {
         $repoPath = New-TestRepository
         Push-Location $repoPath
 
-        "changed" | Out-File "felix/config.json"
+        "changed" | Out-File ".felix/config.json"
 
         $hasChanges = Test-GitChanges
 
@@ -620,7 +620,7 @@ Describe "Git Commit Operations" {
         Push-Location $repoPath
 
         # Make a change
-        "changed" | Out-File "felix/config.json"
+        "changed" | Out-File ".felix/config.json"
 
         $result = Invoke-GitCommit -Message "Test commit"
 
@@ -659,7 +659,7 @@ Describe "Git Revert Operations" {
         "changed" | Out-File "unauthorized.txt"
 
         # Revert with allowed patterns
-        Invoke-GitRevert -BeforeState $beforeState -AllowedPatterns @('runs/*', 'felix/state.json')
+        Invoke-GitRevert -BeforeState $beforeState -AllowedPatterns @('runs/*', '.felix/state.json')
 
         # File should not exist
         Assert-False (Test-Path "unauthorized.txt")
@@ -697,7 +697,7 @@ Get-TestResults
 ### 4. State Manager Tests
 
 ```powershell
-# filepath: felix/tests/test-state-manager.ps1
+# filepath: .felix/tests/test-state-manager.ps1
 <#
 .SYNOPSIS
 Tests for requirements state management
@@ -718,7 +718,7 @@ Describe "Requirements State Loading" {
         )
         Set-TestRequirements $repoPath $requirements
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
         $state = Get-RequirementsState $requirementsFile
 
         Assert-Equal 2 $state.requirements.Count
@@ -749,7 +749,7 @@ Describe "Requirements State Saving" {
 
     It "should save state with proper formatting" {
         $repoPath = New-TestRepository
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
 
         $state = @{
             requirements = @(
@@ -781,7 +781,7 @@ Describe "Next Requirement Selection" {
         )
         Set-TestRequirements $repoPath $requirements
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
         $next = Get-NextRequirement $requirementsFile
 
         Assert-Equal "S-0002" $next.id
@@ -798,7 +798,7 @@ Describe "Next Requirement Selection" {
         )
         Set-TestRequirements $repoPath $requirements
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
         $next = Get-NextRequirement $requirementsFile
 
         Assert-Equal "S-0001" $next.id
@@ -815,7 +815,7 @@ Describe "Next Requirement Selection" {
         )
         Set-TestRequirements $repoPath $requirements
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
         $next = Get-NextRequirement $requirementsFile
 
         # Should select S-0001 first because S-0002 depends on it
@@ -832,7 +832,7 @@ Describe "Next Requirement Selection" {
         )
         Set-TestRequirements $repoPath $requirements
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
         $next = Get-NextRequirement $requirementsFile
 
         Assert-Null $next
@@ -851,7 +851,7 @@ Describe "Requirement Status Update" {
         )
         Set-TestRequirements $repoPath $requirements
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
         Update-RequirementStatus $requirementsFile "S-0001" "in_progress"
 
         $state = Get-RequirementsState $requirementsFile
@@ -868,7 +868,7 @@ Describe "Requirement Status Update" {
         )
         Set-TestRequirements $repoPath $requirements
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
         Update-RequirementStatus $requirementsFile "S-0001" "in_progress" "feature/S-0001"
 
         $state = Get-RequirementsState $requirementsFile
@@ -880,7 +880,7 @@ Describe "Requirement Status Update" {
     It "should throw when requirement not found" {
         $repoPath = New-TestRepository
 
-        $requirementsFile = Join-Path $repoPath "felix/requirements.json"
+        $requirementsFile = Join-Path $repoPath ".felix/requirements.json"
 
         Assert-Throws {
             Update-RequirementStatus $requirementsFile "S-9999" "complete"
@@ -896,7 +896,7 @@ Get-TestResults
 ### 5. Plugin Manager Tests
 
 ```powershell
-# filepath: felix/tests/test-plugin-manager.ps1
+# filepath: .felix/tests/test-plugin-manager.ps1
 <#
 .SYNOPSIS
 Tests for plugin system
@@ -1057,7 +1057,7 @@ Get-TestResults
 ### End-to-End Agent Execution
 
 ```powershell
-# filepath: felix/tests/integration/test-agent-e2e.ps1
+# filepath: .felix/tests/integration/test-agent-e2e.ps1
 <#
 .SYNOPSIS
 End-to-end integration tests
@@ -1112,7 +1112,7 @@ Get-TestResults
 ### PowerShell Version Compatibility
 
 ```powershell
-# filepath: felix/tests/compatibility/test-ps51.ps1
+# filepath: .felix/tests/compatibility/test-ps51.ps1
 <#
 .SYNOPSIS
 PowerShell 5.1 compatibility verification
@@ -1166,7 +1166,7 @@ Get-TestResults
 ### Command Injection Tests
 
 ```powershell
-# filepath: felix/tests/security/test-command-injection.ps1
+# filepath: .felix/tests/security/test-command-injection.ps1
 <#
 .SYNOPSIS
 Security tests for command injection vulnerabilities
@@ -1208,7 +1208,7 @@ Get-TestResults
 ### Module Load Time
 
 ```powershell
-# filepath: felix/tests/performance/test-load-time.ps1
+# filepath: .felix/tests/performance/test-load-time.ps1
 <#
 .SYNOPSIS
 Performance tests for module loading
@@ -1253,7 +1253,7 @@ Get-TestResults
 ### Run All Tests
 
 ```powershell
-# filepath: felix/tests/run-all-tests.ps1
+# filepath: .felix/tests/run-all-tests.ps1
 <#
 .SYNOPSIS
 Runs all test suites
@@ -1315,7 +1315,7 @@ exit $(if ($totalFailed -eq 0) { 0 } else { 1 })
 ### Continuous Integration Script
 
 ```powershell
-# filepath: felix/tests/ci-test.ps1
+# filepath: .felix/tests/ci-test.ps1
 <#
 .SYNOPSIS
 CI/CD test runner
@@ -1357,7 +1357,7 @@ else {
 ### Coverage Report Generator
 
 ```powershell
-# filepath: felix/tests/generate-coverage.ps1
+# filepath: .felix/tests/generate-coverage.ps1
 <#
 .SYNOPSIS
 Generates test coverage report
@@ -1539,3 +1539,4 @@ Write-Host "`nAverage Coverage: $avgCoverage%" -ForegroundColor $(
 **Created**: February 2, 2026
 **Owner**: Felix Core Team
 **Status**: Approved - Ready for Implementation
+

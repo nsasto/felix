@@ -31,7 +31,7 @@ As a developer using Felix, I need a centralized settings interface where I can 
 
 ### Settings Persistence
 
-- [ ] Settings changes are saved to `felix/config.json`
+- [ ] Settings changes are saved to `..felix/config.json`
 - [ ] Settings are saved via backend API (PUT /api/config)
 - [ ] Changes apply immediately without restart where possible
 - [ ] Validation prevents invalid configuration values
@@ -68,7 +68,7 @@ As a developer using Felix, I need a centralized settings interface where I can 
 
 **Existing Patterns:** Follow the same visual design language used in ConfigPanel.tsx but expand to full-screen multi-category interface. Use the same color palette, borders, shadows, and transitions.
 
-**Settings Schema:** Settings should map to the structure in `felix/config.json`. Provide sensible defaults and validation rules for each setting.
+**Settings Schema:** Settings should map to the structure in `..felix/config.json`. Provide sensible defaults and validation rules for each setting.
 
 ## Validation Criteria
 
@@ -76,7 +76,7 @@ As a developer using Felix, I need a centralized settings interface where I can 
 - [x] Settings screen renders full-screen: Navigate to settings view, verify layout
 - [x] Left sidebar shows categories: Verify menu with multiple categories
 - [x] Right panel shows settings: Verify settings display for each category
-- [x] Settings save successfully: Manual verification - modify setting, save, verify felix/config.json updated
+- [x] Settings save successfully: Manual verification - modify setting, save, verify ..felix/config.json updated
 - [x] Settings load from backend: Manual verification - refresh page, verify settings reflect saved values
 - [x] Validation prevents invalid values: Manual verification - attempt invalid input, verify error shown
 - [x] Navigation returns to previous view: Manual verification - click back/close, verify returns to prior state
@@ -92,3 +92,5 @@ As a developer using Felix, I need a centralized settings interface where I can 
 - Theme customization beyond built-in options
 - Plugin/extension management (future enhancement)
 - Advanced text editor preferences (use existing ConfigPanel patterns)
+
+

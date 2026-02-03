@@ -15,11 +15,11 @@ Would you put both in the same file? Absolutely not! The directory changes rarel
 
 That's exactly why Felix has:
 
-### 1. Global Agent Configurations (`~/.felix/agents.json`)
+### 1. Global Agent Configurations (`~/...felix/agents.json`)
 
 **The Directory** - Your stable catalog of agent types
 
-- **Location**: `~/.felix/agents.json` (your home directory)
+- **Location**: `~/...felix/agents.json` (your home directory)
 - **Purpose**: "What agents **CAN** I run?"
 - **Contains**: Executable paths, command arguments, environment setup
 - **Updates**: Rarely - when you add/remove/configure agent types
@@ -41,11 +41,11 @@ That's exactly why Felix has:
 }
 ```
 
-### 2. Project Runtime Registry (`<project>/felix/agents.json`)
+### 2. Project Runtime Registry (`<project>/..felix/agents.json`)
 
 **The Real-Time Tracker** - Active process monitoring
 
-- **Location**: `<your-project>/felix/agents.json` (per-project)
+- **Location**: `<your-project>/..felix/agents.json` (per-project)
 - **Purpose**: "What agents **ARE** running in THIS project?"
 - **Contains**: Process IDs, hostnames, heartbeats, current task
 - **Updates**: Every 5 seconds (via heartbeat)
@@ -74,7 +74,7 @@ That's exactly why Felix has:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  ~/.felix/agents.json (GLOBAL CONFIG)                       │
+│  ~/...felix/agents.json (GLOBAL CONFIG)                       │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │ Agent ID 0: felix-primary (droid exec)              │    │
 │  │ Agent ID 1: felix-worker-1 (droid exec)             │    │
@@ -101,7 +101,7 @@ That's exactly why Felix has:
                        │ Writes
                        ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  <project>/felix/agents.json (RUNTIME REGISTRY)             │
+│  <project>/..felix/agents.json (RUNTIME REGISTRY)             │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │ "0": {agent_id: 0, pid: 12345, status: "active"}    │    │
 │  │ "1": {agent_id: 1, pid: 12346, status: "active"}    │    │
@@ -202,7 +202,7 @@ for agent_id, agent in agents_dict.items():  # ❌ Can't iterate array as dict!
 ERROR: Agent ID 0 not found in agents.json
 ```
 
-**What happened**: The PowerShell script was loading from **project** `felix/agents.json` (runtime) instead of **global** `~/.felix/agents.json` (config).
+**What happened**: The PowerShell script was loading from **project** `..felix/agents.json` (runtime) instead of **global** `~/...felix/agents.json` (config).
 
 **Why it broke**: We cleared the runtime file to fix Bug #1, so there was no agent data there. Script looked in the wrong place.
 
@@ -470,11 +470,11 @@ We could have auto-generated agent IDs. We didn't. Why?
 
 ### Pitfall #1: Confusing the Two Files
 
-**Symptom**: "I added an agent to `felix/agents.json` but it doesn't show in the dropdown!"
+**Symptom**: "I added an agent to `..felix/agents.json` but it doesn't show in the dropdown!"
 
 **Why**: You edited the **runtime registry** (project folder), not the **config** (global folder).
 
-**Fix**: Edit `~/.felix/agents.json` instead.
+**Fix**: Edit `~/...felix/agents.json` instead.
 
 **Prevention**: Name them differently? `agents-config.json` vs. `agents-runtime.json`? (We kept the names for consistency with existing docs, but worth considering)
 
@@ -560,7 +560,7 @@ With this architecture, running multiple agents is straightforward:
 ### Step 1: Configure Worker Slots
 
 ```json
-// ~/.felix/agents.json
+// ~/...felix/agents.json
 {
   "agents": [
     {"id": 0, "name": "felix-primary", "executable": "droid", ...},
@@ -589,7 +589,7 @@ $env:AGENT_ID = 2
 ### Step 3: Watch Them Work
 
 ```json
-// felix/agents.json (runtime)
+// ..felix/agents.json (runtime)
 {
   "agents": {
     "0": { "agent_id": 0, "status": "active", "current_run_id": "S-0022" },
@@ -618,3 +618,5 @@ Now go forth and build reliable systems! And remember: if it changes rarely, it'
 ---
 
 _"The best code is not clever - it's obvious."_ - Someone smarter than us
+
+

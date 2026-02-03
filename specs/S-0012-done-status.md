@@ -47,7 +47,7 @@ Since done requirements aren't actively worked on, they should be hidden by defa
 - [ ] Users can manually set requirement to 'done' from any status via kanban drag-drop
 - [ ] RequirementDetailSlideOut shows 'done' status badge with purple/indigo styling
 - [ ] Done requirements can be moved back to 'complete' or other statuses if needed
-- [ ] Status change updates felix/requirements.json via backend API
+- [ ] Status change updates ..felix/requirements.json via backend API
 
 ### UI Consistency
 
@@ -113,3 +113,5 @@ const visibleColumns = COLUMNS.filter(
 - [x] Show Done checkbox works: Manual verification - check "Show Done", verify column appears
 - [x] Drag to done works: Manual verification - drag complete requirement to Done column, verify status updates
 - [x] Done badge appears purple: Manual verification - open requirement detail, verify done status badge is purple/indigo
+
+

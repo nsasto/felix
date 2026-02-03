@@ -83,7 +83,7 @@ your-project/
 │   ├── S-0001-feature-name.md     # Individual requirements
 │   └── S-0002-another-feature.md
 │
-├── felix/                          # Felix configuration & state
+├── .felix/                          # Felix configuration & state
 │   ├── requirements.json          # Requirement registry with status
 │   ├── config.json                # Executor configuration
 │   ├── agents.json                # Agent profiles (S-0020)
@@ -196,7 +196,7 @@ Bias toward searching and confirming existing functionality to avoid duplication
 - **2** - Blocked: backpressure failures exceeded max retries (default: 3 attempts)
 - **3** - Blocked: validation failures exceeded max retries (default: 2 attempts)
 
-Blocked requirements must be manually reset to "planned" status in `felix/requirements.json` after fixing underlying issues.
+Blocked requirements must be manually reset to "planned" status in `.felix/requirements.json` after fixing underlying issues.
 
 ---
 
@@ -255,3 +255,4 @@ Felix is under active development. Contributions welcome via issues and pull req
 ## License
 
 [Your license here]
+

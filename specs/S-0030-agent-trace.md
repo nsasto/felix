@@ -37,7 +37,7 @@ The current Agent Dashboard shows live console output but provides no visual ind
 
 ### Stage Definitions
 
-The workflow includes these stages (loaded from **felix/workflow.json**):
+The workflow includes these stages (loaded from **..felix/workflow.json**):
 
 1. **Select Requirement** - Target/crosshair icon
 2. **Start Iteration** - Play/triangle icon
@@ -66,7 +66,7 @@ The workflow includes these stages (loaded from **felix/workflow.json**):
 
 ### Workflow Configuration
 
-- [ ] Workflow stages defined in **felix/workflow.json** (new file)
+- [ ] Workflow stages defined in **..felix/workflow.json** (new file)
 - [ ] JSON structure includes:
   - Stage ID (unique key)
   - Display name (short label)
@@ -116,7 +116,7 @@ LiveConsolePanel (existing)
 
 ### State Management
 
-**felix/state.json additions:**
+**..felix/state.json additions:**
 
 ```json
 {
@@ -132,7 +132,7 @@ LiveConsolePanel (existing)
 }
 ```
 
-**felix/workflow.json (new file):**
+**..felix/workflow.json (new file):**
 
 ```json
 {
@@ -394,7 +394,9 @@ The user provided a simple flowchart with connected boxes. The workflow visualiz
 - [ ] Manual verification: Start agent, observe workflow highlighting moving through stages in real-time
 - [ ] Manual verification: Resize divider between console and workflow, both sections resize properly
 - [ ] Manual verification: Hover over stage nodes, tooltips show full stage descriptions
-- [ ] Manual verification: Edit felix/workflow.json stage names, refresh dashboard, see updated labels
+- [ ] Manual verification: Edit ..felix/workflow.json stage names, refresh dashboard, see updated labels
 - [ ] Manual verification: Stop agent, workflow stages return to inactive state
 - [ ] Backend serves workflow config: `curl http://localhost:8080/api/workflow-config?project_id=<path>` returns JSON
 - [ ] Backend includes workflow stage in agent status: `curl http://localhost:8080/api/agents` includes current_workflow_stage field
+
+

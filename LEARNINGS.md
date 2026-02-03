@@ -602,7 +602,7 @@ subprocess.run(cmd, shell=True, capture_output=False, text=True)
 
 **Priority Order**:
 
-1. Config file explicit path: `felix/config.json` → `python.executable`
+1. Config file explicit path: `.felix/config.json` → `python.executable`
 2. py launcher: `py -3` (Windows-specific, most reliable on Windows)
 3. Direct python: `python3` or `python` (cross-platform fallback)
 
@@ -654,7 +654,7 @@ if (-not $pythonInfo) {
 
 ### Configuration Schema
 
-**felix/config.json**:
+**.felix/config.json**:
 
 ```json
 {
@@ -718,9 +718,9 @@ Felix uses distinct exit codes to indicate different completion states:
 | 2         | Blocked (backpressure) | Backpressure failures exceeded max retries (default: 3)   |
 | 3         | Blocked (validation)   | Validation failures exceeded max retries (default: 2)     |
 
-**Blocked Requirements**: When exit code 2 or 3 occurs, the requirement is automatically marked as "blocked" in `felix/requirements.json`. The agent will skip blocked requirements and proceed with other planned work. To unblock, fix the underlying issues then manually change the status back to "planned" in `felix/requirements.json`.
+**Blocked Requirements**: When exit code 2 or 3 occurs, the requirement is automatically marked as "blocked" in `.felix/requirements.json`. The agent will skip blocked requirements and proceed with other planned work. To unblock, fix the underlying issues then manually change the status back to "planned" in `.felix/requirements.json`.
 
-**Retry Configuration** (in `felix/config.json`):
+**Retry Configuration** (in `.felix/config.json`):
 
 - Backpressure retries: `backpressure.max_retries` (default: 3)
 - Validation retries: `validation.max_validation_retries` (default: 1, allows 2 total attempts)
@@ -884,14 +884,14 @@ def run_command(command: str, cwd: Path, timeout: int = 120) -> Tuple[bool, str,
 
 But fails when backticks are used for markdown formatting of file paths or technical terms:
 
-- Settings save successfully: Modify setting, save, verify `felix/config.json` updated ❌
+- Settings save successfully: Modify setting, save, verify `.felix/config.json` updated ❌
 
 **Anti-Pattern**:
 
 ```markdown
 ## Validation Criteria
 
-- [ ] Settings save successfully: Modify setting, save, verify `felix/config.json` updated
+- [ ] Settings save successfully: Modify setting, save, verify `.felix/config.json` updated
 - [ ] Config loads from file: Check that `config.json` is read correctly
 ```
 
@@ -948,7 +948,7 @@ But fails when backticks are used for markdown formatting of file paths or techn
 
 ❌ BAD - File path in backticks
 
-- [ ] Config persists: Check `felix/config.json` contains new settings
+- [ ] Config persists: Check `.felix/config.json` contains new settings
 
 ❌ BAD - Non-command in backticks
 
@@ -1117,3 +1117,4 @@ import { Group, Panel, Separator } from "react-resizable-panels";
 **Last Updated**: January 30, 2026
 **Maintainer**: Felix Development Team
 **Applies To**: Felix Agent v0.1.0+, Windows 10/11, PowerShell 7+, Python 3.8+
+

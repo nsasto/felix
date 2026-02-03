@@ -80,7 +80,7 @@ const createMockConfig = (
 
 const mockConfigResponse = (config: FelixConfig): ConfigContent => ({
   config,
-  path: "felix/config.json",
+  path: "\.felix/config.json",
 });
 
 describe("SettingsScreen", () => {
@@ -2128,3 +2128,4 @@ describe("SettingsScreen", () => {
     });
   });
 });
+

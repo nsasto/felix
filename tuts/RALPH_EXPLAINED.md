@@ -202,7 +202,7 @@ The operational guide: how to run tests, start the dev server, build the project
 
 This must stay short and operational, or it pollutes every loop with noise.
 
-### `felix/requirements.json` - Structured Status
+### `..felix/requirements.json` - Structured Status
 
 Machine-readable registry of requirement IDs, status, and dependencies.
 
@@ -271,3 +271,5 @@ Keep the agent in its smart zone by starting fresh every time.
 Use files as memory. Use tests as steering. Keep it simple.
 
 That's Ralph.
+
+

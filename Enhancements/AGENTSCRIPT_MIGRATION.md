@@ -104,7 +104,7 @@ if ($planExists) {
 ### Module Structure
 
 ```
-felix/
+.felix/
 ├── core/
 │   ├── compat-utils.ps1      # PS 5.1 compatibility layer
 │   ├── agent-state.ps1        # Formal state machine
@@ -148,7 +148,7 @@ felix/
 #### 1.1 Create Compatibility Layer
 
 ```powershell
-# filepath: felix/core/compat-utils.ps1
+# filepath: .felix/core/compat-utils.ps1
 <#
 .SYNOPSIS
 PowerShell 5.1 compatible utility functions
@@ -252,7 +252,7 @@ Export-ModuleMember -Function Coalesce-Value, Ternary, Safe-Interpolate, Invoke-
 #### 2.1 Create State Machine
 
 ```powershell
-# filepath: felix/core/agent-state.ps1
+# filepath: .felix/core/agent-state.ps1
 <#
 .SYNOPSIS
 Formal state machine for Felix agent execution
@@ -339,7 +339,7 @@ $agentState.TransitionTo('Building')
 #### 3.1 Create Git Manager
 
 ```powershell
-# filepath: felix/core/git-manager.ps1
+# filepath: .felix/core/git-manager.ps1
 <#
 .SYNOPSIS
 Git operations for Felix agent
@@ -457,7 +457,7 @@ function Invoke-GitRevert {
         [Parameter(Mandatory=$true)]
         [hashtable]$BeforeState,
 
-        [string[]]$AllowedPatterns = @('runs/*', 'felix/state.json', 'felix/requirements.json')
+        [string[]]$AllowedPatterns = @('runs/*', '.felix/state.json', '.felix/requirements.json')
     )
 
     $afterState = Get-GitState
@@ -500,7 +500,7 @@ Export-ModuleMember -Function Initialize-FeatureBranch, Get-GitState, Test-GitCh
 #### 4.1 Create State Manager
 
 ```powershell
-# filepath: felix/core/state-manager.ps1
+# filepath: .felix/core/state-manager.ps1
 <#
 .SYNOPSIS
 Requirements state management
@@ -638,7 +638,7 @@ Export-ModuleMember -Function Get-RequirementsState, Save-RequirementsState, Get
 #### 5.1 Create Plugin Manager
 
 ```powershell
-# filepath: felix/plugins/plugin-manager.ps1
+# filepath: .felix/plugins/plugin-manager.ps1
 <#
 .SYNOPSIS
 Safe plugin execution with isolation
@@ -801,7 +801,7 @@ Export-ModuleMember -Function Invoke-PluginSafely, Get-Plugins, Invoke-PluginHoo
 #### 6.1 New felix-agent.ps1
 
 ```powershell
-# filepath: felix/felix-agent.ps1
+# filepath: .felix/felix-agent.ps1
 <#
 .SYNOPSIS
 Felix autonomous agent - clean orchestrator
@@ -836,7 +836,7 @@ Write-Log "Repository: $RepoPath" -Level Info
 Write-Log "Base Branch: $BaseBranch" -Level Info
 
 # Load configuration
-$configPath = Join-Path $RepoPath "felix/config.json"
+$configPath = Join-Path $RepoPath ".felix/config.json"
 if (-not (Test-Path $configPath)) {
     Write-Log "Configuration file not found: $configPath" -Level Error
     exit 1
@@ -846,8 +846,8 @@ $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
 # Initialize paths
 Set-Location $RepoPath
-$requirementsFile = Join-Path $RepoPath "felix/requirements.json"
-$pluginDirectory = Join-Path $RepoPath "felix/plugins"
+$requirementsFile = Join-Path $RepoPath ".felix/requirements.json"
+$pluginDirectory = Join-Path $RepoPath ".felix/plugins"
 
 # Create state machine
 $agentState = New-AgentState -InitialMode 'Planning'
@@ -957,7 +957,7 @@ try {
 #### 7.1 Test Framework
 
 ```powershell
-# filepath: felix/tests/test-runner.ps1
+# filepath: .felix/tests/test-runner.ps1
 <#
 .SYNOPSIS
 Test runner for Felix modules
@@ -1021,7 +1021,7 @@ function Run-Tests {
 #### 7.2 Example Tests
 
 ```powershell
-# filepath: felix/tests/test-state-machine.ps1
+# filepath: .felix/tests/test-state-machine.ps1
 . "$PSScriptRoot/../core/agent-state.ps1"
 
 # Test: Initial state
@@ -1042,7 +1042,7 @@ Write-Host "All state machine tests passed"
 ```
 
 ```powershell
-# filepath: felix/tests/test-git-manager.ps1
+# filepath: .felix/tests/test-git-manager.ps1
 . "$PSScriptRoot/../core/git-manager.ps1"
 
 # Create temp git repo for testing
@@ -1078,7 +1078,7 @@ Write-Host "All git manager tests passed"
 
 ### Day 1: Critical Fixes
 
-- [ ] Create `felix/core/compat-utils.ps1`
+- [ ] Create `.felix/core/compat-utils.ps1`
 - [ ] Replace all `??` with `Coalesce-Value`
 - [ ] Replace all `? :` with `Ternary`
 - [ ] Fix all `$var:text` to `${var}:text`
@@ -1087,31 +1087,31 @@ Write-Host "All git manager tests passed"
 
 ### Day 2: State Machine
 
-- [ ] Create `felix/core/agent-state.ps1`
+- [ ] Create `.felix/core/agent-state.ps1`
 - [ ] Replace ad-hoc mode checks with state machine
 - [ ] Add state validation
 - [ ] Test state transitions
 
 ### Day 3: Extract Modules
 
-- [ ] Create `felix/core/git-manager.ps1`
-- [ ] Create `felix/core/state-manager.ps1`
+- [ ] Create `.felix/core/git-manager.ps1`
+- [ ] Create `.felix/core/state-manager.ps1`
 - [ ] Update main script to use modules
 - [ ] Test git operations
 - [ ] Test state management
 
 ### Day 4: Plugin Sandbox
 
-- [ ] Create `felix/plugins/plugin-manager.ps1`
+- [ ] Create `.felix/plugins/plugin-manager.ps1`
 - [ ] Implement isolated execution
 - [ ] Add timeout handling
 - [ ] Test plugin failures don't crash agent
 
 ### Day 5: Refactor Main Script
 
-- [ ] Extract planner logic to `felix/core/planner.ps1`
-- [ ] Extract executor logic to `felix/core/executor.ps1`
-- [ ] Extract validator logic to `felix/core/validator.ps1`
+- [ ] Extract planner logic to `.felix/core/planner.ps1`
+- [ ] Extract executor logic to `.felix/core/executor.ps1`
+- [ ] Extract validator logic to `.felix/core/validator.ps1`
 - [ ] Reduce main script to orchestrator
 - [ ] Update `felix-loop.ps1`
 
@@ -1198,3 +1198,4 @@ After migration completes:
 **Created**: February 2, 2026
 **Owner**: Felix Core Team
 **Status**: Approved - Ready for Implementation
+

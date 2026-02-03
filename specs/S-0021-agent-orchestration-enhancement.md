@@ -10,7 +10,7 @@ Enhance the Agent Orchestration Dashboard (S-0014) to display **all configured a
 
 Currently, the Agent Orchestration Dashboard (S-0014) only displays agents that have actively registered themselves by running (stored in the backend's runtime registry from S-0013). This creates a "chicken-and-egg" problem: users can't see what agents are available to start, and the agent list appears empty until something is already running.
 
-With the introduction of ID-based agent configuration in S-0020, we have a canonical source of "all possible agents" in `felix/agents.json`. The dashboard should leverage this to show:
+With the introduction of ID-based agent configuration in S-0020, we have a canonical source of "all possible agents" in `..felix/agents.json`. The dashboard should leverage this to show:
 
 1. **Configured agents** that have never been started (status: `not-started`)
 2. **Active agents** currently running with live heartbeats (status: `active`, `stale`)
@@ -32,7 +32,7 @@ This enhancement changes the **data source** for the agent list panel while keep
 
 **Agent List Panel** displays all configured agents with runtime status overlay:
 
-- Loads **configured agents** from `GET /api/agents/config` (`felix/agents.json`)
+- Loads **configured agents** from `GET /api/agents/config` (`..felix/agents.json`)
 - Loads **runtime status** from `GET /api/agents` (runtime registry)
 - Merges both sources to show complete picture
 - Shows agents grouped by availability:
@@ -146,7 +146,7 @@ This enhancement changes the **data source** for the agent list panel while keep
 ### Backend API Changes
 
 - [ ] **New endpoint**: `GET /api/agents/config`
-  - Returns array of agents from `felix/agents.json`
+  - Returns array of agents from `..felix/agents.json`
   - Schema matches agents.json structure:
     ```json
     {
@@ -298,7 +298,7 @@ def get_agent_status(agent_name: str, registry: dict) -> str:
 
 ## Dependencies
 
-- **S-0020** (Consolidate Agent Settings) - Requires `felix/agents.json` with ID-based configuration
+- **S-0020** (Consolidate Agent Settings) - Requires `..felix/agents.json` with ID-based configuration
 - **S-0013** (Agent Settings & Registry) - Requires runtime registry for active agent status
 - **S-0014** (Agent Orchestration Dashboard) - Enhances this spec's agent list panel
 - **S-0003** (Frontend Observer UI) - Requires React infrastructure
@@ -315,7 +315,7 @@ def get_agent_status(agent_name: str, registry: dict) -> str:
 
 ## Validation Criteria
 
-- [ ] Backend endpoint works: `curl http://localhost:8080/api/agents/config` returns agents from felix/agents.json
+- [ ] Backend endpoint works: `curl http://localhost:8080/api/agents/config` returns agents from ..felix/agents.json
 - [ ] Dashboard shows not-started agents: Add agent to agents.json, refresh dashboard, verify it appears in "Available Agents"
 - [ ] Start not-started agent: Select not-started agent, click Start, select requirement, verify agent launches
 - [ ] Agent transitions to active: After starting, verify agent moves from "Available" to "Active Agents" section
@@ -338,3 +338,5 @@ def get_agent_status(agent_name: str, registry: dict) -> str:
 - If agents.json doesn't exist, falls back to showing only runtime agents (S-0014 behavior)
 - If backend doesn't support /api/agents/config, frontend shows only runtime agents
 - Existing start/stop/register flows unchanged
+
+

@@ -42,7 +42,7 @@ As a Windows user of Felix, I need a native system tray application that allows 
 
 ### Status Monitoring
 
-- [ ] Polls `felix/state.json` every 2-3 seconds to read agent state
+- [ ] Polls `..felix/state.json` every 2-3 seconds to read agent state
 - [ ] Displays current requirement ID in tooltip
 - [ ] Shows iteration count (current/max) in tooltip
 - [ ] Updates tray icon based on state.json status field
@@ -57,7 +57,7 @@ As a Windows user of Felix, I need a native system tray application that allows 
 - [ ] **Run in background on close**: Option to minimize to tray instead of exit
 - [ ] Settings saved to `app/tray-manager/settings.json`
 - [ ] Settings applied immediately (no restart required where possible)
-- [ ] Validate project path contains felix/ directory structure
+- [ ] Validate project path contains ..felix/ directory structure
 
 ### About Dialog
 
@@ -111,7 +111,7 @@ app/tray-manager/
 
 **Process Management:** Use `System.Diagnostics.Process` to spawn and monitor PowerShell. Track PID, monitor for exit, capture stdout/stderr for logging.
 
-**State Monitoring:** Use `System.IO.FileSystemWatcher` or timer-based polling of `felix/state.json`. Deserialize JSON to `FelixState` model and update tray icon accordingly.
+**State Monitoring:** Use `System.IO.FileSystemWatcher` or timer-based polling of `..felix/state.json`. Deserialize JSON to `FelixState` model and update tray icon accordingly.
 
 **Settings Persistence:** Serialize `AppSettings` to JSON using `Newtonsoft.Json` or `System.Text.Json`. Store in user-writable location alongside executable.
 
@@ -145,3 +145,5 @@ app/tray-manager/
 - Multi-project management (single project focus for simplicity)
 - Real-time log streaming UI (use separate log viewer)
 - Advanced process management (restart policies, health checks beyond basic monitoring)
+
+

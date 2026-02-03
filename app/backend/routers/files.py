@@ -256,11 +256,11 @@ def validate_filename(filename: str) -> bool:
 
 def load_policies(project_path: Path) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Load allowlist and denylist policies from the project's felix/policies/ directory.
+    Load allowlist and denylist policies from the project's .felix/policies/ directory.
 
     Returns (allowlist, denylist) dictionaries. Returns empty dicts if files don't exist.
     """
-    policies_dir = project_path / "felix" / "policies"
+    policies_dir = project_path / ".felix" / "policies"
 
     allowlist = {}
     denylist = {}
@@ -482,7 +482,7 @@ async def read_requirements(project_id: str = PathParam(..., description="Projec
     # Validate project exists (preserves existing behavior for 404 on invalid project)
     get_project_path(project_id)
 
-    return RequirementsContent(requirements=[], path="felix/requirements.json")
+    return RequirementsContent(requirements=[], path=".felix/requirements.json")
 
 
 # --- README Endpoint ---
@@ -624,11 +624,11 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
     If the config file doesn't exist, returns default values.
     """
     project_path = get_project_path(project_id)
-    config_path = project_path / "felix" / "config.json"
+    config_path = project_path / ".felix" / "config.json"
 
     if not config_path.exists():
         # Return default config if file doesn't exist
-        return ConfigContent(config=FelixConfig(), path="felix/config.json")
+        return ConfigContent(config=FelixConfig(), path=".felix/config.json")
 
     try:
         data = json.loads(config_path.read_text(encoding="utf-8-sig"))
@@ -678,7 +678,7 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
             copilot=copilot_config,
         )
 
-        return ConfigContent(config=config, path="felix/config.json")
+        return ConfigContent(config=config, path=".felix/config.json")
     except json.JSONDecodeError as e:
         raise HTTPException(
             status_code=500, detail=f"Invalid JSON in config.json: {str(e)}"
@@ -703,12 +703,12 @@ async def update_config(
     - default_mode must be 'planning' or 'building'
     """
     project_path = get_project_path(project_id)
-    config_path = project_path / "felix" / "config.json"
+    config_path = project_path / ".felix" / "config.json"
 
-    # Ensure felix directory exists
-    felix_dir = project_path / "felix"
+    # Ensure .felix directory exists
+    felix_dir = project_path / ".felix"
     if not felix_dir.exists():
-        raise HTTPException(status_code=400, detail="Project has no felix/ directory")
+        raise HTTPException(status_code=400, detail="Project has no .felix/ directory")
 
     # Validate config values
     config = request.config
@@ -731,7 +731,7 @@ async def update_config(
 
         config_path.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
 
-        return ConfigContent(config=config, path="felix/config.json")
+        return ConfigContent(config=config, path=".felix/config.json")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write config: {str(e)}")
 

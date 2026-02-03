@@ -180,7 +180,7 @@ public class SupabaseAuthService
 
 **Priority**: 🔴 CRITICAL
 
-**Current State**: File-based storage (`~/.felix/projects.json`, `~/.felix/agents.json`)
+**Current State**: File-based storage (`~/..felix/projects.json`, `~/..felix/agents.json`)
 
 **Supabase Approach**: Use Supabase dashboard SQL editor or migrations
 
@@ -881,7 +881,7 @@ public class SupabaseService
     "Url": "https://your-project.supabase.co",
     "AnonKey": "your-anon-key"
   },
-  "UpdateCheckUrl": "https://api.github.com/repos/yourusername/felix/releases/latest"= Environment.MachineName;
+  "UpdateCheckUrl": "https://api.github.com/repos/yourusername/.felix/releases/latest"= Environment.MachineName;
         var username = Environment.UserName;
         
         using var sha = System.Security.Cryptography.SHA256.Create();

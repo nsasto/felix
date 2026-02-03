@@ -55,7 +55,7 @@ This enhancement brings three improvements:
 - [ ] Manual "Reset Plan" button appears on drift indicator when hovering
 - [ ] Reset plan action requires confirmation dialog
 - [ ] Confirmation shows: "This will mark S-XXXX as 'planned' and clear its plan. Continue?"
-- [ ] Reset plan updates requirement status in felix/requirements.json
+- [ ] Reset plan updates requirement status in ..felix/requirements.json
 - [ ] Visual indicators use consistent styling with S-0006 implementation
 
 ## Technical Notes
@@ -318,3 +318,5 @@ All new UI elements should match existing Felix design system:
 - [ ] Active agent indicator: Start agent on requirement, verify 🤖 pulse animation appears
 - [ ] No results state: Search for nonexistent term, verify "No specs match your search" message
 - [ ] Button styling: Verify "New Spec" button matches projects screen "Refresh" button style
+
+

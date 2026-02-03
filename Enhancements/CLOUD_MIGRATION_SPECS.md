@@ -328,4 +328,5 @@ S-0049 → S-0050 → S-0051 → S-0052 → S-0053
 
 - **Detailed Migration Plan**: [CLOUD_MIGRATION_PLAN.md](CLOUD_MIGRATION_PLAN.md)
 - **Architecture Documentation**: [CLOUD_MIGRATION.md](CLOUD_MIGRATION.md)
-- **Requirements Tracking**: `felix/requirements.json`
+- **Requirements Tracking**: `.felix/requirements.json`
+

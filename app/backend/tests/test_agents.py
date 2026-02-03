@@ -15,6 +15,7 @@ The following functionality is preserved:
 - GET /api/agents/workflow-config -> Returns workflow configuration
 - WebSocket /api/agents/{id}/console -> Console streaming from runs/ directory
 """
+
 import json
 import pytest
 from pathlib import Path
@@ -23,6 +24,7 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app and router
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from main import app
@@ -46,44 +48,40 @@ class TestStubbedEndpoints:
                 "agent_id": 0,
                 "agent_name": "test-agent",
                 "pid": 12345,
-                "hostname": "test-host"
-            }
+                "hostname": "test-host",
+            },
         )
-        
+
         assert response.status_code == 501
         assert "temporarily disabled" in response.json()["detail"]
 
     def test_heartbeat_returns_501(self, client):
         """POST /api/agents/{id}/heartbeat returns 501 Not Implemented"""
         response = client.post(
-            "/api/agents/0/heartbeat",
-            json={"current_run_id": "S-0001"}
+            "/api/agents/0/heartbeat", json={"current_run_id": "S-0001"}
         )
-        
+
         assert response.status_code == 501
         assert "temporarily disabled" in response.json()["detail"]
 
     def test_stop_agent_returns_501(self, client):
         """POST /api/agents/{id}/stop returns 501 Not Implemented"""
         response = client.post("/api/agents/0/stop")
-        
+
         assert response.status_code == 501
         assert "temporarily disabled" in response.json()["detail"]
 
     def test_start_agent_returns_501(self, client):
         """POST /api/agents/{id}/start returns 501 Not Implemented"""
-        response = client.post(
-            "/api/agents/0/start",
-            json={"requirement_id": "S-0001"}
-        )
-        
+        response = client.post("/api/agents/0/start", json={"requirement_id": "S-0001"})
+
         assert response.status_code == 501
         assert "temporarily disabled" in response.json()["detail"]
 
     def test_get_agents_returns_empty_registry(self, client):
         """GET /api/agents returns empty agents registry"""
         response = client.get("/api/agents")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["agents"] == {}
@@ -99,9 +97,9 @@ class TestAgentEntryModel:
             agent_name="test-agent",
             pid=12345,
             hostname="test-host",
-            status="active"
+            status="active",
         )
-        
+
         assert agent.agent_id == 0
         assert agent.agent_name == "test-agent"
         assert agent.pid == 12345
@@ -120,9 +118,9 @@ class TestAgentEntryModel:
             started_at="2026-01-29T12:00:00Z",
             last_heartbeat="2026-01-29T12:05:00Z",
             current_workflow_stage="execute_llm",
-            workflow_stage_timestamp="2026-01-29T12:00:00Z"
+            workflow_stage_timestamp="2026-01-29T12:00:00Z",
         )
-        
+
         assert agent.current_run_id == "S-0030"
         assert agent.started_at == "2026-01-29T12:00:00Z"
         assert agent.last_heartbeat == "2026-01-29T12:05:00Z"
@@ -138,7 +136,7 @@ class TestGetAgentsConfig:
         """Create a temporary felix home directory with agents.json"""
         felix_home = tmp_path / ".felix"
         felix_home.mkdir(parents=True, exist_ok=True)
-        
+
         agents_file = felix_home / "agents.json"
         agents_data = {
             "agents": [
@@ -148,7 +146,7 @@ class TestGetAgentsConfig:
                     "executable": "droid",
                     "args": ["exec", "--skip-permissions-unsafe"],
                     "working_directory": ".",
-                    "environment": {}
+                    "environment": {},
                 },
                 {
                     "id": 1,
@@ -156,36 +154,41 @@ class TestGetAgentsConfig:
                     "executable": "claude",
                     "args": ["--model", "opus"],
                     "working_directory": "/custom/path",
-                    "environment": {"API_KEY": "test123"}
-                }
+                    "environment": {"API_KEY": "test123"},
+                },
             ]
         }
-        agents_file.write_text(json.dumps(agents_data, indent=2), encoding='utf-8')
-        
+        agents_file.write_text(json.dumps(agents_data, indent=2), encoding="utf-8")
+
         return felix_home
 
     @pytest.fixture
     def mock_storage_felix_home(self, mock_felix_home_with_agents):
         """Patch storage.get_felix_home to use temporary directory"""
-        with patch('storage.get_felix_home', return_value=mock_felix_home_with_agents):
-            with patch('routers.agents.storage.get_felix_home', return_value=mock_felix_home_with_agents):
+        with patch("storage.get_felix_home", return_value=mock_felix_home_with_agents):
+            with patch(
+                "routers.agents.storage.get_felix_home",
+                return_value=mock_felix_home_with_agents,
+            ):
                 yield mock_felix_home_with_agents
 
-    def test_get_agents_config_returns_all_configured_agents(self, client, mock_storage_felix_home):
+    def test_get_agents_config_returns_all_configured_agents(
+        self, client, mock_storage_felix_home
+    ):
         """Get agents config returns all configured agents from agents.json"""
         response = client.get("/api/agents/config")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "agents" in data
         assert len(data["agents"]) == 2
-        
+
         # Verify first agent (system default)
         agent_0 = next(a for a in data["agents"] if a["id"] == 0)
         assert agent_0["name"] == "felix-primary"
         assert agent_0["executable"] == "droid"
         assert "exec" in agent_0["args"]
-        
+
         # Verify second agent
         agent_1 = next(a for a in data["agents"] if a["id"] == 1)
         assert agent_1["name"] == "test-agent"
@@ -194,19 +197,23 @@ class TestGetAgentsConfig:
         assert agent_1["working_directory"] == "/custom/path"
         assert agent_1["environment"]["API_KEY"] == "test123"
 
-    def test_get_agents_config_returns_default_when_file_missing(self, client, tmp_path):
+    def test_get_agents_config_returns_default_when_file_missing(
+        self, client, tmp_path
+    ):
         """Returns default agent when agents.json doesn't exist"""
         # Create empty felix home without agents.json
         felix_home = tmp_path / ".felix_empty"
         felix_home.mkdir(parents=True, exist_ok=True)
-        
-        with patch('storage.get_felix_home', return_value=felix_home):
-            with patch('routers.agents.storage.get_felix_home', return_value=felix_home):
+
+        with patch("storage.get_felix_home", return_value=felix_home):
+            with patch(
+                "routers.agents.storage.get_felix_home", return_value=felix_home
+            ):
                 response = client.get("/api/agents/config")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should return default agent
         assert len(data["agents"]) == 1
         assert data["agents"][0]["id"] == 0
@@ -217,17 +224,19 @@ class TestGetAgentsConfig:
         """Returns default agent when agents.json is malformed"""
         felix_home = tmp_path / ".felix_malformed"
         felix_home.mkdir(parents=True, exist_ok=True)
-        
+
         agents_file = felix_home / "agents.json"
-        agents_file.write_text("not valid json {{{", encoding='utf-8')
-        
-        with patch('storage.get_felix_home', return_value=felix_home):
-            with patch('routers.agents.storage.get_felix_home', return_value=felix_home):
+        agents_file.write_text("not valid json {{{", encoding="utf-8")
+
+        with patch("storage.get_felix_home", return_value=felix_home):
+            with patch(
+                "routers.agents.storage.get_felix_home", return_value=felix_home
+            ):
                 response = client.get("/api/agents/config")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should return default agent on parse error
         assert len(data["agents"]) == 1
         assert data["agents"][0]["id"] == 0
@@ -237,9 +246,9 @@ class TestGetAgentsConfig:
         """Verify response matches expected schema for frontend merge"""
         response = client.get("/api/agents/config")
         assert response.status_code == 200
-        
+
         data = response.json()
-        
+
         # Verify schema for each agent matches MergedAgent requirements
         for agent in data["agents"]:
             assert "id" in agent
@@ -264,11 +273,11 @@ class TestGetWorkflowConfig:
         """Create a temporary project with workflow.json"""
         project_path = tmp_path / "test-project"
         project_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Create required Felix structure
-        (project_path / "felix").mkdir(exist_ok=True)
+        (project_path / ".felix").mkdir(exist_ok=True)
         (project_path / "specs").mkdir(exist_ok=True)
-        
+
         # Create workflow.json
         workflow_data = {
             "version": "2.0",
@@ -279,7 +288,7 @@ class TestGetWorkflowConfig:
                     "name": "Custom 1",
                     "icon": "star",
                     "description": "Custom stage one",
-                    "order": 1
+                    "order": 1,
                 },
                 {
                     "id": "custom_stage_2",
@@ -287,39 +296,46 @@ class TestGetWorkflowConfig:
                     "icon": "circle",
                     "description": "Custom stage two",
                     "order": 2,
-                    "conditional": "some_mode"
-                }
-            ]
+                    "conditional": "some_mode",
+                },
+            ],
         }
-        workflow_file = project_path / "felix" / "workflow.json"
-        workflow_file.write_text(json.dumps(workflow_data, indent=2), encoding='utf-8')
-        
+        workflow_file = project_path / ".felix" / "workflow.json"
+        workflow_file.write_text(json.dumps(workflow_data, indent=2), encoding="utf-8")
+
         return project_path
 
     @pytest.fixture
     def mock_project_registration(self, mock_project_with_workflow):
         """Mock storage functions to return our test project"""
         from models import Project
+
         test_project = Project(
             id="test-project-id",
             path=str(mock_project_with_workflow),
-            name="Test Project"
+            name="Test Project",
         )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
-            with patch('routers.agents.storage.get_project_by_id', return_value=test_project):
+
+        with patch(
+            "routers.agents.storage.get_all_projects", return_value=[test_project]
+        ):
+            with patch(
+                "routers.agents.storage.get_project_by_id", return_value=test_project
+            ):
                 yield test_project
 
-    def test_get_workflow_config_returns_custom_config(self, client, mock_project_registration):
+    def test_get_workflow_config_returns_custom_config(
+        self, client, mock_project_registration
+    ):
         """Returns workflow configuration from workflow.json"""
         response = client.get("/api/agents/workflow-config")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["version"] == "2.0"
         assert data["layout"] == "vertical"
         assert len(data["stages"]) == 2
-        
+
         # Verify first custom stage
         stage_1 = data["stages"][0]
         assert stage_1["id"] == "custom_stage_1"
@@ -327,34 +343,36 @@ class TestGetWorkflowConfig:
         assert stage_1["icon"] == "star"
         assert stage_1["description"] == "Custom stage one"
         assert stage_1["order"] == 1
-        
+
         # Verify second custom stage with conditional
         stage_2 = data["stages"][1]
         assert stage_2["id"] == "custom_stage_2"
         assert stage_2["conditional"] == "some_mode"
 
-    def test_get_workflow_config_with_project_id(self, client, mock_project_registration):
+    def test_get_workflow_config_with_project_id(
+        self, client, mock_project_registration
+    ):
         """Returns workflow configuration for specified project_id"""
         response = client.get("/api/agents/workflow-config?project_id=test-project-id")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["version"] == "2.0"
         assert len(data["stages"]) == 2
 
     def test_get_workflow_config_returns_default_when_no_projects(self, client):
         """Returns default workflow config when no projects registered"""
-        with patch('routers.agents.storage.get_all_projects', return_value=[]):
+        with patch("routers.agents.storage.get_all_projects", return_value=[]):
             response = client.get("/api/agents/workflow-config")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should return default config
         assert data["version"] == "1.0"
         assert data["layout"] == "horizontal"
         assert len(data["stages"]) == 14  # Default has 14 stages
-        
+
         # Verify some default stages exist
         stage_ids = [s["id"] for s in data["stages"]]
         assert "select_requirement" in stage_ids
@@ -362,26 +380,29 @@ class TestGetWorkflowConfig:
         assert "commit_changes" in stage_ids
         assert "iteration_complete" in stage_ids
 
-    def test_get_workflow_config_returns_default_when_file_missing(self, client, tmp_path):
+    def test_get_workflow_config_returns_default_when_file_missing(
+        self, client, tmp_path
+    ):
         """Returns default workflow config when workflow.json doesn't exist"""
         # Create project without workflow.json
         project_path = tmp_path / "no-workflow-project"
-        (project_path / "felix").mkdir(parents=True)
+        (project_path / ".felix").mkdir(parents=True)
         (project_path / "specs").mkdir()
-        
+
         from models import Project
+
         test_project = Project(
-            id="no-workflow-id",
-            path=str(project_path),
-            name="No Workflow Project"
+            id="no-workflow-id", path=str(project_path), name="No Workflow Project"
         )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+
+        with patch(
+            "routers.agents.storage.get_all_projects", return_value=[test_project]
+        ):
             response = client.get("/api/agents/workflow-config")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should return default config
         assert data["version"] == "1.0"
         assert data["layout"] == "horizontal"
@@ -390,26 +411,27 @@ class TestGetWorkflowConfig:
     def test_get_workflow_config_handles_malformed_json(self, client, tmp_path):
         """Returns default workflow config when workflow.json is malformed"""
         project_path = tmp_path / "malformed-workflow-project"
-        (project_path / "felix").mkdir(parents=True)
+        (project_path / ".felix").mkdir(parents=True)
         (project_path / "specs").mkdir()
-        
+
         # Create malformed workflow.json
-        workflow_file = project_path / "felix" / "workflow.json"
-        workflow_file.write_text("not valid json {{{", encoding='utf-8')
-        
+        workflow_file = project_path / ".felix" / "workflow.json"
+        workflow_file.write_text("not valid json {{{", encoding="utf-8")
+
         from models import Project
+
         test_project = Project(
-            id="malformed-id",
-            path=str(project_path),
-            name="Malformed Project"
+            id="malformed-id", path=str(project_path), name="Malformed Project"
         )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+
+        with patch(
+            "routers.agents.storage.get_all_projects", return_value=[test_project]
+        ):
             response = client.get("/api/agents/workflow-config")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should return default config on parse error
         assert data["version"] == "1.0"
         assert len(data["stages"]) == 14
@@ -417,25 +439,28 @@ class TestGetWorkflowConfig:
     def test_get_workflow_config_handles_empty_stages(self, client, tmp_path):
         """Returns default workflow config when workflow.json has empty stages"""
         project_path = tmp_path / "empty-stages-project"
-        (project_path / "felix").mkdir(parents=True)
+        (project_path / ".felix").mkdir(parents=True)
         (project_path / "specs").mkdir()
-        
+
         # Create workflow.json with empty stages
-        workflow_file = project_path / "felix" / "workflow.json"
-        workflow_file.write_text(json.dumps({"version": "1.0", "stages": []}), encoding='utf-8')
-        
-        from models import Project
-        test_project = Project(
-            id="empty-stages-id",
-            path=str(project_path),
-            name="Empty Stages Project"
+        workflow_file = project_path / ".felix" / "workflow.json"
+        workflow_file.write_text(
+            json.dumps({"version": "1.0", "stages": []}), encoding="utf-8"
         )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+
+        from models import Project
+
+        test_project = Project(
+            id="empty-stages-id", path=str(project_path), name="Empty Stages Project"
+        )
+
+        with patch(
+            "routers.agents.storage.get_all_projects", return_value=[test_project]
+        ):
             response = client.get("/api/agents/workflow-config")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should return default config when stages array is empty
         assert len(data["stages"]) == 14

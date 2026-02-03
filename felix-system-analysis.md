@@ -108,7 +108,7 @@ Core execution flow: VERIFIED
 
 ## Configuration System
 
-### felix/config.json
+### .felix/config.json
 
 ```json
 {
@@ -174,7 +174,7 @@ The Felix agent system is fully operational and ready for production use. Key st
 
 **Plugin Repair (Optional):**
 
-- See `felix/plugins/REPAIR_NOTES.md` for infrastructure fixes needed
+- See `.felix/plugins/REPAIR_NOTES.md` for infrastructure fixes needed
 - Non-critical as core functionality is independent
 
 ## Conclusion
@@ -233,3 +233,4 @@ All plugins fail with: `You cannot call a method on a null-valued expression`
 - Commit control, error handling, and all essential features function correctly
 
 **Plugin system can be repaired separately without affecting core operations.**
+

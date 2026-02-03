@@ -10,7 +10,7 @@ As a Felix user working in bright environments or preferring lighter interfaces,
 
 - [ ] Theme selection dropdown appears in General settings category
 - [ ] Options: "Dark" (default), "Light", "System" (follows OS preference)
-- [ ] Selected theme saved to felix/config.json under ui.theme
+- [ ] Selected theme saved to ..felix/config.json under ui.theme
 - [ ] Theme change applies immediately without page refresh
 - [ ] Theme preference persists across sessions
 
@@ -59,7 +59,7 @@ As a Felix user working in bright environments or preferring lighter interfaces,
 
 ## Technical Notes
 
-**Architecture:** Implement theme system using CSS custom properties (CSS variables) and React context. Store theme preference in felix/config.json and sync via backend API.
+**Architecture:** Implement theme system using CSS custom properties (CSS variables) and React context. Store theme preference in ..felix/config.json and sync via backend API.
 
 **Implementation Approach:**
 
@@ -85,7 +85,7 @@ Light theme (new):
 - Border: #d0d7de, #e1e4e8
 - Accent: Felix purple (darker variants for contrast)
 
-**Config Update:** Add to felix/config.json:
+**Config Update:** Add to ..felix/config.json:
 
 ```json
 {
@@ -119,3 +119,5 @@ Light theme (new):
 - [ ] System theme detection works: Select System, change OS theme, verify Felix updates
 - [ ] All components readable: Navigate all screens in light theme, verify no contrast issues
 - [ ] Theme transitions smoothly: Switch themes, verify smooth fade without flashing
+
+

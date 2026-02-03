@@ -18,8 +18,8 @@
 ✅ **Day 6:** Utilities extraction (Commits fe714d6, 3c0ef27) - COMPLETE
 
 - Validator functions removed from felix-agent.ps1
-- Created workflow module (felix/core/workflow.ps1)
-- Created agent-registration module (felix/core/agent-registration.ps1)
+- Created workflow module (.felix/core/workflow.ps1)
+- Created agent-registration module (.felix/core/agent-registration.ps1)
 - 80 tests passing
 
 ### In-Progress Work (Day 7)
@@ -69,7 +69,7 @@
 
 **Problem:** The validator functions in felix-agent.ps1 were only partially removed.
 
-- Line 418: `# Get-BackpressureCommands: Now in felix/core/validator.ps1`
+- Line 418: `# Get-BackpressureCommands: Now in .felix/core/validator.ps1`
 - But lines 419-537+ still contain the function body remnants
 
 **What to do:**
@@ -148,13 +148,13 @@ When a module function has different parameter names than the original:
 1. **Create requirements-utils.ps1 module**
    - Extract: `Update-RequirementStatus`, `Update-RequirementRunId`, `Invoke-RequirementValidation`
    - These are thin wrappers around state-manager and Python validation script
-   - Create `felix/tests/test-requirements-utils.ps1` (basic tests)
+   - Create `.felix/tests/test-requirements-utils.ps1` (basic tests)
    - Expected reduction: ~150 lines
 
 2. **Create exit-handler.ps1 module**
    - Extract: `Exit-FelixAgent`, `ConvertTo-Hashtable`
    - Handles cleanup on agent termination
-   - Create `felix/tests/test-exit-handler.ps1`
+   - Create `.felix/tests/test-exit-handler.ps1`
    - Expected reduction: ~60 lines
 
 **Commit checkpoint:**
@@ -167,7 +167,7 @@ git commit -m "refactor: Extract requirements-utils and exit-handler (Day 7 - pa
 
 3. **Create config-loader.ps1 module**
    - Function: `Initialize-FelixConfiguration`
-   - Consolidate all config loading: felix/config.json, ~/.felix/agents.json, path validation
+   - Consolidate all config loading: .felix/config.json, ~/..felix/agents.json, path validation
    - Returns structured configuration object
    - Expected reduction: ~200 lines
 
@@ -199,7 +199,7 @@ git commit -m "refactor: Extract config-loader and initialization (Day 7 - part 
      param([string]$ProjectPath, [string]$RequirementId, [switch]$NoCommit)
 
      # Module imports (12 lines)
-     . "$PSScriptRoot/felix/core/*.ps1"
+     . "$PSScriptRoot/.felix/core/*.ps1"
 
      # Initialize
      $config = Initialize-FelixConfiguration -ProjectPath $ProjectPath
@@ -229,7 +229,7 @@ git commit -m "refactor: Complete Day 7 - Main script refactor`n`n- Extracted ex
 
 After each phase:
 
-1. Run all unit tests: `Get-ChildItem felix/tests/test-*.ps1 | ForEach-Object { & $_.FullName }`
+1. Run all unit tests: `Get-ChildItem .felix/tests/test-*.ps1 | ForEach-Object { & $_.FullName }`
 2. Verify no syntax errors: Check file can be dot-sourced
 3. Run a simple agent invocation: `.\felix-agent.ps1 C:\path\to\test-project -RequirementId S-TEST`
 
@@ -241,7 +241,7 @@ After each phase:
 
    ```powershell
    # Run all 90+ tests
-   Get-ChildItem felix/tests/test-*.ps1 | ForEach-Object {
+   Get-ChildItem .felix/tests/test-*.ps1 | ForEach-Object {
        Write-Host "`n=== $($_.Name) ===" -ForegroundColor Cyan
        & $_.FullName
    }
@@ -253,7 +253,7 @@ After each phase:
    - Update test running section to include module tests
    - Add troubleshooting section for module import issues
 
-3. **Create felix/core/README.md**
+3. **Create .felix/core/README.md**
 
    ```markdown
    # Felix Core Modules
@@ -292,12 +292,12 @@ After each phase:
    - [ ] felix-agent.ps1 < 200 lines
    - [ ] No syntax errors in any file
    - [ ] Agent successfully completes a full requirement
-   - [ ] Documentation updated (AGENTS.md, felix/core/README.md)
+   - [ ] Documentation updated (AGENTS.md, .felix/core/README.md)
    - [ ] Git history clean (meaningful commits)
 
 6. **Final commit**
    ```powershell
-   git commit -m "refactor: Complete Day 8 - Documentation and final verification`n`n- Updated AGENTS.md with module architecture`n- Created felix/core/README.md`n- All integration tests passing`n- Ready for PR"
+   git commit -m "refactor: Complete Day 8 - Documentation and final verification`n`n- Updated AGENTS.md with module architecture`n- Created .felix/core/README.md`n- All integration tests passing`n- Ready for PR"
    ```
 
 ---
@@ -345,7 +345,7 @@ felix-agent.ps1 (orchestrator)
 ## File Structure Reference
 
 ```
-felix/
+.felix/
 ├── core/                           # Core modules
 │   ├── agent-state.ps1            # State machine (Day 2)
 │   ├── compat-utils.ps1           # PS 5.1 compatibility (Day 1)
@@ -454,7 +454,7 @@ Export-ModuleMember -Function Function-Name, Another-Function
 powershell -File .\felix\tests\test-validator.ps1
 
 # Run all tests (once Day 8 is complete)
-Get-ChildItem felix/tests/test-*.ps1 | ForEach-Object { & $_.FullName }
+Get-ChildItem .felix/tests/test-*.ps1 | ForEach-Object { & $_.FullName }
 ```
 
 ### Check Progress
@@ -567,3 +567,4 @@ grep_search -query "Function-Name" -isRegexp false -includePattern "felix-agent.
 The refactoring is going extremely well. The codebase is getting cleaner, more testable, and more maintainable. Keep the momentum going!
 
 **Good luck! 🚀**
+

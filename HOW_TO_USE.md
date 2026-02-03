@@ -49,7 +49,7 @@ A Felix enabled repository typically looks like this:
 │
 ├── AGENTS.md
 │
-├── felix/
+├── .felix/
 │   ├── requirements.json
 │   ├── state.json
 │   ├── config.json
@@ -116,7 +116,7 @@ Recommended tools and minimum versions for a smooth experience on Windows:
 - **Node.js**: 16+ and **npm**
 - **Git**: CLI installed and on PATH
 
-If your environment uses a non-standard Python executable, set the path in `felix/config.json` under the `python.executable` key so scripts like `validate-requirement.py` can be invoked reliably.
+If your environment uses a non-standard Python executable, set the path in `.felix/config.json` under the `python.executable` key so scripts like `validate-requirement.py` can be invoked reliably.
 
 ### Quick setup (one-liner)
 
@@ -133,7 +133,7 @@ If the script fails, see the Troubleshooting section below.
 - If virtualenv creation fails: run PowerShell as Administrator and ensure ExecutionPolicy allows script execution: `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - If Node/npm commands fail: ensure Node is installed and restart your shell so PATH updates take effect.
 - If ports are already in use (backend/frontend): identify and stop the process or change the port in the respective start command.
-- If `py -3` is not present, use `python` or provide the full Python executable path in `felix/config.json`.
+- If `py -3` is not present, use `python` or provide the full Python executable path in `.felix/config.json`.
 
 ---
 
@@ -211,7 +211,7 @@ Look at the **Requirement Status** (in the Kanban or CLI), not the checkboxes in
 
 ---
 
-## `felix/requirements.json` – structured registry and status
+## `.felix/requirements.json` – structured registry and status
 
 This file is the **central registry** of requirements and work state.
 
@@ -282,7 +282,7 @@ Keep this boring and stable. JSON grows painful when it tries to express nuance.
 - **commit_on_complete** - Boolean to override global commit behavior
   - If `true`: creates git commits after each task (even if global setting is `false`)
   - If `false`: skips commits (even if global setting is `true`)
-  - If omitted: uses `felix/config.json` → `executor.commit_on_complete` setting
+  - If omitted: uses `.felix/config.json` → `executor.commit_on_complete` setting
   - Useful for experimental requirements or when you want finer control
 
 ### Requirement status values
@@ -306,7 +306,7 @@ When a requirement becomes blocked (either from repeated validation failures or 
 
 1. **Diagnose the issue**: Check the run logs in `runs/<run-id>/` and look for validation or backpressure failure messages
 2. **Fix the root cause**: Correct the code, tests, or validation criteria as needed
-3. **Manually reset status**: Edit `felix/requirements.json` and change the requirement's status from `"blocked"` to `"planned"`
+3. **Manually reset status**: Edit `.felix/requirements.json` and change the requirement's status from `"blocked"` to `"planned"`
 4. **Restart Felix**: The agent will pick up the unblocked requirement on the next run
 
 Blocked requirements are intentionally manual - this prevents the agent from repeatedly attempting impossible tasks and allows independent requirements to proceed.
@@ -359,13 +359,13 @@ If it would not help a new engineer run the repo, it does not belong here.
 
 ## Prompts
 
-### `felix/prompts/planning.md`
+### `.felix/prompts/planning.md`
 
 Planning mode instructions with **iterative refinement**.
 
 Planning mode:
 
-- reads `specs/` and `felix/requirements.json`
+- reads `specs/` and `.felix/requirements.json`
 - creates/updates `runs/<run-id>/plan-<req-id>.md` (narrow scope, single requirement)
 - **loops with self-review** against 5 criteria:
   - Philosophy alignment (Ralph principles)
@@ -380,7 +380,7 @@ Planning mode:
 
 Planning is iterative: the agent will generate, review, and simplify until the approach is solid.
 
-### `felix/prompts/building.md`
+### `.felix/prompts/building.md`
 
 Building mode instructions.
 
@@ -393,13 +393,13 @@ Building mode:
 - runs backpressure (tests, build, lint)
 - commits or reports failure
 - updates the plan in `runs/<run-id>/plan-<req-id>.md`
-- updates requirement status in `felix/requirements.json`
+- updates requirement status in `.felix/requirements.json`
 
 ---
 
 ## Felix internal state
 
-### `felix/state.json`
+### `.felix/state.json`
 
 Felix’s minimal control state.
 
@@ -413,7 +413,7 @@ You normally do not edit this by hand.
 
 ---
 
-### `felix/runs/<run-id>/`
+### `.felix/runs/<run-id>/`
 
 Each iteration produces a run directory.
 
@@ -438,9 +438,9 @@ Do not write a plan yet.
 
 ---
 
-### Step 2: Create felix/requirements.json
+### Step 2: Create .felix/requirements.json
 
-Create the `felix/` directory and add `requirements.json` with entries for each spec:
+Create the `.felix/` directory and add `requirements.json` with entries for each spec:
 
 - id (e.g., S-0001)
 - title
@@ -467,8 +467,8 @@ Keep it short.
 
 Create:
 
-- `felix/prompts/planning.md`
-- `felix/prompts/building.md`
+- `.felix/prompts/planning.md`
+- `.felix/prompts/building.md`
 
 Start simple.
 
@@ -522,7 +522,7 @@ Use `felix-loop.ps1` to process multiple requirements sequentially:
 **What the loop does:**
 
 - Selects next available requirement (in_progress → planned)
-- Spawns fresh felix/felix-agent.ps1 process for that requirement
+- Spawns fresh .felix/felix-agent.ps1 process for that requirement
 - Handles completion: marks complete and moves to next
 - Handles blocking: marks blocked and moves to next
 - Continues until all requirements processed or max limit reached
@@ -530,7 +530,7 @@ Use `felix-loop.ps1` to process multiple requirements sequentially:
 
 #### Single-Requirement Mode
 
-Use `felix/felix-agent.ps1` directly to work on one requirement:
+Use `.felix/felix-agent.ps1` directly to work on one requirement:
 
 ```powershell
 # Work on specific requirement
@@ -559,7 +559,7 @@ When the backend is running:
 
 **Mode transitions are automatic.** The agent plans and builds until done.
 
-You can start the loop and walk away. State persists on disk. Progress is visible through commits and `felix/requirements.json`.
+You can start the loop and walk away. State persists on disk. Progress is visible through commits and `.felix/requirements.json`.
 
 ### Manual operation (optional)
 
@@ -573,7 +573,7 @@ For tighter control or debugging:
 .\felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
 ```
 
-Most production runs use `felix/felix-loop.ps1`. Manual mode is for development and troubleshooting.
+Most production runs use `.felix/felix-loop.ps1`. Manual mode is for development and troubleshooting.
 
 ---
 
@@ -606,7 +606,7 @@ If something feels fuzzy, make it a file.
 
 Felix is single agent by default.
 
-The presence of `felix/requirements.json` makes Phase 2 parallelism straightforward:
+The presence of `.felix/requirements.json` makes Phase 2 parallelism straightforward:
 
 - requirements can be claimed structurally (add `claimed_by`, `claimed_at` fields)
 - statuses are machine readable
@@ -619,10 +619,11 @@ You do not need to change how specs or plans work.
 ## Healthy Felix checklist
 
 - specs are small and readable
-- `felix/requirements.json` is boring and accurate
+- `.felix/requirements.json` is boring and accurate
 - plan is short and current
 - `AGENTS.md` fits on one screen
 - one iteration equals one outcome
 - rerunning Felix feels boring
 
 That boredom is the signal the system is working.
+

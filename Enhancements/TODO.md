@@ -64,12 +64,12 @@
 
 **Current behavior:**
 
-- Run output folders are named by requirement only (e.g., `felix/runs/S-0001/`)
+- Run output folders are named by requirement only (e.g., `.felix/runs/S-0001/`)
 - When multiple agents run the same requirement, outputs overwrite each other
 
 **Proposed behavior:**
 
-- Include agent ID in folder structure: `felix/runs/S-0001/{agent-id}/`
+- Include agent ID in folder structure: `.felix/runs/S-0001/{agent-id}/`
 - Each agent's run outputs are isolated
 - Easy to trace which agent produced which artifacts
 
@@ -99,7 +99,7 @@
 - Create composite version key: `{script-version}-{prompts-version}`
 - Script version: semver from `felix-agent.ps1` header or git commit hash
 - Prompts version: hash of prompt files or explicit version number
-- Include version in output folder structure: `felix/runs/S-0001/{agent-id}/{version}/`
+- Include version in output folder structure: `.felix/runs/S-0001/{agent-id}/{version}/`
 
 **Benefits:**
 
@@ -120,7 +120,7 @@
 
 **Current behavior:**
 
-- `felix-loop.ps1` creates a PID-based lock file (`felix/loop.lock`)
+- `felix-loop.ps1` creates a PID-based lock file (`.felix/loop.lock`)
 - Lock file is only for tracking - doesn't prevent concurrent loops
 - No mutual exclusion: multiple loops can start simultaneously
 
@@ -148,7 +148,7 @@
 
 **Implementation notes (if strengthening):**
 
-- On startup: Check if `felix/loop.lock` exists and PID is active
+- On startup: Check if `.felix/loop.lock` exists and PID is active
 - If lock is stale (PID not running): claim it
 - If lock is active: exit with error code and message
 - On shutdown: Always clean up lock file
@@ -163,7 +163,7 @@
 
 **Current behavior:**
 
-- `felix/state.json` and `felix/requirements.json` are tracked in git
+- `.felix/state.json` and `.felix/requirements.json` are tracked in git
 - Contain runtime state, agent progress, and generated metadata
 - History pollutes repository with transient data
 - Merge conflicts on state files during parallel development
@@ -186,8 +186,8 @@
 - Use `git filter-branch` or `git filter-repo` to remove from history
 - Add to `.gitignore`:
   ```
-  felix/state.json
-  felix/requirements.json
+  .felix/state.json
+  .felix/requirements.json
   ```
 - Document in README that these files are generated on first run
 - Consider adding template files (`state.template.json`) if needed for initialization
@@ -196,7 +196,7 @@
 **Migration steps:**
 
 1. Back up current state files if needed
-2. Remove from git history: `git filter-repo --path felix/state.json --path felix/requirements.json --invert-paths`
+2. Remove from git history: `git filter-repo --path .felix/state.json --path .felix/requirements.json --invert-paths`
 3. Update `.gitignore`
 4. Commit and force push (coordinate with team)
 5. All developers re-clone or manually delete tracked files
@@ -240,3 +240,28 @@
   ```markdown
   - **2025-01-15 DESKTOP-ABC-1234**: When backend tests fail with "port already in use", previous test process didn't clean up. Solution: Add `pytest --forked` flag to isolate test processes.
   ```
+
+## TODO: Create Standalone felix-cli Package
+
+**Rationale:**
+
+- Python CLI (`python -m felix init`, `felix spec create`, etc.) was removed from core during felix/ → .felix/ migration
+- Scaffolding functionality is useful but not essential for agent operation
+- Better as optional, standalone installable package
+
+**Implementation:**
+
+- Create separate `felix-cli` package (PyPI)
+- Commands:
+  - `felix init` - scaffold new Felix project (creates .felix/ and specs/ directories)
+  - `felix spec create <name>` - create new specification from template
+  - `felix validate` - validate project health
+- Install: `pip install felix-cli`
+- Depends on template files only, no runtime dependencies on .felix/
+
+**Benefits:**
+
+- Cleaner core: .felix/ contains only runtime files
+- CLI can evolve independently
+- Users who don't need scaffolding don't install it
+- Easier to distribute/version separately
