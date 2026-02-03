@@ -985,7 +985,13 @@ function Commit-TaskChanges {
         }
         
         # Commit changes (if enabled)
-        $shouldCommit = $Config.executor.commit_on_complete -and -not $NoCommit
+        # Check requirement-level setting first, then fall back to global config
+        $requirementCommitSetting = $CurrentRequirement.commit_on_complete
+        if ($null -ne $requirementCommitSetting) {
+            $shouldCommit = $requirementCommitSetting -and -not $NoCommit
+        } else {
+            $shouldCommit = $Config.executor.commit_on_complete -and -not $NoCommit
+        }
         if ($shouldCommit) {
             $commitMsg = "Felix: $TaskDesc"
             $prevErrorAction = $ErrorActionPreference
