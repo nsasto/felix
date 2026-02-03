@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Clean shutdown and exit handling for Felix agent
 
@@ -109,4 +109,3 @@ function ConvertTo-Hashtable {
     }
 }
 
-Export-ModuleMember -Function Exit-FelixAgent, ConvertTo-Hashtable

@@ -65,10 +65,10 @@ Run the agent locally with PowerShell (examples):
 
 ```powershell
 # Start the agent for the repository at C:\dev\Felix
-.\felix-agent.ps1 C:\dev\Felix
+.\felix\felix-agent.ps1 C:\dev\Felix
 
 # Alternative: run the looped runner
-.\felix-loop.ps1 C:\dev\Felix
+.\felix\felix-loop.ps1 C:\dev\Felix
 ```
 
 ### Production Mode

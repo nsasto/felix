@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Configuration loading and agent setup for Felix agent
 
@@ -237,5 +237,3 @@ function Get-AgentConfig {
     
     return $agentConfig
 }
-
-Export-ModuleMember -Function Get-ProjectPaths, Test-ProjectStructure, Get-FelixConfig, Get-AgentsConfiguration, Get-AgentConfig

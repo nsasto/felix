@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 PowerShell 5.1 compatible utility functions
 .DESCRIPTION
@@ -77,5 +77,3 @@ function Invoke-SafeCommand {
         Set-Location $originalLocation
     }
 }
-
-Export-ModuleMember -Function Coalesce-Value, Ternary, Safe-Interpolate, Invoke-SafeCommand

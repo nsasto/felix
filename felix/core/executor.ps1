@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Main execution loop for Felix agent
 
@@ -422,7 +422,7 @@ function Build-IterationPrompt {
     # Add failure context from previous iteration if blocked
     if ($State.blocked_task) {
         $failedCommandsList = ($State.blocked_task.failed_commands | ForEach-Object { "- $_" }) -join "`n"
-        $retryInfo = "# ⚠️ Previous Iteration - Task Blocked ⚠️`n`n"
+        $retryInfo = "# âš ï¸ Previous Iteration - Task Blocked âš ï¸`n`n"
         $retryInfo += "**IMPORTANT:** The following task failed validation in the previous iteration. You MUST fix these issues before proceeding.`n`n"
         $retryInfo += "**Blocked Task:** $($State.blocked_task.description)`n"
         $retryInfo += "**Retry Attempt:** $($State.blocked_task.retry_count) of $($State.blocked_task.max_retries)`n"
@@ -828,7 +828,7 @@ function Handle-BackpressureFailure {
     
     Write-Host ""
     Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-    Write-Host "❌ Validation failed - changes will NOT be committed" -ForegroundColor Red
+    Write-Host "âŒ Validation failed - changes will NOT be committed" -ForegroundColor Red
     Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
     Write-Host "Task marked as BLOCKED pending validation fixes" -ForegroundColor Yellow
     
@@ -866,7 +866,7 @@ $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
         Write-Host "[BLOCKED] Maximum backpressure retries ($maxRetries) exceeded" -ForegroundColor Red
         
         $maxRetriesReport = @"
-# ❌ Max Retries Exceeded ❌
+# âŒ Max Retries Exceeded âŒ
 **Task:** $TaskDesc
 **Reason:** Backpressure validation failed $maxRetries consecutive times.
 "@
@@ -954,7 +954,7 @@ function Commit-TaskChanges {
         finally {
             Pop-Location
         }
-        Write-Host "[COMMIT] ✅ $commitHash - $commitMsg"
+        Write-Host "[COMMIT] âœ… $commitHash - $commitMsg"
         
         $diffPath = Join-Path $RunDir "diff.patch"
         Set-Content $diffPath $diffOutput -Encoding UTF8
@@ -1010,10 +1010,10 @@ function Commit-TaskChanges {
                 finally {
                     Pop-Location
                 }
-                Write-Host "[COMMIT] ✅ Changes committed: $commitHash - $commitMsg"
+                Write-Host "[COMMIT] âœ… Changes committed: $commitHash - $commitMsg"
             }
             else {
-                Write-Host "[COMMIT] ❌ Failed to commit changes:" -ForegroundColor Red
+                Write-Host "[COMMIT] âŒ Failed to commit changes:" -ForegroundColor Red
                 Write-Host $commitOutput -ForegroundColor Red
             }
         }
@@ -1124,4 +1124,3 @@ $Output
     Set-Content (Join-Path $RunDir "report.md") $reportContent -Encoding UTF8
 }
 
-Export-ModuleMember -Function Invoke-FelixIteration

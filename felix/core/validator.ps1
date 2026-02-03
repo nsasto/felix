@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Backpressure validation for Felix agent
 #>
@@ -227,7 +227,7 @@ function Invoke-BackpressureValidation {
                 $isNoTestsFound = $exitCode -eq 5
                 
                 if ($exitCode -ne 0 -and -not ($isBackendTest -and $isNoTestsFound)) {
-                    Write-Host "    ❌ FAILED (exit code: $exitCode)" -ForegroundColor Red
+                    Write-Host "    âŒ FAILED (exit code: $exitCode)" -ForegroundColor Red
                     $result.success = $false
                     $result.failed_commands += @{
                         command   = $cmd.command
@@ -238,18 +238,18 @@ function Invoke-BackpressureValidation {
                 }
                 else {
                     if ($isBackendTest -and $isNoTestsFound) {
-                        Write-Host "    ⚠️  PASSED (no tests found)" -ForegroundColor Yellow
+                        Write-Host "    âš ï¸  PASSED (no tests found)" -ForegroundColor Yellow
                     }
                     elseif ($hasRemoteException -and $isNoisyTool) {
-                        Write-Host "    ⚠️  PASSED (stderr output ignored)" -ForegroundColor Yellow
+                        Write-Host "    âš ï¸  PASSED (stderr output ignored)" -ForegroundColor Yellow
                     }
                     else {
-                        Write-Host "    ✅ PASSED" -ForegroundColor Green
+                        Write-Host "    âœ… PASSED" -ForegroundColor Green
                     }
                 }
             }
             catch {
-                Write-Host "    ❌ ERROR: $_" -ForegroundColor Red
+                Write-Host "    âŒ ERROR: $_" -ForegroundColor Red
                 $result.success = $false
                 $result.failed_commands += @{
                     command   = $cmd.command
@@ -281,11 +281,11 @@ function Invoke-BackpressureValidation {
     Write-Host ""
     if ($result.success) {
         Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-        Write-Host "✅ All validation commands passed!" -ForegroundColor Green
+        Write-Host "âœ… All validation commands passed!" -ForegroundColor Green
     }
     else {
         Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-        Write-Host "❌ Validation FAILED - $($result.failed_commands.Count) command(s) failed" -ForegroundColor Red
+        Write-Host "âŒ Validation FAILED - $($result.failed_commands.Count) command(s) failed" -ForegroundColor Red
         foreach ($failed in $result.failed_commands) {
             Write-Host "  - [$($failed.type)] $($failed.command)"
         }
@@ -294,4 +294,3 @@ function Invoke-BackpressureValidation {
     return $result
 }
 
-Export-ModuleMember -Function Get-BackpressureCommands, Invoke-BackpressureValidation

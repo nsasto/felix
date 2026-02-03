@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Workflow stage management for Felix agent visualization
 
@@ -61,4 +61,3 @@ function Set-WorkflowStage {
     }
 }
 
-Export-ModuleMember -Function Set-WorkflowStage

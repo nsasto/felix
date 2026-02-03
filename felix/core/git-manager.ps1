@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Git operations for Felix agent
 #>
@@ -164,4 +164,3 @@ function Invoke-GitRevert {
     }
 }
 
-Export-ModuleMember -Function Initialize-FeatureBranch, Get-GitState, Test-GitChanges, Invoke-GitCommit, Invoke-GitRevert

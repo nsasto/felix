@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Requirements state management
 #>
@@ -123,4 +123,3 @@ function Update-RequirementStatus {
     Write-Verbose "Updated requirement $RequirementId status to: $Status"
 }
 
-Export-ModuleMember -Function Get-RequirementsState, Save-RequirementsState, Get-NextRequirement, Update-RequirementStatus

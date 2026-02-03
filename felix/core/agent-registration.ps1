@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Agent registration and heartbeat management for Felix backend communication
 
@@ -234,4 +234,3 @@ function Unregister-Agent {
     }
 }
 
-Export-ModuleMember -Function Register-Agent, Send-AgentHeartbeat, Start-HeartbeatJob, Stop-HeartbeatJob, Unregister-Agent

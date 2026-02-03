@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Python command resolution utilities for Felix agent
 
@@ -78,4 +78,3 @@ function Resolve-PythonCommand {
     throw "Python executable not found. Set felix/config.json -> python.executable (and optional python.args) or install Python."
 }
 
-Export-ModuleMember -Function Resolve-PythonCommand

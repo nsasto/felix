@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Plugin system for Felix agent
 #>
@@ -210,4 +210,3 @@ function Reset-PluginCircuitBreaker {
     }
 }
 
-Export-ModuleMember -Function Initialize-PluginSystem, Invoke-PluginHook, Invoke-PluginHookSafely, Reset-PluginCircuitBreaker

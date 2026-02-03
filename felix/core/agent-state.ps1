@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Formal state machine for Felix agent execution
 #>
@@ -60,4 +60,3 @@ function New-AgentState {
     return [AgentState]::new($InitialMode)
 }
 
-Export-ModuleMember -Function New-AgentState

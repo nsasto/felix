@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Requirement operations and validation utilities for Felix agent
 
@@ -188,4 +188,3 @@ function Invoke-RequirementValidation {
     return @{ output = $output; exitCode = $exitCode }
 }
 
-Export-ModuleMember -Function Update-RequirementStatus, Update-RequirementRunId, Invoke-RequirementValidation

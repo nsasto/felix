@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Initialization logic for Felix agent execution
 
@@ -283,4 +283,3 @@ function Register-FelixAgent {
     return $registrationSucceeded
 }
 
-Export-ModuleMember -Function Initialize-ExecutionState, Get-CurrentRequirement, Initialize-StateForRequirement, Initialize-PluginState, Register-FelixAgent

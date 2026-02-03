@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Planning mode guardrails for Felix agent
 
@@ -162,4 +162,3 @@ function Undo-PlanningViolations {
     }
 }
 
-Export-ModuleMember -Function Test-PlanningModeGuardrails, Undo-PlanningViolations

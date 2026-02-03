@@ -500,7 +500,7 @@ Use `felix-loop.ps1` to process multiple requirements sequentially:
 **What the loop does:**
 
 - Selects next available requirement (in_progress → planned)
-- Spawns fresh felix-agent.ps1 process for that requirement
+- Spawns fresh felix/felix-agent.ps1 process for that requirement
 - Handles completion: marks complete and moves to next
 - Handles blocking: marks blocked and moves to next
 - Continues until all requirements processed or max limit reached
@@ -508,14 +508,14 @@ Use `felix-loop.ps1` to process multiple requirements sequentially:
 
 #### Single-Requirement Mode
 
-Use `felix-agent.ps1` directly to work on one requirement:
+Use `felix/felix-agent.ps1` directly to work on one requirement:
 
 ```powershell
 # Work on specific requirement
-.\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+.\felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
 
 # Work on first available requirement (in_progress or planned)
-.\felix-agent.ps1 C:\path\to\project
+.\felix\felix-agent.ps1 C:\path\to\project
 ```
 
 **What the agent does:**
@@ -545,13 +545,13 @@ For tighter control or debugging:
 
 ```powershell
 # Single requirement, single iteration
-.\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+.\felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
 
 # Review changes, then run again for next iteration
-.\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+.\felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
 ```
 
-Most production runs use `felix-loop.ps1`. Manual mode is for development and troubleshooting.
+Most production runs use `felix/felix-loop.ps1`. Manual mode is for development and troubleshooting.
 
 ---
 
