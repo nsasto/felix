@@ -142,10 +142,12 @@ function Invoke-FelixIteration {
         -Mode $mode `
         -CurrentRequirement $CurrentRequirement `
         -State $State `
+        -Config $Config `
         -Paths $Paths `
         -RunId $runId `
         -RunDir $runDir `
-        -PlanContent $planContent
+        -PlanContent $planContent `
+        -NoCommit:$NoCommit
     
     if (-not $fullPrompt) {
         return @{ Continue = $false; ExitCode = 1 }
@@ -354,6 +356,9 @@ function Build-IterationPrompt {
         [hashtable]$State,
         
         [Parameter(Mandatory = $true)]
+        $Config,
+        
+        [Parameter(Mandatory = $true)]
         [hashtable]$Paths,
         
         [Parameter(Mandatory = $true)]
@@ -363,7 +368,10 @@ function Build-IterationPrompt {
         [string]$RunDir,
         
         [Parameter(Mandatory = $false)]
-        [string]$PlanContent = $null
+        [string]$PlanContent = $null,
+        
+        [Parameter(Mandatory = $false)]
+        [switch]$NoCommit
     )
     
     # Load prompt template
@@ -454,6 +462,22 @@ function Build-IterationPrompt {
     }
     else {
         $contextParts += "# Plan Update Path`n`nWhen marking tasks complete, update the plan at: **$planOutputPath**"
+    }
+    
+    # Add git commit instructions based on settings
+    $requirementCommitSetting = $CurrentRequirement.commit_on_complete
+    if ($null -ne $requirementCommitSetting) {
+        $shouldAgentCommit = $requirementCommitSetting -and -not $NoCommit
+    }
+    else {
+        $shouldAgentCommit = $Config.executor.commit_on_complete -and -not $NoCommit
+    }
+    
+    if ($shouldAgentCommit) {
+        $contextParts += "# Git Commit Instructions`n`n**You MUST commit your changes:**`n`n1. Run: ``git add -A```n2. Run: ``git commit -m `"Felix (REQ-ID): Brief task description```"`n3. Include commit confirmation in your run report`n`nDo NOT push changes to remote."
+    }
+    else {
+        $contextParts += "# Git Commit Instructions`n`n**Do NOT commit changes.** The commit_on_complete setting is disabled. Your changes will be captured but not committed to git history."
     }
     
     # Workflow Stage: build_prompt
