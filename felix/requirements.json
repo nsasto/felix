@@ -327,7 +327,7 @@
       "id": "S-0000",
       "title": "Test Dummy Spec",
       "spec_path": "specs/S-0000-test-dummy.md",
-      "status": "in_progress",
+      "status": "complete",
       "priority": "low",
       "labels": [
         "testing",
