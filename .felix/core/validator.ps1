@@ -181,23 +181,19 @@ function Invoke-BackpressureValidation {
     $commands = Get-BackpressureCommands -AgentsFilePath $AgentsFilePath -ConfigCommands $configCommands
     
     if ($commands.Count -eq 0) {
-        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-        Write-Host "No validation commands found - skipping backpressure" -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "No validation commands found - skipping backpressure" -Component "backpressure"
         $result.skipped = $true
         return $result
     }
     
-    Write-Host ""
-    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-    Write-Host "Running validation commands..."
-    Write-Host ""
+    Emit-ValidationStarted -CommandCount $commands.Count -ValidationType "backpressure"
     
     $allOutput = @()
     
     Push-Location $WorkingDir
     try {
         foreach ($cmd in $commands) {
-            Write-Host "  [$($cmd.type)] Executing: $($cmd.command)"
+            Emit-ValidationCommandStarted -Command $cmd.command -Type $cmd.type
             
             try {
                 # Execute the command safely without Invoke-Expression
@@ -227,7 +223,7 @@ function Invoke-BackpressureValidation {
                 $isNoTestsFound = $exitCode -eq 5
                 
                 if ($exitCode -ne 0 -and -not ($isBackendTest -and $isNoTestsFound)) {
-                    Write-Host "    âŒ FAILED (exit code: $exitCode)" -ForegroundColor Red
+                    Emit-ValidationCommandCompleted -Command $cmd.command -Passed $false -ExitCode $exitCode
                     $result.success = $false
                     $result.failed_commands += @{
                         command   = $cmd.command
@@ -237,19 +233,18 @@ function Invoke-BackpressureValidation {
                     }
                 }
                 else {
+                    Emit-ValidationCommandCompleted -Command $cmd.command -Passed $true -ExitCode $exitCode
                     if ($isBackendTest -and $isNoTestsFound) {
-                        Write-Host "    âš ï¸  PASSED (no tests found)" -ForegroundColor Yellow
+                        Emit-Log -Level "warn" -Message "Command passed (no tests found): $($cmd.command)" -Component "validation"
                     }
                     elseif ($hasRemoteException -and $isNoisyTool) {
-                        Write-Host "    âš ï¸  PASSED (stderr output ignored)" -ForegroundColor Yellow
-                    }
-                    else {
-                        Write-Host "    âœ… PASSED" -ForegroundColor Green
+                        Emit-Log -Level "warn" -Message "Command passed (stderr output ignored): $($cmd.command)" -Component "validation"
                     }
                 }
             }
             catch {
-                Write-Host "    âŒ ERROR: $_" -ForegroundColor Red
+                Emit-ValidationCommandCompleted -Command $cmd.command -Passed $false -ExitCode -1
+                Emit-Log -Level "error" -Message "Validation command error: $_" -Component "validation"
                 $result.success = $false
                 $result.failed_commands += @{
                     command   = $cmd.command
@@ -273,21 +268,22 @@ function Invoke-BackpressureValidation {
     if ($RunDir -and (Test-Path $RunDir)) {
         $logPath = Join-Path $RunDir "backpressure.log"
         Set-Content $logPath $result.output -Encoding UTF8
-        Write-Host ""
-        Write-Host "[BACKPRESSURE] Validation log written to: $logPath"
+        $projectPath = (Split-Path $RunDir -Parent) | Split-Path -Parent
+        $relPath = $logPath.Replace($projectPath + "\", "")
+        Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $logPath).Length
     }
     
     # Summary
-    Write-Host ""
+    $passedCount = $commands.Count - $result.failed_commands.Count
+    Emit-ValidationCompleted -Passed $result.success -PassedCount $passedCount -FailedCount $result.failed_commands.Count -TotalCount $commands.Count
+    
     if ($result.success) {
-        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-        Write-Host "âœ… All validation commands passed!" -ForegroundColor Green
+        Emit-Log -Level "info" -Message "All validation commands passed!" -Component "backpressure"
     }
     else {
-        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-        Write-Host "âŒ Validation FAILED - $($result.failed_commands.Count) command(s) failed" -ForegroundColor Red
+        Emit-Log -Level "error" -Message "Validation FAILED - $($result.failed_commands.Count) command(s) failed" -Component "backpressure"
         foreach ($failed in $result.failed_commands) {
-            Write-Host "  - [$($failed.type)] $($failed.command)"
+            Emit-Log -Level "error" -Message "Failed: [$($failed.type)] $($failed.command)" -Component "backpressure"
         }
     }
     

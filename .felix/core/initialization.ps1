@@ -121,25 +121,25 @@ function Get-CurrentRequirement {
     }
     
     try {
-        Write-Host "[DEBUG] Loading requirements from: $RequirementsFile" -ForegroundColor DarkGray
+        Emit-Log -Level "debug" -Message "Loading requirements from: $RequirementsFile" -Component "init"
         $requirements = Get-Content $RequirementsFile -Raw | ConvertFrom-Json
-        Write-Host "[DEBUG] Total requirements loaded: $($requirements.requirements.Count)" -ForegroundColor DarkGray
+        Emit-Log -Level "debug" -Message "Total requirements loaded: $($requirements.requirements.Count)" -Component "init"
         
         $currentReq = $null
         
         if ($RequirementId) {
             $currentReq = $requirements.requirements | Where-Object { $_.id -eq $RequirementId }
             if (-not $currentReq) {
-                Write-Host "ERROR: Requirement $RequirementId not found." -ForegroundColor Red
+                Emit-Error -ErrorType "RequirementNotFound" -Message "Requirement $RequirementId not found" -Severity "fatal"
                 return $null
             }
             
-            Write-Host "[DEBUG] Found requirement: $($currentReq.id) - $($currentReq.title)" -ForegroundColor DarkGray
-            Write-Host "[DEBUG] Status: $($currentReq.status)" -ForegroundColor DarkGray
+            Emit-Log -Level "debug" -Message "Found requirement: $($currentReq.id) - $($currentReq.title)" -Component "init"
+            Emit-Log -Level "debug" -Message "Status: $($currentReq.status)" -Component "init"
             
             # Check if requirement is already complete
             if ($currentReq.status -in @("complete", "done")) {
-                Write-Host "Requirement $RequirementId is already $($currentReq.status) - nothing to do." -ForegroundColor Green
+                Emit-Log -Level "info" -Message "Requirement $RequirementId is already $($currentReq.status) - nothing to do" -Component "init"
                 
                 # Clean up stale state if needed
                 if ($StateFile -and (Test-Path $StateFile)) {

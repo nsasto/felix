@@ -23,6 +23,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Load core modules
+. "$PSScriptRoot/core/emit-event.ps1"
 . "$PSScriptRoot/core/compat-utils.ps1"
 . "$PSScriptRoot/core/agent-state.ps1"
 . "$PSScriptRoot/core/git-manager.ps1"
@@ -76,8 +77,8 @@ $StateFile = $paths.StateFile
 $RequirementsFile = $paths.RequirementsFile
 $PromptsDir = $paths.PromptsDir
 
-Write-Host "[DEBUG] StateFile: $StateFile" -ForegroundColor DarkGray
-Write-Host "[DEBUG] RequirementsFile: $RequirementsFile" -ForegroundColor DarkGray
+Emit-Log -Level "debug" -Message "StateFile: $StateFile" -Component "init"
+Emit-Log -Level "debug" -Message "RequirementsFile: $RequirementsFile" -Component "init"
 
 # Load configuration
 $config = Get-FelixConfig -ConfigFile $ConfigFile

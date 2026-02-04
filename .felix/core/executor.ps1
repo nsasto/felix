@@ -71,9 +71,9 @@ function Invoke-FelixIteration {
         [switch]$NoCommit
     )
     
-    Write-Host ""
-    Write-Host "=============================================================" -ForegroundColor Cyan
-    Write-Host " Felix Agent - Iteration $Iteration/$MaxIterations" -ForegroundColor Cyan
+    # Emit iteration started event
+    Emit-IterationStarted -Iteration $Iteration -MaxIterations $MaxIterations `
+        -RequirementId $CurrentRequirement.id -Mode "determining"
     
     # Workflow Stage: start_iteration
     Set-WorkflowStage -Stage "start_iteration" -ProjectPath $Paths.ProjectPath
@@ -94,7 +94,7 @@ function Invoke-FelixIteration {
     $State.last_run_id = $runId
     
     # Initialize the plugin system for this run
-    Write-Host "[DEBUG] Initializing plugin system with runId: $runId" -ForegroundColor DarkGray
+    Emit-Log -Level "debug" -Message "Initializing plugin system with runId: $runId" -Component "executor"
     Initialize-PluginSystem -Config $Config -RunId $runId
     
     # Determine mode
@@ -128,12 +128,12 @@ function Invoke-FelixIteration {
         }
     }
     catch {
-        Write-Host "[PLUGINS] OnPreIteration hook failed: $_" -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "OnPreIteration hook failed: $_" -Component "plugins"
         $hookResult = @{ ContinueIteration = $true }
     }
     
     if ($hookResult.ContinueIteration -eq $false) {
-        Write-Host "[PLUGINS] Iteration skipped: $($hookResult.Reason)"
+        Emit-Log -Level "info" -Message "Iteration skipped: $($hookResult.Reason)" -Component "plugins"
         return @{ Continue = $false; ExitCode = 0 }
     }
     
@@ -241,15 +241,14 @@ function Invoke-FelixIteration {
     }
     
     if ($hookResult.ShouldContinue -eq $false) {
-        Write-Host "[PLUGINS] Stopping iterations: $($hookResult.Reason)"
+        Emit-Log -Level "info" -Message "Stopping iterations: $($hookResult.Reason)" -Component "plugins"
         return @{ Continue = $false; ExitCode = 0 }
     }
     
     # Workflow Stage: iteration_complete
     Set-WorkflowStage -Stage "iteration_complete" -ProjectPath $Paths.ProjectPath
     
-    Write-Host ""
-    Write-Host "Iteration $Iteration complete. Continuing..."
+    Emit-IterationCompleted -Iteration $Iteration -Outcome "success"
     Start-Sleep -Seconds 1
     
     return @{ Continue = $true; ExitCode = 0 }
@@ -292,28 +291,31 @@ function Get-ExecutionMode {
         $latestPlanPath = $existingPlans[0].FullName
         $planContent = Get-Content $latestPlanPath -Raw
         $mode = "building"
-        Write-Host "[MODE] Found existing plan, using BUILDING mode" -ForegroundColor Yellow
+        Emit-Log -Level "info" -Message "Found existing plan, using BUILDING mode" -Component "mode"
         
         # Transition state machine to Building
         if ($AgentState.Mode -ne "Building") {
             $AgentState.TransitionTo('Building')
-            Write-Host "[STATE-MACHINE] Transitioned to Building mode" -ForegroundColor DarkGray
+            Emit-StateTransitioned -From $AgentState.Mode -To "Building"
+            Emit-Log -Level "debug" -Message "Transitioned to Building mode" -Component "state-machine"
         }
         
         # Copy plan to current run directory for audit trail
         $planSnapshotPath = Join-Path $RunDir "plan-$($CurrentRequirement.id).md"
         Copy-Item $latestPlanPath $planSnapshotPath -Force
-        Write-Host "[ARTIFACTS] Plan snapshot saved to run directory" -ForegroundColor DarkGray
+        $relPath = $planSnapshotPath.Replace((Split-Path $RunsDir -Parent) + "\", "")
+        Emit-Artifact -Path $relPath -Type "plan" -SizeBytes (Get-Item $planSnapshotPath).Length
+        Emit-Log -Level "debug" -Message "Plan snapshot saved to run directory" -Component "artifacts"
     }
     else {
         # No plan found - use planning mode (or default)
         $defaultMode = $Config.executor.default_mode
         $mode = if ($State.last_mode) { $State.last_mode } else { $defaultMode }
         if ($mode -eq "building" -and -not $existingPlans) {
-            Write-Host "[MODE] No plan found, falling back to PLANNING mode" -ForegroundColor Yellow
+            Emit-Log -Level "info" -Message "No plan found, falling back to PLANNING mode" -Component "mode"
             $mode = "planning"
         }
-        Write-Host "[STATE-MACHINE] Remaining in Planning mode" -ForegroundColor DarkGray
+        Emit-Log -Level "debug" -Message "Remaining in Planning mode" -Component "state-machine"
         $latestPlanPath = $null
         $planContent = $null
     }
@@ -329,7 +331,7 @@ function Get-ExecutionMode {
     }
     
     if ($hookResult.OverrideMode) {
-        Write-Host "[PLUGINS] Mode overridden: $($mode) -> $($hookResult.OverrideMode) ($($hookResult.Reason))"
+        Emit-Log -Level "info" -Message "Mode overridden: $($mode) -> $($hookResult.OverrideMode) ($($hookResult.Reason))" -Component "plugins"
         $mode = $hookResult.OverrideMode
     }
     
@@ -539,8 +541,7 @@ function Invoke-AgentExecution {
     # Workflow Stage: execute_llm
     Set-WorkflowStage -Stage "execute_llm" -ProjectPath $ProjectPath
     
-    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Executing agent '$($AgentConfig.name)'..." -ForegroundColor White
+    Emit-AgentExecutionStarted -AgentName $AgentConfig.name -AgentId 0
     
     $executable = $AgentConfig.executable
     $agentArgs = $AgentConfig.args
@@ -595,9 +596,13 @@ function Invoke-AgentExecution {
     $duration = (Get-Date) - $startTime
     
     # Write raw output to run directory
-    Set-Content (Join-Path $RunDir "output.log") $output -Encoding UTF8
-    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Execution complete (Duration: $($duration.TotalSeconds.ToString("F1"))s)" -ForegroundColor White
+    $outputPath = Join-Path $RunDir "output.log"
+    Set-Content $outputPath $output -Encoding UTF8
+    $relPath = $outputPath.Replace($ProjectPath + "\", "")
+    Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
+    
+    Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
+    Emit-Log -Level "info" -Message "Execution complete (Duration: $($duration.TotalSeconds.ToString("F1"))s)" -Component "agent"
     
     # Hook: OnPostExecution
     $hookResult = Invoke-PluginHookSafely -HookName "OnPostExecution" -RunId $RunId -HookData @{
@@ -736,9 +741,8 @@ function Process-TaskCompletion {
     
     if ($Output -match '\*\*Task Completed:\*\*\s*(.+)') {
         $taskDesc = $matches[1].Trim()
-        Write-Host ""
-        Write-Host "[TASK] " -NoNewline -ForegroundColor Green
-        Write-Host "Detected completed task: $taskDesc" -ForegroundColor White
+        Emit-TaskCompleted -Signal "TASK_COMPLETE" -Mode $Mode
+        Emit-Log -Level "info" -Message "Detected completed task: $taskDesc" -Component "task"
         
         # Hook: OnPreBackpressure
         $hookResult = Invoke-PluginHookSafely -HookName "OnPreBackpressure" -RunId $RunId -HookData @{
@@ -747,7 +751,7 @@ function Process-TaskCompletion {
         }
         
         if ($hookResult.SkipBackpressure) {
-            Write-Host "[PLUGINS] Backpressure skipped: $($hookResult.Reason)"
+            Emit-Log -Level "info" -Message "Backpressure skipped: $($hookResult.Reason)" -Component "plugins"
             $backpressureResult = @{ skipped = $true; success = $true }
         }
         else {
@@ -757,7 +761,8 @@ function Process-TaskCompletion {
             # Transition to Validating state
             if ($AgentState.Mode -eq "Building" -and $AgentState.CanTransitionTo('Validating')) {
                 $AgentState.TransitionTo('Validating')
-                Write-Host "[STATE-MACHINE] Transitioned to Validating mode (running backpressure)" -ForegroundColor DarkGray
+                Emit-StateTransitioned -From "Building" -To "Validating"
+                Emit-Log -Level "debug" -Message "Transitioned to Validating mode (running backpressure)" -Component "state-machine"
             }
             
             # Run backpressure validation
@@ -792,7 +797,8 @@ function Process-TaskCompletion {
         
         if ($AgentState.Mode -eq "Validating") {
             $AgentState.TransitionTo('Building')
-            Write-Host "[STATE-MACHINE] Transitioned back to Building mode (validation passed)" -ForegroundColor DarkGray
+            Emit-StateTransitioned -From "Validating" -To "Building"
+            Emit-Log -Level "debug" -Message "Transitioned back to Building mode (validation passed)" -Component "state-machine"
         }
         
         # Commit changes
