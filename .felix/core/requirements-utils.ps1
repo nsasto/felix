@@ -57,8 +57,7 @@ function Update-RequirementStatus {
         }
         
         if (-not $found) {
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Warning: Requirement $RequirementId not found" -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "Warning: Requirement $RequirementId not found" -Component "requirements"
             return $false
         }
         
@@ -102,8 +101,7 @@ function Update-RequirementRunId {
     
     try {
         if (-not (Test-Path $RequirementsFilePath)) {
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Requirements file not found: $RequirementsFilePath" -ForegroundColor Red
+            Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFilePath" -Severity "error"
             return $false
         }
         
@@ -120,8 +118,7 @@ function Update-RequirementRunId {
         }
         
         if (-not $found) {
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Could not find requirement $RequirementId in requirements.json" -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "Could not find requirement $RequirementId in requirements.json" -Component "requirements"
             return $false
         }
         

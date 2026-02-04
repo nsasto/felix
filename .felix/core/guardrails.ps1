@@ -143,11 +143,11 @@ function Undo-PlanningViolations {
                 # Check if it was an existing file (modified) or new file
                 $wasTracked = git ls-files $file 2>$null
                 if ($wasTracked) {
-                    Write-Host "[GUARDRAIL] Reverting changes to: $file"
+                    Emit-Log -Level "info" -Message "Reverting changes to: $file" -Component "guardrail"
                     git checkout HEAD -- $file 2>$null
                 }
                 else {
-                    Write-Host "[GUARDRAIL] Removing unauthorized new file: $file"
+                    Emit-Log -Level "info" -Message "Removing unauthorized new file: $file" -Component "guardrail"
                     Remove-Item $file -Force
                 }
             }

@@ -95,7 +95,7 @@ function Initialize-PluginSystem {
     }
     
     $count = @($plugins).Count
-    Write-Host "[PLUGINS] Initialized plugin system ($count plugins active)" -ForegroundColor Green
+    Emit-Log -Level "info" -Message "Initialized plugin system ($count plugins active)" -Component "plugins"
     return $script:PluginCache
 }
 
@@ -190,7 +190,7 @@ function Invoke-PluginHookSafely {
         return Invoke-PluginHook -HookName $HookName -RunId $RunId -HookData $HookData
     }
     catch {
-        Write-Host "[PLUGINS] $HookName hook failed: $_" -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "$HookName hook failed: $_" -Component "plugins"
         return @{ ShouldContinue = $true }
     }
 }

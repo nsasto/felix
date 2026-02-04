@@ -887,7 +887,9 @@ $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
 "@
     
     Set-Content (Join-Path $RunDir "blocked-task.md") $blockedTaskReport -Encoding UTF8
-    Write-Host "[ARTIFACTS] Blocked task report saved" -ForegroundColor DarkGray
+    $blockedTaskPath = Join-Path $RunDir "blocked-task.md"
+    $relPath = $blockedTaskPath.Replace($Paths.ProjectPath + "\", "")
+    Emit-Artifact -Path $relPath -Type "report" -SizeBytes (Get-Item $blockedTaskPath).Length
     
     if ($retryCount -gt $maxRetries) {
         # Max retries exceeded

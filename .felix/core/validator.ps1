@@ -35,8 +35,7 @@ function Get-BackpressureCommands {
     
     # If config commands are explicitly provided, use those
     if ($ConfigCommands -and $ConfigCommands.Count -gt 0) {
-        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-        Write-Host "Using commands from config.json"
+        Emit-Log -Level "info" -Message "Using commands from config.json" -Component "backpressure"
         foreach ($cmd in $ConfigCommands) {
             $commands += @{
                 command     = $cmd
@@ -49,13 +48,11 @@ function Get-BackpressureCommands {
     
     # Parse commands from AGENTS.md
     if (-not (Test-Path $AgentsFilePath)) {
-        Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-        Write-Host "Warning: AGENTS.md not found at $AgentsFilePath" -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "AGENTS.md not found at $AgentsFilePath" -Component "backpressure"
         return $commands
     }
     
-    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-    Write-Host "Parsing commands from AGENTS.md"
+    Emit-Log -Level "info" -Message "Parsing commands from AGENTS.md" -Component "backpressure"
     $content = Get-Content $AgentsFilePath -Raw
     
     # Define sections to parse and their types
@@ -118,10 +115,9 @@ function Get-BackpressureCommands {
         }
     }
     
-    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-    Write-Host "Found $($commands.Count) commands from AGENTS.md"
+    Emit-Log -Level "info" -Message "Found $($commands.Count) commands from AGENTS.md" -Component "backpressure"
     foreach ($cmd in $commands) {
-        Write-Host "  [$($cmd.type)] $($cmd.command)"
+        Emit-Log -Level "debug" -Message "[$($cmd.type)] $($cmd.command)" -Component "backpressure"
     }
     
     return $commands
@@ -167,7 +163,7 @@ function Invoke-BackpressureValidation {
     
     # Check if backpressure is enabled
     if (-not $Config.backpressure.enabled) {
-        Write-Host "[BACKPRESSURE] Backpressure validation is disabled in config"
+        Emit-Log -Level "info" -Message "Backpressure validation is disabled in config" -Component "backpressure"
         $result.skipped = $true
         return $result
     }
