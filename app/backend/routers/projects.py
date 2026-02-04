@@ -2,11 +2,13 @@
 Felix Backend - Project Management API
 Handles project registration, listing, and details.
 """
+
 from fastapi import APIRouter, HTTPException
 from typing import List
 
 import sys
 from pathlib import Path
+
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -20,9 +22,9 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 async def register_project(request: ProjectRegister):
     """
     Register a project directory with Felix.
-    
+
     The directory must have a valid Felix structure:
-    - felix/ directory
+    - .felix/ directory
     - specs/ directory
     """
     try:
@@ -31,7 +33,9 @@ async def register_project(request: ProjectRegister):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to register project: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to register project: {str(e)}"
+        )
 
 
 @router.get("", response_model=List[Project])
@@ -59,7 +63,9 @@ async def update_project(project_id: str, request: ProjectUpdate):
     Update project metadata (name, path).
     """
     try:
-        project = storage.update_project(project_id, name=request.name, path=request.path)
+        project = storage.update_project(
+            project_id, name=request.name, path=request.path
+        )
         if project:
             return project
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")

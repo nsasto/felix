@@ -52,7 +52,7 @@ This leads to confusion, wasted agent iterations, and manual cleanup.
 ## Technical Context
 
 - Plans are stored in `runs/<run-id>/plan-<req-id>.md`
-- Requirement status in `felix/requirements.json`: "draft", "planned", "in_progress", "complete", "blocked"
+- Requirement status in `..felix/requirements.json`: "draft", "planned", "in_progress", "complete", "blocked"
 - Detection should focus on "## Acceptance Criteria" or "## Validation Criteria" sections
 - Timestamps can come from file modification times or stored metadata
 
@@ -62,3 +62,5 @@ This leads to confusion, wasted agent iterations, and manual cleanup.
 - Git-level version control or branching
 - Automatic re-planning (agent handles on next run)
 - Complex merge/conflict resolution
+
+

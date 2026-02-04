@@ -17,7 +17,7 @@ This document outlines the migration strategy for transforming Felix from a file
 **Current Implementation**:
 
 - `ConnectionManager` class manages per-project WebSocket connections
-- Watches `felix/state.json`, `felix/requirements.json`, and `runs/` directory using `watchfiles` library
+- Watches `.felix/state.json`, `.felix/requirements.json`, and `runs/` directory using `watchfiles` library
 - Broadcasts events: `mode_change`, `status_update`, `iteration_start`, `iteration_complete`, `run_complete`, `requirements_update`, `run_artifact_created`
 - 600+ lines of code handling connection pooling, event broadcasting, filesystem monitoring
 
@@ -1450,3 +1450,4 @@ WEBSOCKET_URL=wss://api.yourapp.com  # For console streaming only
 - [PRODUCTION-TODO.md](../PRODUCTION-TODO.md) - Full production roadmap
 - [Supabase Realtime Docs](https://supabase.com/docs/guides/realtime)
 - [FastAPI WebSocket Guide](https://fastapi.tiangolo.com/advanced/websockets/)
+

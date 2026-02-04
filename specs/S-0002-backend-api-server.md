@@ -20,7 +20,7 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 - [ ] `GET /api/projects` - List registered projects with metadata
 - [ ] `GET /api/projects/:id` - Get project details (specs count, current state, last run)
 - [ ] `DELETE /api/projects/:id` - Unregister project
-- [ ] Store projects in `~/.felix/projects.json` (user-level registry)
+- [ ] Store projects in `~/...felix/projects.json` (user-level registry)
 
 ### File Operations API
 
@@ -28,11 +28,11 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 - [ ] `GET /api/projects/:id/specs/:filename` - Read spec content
 - [ ] `PUT /api/projects/:id/specs/:filename` - Update spec content
 - [ ] `POST /api/projects/:id/specs` - Create new spec
-- [ ] `GET /api/projects/:id/requirements` - Read felix/requirements.json
+- [ ] `GET /api/projects/:id/requirements` - Read ..felix/requirements.json
 - [ ] `PUT /api/projects/:id/requirements` - Update requirements
 - [ ] `GET /api/projects/:id/agents-md` - Read AGENTS.md
 - [ ] `GET /api/projects/:id/runs/:runId/plan` - Read per-requirement plan from runs/<run-id>/plan-<req-id>.md
-- [ ] Path validation against felix/policies/allowlist.json and denylist.json
+- [ ] Path validation against ..felix/policies/allowlist.json and denylist.json
 
 ### Agent Spawning & Monitoring
 
@@ -46,7 +46,7 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 ### Real-time State Updates
 
 - [ ] WebSocket endpoint: `/ws/projects/:id` for real-time updates
-- [ ] Watch felix/state.json with watchfiles library
+- [ ] Watch ..felix/state.json with watchfiles library
 - [ ] Watch runs/ directory for new run artifacts
 - [ ] Broadcast state changes to connected WebSocket clients
 - [ ] Send events: iteration_start, iteration_complete, mode_change, status_update, run_complete
@@ -65,8 +65,8 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 
 **Communication model:** Backend never communicates directly with agent processes. All coordination via filesystem:
 
-- Backend writes felix/config.json
-- Agent writes felix/state.json and runs/
+- Backend writes ..felix/config.json
+- Agent writes ..felix/state.json and runs/
 - Backend watches those files with file watchers
 - Backend broadcasts to frontend via WebSocket
 
@@ -84,3 +84,5 @@ As a developer, I need a FastAPI backend that spawns and monitors Felix agents, 
 ## Dependencies
 
 - S-0001 (agent must exist to spawn)
+
+

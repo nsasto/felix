@@ -22,7 +22,7 @@ The key principle is **BYOK (Bring Your Own Key)**: Felix never stores, transmit
 
 - [ ] "Enable Copilot" toggle switch at top of settings panel
 - [ ] Toggle defaults to OFF (disabled) for new installations
-- [ ] Toggle saves immediately to felix/config.json on change
+- [ ] Toggle saves immediately to ..felix/config.json on change
 - [ ] When disabled, all copilot features are hidden from UI (no chat button in specs editor)
 - [ ] When enabled, copilot chat button appears in specs editor
 - [ ] Toggle shows visual feedback (loading state) during save
@@ -33,7 +33,7 @@ The key principle is **BYOK (Bring Your Own Key)**: Felix never stores, transmit
 - [ ] Default selection: OpenAI
 - [ ] Dropdown disabled when copilot is disabled
 - [ ] Changing provider auto-updates model list
-- [ ] Provider selection saves to felix/config.json
+- [ ] Provider selection saves to ..felix/config.json
 - [ ] Help text: "Choose your LLM provider. Felix uses your API key from .env file."
 
 ### API Key Configuration
@@ -54,7 +54,7 @@ The key principle is **BYOK (Bring Your Own Key)**: Felix never stores, transmit
 - [ ] Custom provider: Free text input for model name
 - [ ] Default: gpt-4o (OpenAI), claude-3-5-sonnet-20241022 (Anthropic)
 - [ ] Dropdown disabled when copilot is disabled
-- [ ] Model selection saves to felix/config.json
+- [ ] Model selection saves to ..felix/config.json
 - [ ] Help text: "Model used for spec generation and conversations"
 
 ### Context Configuration
@@ -67,7 +67,7 @@ The key principle is **BYOK (Bring Your Own Key)**: Felix never stores, transmit
 - [ ] Toggle: Other specs - "Pattern consistency from existing specs"
 - [ ] All sources enabled by default
 - [ ] Disabling a source excludes it from copilot system prompt
-- [ ] Context settings save to felix/config.json
+- [ ] Context settings save to ..felix/config.json
 
 ### Feature Toggles
 
@@ -75,7 +75,7 @@ The key principle is **BYOK (Bring Your Own Key)**: Felix never stores, transmit
 - [ ] "Auto-suggest Spec Titles" toggle (default: ON) - Suggests titles from user input
 - [ ] "Context-aware Completions" toggle (default: ON) - Uses project context in responses
 - [ ] Each toggle has descriptive help text
-- [ ] Feature settings save to felix/config.json
+- [ ] Feature settings save to ..felix/config.json
 - [ ] Disabled features don't appear in copilot behavior
 
 ### Visual Feedback
@@ -372,3 +372,5 @@ FELIX_COPILOT_API_KEY=
 - [ ] Disabled state works: Disable copilot, verify all inputs are disabled and grayed out
 - [ ] Config persistence: Configure copilot, restart app, verify all settings retained
 - [ ] .env security: Verify .env file in .gitignore, attempt git add, confirm not staged
+
+

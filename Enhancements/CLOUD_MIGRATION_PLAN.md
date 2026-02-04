@@ -36,7 +36,7 @@ This document provides step-by-step implementation instructions for migrating Fe
 git rm app\backend\routers\websocket.py
 ```
 
-**What it did**: Watched felix/state.json, requirements.json, and runs/ directory using filesystem watcher (watchfiles library), sent changes via WebSocket.
+**What it did**: Watched .felix/state.json, requirements.json, and runs/ directory using filesystem watcher (watchfiles library), sent changes via WebSocket.
 
 **Why delete**: In cloud architecture, state comes from database subscriptions (Supabase Realtime), not filesystem watching.
 
@@ -115,7 +115,7 @@ Remove state.json and requirements.json direct reads:
 
 ```powershell
 # Search for and remove:
-# - Any code reading "felix/state.json" directly
+# - Any code reading ".felix/state.json" directly
 # - Line 124: requirements.json path construction
 # - Direct file operations on state/requirements files
 ```
@@ -140,7 +140,7 @@ Remove requirement status reading (lines 124-145):
 **Keep**:
 
 - Project registration (lines 1-100)
-- ~/.felix/projects.json operations
+- ~/..felix/projects.json operations
 - get_felix_home(), load_projects(), save_projects()
 
 **6. Clean up `app/backend/main.py`**:
@@ -398,9 +398,9 @@ Update README or comments to reflect removed features:
 
 **Must Pass All**:
 
-- ✅ No references to felix/state.json in backend/frontend
-- ✅ No references to felix/requirements.json in backend/frontend (except CLI)
-- ✅ No references to felix/agents.json in backend/frontend
+- ✅ No references to .felix/state.json in backend/frontend
+- ✅ No references to .felix/requirements.json in backend/frontend (except CLI)
+- ✅ No references to .felix/agents.json in backend/frontend
 - ✅ No polling intervals for state updates in frontend
 - ✅ No filesystem watching (watchfiles) in backend
 - ✅ Console streaming WebSocket preserved (agents.py lines 791-1002)
@@ -2664,3 +2664,4 @@ npm run build
    - Parallel execution
    - Run replay/rollback
 5. **Mobile Apps**: Native iOS/Android using Supabase SDKs
+

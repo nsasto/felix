@@ -44,12 +44,12 @@ $doc = @"
 
 ## Overview
 
-The Felix Plugin API provides 11 lifecycle hooks that allow plugins to extend and customize the behavior of the Felix autonomous agent. Plugins are discovered automatically from the ``felix/plugins/`` directory and loaded in dependency order.
+The Felix Plugin API provides 11 lifecycle hooks that allow plugins to extend and customize the behavior of the Felix autonomous agent. Plugins are discovered automatically from the ``.felix/plugins/`` directory and loaded in dependency order.
 
 ## Plugin Structure
 
 ``````
-felix/plugins/
+.felix/plugins/
   your-plugin/
     plugin.json           # Manifest (required)
     on-hookname.ps1       # Hook scripts (v1 API)
@@ -70,7 +70,7 @@ Plugins must declare required permissions in their manifest:
 | Permission | Description |
 |-----------|-------------|
 | ``read:specs`` | Read spec files from specs/ |
-| ``read:state`` | Read felix/state.json and felix/requirements.json |
+| ``read:state`` | Read .felix/state.json and .felix/requirements.json |
 | ``read:runs`` | Read run artifacts from runs/ |
 | ``write:runs`` | Write to run artifacts in runs/ |
 | ``write:logs`` | Write to log files |
@@ -142,7 +142,7 @@ Plugins can store data in two ways:
 
 ### Persistent State
 
-Survives across runs, stored in ``felix/plugins/{name}/persistent-state.json``:
+Survives across runs, stored in ``.felix/plugins/{name}/persistent-state.json``:
 
 ``````powershell
 # Read
@@ -166,7 +166,7 @@ Set-PluginTransientState -PluginName "my-plugin" -RunId `$RunId -Key "temp_data"
 
 ## Circuit Breaker
 
-If a plugin fails repeatedly (default: 3 times), it is automatically disabled for the session. Configure threshold in ``felix/config.json``:
+If a plugin fails repeatedly (default: 3 times), it is automatically disabled for the session. Configure threshold in ``.felix/config.json``:
 
 ``````json
 {
@@ -201,7 +201,7 @@ Plugins execute in priority order (lower = earlier). Each plugin receives the ou
 Use the test harness to validate your plugin:
 
 ``````powershell
-cd felix/plugins
+cd .felix/plugins
 .\test-harness.ps1 -PluginPath .\your-plugin -RunAll
 ``````
 
@@ -230,3 +230,4 @@ Write-Host ""
 Write-Host "Preview:" -ForegroundColor Yellow
 Write-Host "  Lines: $((Get-Content $OutputPath | Measure-Object -Line).Lines)"
 Write-Host "  Size: $([math]::Round((Get-Item $OutputPath).Length / 1KB, 2)) KB"
+

@@ -4,7 +4,7 @@
 
 As a developer managing Felix agents, I need a centralized configuration system and registry to identify agents, track their status, and configure their runtime settings, so I can coordinate multiple agents across different machines and environments without confusion or conflicts.
 
-Currently, Felix agents run without formal identity or registration. When scaling to multiple agents (cloud-managed or multi-machine), there's no way to distinguish them, track their activity, or configure agent-specific settings. This spec introduces `felix/agents.json` as the agent registry and extends `felix/config.json` with agent identity settings, accessible via a global Settings screen.
+Currently, Felix agents run without formal identity or registration. When scaling to multiple agents (cloud-managed or multi-machine), there's no way to distinguish them, track their activity, or configure agent-specific settings. This spec introduces `..felix/agents.json` as the agent registry and extends `..felix/config.json` with agent identity settings, accessible via a global Settings screen.
 
 **Design Principle**: Agent identity and registration are global concerns (not project-specific). The registry tracks runtime state (PID, heartbeat), while config stores user-defined settings (name, executable).
 
@@ -12,7 +12,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
 
 ### Agent Identity in Config
 
-- [ ] Add `agent.name` field to `felix/config.json` (user-configurable string)
+- [ ] Add `agent.name` field to `..felix/config.json` (user-configurable string)
 - [ ] Default agent name: `"felix-primary"` if not specified
 - [ ] Agent name must be unique per registry (validation on save)
 - [ ] Agent name used as identifier for registration and API calls
@@ -20,7 +20,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
 
 ### Agent Registry File
 
-- [ ] Create `felix/agents.json` file structure in project root
+- [ ] Create `..felix/agents.json` file structure in project root
 - [ ] Schema includes: agents object with agent_name as key
 - [ ] Each agent entry contains: `pid`, `hostname`, `status`, `current_run_id`, `started_at`, `last_heartbeat`, `stopped_at`
 - [ ] Status values: `"active"`, `"inactive"`, `"stopped"`
@@ -33,7 +33,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
 - [ ] Endpoint: `POST /api/agents/{name}/heartbeat` - updates last_heartbeat timestamp
 - [ ] Endpoint: `GET /api/agents` - returns all registered agents with status
 - [ ] Endpoint: `POST /api/agents/{name}/stop` - marks agent as stopped
-- [ ] Backend reads/writes `felix/agents.json` on agent operations
+- [ ] Backend reads/writes `..felix/agents.json` on agent operations
 - [ ] Backend validates agent name uniqueness on registration
 - [ ] Backend marks agents inactive if heartbeat > 10 seconds old
 
@@ -42,7 +42,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
 - [ ] Felix agent reads `agent.name` from config on startup
 - [ ] Agent calls `/api/agents/register` with: name, PID, hostname, timestamp
 - [ ] Agent sends heartbeat every 5 seconds to `/api/agents/{name}/heartbeat`
-- [ ] Registration updates `felix/agents.json` with current agent state
+- [ ] Registration updates `..felix/agents.json` with current agent state
 - [ ] If agent_name already exists, updates existing entry (handles restarts)
 
 ### Settings Screen UI (Global)
@@ -52,7 +52,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
   - Agent Name (text input)
   - Executable (text input, default: "droid")
   - Arguments (text input, default: "exec --skip-permissions-unsafe")
-- [ ] "Save" button writes changes to `felix/config.json`
+- [ ] "Save" button writes changes to `..felix/config.json`
 - [ ] Validation: Agent name cannot be empty, must be alphanumeric with hyphens/underscores
 - [ ] Show registered agents list (read-only) below configuration:
   - Agent name, status badge (🟢 active, ⚪ inactive, 🔴 stopped)
@@ -77,7 +77,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
 
 ## Technical Notes
 
-**felix/agents.json Schema:**
+**..felix/agents.json Schema:**
 
 ```json
 {
@@ -104,7 +104,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
 }
 ```
 
-**felix/config.json Changes:**
+**..felix/config.json Changes:**
 
 ```json
 {
@@ -122,7 +122,7 @@ Currently, Felix agents run without formal identity or registration. When scalin
 
 ```powershell
 # On startup
-$config = Get-Content "felix/config.json" | ConvertFrom-Json
+$config = Get-Content "..felix/config.json" | ConvertFrom-Json
 $agentName = $config.agent.name ?? "felix-primary"
 
 $registration = @{
@@ -194,7 +194,9 @@ def check_agent_status(agent: AgentEntry) -> str:
 ## Validation Criteria
 
 - [ ] Agent registers on startup: `curl http://localhost:8080/api/agents` shows new agent
-- [ ] Heartbeat updates: Check felix/agents.json file, verify last_heartbeat field updates every 5s
+- [ ] Heartbeat updates: Check ..felix/agents.json file, verify last_heartbeat field updates every 5s
 - [x] Settings UI saves config: Manual verification - edit agent name, save, check config.json
 - [x] Agent list shows status: Manual verification - view registered agents in settings
 - [x] Stale agents marked inactive: Manual verification - stop agent, wait 15s, check status changes
+
+

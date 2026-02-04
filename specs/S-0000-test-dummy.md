@@ -35,5 +35,7 @@ Create a simple plan that acknowledges this is a test spec and requires no work.
 
 - Plan exists: Check that a plan file was created in the run directory
 - Test acknowledgment: Plan should contain text "This is a test specification"
-- No code changes: Git diff should show no code file modifications (only felix/requirements.json status change)
+- No code changes: Git diff should show no code file modifications (only ..felix/requirements.json status change)
 - Status update: Requirement status changes from "planned" to "complete"
+
+

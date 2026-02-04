@@ -45,7 +45,7 @@ $script:ServerProcesses = @()
 function Find-ProjectRoot {
     <#
     .SYNOPSIS
-    Locates the project root by searching for felix/ and specs/ directories
+    Locates the project root by searching for .felix/ and specs/ directories
     #>
     $currentPath = Get-Location
     $maxDepth = 10
@@ -68,7 +68,7 @@ function Find-ProjectRoot {
         $depth++
     }
     
-    throw "Could not find project root (no felix/ and specs/ directories found)"
+    throw "Could not find project root (no .felix/ and specs/ directories found)"
 }
 
 function Load-JsonFile {
@@ -125,7 +125,7 @@ function Find-SpecFile {
     )
     
     # Try to get from requirements.json first
-    $reqPath = Join-Path $ProjectRoot "felix/requirements.json"
+    $reqPath = Join-Path $ProjectRoot ".felix/requirements.json"
     if (Test-Path $reqPath) {
         $reqData = Load-JsonFile $reqPath
         $requirement = $reqData.requirements | Where-Object { $_.id -eq $RequirementId }
@@ -160,7 +160,7 @@ function Get-RequirementLabels {
         [string]$RequirementId
     )
     
-    $reqPath = Join-Path $ProjectRoot "felix/requirements.json"
+    $reqPath = Join-Path $ProjectRoot ".felix/requirements.json"
     if (-not (Test-Path $reqPath)) {
         return @()
     }
@@ -777,3 +777,4 @@ if ($RequirementId -notmatch '^S-\d{4}$') {
 $exitCode = Invoke-RequirementValidation -RequirementId $RequirementId
 
 exit $exitCode
+

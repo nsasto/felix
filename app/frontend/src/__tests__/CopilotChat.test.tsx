@@ -92,7 +92,7 @@ const createMockConfig = (copilotEnabled: boolean = true): FelixConfig => ({
 
 const mockConfigResponse = (config: FelixConfig): ConfigContent => ({
   config,
-  path: "felix/config.json",
+  path: "\.felix/config.json",
 });
 
 // Helper to create a mock stream controller
@@ -1293,3 +1293,4 @@ The spec detection requires headings, substantial length, and multiple sections.
     });
   });
 });
+

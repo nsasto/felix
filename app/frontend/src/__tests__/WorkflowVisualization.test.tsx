@@ -21,7 +21,7 @@ const renderWithTheme = (ui: React.ReactElement) => {
   );
 };
 
-// Mock workflow configuration matching felix/workflow.json structure
+// Mock workflow configuration matching \.felix/workflow.json structure
 const mockWorkflowConfig = {
   version: '1.0',
   layout: 'horizontal' as const,
@@ -553,3 +553,4 @@ describe('LiveConsolePanel Split Layout (S-0030)', () => {
     });
   });
 });
+

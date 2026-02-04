@@ -84,9 +84,9 @@ _If the diagram doesn't render, see [Felix-flow.png](../img/Felix-flow.png)_
 
 **Steps**:
 
-1. Resolve project path and load `felix/config.json`
+1. Resolve project path and load `..felix/config.json`
 2. Resolve Python executable (for validation scripts)
-3. Load `felix/requirements.json` and select next requirement:
+3. Load `..felix/requirements.json` and select next requirement:
    - Prefer `in_progress` status
    - Fall back to first `planned` requirement
    - Exit if none available
@@ -97,7 +97,7 @@ The agent constructs a comprehensive context for the LLM:
 - `AGENTS.md` - How to run/test the project
 - `specs/S-XXXX-requirement.md` - Current requirement specification
 - `specs/CONTEXT.md` - Product context, tech stack, standards
-- `felix/requirements.json` - Status of all requirements
+- `..felix/requirements.json` - Status of all requirements
 - `runs/*/plan-S-XXXX.md` - Plan for current requirement (if in building mode)
 - Current requirement ID and output path for artifacts
 
@@ -121,7 +121,7 @@ Planning mode is selected when:
 
 #### Planning Workflow
 
-1. **Load Prompt**: Use `felix/prompts/planning.md` template
+1. **Load Prompt**: Use `..felix/prompts/planning.md` template
 2. **Context Injection**: Add project context, specs, and requirements status
 3. **LLM Execution**: Call agent executable (e.g., `droid exec`)
 4. **Output Capture**: Save LLM response to `runs/<timestamp>/output.log`
@@ -141,8 +141,8 @@ $gitStateBefore = @{
 **Allowed Changes** (whitelist):
 
 - `runs/` - Run artifacts and plans
-- `felix/state.json` - Execution state
-- `felix/requirements.json` - Requirement updates
+- `..felix/state.json` - Execution state
+- `..felix/requirements.json` - Requirement updates
 
 **Violation Detection**:
 After LLM execution, check for unauthorized changes:
@@ -215,7 +215,7 @@ Automated validation commands (tests, builds, lints) that must pass before any c
 
 **Command Sources** (in priority order):
 
-1. `felix/config.json` → `backpressure.commands` array (explicit configuration)
+1. `..felix/config.json` → `backpressure.commands` array (explicit configuration)
 2. `AGENTS.md` → Parsed from "## Run Tests", "## Build", "## Lint" sections
 
 **Parsing AGENTS.md**:
@@ -349,7 +349,7 @@ Update-RequirementStatus -RequirementId "S-XXXX" -NewStatus "complete"
 
 # Update state
 $state.status = "complete"
-$state | ConvertTo-Json | Set-Content "felix/state.json"
+$state | ConvertTo-Json | Set-Content "..felix/state.json"
 
 # Exit success
 exit 0
@@ -405,7 +405,7 @@ When a requirement is marked as "blocked" (exit code 2 or 3):
 3. **Manually unblock**:
 
    ```json
-   // felix/requirements.json
+   // ..felix/requirements.json
    {
      "id": "S-XXXX",
      "status": "planned" // Change from "blocked" to "planned"
@@ -418,7 +418,7 @@ When a requirement is marked as "blocked" (exit code 2 or 3):
 
 ## State Management
 
-### felix/state.json
+### ..felix/state.json
 
 **Purpose**: Minimal control state for agent execution.
 
@@ -443,7 +443,7 @@ When a requirement is marked as "blocked" (exit code 2 or 3):
 - Agent writes on each iteration
 - Backend reads for monitoring
 
-### felix/requirements.json
+### ..felix/requirements.json
 
 **Purpose**: Central registry of requirements and work state.
 
@@ -508,3 +508,5 @@ runs/2026-01-27T14-30-00/
 
 1. [The Ralph Playbook](https://github.com/ClaytonFarr/ralph-playbook) - Core philosophy
 2. [snarktank/ralph](https://github.com/snarktank/ralph) - Reference implementation
+
+
