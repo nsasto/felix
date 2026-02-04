@@ -379,8 +379,7 @@ function Build-IterationPrompt {
     # Load prompt template
     $promptFile = Join-Path $Paths.PromptsDir "$Mode.md"
     if (-not (Test-Path $promptFile)) {
-        Write-Host "ERROR: " -NoNewline -ForegroundColor Red
-        Write-Host "Prompt template not found: $promptFile" -ForegroundColor Red
+        Emit-Error -ErrorType "PromptTemplateNotFound" -Message "Prompt template not found: $promptFile" -Severity "fatal"
         return $null
     }
     $promptTemplate = Get-Content $promptFile -Raw
@@ -680,15 +679,15 @@ function Test-AndEnforcePlanningGuardrails {
 "@
         
         Set-Content (Join-Path $RunDir "guardrail-violation.md") $violationReport -Encoding UTF8
-        Write-Host "[ARTIFACTS] Guardrail violation report saved" -ForegroundColor DarkGray
+        $artifactPath = (Join-Path $RunDir "guardrail-violation.md").Replace($ProjectPath + "\", "")
+        Emit-Artifact -Path $artifactPath -Type "report" -SizeBytes (Get-Item (Join-Path $RunDir "guardrail-violation.md")).Length
         
         # Update state
         $State.last_iteration_outcome = "guardrail_violation"
         $State.updated_at = Get-Date -Format "o"
         $State | ConvertTo-Json | Set-Content $StateFile
         
-        Write-Host "[AGENT] " -NoNewline -ForegroundColor Red
-        Write-Host "Planning mode aborted due to guardrail violations." -ForegroundColor Red
+        Emit-Error -ErrorType "GuardrailViolation" -Message "Planning mode aborted due to guardrail violations" -Severity "error"
         
         return @{ Passed = $false }
     }
@@ -815,9 +814,8 @@ function Process-TaskCompletion {
         $freshReq = $freshRequirements.requirements | Where-Object { $_.id -eq $CurrentRequirement.id } | Select-Object -First 1
         
         if ($freshReq -and $freshReq.status -in @("complete", "done")) {
-            Write-Host ""
-            Write-Host "[COMPLETE] Requirement $($CurrentRequirement.id) is now marked as $($freshReq.status)" -ForegroundColor Green
-            Write-Host "[COMPLETE] Exiting successfully" -ForegroundColor Green
+            Emit-Log -Level "info" -Message "Requirement $($CurrentRequirement.id) is now marked as $($freshReq.status)" -Component "complete"
+            Emit-Log -Level "info" -Message "Exiting successfully" -Component "complete"
             return @{ ShouldExit = $true; ExitCode = 0 }
         }
     }
@@ -893,7 +891,7 @@ $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
     
     if ($retryCount -gt $maxRetries) {
         # Max retries exceeded
-        Write-Host "[BLOCKED] Maximum backpressure retries ($maxRetries) exceeded" -ForegroundColor Red
+        Emit-Error -ErrorType "MaxBackpressureRetriesExceeded" -Message "Maximum backpressure retries ($maxRetries) exceeded" -Severity "fatal"
         
         $maxRetriesReport = @"
 # âŒ Max Retries Exceeded âŒ
@@ -906,7 +904,8 @@ $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
         # Transition state machine to Blocked
         if ($AgentState.CanTransitionTo('Blocked')) {
             $AgentState.TransitionTo('Blocked')
-            Write-Host "[STATE-MACHINE] Transitioned to Blocked mode (max retries exceeded)" -ForegroundColor DarkGray
+            Emit-StateTransitioned -From $AgentState.Mode -To "Blocked"
+            Emit-Log -Level "debug" -Message "Transitioned to Blocked mode (max retries exceeded)" -Component "state-machine"
         }
         
         return @{ ShouldExit = $true; ExitCode = 2 }
@@ -930,7 +929,8 @@ $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
     # Transition state machine to Blocked (temporary)
     if ($AgentState.CanTransitionTo('Blocked')) {
         $AgentState.TransitionTo('Blocked')
-        Write-Host "[STATE-MACHINE] Transitioned to Blocked mode (will retry)" -ForegroundColor DarkGray
+        Emit-StateTransitioned -From $AgentState.Mode -To "Blocked"
+        Emit-Log -Level "debug" -Message "Transitioned to Blocked mode (will retry)" -Component "state-machine"
     }
     
     return @{ ShouldExit = $false }
@@ -1084,13 +1084,14 @@ function Process-CompletionSignals {
     
     # Transition to BUILDING if planning completed
     if ($Mode -eq "planning" -and $Output -match '<promise>PLANNING_COMPLETE</promise>') {
-        Write-Host ""
-        Write-Host "[PLAN READY] Planning complete, transitioning to BUILDING mode"
+        Emit-PhaseCompleted -Phase "planning" -Signal "PLAN_COMPLETE"
+        Emit-Log -Level "info" -Message "Planning complete, transitioning to BUILDING mode" -Component "plan"
         $State.last_mode = "building"
         
         if ($AgentState.Mode -ne "Building") {
             $AgentState.TransitionTo('Building')
-            Write-Host "[STATE-MACHINE] Transitioned to Building mode" -ForegroundColor DarkGray
+            Emit-StateTransitioned -From "Planning" -To "Building"
+            Emit-Log -Level "debug" -Message "Transitioned to Building mode" -Component "state-machine"
         }
     }
     

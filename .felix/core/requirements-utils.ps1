@@ -63,13 +63,11 @@ function Update-RequirementStatus {
         }
         
         $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Updated $RequirementId status to '$NewStatus'" -ForegroundColor Green
+        Emit-Log -Level "info" -Message "Updated $RequirementId status to '$NewStatus'" -Component "requirements"
         return $true
     }
     catch {
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Error updating status: $_" -ForegroundColor Red
+        Emit-Error -ErrorType "StatusUpdateFailed" -Message "Error updating status: $_" -Severity "error"
         return $false
     }
 }
@@ -128,13 +126,11 @@ function Update-RequirementRunId {
         }
         
         $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Updated $RequirementId with last_run_id: $RunId" -ForegroundColor Green
+        Emit-Log -Level "info" -Message "Updated $RequirementId with last_run_id: $RunId" -Component "requirements"
         return $true
     }
     catch {
-        Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Error updating last_run_id: $_" -ForegroundColor Red
+        Emit-Error -ErrorType "RunIdUpdateFailed" -Message "Error updating last_run_id: $_" -Severity "error"
         return $false
     }
 }
@@ -161,8 +157,8 @@ function Invoke-RequirementValidation {
         [string]$RequirementId
     )
     
-    Write-Host "[VALIDATION] Script: $ValidationScript"
-    Write-Host "[VALIDATION] Requirement: $RequirementId"
+    Emit-Log -Level "info" -Message "Script: $ValidationScript" -Component "validation"
+    Emit-Log -Level "info" -Message "Requirement: $RequirementId" -Component "validation"
     
     # Call PowerShell validation script directly
     $prevErrorAction = $ErrorActionPreference

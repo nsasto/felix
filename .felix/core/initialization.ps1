@@ -36,7 +36,7 @@ function Initialize-ExecutionState {
     try {
         $rawContent = Get-Content $StateFile -Raw
         if ([string]::IsNullOrWhiteSpace($rawContent)) {
-            Write-Host "[WARNING] State file is empty, initializing new state" -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "State file is empty, initializing new state" -Component "init"
             return @{
                 current_requirement_id = $null
                 current_iteration      = 0
@@ -48,7 +48,7 @@ function Initialize-ExecutionState {
         
         $loadedState = $rawContent | ConvertFrom-Json
         if ($null -eq $loadedState) {
-            Write-Host "[WARNING] State file loaded but resulted in null, initializing new state" -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "State file loaded but resulted in null, initializing new state" -Component "init"
             return @{
                 current_requirement_id = $null
                 current_iteration      = 0
@@ -62,7 +62,7 @@ function Initialize-ExecutionState {
         # Requires ConvertTo-Hashtable from exit-handler.ps1
         $converted = ConvertTo-Hashtable $loadedState
         if ($null -eq $converted) {
-            Write-Host "[WARNING] Conversion to hashtable failed, initializing new state" -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "Conversion to hashtable failed, initializing new state" -Component "init"
             return @{
                 current_requirement_id = $null
                 current_iteration      = 0
@@ -75,8 +75,8 @@ function Initialize-ExecutionState {
         return $converted
     }
     catch {
-        Write-Host "[WARNING] Failed to load state file: $_" -ForegroundColor Yellow
-        Write-Host "[WARNING] Initializing new state" -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "Failed to load state file: $_" -Component "init"
+        Emit-Log -Level "warn" -Message "Initializing new state" -Component "init"
         return @{
             current_requirement_id = $null
             current_iteration      = 0
@@ -116,7 +116,7 @@ function Get-CurrentRequirement {
     )
     
     if (-not (Test-Path $RequirementsFile)) {
-        Write-Host "ERROR: Requirements file not found: $RequirementsFile" -ForegroundColor Red
+        Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFile" -Severity "fatal"
         return $null
     }
     
@@ -145,7 +145,7 @@ function Get-CurrentRequirement {
                 if ($StateFile -and (Test-Path $StateFile)) {
                     $state = Get-Content $StateFile -Raw | ConvertFrom-Json
                     if ($state.current_requirement_id -eq $RequirementId) {
-                        Write-Host "[STATE] Clearing stale state for completed requirement $RequirementId" -ForegroundColor Cyan
+                        Emit-Log -Level "info" -Message "Clearing stale state for completed requirement $RequirementId" -Component "state"
                         $state.current_requirement_id = $null
                         $state.status = "ready"
                         $state.last_iteration_outcome = "already_complete"
@@ -160,7 +160,7 @@ function Get-CurrentRequirement {
             # Find first planned or in_progress requirement
             $currentReq = $requirements.requirements | Where-Object { $_.status -eq "planned" -or $_.status -eq "in_progress" } | Select-Object -First 1
             if (-not $currentReq) {
-                Write-Host "No planned or in-progress requirements found." -ForegroundColor Green
+                Emit-Log -Level "info" -Message "No planned or in-progress requirements found" -Component "init"
                 return $null
             }
         }
@@ -168,7 +168,7 @@ function Get-CurrentRequirement {
         return $currentReq
     }
     catch {
-        Write-Host "ERROR: Failed to load requirements: $_" -ForegroundColor Red
+        Emit-Error -ErrorType "RequirementsLoadFailed" -Message "Failed to load requirements: $_" -Severity "fatal"
         return $null
     }
 }
@@ -208,7 +208,7 @@ function Initialize-StateForRequirement {
         $State.status = "ready"
         $State.last_iteration_outcome = $null
         $State.blocked_task = $null
-        Write-Host "[STATE] Starting new requirement, reset all state counters" -ForegroundColor Cyan
+        Emit-Log -Level "info" -Message "Starting new requirement, reset all state counters" -Component "state"
     }
     
     return $State

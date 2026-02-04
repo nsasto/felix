@@ -61,9 +61,8 @@ function Test-ProjectStructure {
     
     foreach ($path in $requiredPaths) {
         if (-not (Test-Path $path)) {
-            Write-Host "ERROR: " -NoNewline -ForegroundColor Red
-            Write-Host "Required path not found: $path" -ForegroundColor Red
-            Write-Host "This doesn't appear to be a valid Felix project." -ForegroundColor Yellow
+            Emit-Error -ErrorType "InvalidProjectStructure" -Message "Required path not found: $path" -Severity "fatal"
+            Emit-Log -Level "warn" -Message "This doesn't appear to be a valid Felix project" -Component "config"
             return $false
         }
     }
@@ -88,7 +87,7 @@ function Get-FelixConfig {
     )
     
     if (-not (Test-Path $ConfigFile)) {
-        Write-Host "ERROR: Configuration file not found: $ConfigFile" -ForegroundColor Red
+        Emit-Error -ErrorType "ConfigNotFound" -Message "Configuration file not found: $ConfigFile" -Severity "fatal"
         return $null
     }
     
@@ -97,7 +96,7 @@ function Get-FelixConfig {
         return $config
     }
     catch {
-        Write-Host "ERROR: Failed to load configuration: $_" -ForegroundColor Red
+        Emit-Error -ErrorType "ConfigLoadFailed" -Message "Failed to load configuration: $_" -Severity "fatal"
         return $null
     }
 }
@@ -126,8 +125,7 @@ function Get-AgentsConfiguration {
     
     # Create default agents.json if it doesn't exist
     if (-not (Test-Path $AgentsJsonFile)) {
-        Write-Host "[CONFIG] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Creating default agents.json at: $AgentsJsonFile" -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "Creating default agents.json at: $AgentsJsonFile" -Component "config"
         
         $defaultAgentsConfig = @{
             agents = @(
@@ -167,7 +165,7 @@ function Get-AgentsConfiguration {
         return $agentsData
     }
     catch {
-        Write-Host "ERROR: Failed to load agents configuration: $_" -ForegroundColor Red
+        Emit-Error -ErrorType "AgentsConfigLoadFailed" -Message "Failed to load agents configuration: $_" -Severity "fatal"
         return $null
     }
 }
@@ -204,13 +202,11 @@ function Get-AgentConfig {
     $agentConfig = $AgentsData.agents | Where-Object { $_.id -eq $AgentId }
     
     if (-not $agentConfig) {
-        Write-Host "WARNING: " -NoNewline -ForegroundColor Yellow
-        Write-Host "Agent ID $AgentId not found in agents.json. Falling back to system default (ID 0)." -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "Agent ID $AgentId not found in agents.json. Falling back to system default (ID 0)" -Component "config"
         $agentConfig = $AgentsData.agents | Where-Object { $_.id -eq 0 }
         
         if (-not $agentConfig) {
-            Write-Host "ERROR: " -NoNewline -ForegroundColor Red
-            Write-Host "System default agent (ID 0) not found in agents.json" -ForegroundColor Red
+            Emit-Error -ErrorType "DefaultAgentNotFound" -Message "System default agent (ID 0) not found in agents.json" -Severity "fatal"
             return $null
         }
         
@@ -220,20 +216,16 @@ function Get-AgentConfig {
                 $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
                 $config.agent.agent_id = 0
                 $config | ConvertTo-Json -Depth 10 | Set-Content $ConfigFile
-                Write-Host "[CONFIG] " -NoNewline -ForegroundColor Cyan
-                Write-Host "Auto-corrected config.json to reference agent ID 0" -ForegroundColor Green
+                Emit-Log -Level "info" -Message "Auto-corrected config.json to reference agent ID 0" -Component "config"
             }
             catch {
-                Write-Host "[CONFIG] " -NoNewline -ForegroundColor Cyan
-                Write-Host "Could not auto-correct config.json: $_" -ForegroundColor Yellow
+                Emit-Log -Level "warn" -Message "Could not auto-correct config.json: $_" -Component "config"
             }
         }
     }
     
-    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Using agent: $($agentConfig.name) (ID: $($agentConfig.id))" -ForegroundColor White
-    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Executable: $($agentConfig.executable) $($agentConfig.args -join ' ')" -ForegroundColor Gray
+    Emit-Log -Level "info" -Message "Using agent: $($agentConfig.name) (ID: $($agentConfig.id))" -Component "agent"
+    Emit-Log -Level "info" -Message "Executable: $($agentConfig.executable) $($agentConfig.args -join ' ')" -Component "agent"
     
     return $agentConfig
 }

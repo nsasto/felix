@@ -32,19 +32,19 @@ function Register-Agent {
     Boolean indicating success or failure
     #>
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [int]$AgentId,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$AgentName,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [int]$ProcessId,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$Hostname,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$BackendBaseUrl
     )
     
@@ -94,13 +94,13 @@ function Send-AgentHeartbeat {
     Boolean indicating success or failure
     #>
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [int]$AgentId,
         
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [string]$CurrentRequirementId,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$BackendBaseUrl
     )
     
@@ -138,10 +138,10 @@ function Start-HeartbeatJob {
     Returns the PowerShell job object
     #>
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [int]$AgentId,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$BackendBaseUrl
     )
     
@@ -176,8 +176,7 @@ function Start-HeartbeatJob {
         }
     } -ArgumentList $AgentId, $BackendBaseUrl
     
-    Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-    Write-Host "Started heartbeat job (every 5s)" -ForegroundColor Green
+    Emit-Log -Level "debug" -Message "Started heartbeat job (every 5s)" -Component "agent"
     
     return $job
 }
@@ -191,7 +190,7 @@ function Stop-HeartbeatJob {
     The PowerShell job object to stop
     #>
     param(
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [System.Management.Automation.Job]$Job
     )
     
@@ -213,10 +212,10 @@ function Unregister-Agent {
     Base URL of the backend API
     #>
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [int]$AgentId,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$BackendBaseUrl
     )
     
@@ -226,8 +225,7 @@ function Unregister-Agent {
             -ContentType "application/json" `
             -ErrorAction Stop | Out-Null
         
-        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Agent ID $AgentId marked as stopped" -ForegroundColor Yellow
+        Emit-Log -Level "info" -Message "Agent ID $AgentId marked as stopped" -Component "agent"
     }
     catch {
         # Best-effort - don't fail on unregister errors

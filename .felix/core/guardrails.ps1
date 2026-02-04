@@ -58,8 +58,7 @@ function Test-PlanningModeGuardrails {
         if ($afterState.commitHash -ne $BeforeState.commitHash) {
             $violations.CommitMade = $true
             $violations.HasViolations = $true
-            Write-Host "[GUARDRAIL VIOLATION] " -NoNewline -ForegroundColor Red
-            Write-Host "New commit detected during planning mode!" -ForegroundColor Yellow
+            Emit-Error -ErrorType "GuardrailViolation" -Message "New commit detected during planning mode!" -Severity "error"
         }
         
         # Check for unauthorized file modifications
@@ -90,10 +89,11 @@ function Test-PlanningModeGuardrails {
         }
         
         if ($violations.UnauthorizedFiles.Count -gt 0) {
-            Write-Host "[GUARDRAIL VIOLATION] " -NoNewline -ForegroundColor Red
-            Write-Host "Unauthorized files modified in planning mode:" -ForegroundColor Yellow
+            Emit-Error -ErrorType "GuardrailViolation" -Message "Unauthorized files modified in planning mode" -Severity "error" -Context @{
+                files = $violations.UnauthorizedFiles
+            }
             foreach ($file in $violations.UnauthorizedFiles) {
-                Write-Host "  - $file"
+                Emit-Log -Level "error" -Message "  - $file" -Component "guardrail"
             }
         }
         
@@ -133,8 +133,7 @@ function Undo-PlanningViolations {
     try {
         # Revert commit if one was made
         if ($Violations.CommitMade) {
-            Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Yellow
-            Write-Host "Reverting unauthorized commit..." -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "Reverting unauthorized commit..." -Component "guardrail"
             git reset --soft $BeforeState.commitHash 2>$null
         }
         
@@ -154,8 +153,7 @@ function Undo-PlanningViolations {
             }
         }
         
-        Write-Host "[GUARDRAIL] " -NoNewline -ForegroundColor Green
-        Write-Host "Violations reverted." -ForegroundColor Green
+        Emit-Log -Level "info" -Message "Violations reverted" -Component "guardrail"
     }
     finally {
         Pop-Location

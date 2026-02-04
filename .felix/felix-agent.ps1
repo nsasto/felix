@@ -53,13 +53,12 @@ try {
     $script:ProjectPath = $ProjectPath
 }
 catch {
-    Write-Host "ERROR: Invalid project path: $ProjectPath" -ForegroundColor Red
-    Write-Host "Error: $_" -ForegroundColor Red
+    Emit-Error -ErrorType "InvalidProjectPath" -Message "Invalid project path: $ProjectPath" -Severity "fatal" -Context @{ error = $_.ToString() }
     exit 1
 }
 
-Write-Host "Felix Agent starting for: " -NoNewline
-Write-Host $ProjectPath -ForegroundColor Cyan
+Emit-RunStarted -RunId "init" -RequirementId "" -ProjectPath $ProjectPath
+Emit-Log -Level "info" -Message "Felix Agent starting for: $ProjectPath" -Component "agent"
 
 # Get project paths and validate structure
 $paths = Get-ProjectPaths -ProjectPath $ProjectPath
@@ -126,8 +125,7 @@ try {
     $null = Resolve-PythonCommand -Config $config
 }
 catch {
-    Write-Host "[VALIDATION] " -NoNewline -ForegroundColor Magenta
-    Write-Host "❌ Python resolution failed: $_" -ForegroundColor Red
+    Emit-Error -ErrorType "PythonResolutionFailed" -Message "Python resolution failed: $_" -Severity "fatal"
     exit 1
 }
 
@@ -148,7 +146,7 @@ $state = Initialize-ExecutionState -StateFile $StateFile
 # Initialize state machine for this execution
 $agentState = New-AgentState -InitialMode "Planning"
 $agentState.RequirementId = $RequirementId
-Write-Host "[STATE-MACHINE] Initialized in Planning mode for requirement $RequirementId" -ForegroundColor DarkGray
+Emit-Log -Level "debug" -Message "Initialized in Planning mode for requirement $RequirementId" -Component "state-machine"
 
 # Reset validation retry counter if we're starting a new requirement
 $state = Initialize-StateForRequirement -State $state -Requirement $currentReq
@@ -178,8 +176,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
 }
 
 # Max iterations reached
-Write-Host ""
-Write-Host "[WARNING] Reached max iterations ($maxIterations)"
+Emit-Log -Level "warn" -Message "Reached max iterations ($maxIterations)" -Component "agent"
 $state.status = "incomplete"
 $state.updated_at = Get-Date -Format "o"
 $state | ConvertTo-Json | Set-Content $StateFile
