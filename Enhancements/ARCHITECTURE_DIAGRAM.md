@@ -112,6 +112,44 @@ One Page Diagram
 - Event stream is the contract
 - Run directory is the audit trail
 
+---
+
+## Design Decisions
+
+### Error Handling Strategy
+
+**All errors as NDJSON events** - Structured `error_occurred` events in the main stdout stream with full context (requirement_id, run_id, iteration, severity). Only PowerShell interpreter crashes go to stderr (out of our control). This provides a single clean stream for consumers to parse and display prominently.
+
+### Prompt Handling Strategy
+
+**File-based prompts** - Engine writes `runs/{run_id}/prompts/{prompt_id}.json`, polls for `{prompt_id}.response.json` (500ms intervals, 5min timeout). Simple, reliable, cross-platform, survives crashes, provides audit trail. Latency is acceptable since prompts are rare (0-2 per run) and async by nature (humans take seconds to respond).
+
+### Event Emission
+
+**NDJSON to stdout only** - One JSON object per line, no backward compatibility mode. Engine becomes UI-agnostic "black box" that speaks structured JSON. Host parses line-by-line and forwards to appropriate UI.
+
+---
+
+## Implementation Path
+
+### Phase 1: MVP (Weeks 1-4)
+
+1. **Create event emission system** in `.felix/core/emit-event.ps1`
+2. **Replace ~210 Write-Host calls** with structured events
+3. **Build test CLI consumer** to validate event stream
+4. **Complete migration** to 100% NDJSON output
+
+### Phase 2: Host Development (Future)
+
+1. Build C# host executable (`felix.exe`)
+2. Implement Terminal UI (TUI) consumer
+3. Implement Tray App consumer
+4. Add prompt handling infrastructure
+5. Add cancellation support
+
+**Current Status:** Planning Phase 1 implementation  
+**Next Step:** Create detailed migration plan in ARCHITECTURE_MIGRATION.md
+
 ## Flow
 
 ```mermaid
