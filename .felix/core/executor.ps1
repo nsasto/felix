@@ -854,11 +854,8 @@ function Handle-BackpressureFailure {
         [string]$RunDir
     )
     
-    Write-Host ""
-    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-    Write-Host "âŒ Validation failed - changes will NOT be committed" -ForegroundColor Red
-    Write-Host "[BACKPRESSURE] " -NoNewline -ForegroundColor Blue
-    Write-Host "Task marked as BLOCKED pending validation fixes" -ForegroundColor Yellow
+    Emit-Log -Level "error" -Message "Validation failed - changes will NOT be committed" -Component "backpressure"
+    Emit-Log -Level "warn" -Message "Task marked as BLOCKED pending validation fixes" -Component "backpressure"
     
     # Determine retry count
     $maxRetries = if ($Config.backpressure.max_retries) { $Config.backpressure.max_retries } else { 3 }
@@ -986,15 +983,16 @@ function Commit-TaskChanges {
         finally {
             Pop-Location
         }
-        Write-Host "[COMMIT] âœ… $commitHash - $commitMsg"
+        Emit-Log -Level "info" -Message "Changes committed: $commitHash - $commitMsg" -Component "commit"
         
         $diffPath = Join-Path $RunDir "diff.patch"
         Set-Content $diffPath $diffOutput -Encoding UTF8
-        Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
+        $relDiffPath = $diffPath.Replace($ProjectPath + "\", "")
+        Emit-Artifact -Path $relDiffPath -Type "diff" -SizeBytes (Get-Item $diffPath).Length
     }
     else {
         # PowerShell handles staging and commit
-        Write-Host "[ARTIFACTS] Capturing git diff to diff.patch..."
+        Emit-Log -Level "debug" -Message "Capturing git diff to diff.patch" -Component "artifacts"
         $prevErrorAction = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
         try {
@@ -1013,7 +1011,8 @@ function Commit-TaskChanges {
         if ($diffOutput) {
             $diffPath = Join-Path $RunDir "diff.patch"
             Set-Content $diffPath $diffOutput -Encoding UTF8
-            Write-Host "[ARTIFACTS] Git diff saved to: diff.patch"
+            $relPath = $diffPath.Replace($ProjectPath + "\", "")
+            Emit-Artifact -Path $relPath -Type "diff" -SizeBytes (Get-Item $diffPath).Length
         }
         
         # Commit changes (if enabled)
@@ -1049,11 +1048,10 @@ function Commit-TaskChanges {
                 finally {
                     Pop-Location
                 }
-                Write-Host "[COMMIT] âœ… Changes committed: $commitHash - $commitMsg"
+                Emit-Log -Level "info" -Message "Changes committed: $commitHash - $commitMsg" -Component "commit"
             }
             else {
-                Write-Host "[COMMIT] âŒ Failed to commit changes:" -ForegroundColor Red
-                Write-Host $commitOutput -ForegroundColor Red
+                Emit-Error -ErrorType "GitCommitFailed" -Message "Failed to commit changes: $commitOutput" -Severity "error"
             }
         }
     }
@@ -1106,16 +1104,19 @@ function Process-CompletionSignals {
         if ($AgentState.Mode -ne "Complete") {
             if ($AgentState.CanTransitionTo('Complete')) {
                 $AgentState.TransitionTo('Complete')
-                Write-Host "[STATE-MACHINE] Transitioned to Complete mode" -ForegroundColor DarkGray
+                Emit-StateTransitioned -From $AgentState.Mode -To "Complete"
+                Emit-Log -Level "debug" -Message "Transitioned to Complete mode" -Component "state-machine"
             }
             else {
                 # Need to go through Validating first
                 if ($AgentState.Mode -eq "Building") {
                     $AgentState.TransitionTo('Validating')
-                    Write-Host "[STATE-MACHINE] Transitioned to Validating mode" -ForegroundColor DarkGray
+                    Emit-StateTransitioned -From "Building" -To "Validating"
+                    Emit-Log -Level "debug" -Message "Transitioned to Validating mode" -Component "state-machine"
                 }
                 $AgentState.TransitionTo('Complete')
-                Write-Host "[STATE-MACHINE] Transitioned to Complete mode" -ForegroundColor DarkGray
+                Emit-StateTransitioned -From "Validating" -To "Complete"
+                Emit-Log -Level "debug" -Message "Transitioned to Complete mode" -Component "state-machine"
             }
         }
         

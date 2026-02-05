@@ -64,14 +64,12 @@ function Register-Agent {
             -ContentType "application/json" `
             -ErrorAction Stop
         
-        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Registered as agent ID $AgentId ('$AgentName', PID: $ProcessId)" -ForegroundColor Green
+        Emit-Log -Level "info" -Message "Registered as agent ID $AgentId ('$AgentName', PID: $ProcessId)" -Component "agent"
         return $true
     }
     catch {
         # Registration is best-effort - don't fail if backend is unreachable
-        Write-Host "[AGENT] " -NoNewline -ForegroundColor Cyan
-        Write-Host "Registration failed (backend may be unavailable): $_" -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "Registration failed (backend may be unavailable): $_" -Component "agent"
         return $false
     }
 }

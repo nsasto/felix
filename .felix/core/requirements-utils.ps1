@@ -38,8 +38,7 @@ function Update-RequirementStatus {
     
     try {
         if (-not (Test-Path $RequirementsFilePath)) {
-            Write-Host "[REQUIREMENTS] " -NoNewline -ForegroundColor Cyan
-            Write-Host "Requirements file not found: $RequirementsFilePath" -ForegroundColor Red
+            Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFilePath" -Severity "error"
             return $false
         }
         

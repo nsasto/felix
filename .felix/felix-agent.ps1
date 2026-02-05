@@ -42,8 +42,14 @@ $ErrorActionPreference = "Stop"
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
-chcp 65001 | Out-Null
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+# Skip console operations when running in non-interactive/redirected mode
+try {
+    chcp 65001 | Out-Null
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+}
+catch {
+    # Ignore errors when no console available
+}
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONIOENCODING = "utf-8"
 
@@ -149,16 +155,24 @@ $agentState.RequirementId = $RequirementId
 Emit-Log -Level "debug" -Message "Initialized in Planning mode for requirement $RequirementId" -Component "state-machine"
 
 # Reset validation retry counter if we're starting a new requirement
+Emit-Log -Level "debug" -Message "About to call Initialize-StateForRequirement" -Component "init"
 $state = Initialize-StateForRequirement -State $state -Requirement $currentReq
+Emit-Log -Level "debug" -Message "Completed Initialize-StateForRequirement" -Component "init"
 
 # Register agent with backend
+Emit-Log -Level "debug" -Message "About to call Register-Agent" -Component "init"
 $registrationSucceeded = Register-Agent -AgentId $agentConfig.id -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME -BackendBaseUrl $script:BackendBaseUrl
+Emit-Log -Level "debug" -Message "Completed Register-Agent, success=$registrationSucceeded" -Component "init"
 if ($registrationSucceeded) {
+    Emit-Log -Level "debug" -Message "Starting heartbeat job" -Component "init"
     $script:HeartbeatJob = Start-HeartbeatJob -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl
+    Emit-Log -Level "debug" -Message "Heartbeat job started" -Component "init"
 }
 
+Emit-Log -Level "debug" -Message "About to enter main iteration loop (max: $maxIterations)" -Component "init"
 # Main iteration loop
 for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
+    Emit-Log -Level "debug" -Message "Starting iteration $iteration of $maxIterations" -Component "executor"
     $result = Invoke-FelixIteration `
         -Iteration $iteration `
         -MaxIterations $maxIterations `
