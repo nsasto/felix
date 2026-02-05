@@ -20,19 +20,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Load NDJSON event emission functions
+. (Join-Path $PSScriptRoot "core\emit-event.ps1")
+
 # Resolve paths
 $ProjectPath = Resolve-Path $ProjectPath
 $RequirementsFile = Join-Path $ProjectPath ".felix\requirements.json"
 $AgentScript = Join-Path $PSScriptRoot "felix-agent.ps1"
 
-Write-Host "=============================================================" -ForegroundColor Cyan
-Write-Host "  Felix Loop - Autonomous Multi-Requirement Executor" -ForegroundColor Cyan
-Write-Host "=============================================================" -ForegroundColor Cyan
-Write-Host "Project: " -NoNewline
-Write-Host $ProjectPath -ForegroundColor Green
-Write-Host "Max requirements: " -NoNewline
-Write-Host $MaxRequirements -ForegroundColor Green
-Write-Host ""
+Emit-Log -Level "info" -Message "Felix Loop - Autonomous Multi-Requirement Executor" -Component "loop"
+Emit-Log -Level "info" -Message "Project: $ProjectPath" -Component "loop"
+Emit-Log -Level "info" -Message "Max requirements: $MaxRequirements" -Component "loop"
+
 # Create process-specific lock file to track active loops
 $lockDir = Join-Path $ProjectPath ".felix\.locks"
 if (-not (Test-Path $lockDir)) {
@@ -47,13 +46,13 @@ $lockData = @{
 } | ConvertTo-Json
 
 Set-Content -Path $lockFile -Value $lockData
-Write-Host "[LOCK] Created loop lock: $lockFile" -ForegroundColor Cyan
+Emit-Log -Level "debug" -Message "Created loop lock: $lockFile" -Component "loop"
 
 # Cleanup function
 function Remove-LoopLock {
     if (Test-Path $lockFile) {
         Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-        Write-Host "[LOCK] Removed loop lock" -ForegroundColor Cyan
+        Emit-Log -Level "debug" -Message "Removed loop lock" -Component "loop"
     }
 }
 
@@ -63,7 +62,7 @@ function Select-NextRequirement {
     param([string]$RequirementsFilePath)
     
     if (-not (Test-Path $RequirementsFilePath)) {
-        Write-Host "Requirements file not found: $RequirementsFilePath" -ForegroundColor Red
+        Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFilePath" -Severity "error"
         return $null
     }
     
@@ -71,8 +70,7 @@ function Select-NextRequirement {
         $requirements = Get-Content $RequirementsFilePath -Raw | ConvertFrom-Json
     }
     catch {
-        Write-Host "ERROR: Failed to parse requirements.json: $_" -ForegroundColor Red
-        Write-Host "File may be corrupted or contain invalid JSON" -ForegroundColor Red
+        Emit-Error -ErrorType "RequirementsParseError" -Message "Failed to parse requirements.json: $_" -Severity "error"
         return $null
     }
     
@@ -97,23 +95,16 @@ while ($requirementsProcessed -lt $MaxRequirements) {
     $nextReq = Select-NextRequirement -RequirementsFilePath $RequirementsFile
     
     if (-not $nextReq) {
-        Write-Host ""
-        Write-Host "=============================================================" -ForegroundColor Green
-        Write-Host "  No more requirements to process - all done!" -ForegroundColor Green
-        Write-Host "=============================================================" -ForegroundColor Green
+        Emit-Log -Level "info" -Message "No more requirements to process - all done!" -Component "loop"
         exit 0
     }
     
-    Write-Host ""
-    Write-Host "=============================================================" -ForegroundColor Cyan
-    Write-Host "  Processing: $($nextReq.id) - $($nextReq.title)" -ForegroundColor Cyan
-    Write-Host "=============================================================" -ForegroundColor Cyan
-    Write-Host ""
+    Emit-Log -Level "info" -Message "Processing requirement: $($nextReq.id) - $($nextReq.title)" -Component "loop"
     
     # Validate parameters before calling felix-agent
     if (-not $nextReq.id) {
-        Write-Host "ERROR: nextReq.id is null or empty!" -ForegroundColor Red
-        Write-Host "nextReq object: $($nextReq | ConvertTo-Json -Depth 2)" -ForegroundColor Yellow
+        Emit-Error -ErrorType "InvalidRequirementId" -Message "nextReq.id is null or empty" -Severity "error"
+        Emit-Log -Level "debug" -Message "nextReq object: $($nextReq | ConvertTo-Json -Depth 2)" -Component "loop"
         continue
     }
     
@@ -123,25 +114,22 @@ while ($requirementsProcessed -lt $MaxRequirements) {
         $freshReq = $freshReqs.requirements | Where-Object { $_.id -eq $nextReq.id } | Select-Object -First 1
         
         if (-not $freshReq) {
-            Write-Host "â ï¸  Warning: Requirement $($nextReq.id) no longer exists in requirements.json" -ForegroundColor Yellow
-            Write-Host "Skipping to next requirement..." -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "Requirement $($nextReq.id) no longer exists - skipping" -Component "loop"
             continue
         }
         
         if ($freshReq.status -notin @("planned", "in_progress")) {
-            Write-Host "â ï¸  Warning: Requirement $($nextReq.id) status changed to '$($freshReq.status)'" -ForegroundColor Yellow
-            Write-Host "Skipping to next requirement..." -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "Requirement $($nextReq.id) status changed to '$($freshReq.status)' - skipping" -Component "loop"
             continue
         }
     }
     catch {
-        Write-Host "â ï¸  Warning: Failed to verify requirement status: $_" -ForegroundColor Yellow
-        Write-Host "Skipping to next requirement..." -ForegroundColor Yellow
+        Emit-Log -Level "warn" -Message "Failed to verify requirement status: $_ - skipping" -Component "loop"
         continue
     }
     
     # Execute felix-agent for this specific requirement
-    Write-Host "[DEBUG] Calling felix-agent with ProjectPath='$ProjectPath' RequirementId='$($nextReq.id)'" -ForegroundColor DarkGray
+    Emit-Log -Level "debug" -Message "Calling felix-agent with RequirementId='$($nextReq.id)'" -Component "loop"
     
     if ($NoCommit) {
         & $AgentScript $ProjectPath -RequirementId $nextReq.id -NoCommit
@@ -151,13 +139,10 @@ while ($requirementsProcessed -lt $MaxRequirements) {
     }
     $exitCode = $LASTEXITCODE
     
-    Write-Host ""
-    Write-Host "-------------------------------------------------------------" -ForegroundColor DarkGray
-    
     switch ($exitCode) {
         0 {
             # Success - requirement completed
-            Write-Host "? $($nextReq.id) completed successfully" -ForegroundColor Green
+            Emit-Log -Level "info" -Message "$($nextReq.id) completed successfully" -Component "loop"
             
             # Brief pause to ensure requirements.json is updated
             Start-Sleep -Milliseconds 500
@@ -167,52 +152,43 @@ while ($requirementsProcessed -lt $MaxRequirements) {
             $completedReq = $updatedReqs.requirements | Where-Object { $_.id -eq $nextReq.id }
             
             if ($completedReq -and ($completedReq.status -eq "complete" -or $completedReq.status -eq "done")) {
-                Write-Host "✅ Status verified: $($nextReq.id) marked as $($completedReq.status)" -ForegroundColor Green
+                Emit-Log -Level "info" -Message "Status verified: $($nextReq.id) marked as $($completedReq.status)" -Component "loop"
             }
             elseif ($completedReq -and $completedReq.status -in @("in_progress", "planned")) {
-                Write-Host "⚠️  Warning: $($nextReq.id) still has status '$($completedReq.status)' after processing" -ForegroundColor Yellow
+                Emit-Log -Level "warn" -Message "$($nextReq.id) still has status '$($completedReq.status)' after processing" -Component "loop"
             }
             else {
-                Write-Host "⚠️  Warning: $($nextReq.id) status is '$($completedReq.status)' (expected 'complete')" -ForegroundColor Yellow
+                Emit-Log -Level "warn" -Message "$($nextReq.id) status is '$($completedReq.status)' (expected 'complete')" -Component "loop"
             }
             
             $requirementsProcessed++
         }
         2 {
             # Blocked due to backpressure failures
-            Write-Host "??  $($nextReq.id) blocked (backpressure failures)" -ForegroundColor Yellow
-            Write-Host "Moving to next requirement..." -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "$($nextReq.id) blocked (backpressure failures) - moving to next" -Component "loop"
             $requirementsProcessed++
         }
         3 {
             # Blocked due to validation failures
-            Write-Host "??  $($nextReq.id) blocked (validation failures)" -ForegroundColor Yellow
-            Write-Host "Moving to next requirement..." -ForegroundColor Yellow
+            Emit-Log -Level "warn" -Message "$($nextReq.id) blocked (validation failures) - moving to next" -Component "loop"
             $requirementsProcessed++
         }
         1 {
             # Error - stop loop
-            Write-Host "? $($nextReq.id) encountered an error (exit code 1)" -ForegroundColor Red
-            Write-Host "Stopping execution" -ForegroundColor Red
+            Emit-Error -ErrorType "AgentExecutionError" -Message "$($nextReq.id) encountered an error (exit code 1)" -Severity "fatal"
             exit 1
         }
         default {
             # Unknown exit code - stop loop
-            Write-Host "? $($nextReq.id) returned unexpected exit code: $exitCode" -ForegroundColor Red
-            Write-Host "Stopping execution" -ForegroundColor Red
+            Emit-Error -ErrorType "UnexpectedExitCode" -Message "$($nextReq.id) returned unexpected exit code: $exitCode" -Severity "fatal"
             exit $exitCode
         }
     }
     
-    Write-Host "-------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host ""
-    Write-Host "Requirements processed: $requirementsProcessed / $MaxRequirements" -ForegroundColor Cyan
+    Emit-Log -Level "info" -Message "Requirements processed: $requirementsProcessed / $MaxRequirements" -Component "loop"
 }
 
-Write-Host ""
-Write-Host "=============================================================" -ForegroundColor Yellow
-Write-Host "  Max requirements limit reached ($MaxRequirements)" -ForegroundColor Yellow
-Write-Host "=============================================================" -ForegroundColor Yellow
+Emit-Log -Level "info" -Message "Max requirements limit reached ($MaxRequirements)" -Component "loop"
 
 # Cleanup
 Remove-LoopLock

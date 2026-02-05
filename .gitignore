@@ -215,7 +215,7 @@ __marimo__/
 .felix/.locks/
 *.lock
 .locks/
-
+state.json
 # Build outputs - ignore bin and obj folders anywhere in the project
 **/bin/
 **/obj/

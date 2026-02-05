@@ -93,7 +93,7 @@ if ($Clear) {
     # Clear the workflow stage
     $state | Add-Member -MemberType NoteProperty -Name current_workflow_stage -Value $null -Force
     $state | Add-Member -MemberType NoteProperty -Name workflow_stage_timestamp -Value $null -Force
-    Write-Host "[WORKFLOW] Cleared workflow stage" -ForegroundColor Yellow
+    # Workflow stage cleared (silent)
 }
 else {
     # Set the new stage
@@ -124,14 +124,7 @@ else {
     }
     
     $state | Add-Member -MemberType NoteProperty -Name workflow_stage_history -Value $history -Force
-    
-    # Debug output (can be silenced in production)
-    if ($previousStage -and $previousStage -ne $Stage) {
-        Write-Host "[WORKFLOW] $previousStage -> $Stage" -ForegroundColor Cyan
-    }
-    else {
-        Write-Host "[WORKFLOW] Stage: $Stage" -ForegroundColor Cyan
-    }
+    # Workflow stage changes are tracked in state.json
 }
 
 # Update the updated_at timestamp
