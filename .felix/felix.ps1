@@ -394,20 +394,311 @@ function Invoke-SpecCreate {
             
             exit $LASTEXITCODE
         }
+        
+        "fix" {
+            Invoke-SpecFix
+            exit $LASTEXITCODE
+        }
+        
+        "delete" {
+            if ($Args.Count -lt 2) {
+                Write-Error "Usage: felix spec delete <requirement-id>"
+                Write-Host "Example: felix spec delete S-0042"
+                exit 1
+            }
+            
+            $requirementId = $Args[1]
+            Invoke-SpecDelete -RequirementId $requirementId
+            exit $LASTEXITCODE
+        }
+        
         default {
             Write-Error "Unknown spec subcommand: $subcommand"
             Write-Host ""
             Write-Host "Available subcommands:"
             Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
+            Write-Host "  fix                               Scan specs folder and fix requirements.json alignment"
+            Write-Host "  delete <requirement-id>           Delete a specification and remove from requirements.json"
             Write-Host ""
             Write-Host "Flags:"
             Write-Host "  --quick, -q   Quick mode: minimal questions, makes reasonable assumptions"
             Write-Host ""
-            Write-Host "Example:"
+            Write-Host "Examples:"
             Write-Host "  felix spec create `"Add user authentication`""
+            Write-Host "  felix spec fix"
+            Write-Host "  felix spec delete S-0042"
             exit 1
         }
     }
+}
+
+function Invoke-SpecFix {
+    Write-Host ""
+    Write-Host "=== Spec Fix Utility ===" -ForegroundColor Cyan
+    Write-Host "Scanning specs folder and validating requirements.json..." -ForegroundColor Gray
+    Write-Host ""
+    
+    $specsDir = Join-Path $RepoRoot "specs"
+    $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
+    
+    if (-not (Test-Path $specsDir)) {
+        Write-Error "Specs directory not found: $specsDir"
+        exit 1
+    }
+    
+    # Load or create requirements.json
+    $requirementsData = @{ requirements = @() }
+    if (Test-Path $requirementsFile) {
+        try {
+            $requirementsData = Get-Content $requirementsFile -Raw | ConvertFrom-Json
+            Write-Host "+ Loaded requirements.json" -ForegroundColor Green
+        }
+        catch {
+            Write-Warning "Failed to parse requirements.json - will recreate"
+            $requirementsData = @{ requirements = @() }
+        }
+    }
+    else {
+        Write-Warning "requirements.json not found - will create new"
+    }
+    
+    # Get all spec files
+    $specFiles = Get-ChildItem -Path $specsDir -Filter "S-*.md" | Sort-Object Name
+    Write-Host "Found $($specFiles.Count) spec files" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # Track changes
+    $added = @()
+    $updated = @()
+    $orphaned = @()
+    $errors = @()
+    
+    # Build lookup of existing requirements (convert to hashtables for mutability)
+    $existingReqs = @{}
+    foreach ($req in $requirementsData.requirements) {
+        # Convert PSCustomObject to hashtable so we can modify it
+        $reqHash = @{
+            id         = $req.id
+            title      = $req.title
+            status     = $req.status
+            spec_file  = $req.spec_file
+            depends_on = if ($req.depends_on) { @($req.depends_on) } else { @() }
+            created_at = $req.created_at
+            updated_at = $req.updated_at
+        }
+        $existingReqs[$req.id] = $reqHash
+    }
+    
+    # Process each spec file
+    foreach ($specFile in $specFiles) {
+        $fileName = $specFile.Name
+        
+        # Extract requirement ID from filename
+        if ($fileName -match '^(S-\d{4})') {
+            $reqId = $Matches[1]
+            
+            # Read spec title
+            try {
+                $content = Get-Content $specFile.FullName -Raw
+                $title = "Untitled"
+                if ($content -match '#\s+S-\d{4}:\s+(.+)') {
+                    $titleText = $Matches[1].Trim()
+                    $title = "${reqId}: $titleText"
+                }
+                elseif ($content -match '#\s+(.+)') {
+                    $title = $Matches[1].Trim()
+                }
+                
+                # Check if requirement exists
+                if ($existingReqs.ContainsKey($reqId)) {
+                    $existing = $existingReqs[$reqId]
+                    
+                    # Check if spec_file path needs updating
+                    $relativePath = ".\specs\$fileName"
+                    if ($existing.spec_file -ne $relativePath) {
+                        $existing.spec_file = $relativePath
+                        $existing.title = $title
+                        $existing.updated_at = Get-Date -Format "o"
+                        $updated += $reqId
+                        Write-Host "  * Updated $reqId - $fileName" -ForegroundColor Yellow
+                    }
+                    else {
+                        Write-Host "  + Valid   $reqId - $fileName" -ForegroundColor Green
+                    }
+                }
+                else {
+                    # Add new requirement
+                    $newReq = @{
+                        id         = $reqId
+                        title      = $title
+                        status     = "planned"
+                        spec_file  = ".\specs\$fileName"
+                        depends_on = @()
+                        created_at = Get-Date -Format "o"
+                        updated_at = Get-Date -Format "o"
+                    }
+                    $requirementsData.requirements += $newReq
+                    $added += $reqId
+                    Write-Host "  + Added   $reqId - $fileName" -ForegroundColor Green
+                }
+                
+                # Remove from tracking (so we can find orphans)
+                $existingReqs.Remove($reqId)
+            }
+            catch {
+                $errors += "Failed to process $fileName : $_"
+                Write-Host "  X Error   $fileName - $_" -ForegroundColor Red
+            }
+        }
+        else {
+            $errors += "Invalid filename format: $fileName"
+            Write-Host "  ? Invalid $fileName - not in S-NNNN format" -ForegroundColor Magenta
+        }
+    }
+    
+    # Remaining items in existingReqs are orphaned (no matching file)
+    foreach ($orphanedReq in $existingReqs.Values) {
+        $orphaned += $orphanedReq.id
+        Write-Host "  ⚠ Orphaned $($orphanedReq.id) - file not found: $($orphanedReq.spec_file)" -ForegroundColor Yellow
+    }
+    
+    # Rebuild requirements array from hashtables
+    $allRequirements = @()
+    foreach ($reqHash in $existingReqs.Values) {
+        $allRequirements += $reqHash
+    }
+    
+    # Sort requirements by ID
+    $requirementsData.requirements = $allRequirements | Sort-Object id
+    
+    # Save requirements.json
+    try {
+        $json = $requirementsData | ConvertTo-Json -Depth 10
+        Set-Content -Path $requirementsFile -Value $json -Encoding UTF8
+        Write-Host ""
+        Write-Host "+ Saved requirements.json" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to save requirements.json: $_"
+        exit 1
+    }
+    
+    # Report summary
+    Write-Host ""
+    Write-Host "=== Summary ===" -ForegroundColor Cyan
+    Write-Host "Total specs:      $($specFiles.Count)" -ForegroundColor White
+    Write-Host "Added:            $($added.Count)" -ForegroundColor Green
+    Write-Host "Updated:          $($updated.Count)" -ForegroundColor Yellow
+    Write-Host "Orphaned:         $($orphaned.Count)" -ForegroundColor Yellow
+    Write-Host "Errors:           $($errors.Count)" -ForegroundColor Red
+    
+    if ($orphaned.Count -gt 0) {
+        Write-Host ""
+        Write-Host "! Orphaned entries (in requirements.json but file missing):" -ForegroundColor Yellow
+        foreach ($id in $orphaned) {
+            Write-Host "  - $id" -ForegroundColor Gray
+        }
+        Write-Host ""
+        Write-Host "To remove orphaned entries, delete them manually or run:" -ForegroundColor Gray
+        foreach ($id in $orphaned) {
+            Write-Host "  felix spec delete $id" -ForegroundColor Gray
+        }
+    }
+    
+    if ($errors.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Errors encountered:" -ForegroundColor Red
+        foreach ($err in $errors) {
+            Write-Host "  - $err" -ForegroundColor Gray
+        }
+    }
+    
+    Write-Host ""
+}
+
+function Invoke-SpecDelete {
+    param([string]$RequirementId)
+    
+    if ($RequirementId -notmatch '^S-\d{4}$') {
+        Write-Error 'Invalid requirement ID format. Expected S-NNNN (e.g., S-0001)'
+        exit 1
+    }
+    
+    $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
+    $specsDir = Join-Path $RepoRoot "specs"
+    
+    # Load requirements.json
+    if (-not (Test-Path $requirementsFile)) {
+        Write-Error "requirements.json not found at $requirementsFile"
+        exit 1
+    }
+    
+    try {
+        $requirementsData = Get-Content $requirementsFile -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Error "Failed to parse requirements.json: $_"
+        exit 1
+    }
+    
+    # Find requirement
+    $requirement = $requirementsData.requirements | Where-Object { $_.id -eq $RequirementId }
+    if (-not $requirement) {
+        Write-Error "Requirement $RequirementId not found in requirements.json"
+        exit 1
+    }
+    
+    # Find spec file
+    $specFile = Get-ChildItem -Path $specsDir -Filter "$RequirementId*.md" -ErrorAction SilentlyContinue
+    
+    # Show what will be deleted
+    Write-Host ""
+    Write-Host "=== Delete Specification ===" -ForegroundColor Yellow
+    Write-Host "ID:    $RequirementId" -ForegroundColor Cyan
+    Write-Host "Title: $($requirement.title)" -ForegroundColor Cyan
+    if ($specFile) {
+        Write-Host "File:  $($specFile.Name)" -ForegroundColor Cyan
+    }
+    else {
+        Write-Host "File:  (not found)" -ForegroundColor Gray
+    }
+    Write-Host ""
+    
+    # Confirm deletion
+    $confirmation = Read-Host "Are you sure you want to delete this spec? (yes/no)"
+    if ($confirmation -ne "yes") {
+        Write-Host "Deletion cancelled" -ForegroundColor Gray
+        exit 0
+    }
+    
+    # Delete spec file
+    if ($specFile) {
+        try {
+            Remove-Item $specFile.FullName -Force
+            Write-Host "+ Deleted file: $($specFile.Name)" -ForegroundColor Green
+        }
+        catch {
+            Write-Error "Failed to delete file: $_"
+            exit 1
+        }
+    }
+    
+    # Remove from requirements.json
+    $requirementsData.requirements = $requirementsData.requirements | Where-Object { $_.id -ne $RequirementId }
+    
+    try {
+        $json = $requirementsData | ConvertTo-Json -Depth 10
+        Set-Content -Path $requirementsFile -Value $json -Encoding UTF8
+        Write-Host "+ Removed from requirements.json" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to update requirements.json: $_"
+        exit 1
+    }
+    
+    Write-Host ""
+    Write-Host "+ Specification $RequirementId deleted successfully" -ForegroundColor Green
+    Write-Host ""
 }
 
 function Show-Version {
