@@ -137,6 +137,89 @@ If the script fails, see the Troubleshooting section below.
 
 ---
 
+## Felix CLI
+
+Felix provides a unified command-line interface for all operations.
+
+### Installation
+
+```powershell
+# Install Felix CLI (adds .felix folder to PATH)
+.\scripts\install-cli.ps1
+
+# Restart PowerShell or reload profile
+. $PROFILE
+
+# Verify installation
+felix version
+```
+
+### Available Commands
+
+```powershell
+felix run <req-id>       # Execute a single requirement
+felix loop               # Run agent in continuous loop mode
+felix status [req-id]    # Show requirement status
+felix list               # List all requirements
+felix validate <req-id>  # Run validation checks
+felix version            # Show version information
+felix help [command]     # Show help
+```
+
+### Output Formats
+
+All commands support multiple output formats:
+
+- `--format json` - Machine-readable NDJSON for scripts/APIs
+- `--format plain` - Simple colored text for logs
+- `--format rich` - Enhanced visuals with progress (default)
+
+```powershell
+# JSON output for scripts
+felix status --format json | ConvertFrom-Json
+
+# Plain output for logs
+felix run S-0001 --format plain > run.log
+
+# Rich output (default)
+felix run S-0001
+```
+
+### Event Filtering
+
+Filter events by type or log level:
+
+```powershell
+# Show only errors and warnings
+felix run S-0001 --MinLevel warn
+
+# Suppress statistics
+felix run S-0001 --no-stats
+```
+
+### Examples
+
+```powershell
+# View all planned requirements
+felix list --status planned
+
+# Get detailed status for a requirement
+felix status S-0001
+
+# Run a requirement with JSON output
+felix run S-0001 --format json
+
+# Run loop with max iterations
+felix loop --max-iterations 10
+
+# Validate before running
+felix validate S-0001
+```
+
+**Legacy Scripts**: The underlying PowerShell scripts (`.felix/felix-agent.ps1`, `.felix/felix-loop.ps1`) still work directly if needed, but the CLI provides a cleaner interface.
+
+---
+
 ## `specs/` – requirements content
 
 This directory contains **requirements**, not plans.
@@ -509,20 +592,26 @@ Felix exits after one iteration.
 
 #### Multi-Requirement Mode (Recommended)
 
-Use `felix-loop.ps1` to process multiple requirements sequentially:
+Use `felix loop` to process multiple requirements sequentially:
 
 ```powershell
 # Process all planned requirements until none remain
-.\felix-loop.ps1 C:\path\to\project
+felix loop
 
-# Process up to 5 requirements then stop
-.\felix-loop.ps1 C:\path\to\project -MaxRequirements 5
+# Process up to 5 requirements then stop (not yet implemented)
+# felix loop --max-requirements 5
+```
+
+**Legacy method:**
+
+```powershell
+.\\.felix\\felix-loop.ps1 C:\\path\\to\\project
 ```
 
 **What the loop does:**
 
 - Selects next available requirement (in_progress → planned)
-- Spawns fresh .felix/felix-agent.ps1 process for that requirement
+- Spawns fresh agent process for that requirement
 - Handles completion: marks complete and moves to next
 - Handles blocking: marks blocked and moves to next
 - Continues until all requirements processed or max limit reached
@@ -530,14 +619,14 @@ Use `felix-loop.ps1` to process multiple requirements sequentially:
 
 #### Single-Requirement Mode
 
-Use `.felix/felix-agent.ps1` directly to work on one requirement:
+Use `felix run` to work on one requirement:
 
 ```powershell
 # Work on specific requirement
-.\felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+felix run S-0008
 
-# Work on first available requirement (in_progress or planned)
-.\felix\felix-agent.ps1 C:\path\to\project
+# Legacy method
+.\\.felix\\felix-agent.ps1 C:\\path\\to\\project -RequirementId S-0008
 ```
 
 **What the agent does:**
@@ -563,17 +652,17 @@ You can start the loop and walk away. State persists on disk. Progress is visibl
 
 ### Manual operation (optional)
 
-For tighter control or debugging:
+For tighter control or debugging, use legacy scripts for single iterations:
 
 ```powershell
 # Single requirement, single iteration
-.\felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+.\\.felix\\felix-agent.ps1 C:\\path\\to\\project -RequirementId S-0008
 
 # Review changes, then run again for next iteration
-.\felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0008
+.\\.felix\\felix-agent.ps1 C:\\path\\to\\project -RequirementId S-0008
 ```
 
-Most production runs use `.felix/felix-loop.ps1`. Manual mode is for development and troubleshooting.
+Most production runs use `felix loop`. The `felix run` command handles full requirement execution. Legacy scripts are for development and troubleshooting.
 
 ---
 
