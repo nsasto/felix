@@ -9,6 +9,7 @@ This document captures key learnings, debugging insights, and common pitfalls wh
 **Problem:** PowerShell regex patterns using `.` do NOT match newline characters by default, causing XML tag parsing to fail on multiline content.
 
 **Example Failure:**
+
 ```powershell
 $text = @"
 <question>
@@ -24,6 +25,7 @@ if ($text -match '<question>(.*?)</question>') {
 ```
 
 **Solution:** Use the `(?s)` flag (single-line mode) to make `.` match any character including newlines:
+
 ```powershell
 # This WORKS
 if ($text -match '(?s)<question>(.*?)</question>') {
@@ -42,6 +44,7 @@ if ($text -match '(?s)<question>(.*?)</question>') {
 **Problem:** When calling scripts with switch parameters, you cannot pass them as strings in an array.
 
 **Example Failure:**
+
 ```powershell
 # WRONG - This doesn't work
 $args = @("-ProjectPath", $path, "-SpecBuildMode", "-QuickMode")
@@ -51,6 +54,7 @@ $args = @("-ProjectPath", $path, "-SpecBuildMode", "-QuickMode")
 ```
 
 **Solution:** Pass switch parameters directly using parameter syntax:
+
 ```powershell
 # CORRECT
 & "script.ps1" -ProjectPath $path -SpecBuildMode -QuickMode
@@ -75,6 +79,7 @@ $params = @{
 **Problem:** File-based prompts designed for UI/TUI integration hang in interactive terminal sessions.
 
 **Solution:** Check if stdin is redirected and if running in an interactive environment:
+
 ```powershell
 $isInteractive = [Console]::IsInputRedirected -eq $false -and [Environment]::UserInteractive
 
@@ -89,6 +94,7 @@ else {
 ```
 
 **Key Properties:**
+
 - `[Console]::IsInputRedirected` - True if stdin is piped or redirected
 - `[Environment]::UserInteractive` - True if process has interactive user session
 
@@ -103,6 +109,7 @@ else {
 **Problem:** When loading `requirements.json`, wrapping the entire object in an array breaks the structure.
 
 **Incorrect:**
+
 ```powershell
 # WRONG - Wraps entire JSON object in array
 $requirements = @()
@@ -113,6 +120,7 @@ if (Test-Path $file) {
 ```
 
 **Correct:**
+
 ```powershell
 # CORRECT - Access the .requirements property
 $requirementsData = @{ requirements = @() }
@@ -137,6 +145,7 @@ $requirementsData | ConvertTo-Json -Depth 10 | Set-Content $file
 **Problem:** Checking for exact filename `S-0054.md` fails when actual file is `S-0054-descriptive-slug.md`.
 
 **Incorrect:**
+
 ```powershell
 # WRONG - Only finds exact match
 $specPath = Join-Path $dir "S-0054.md"
@@ -146,6 +155,7 @@ if (Test-Path $specPath) {
 ```
 
 **Correct:**
+
 ```powershell
 # CORRECT - Use wildcard with Get-ChildItem
 $existingSpec = Get-ChildItem -Path $dir -Filter "S-0054*.md" -ErrorAction SilentlyContinue
@@ -163,6 +173,7 @@ if ($existingSpec) {
 ### Slugification for Filenames
 
 **Best Practice:** Convert titles to URL-safe slugs for filenames:
+
 ```powershell
 $title = "User Profile Page"
 $slug = $title.ToLower() `
@@ -181,31 +192,32 @@ $slug = $title.ToLower() `
 ### Multiple Tag Types in Same Response
 
 **Pattern:** Parse all possible tags and return array of events, not just first match:
+
 ```powershell
 function Parse-Response {
     param([string]$Response)
     $events = @()
-    
+
     # Check for filename (can appear WITH question or spec)
     if ($Response -match '(?s)<filename>(.*?)</filename>') {
         $events += @{ type = "filename"; content = $Matches[1].Trim() }
     }
-    
+
     # Check for question
     if ($Response -match '(?s)<question>(.*?)</question>') {
         $events += @{ type = "question"; content = $Matches[1].Trim() }
     }
-    
+
     # Check for spec
     if ($Response -match '(?s)<spec>(.*?)</spec>') {
         $events += @{ type = "complete"; content = $Matches[1].Trim() }
     }
-    
+
     # Fallback if no tags
     if ($events.Count -eq 0) {
         $events += @{ type = "question"; content = $Response }
     }
-    
+
     return $events
 }
 ```
@@ -219,6 +231,7 @@ function Parse-Response {
 ### Add Verbose Logging for Config Loading
 
 **Pattern:** Add debug logs at each stage of initialization to identify where hangs occur:
+
 ```powershell
 Emit-Log -Level "debug" -Message "Loading Felix config from $ConfigFile" -Component "init"
 $config = Get-FelixConfig -ConfigFile $ConfigFile
@@ -236,7 +249,9 @@ Emit-Log -Level "debug" -Message "Agents data loaded successfully" -Component "i
 ## Common Pitfalls
 
 ### 1. Assuming File Existence
+
 Always check if files exist before operations:
+
 ```powershell
 if (Test-Path $file) {
     # Safe to proceed
@@ -244,20 +259,26 @@ if (Test-Path $file) {
 ```
 
 ### 2. Forgetting UTF-8 Encoding
+
 Always specify encoding for spec files:
+
 ```powershell
 Set-Content -Path $file -Value $content -Encoding UTF8
 ```
 
 ### 3. Not Handling Empty Arrays
+
 PowerShell treats single items differently than arrays:
+
 ```powershell
 # Always wrap in @() to ensure array
 $items = @($jsonObject.items)
 ```
 
 ### 4. Exit Codes in Conditional Logic
+
 Check `$LASTEXITCODE` immediately after external commands:
+
 ```powershell
 & external-command
 if ($LASTEXITCODE -ne 0) {
