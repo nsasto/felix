@@ -178,12 +178,63 @@ felix run <req-id>       # Execute a single requirement
 felix loop               # Run agent in continuous loop mode
 felix status [req-id]    # Show requirement status
 felix list               # List all requirements
+felix deps <req-id>      # Show dependencies and validate status
 felix validate <req-id>  # Run validation checks
 felix spec create        # Create a new specification interactively
 felix spec fix           # Align specs folder with requirements.json
 felix spec delete        # Delete a specification
 felix version            # Show version information
 felix help [command]     # Show help
+```
+
+#### Dependency Management
+
+Analyze and validate requirement dependencies:
+
+```powershell
+# Show dependencies for a requirement
+felix deps S-0018
+
+# Check if all dependencies are complete (exit code 0 if yes, 1 if no)
+felix deps S-0018 --check
+
+# Show full dependency tree
+felix deps S-0018 --tree
+
+# List all requirements with incomplete dependencies
+felix deps --incomplete
+```
+
+**What it does:**
+
+- **Validates** dependency completion (checks for done/complete status)
+- **Detects** missing dependencies (referenced but not in requirements.json)
+- **Color-coded output**: Green=complete, Yellow=incomplete, Red=missing
+- **Exit codes**: 0 for complete dependencies, 1 for incomplete/missing
+
+**Enhanced list filtering:**
+
+```powershell
+# Filter by multiple criteria
+felix list --status planned --priority high
+felix list --labels backend,api
+felix list --blocked-by incomplete-deps
+
+# Show dependencies inline
+felix list --with-deps
+
+# Combine filters
+felix list --status planned --blocked-by incomplete-deps --with-deps
+```
+
+**Enhanced status display:**
+
+```powershell
+# Status now shows dependency warnings automatically
+felix status S-0018
+# Output includes:
+#   [WARN] Incomplete dependencies: S-0003 (planned)
+#   [ERROR] Missing dependencies: S-9999
 ```
 
 #### Spec Management
