@@ -686,71 +686,95 @@ git commit -m "Clean up duplicate specs and realign requirements.json"
 
 ### Option B: Phase 2 - C# CLI (felix.exe) 🚀
 
-**Build native executable for performance and distribution**
+**Build native executable as thin wrapper over felix.ps1**
+
+**Architecture:**
+
+```
+felix.exe (C#)
+    ↓ System.CommandLine parsing & validation
+    ↓ calls: pwsh -File felix.ps1 <command> <args>
+    ↓ streams output
+    ↓ exits with same code
+    ↓
+felix.ps1 (PowerShell) ← UNCHANGED
+    ↓ existing routing logic
+    ↓ delegates to felix-agent.ps1, spec-builder.ps1, etc.
+```
 
 **Goals:**
 
-- Create .NET 8 console application
-- Port command routing from felix.ps1
-- Port NDJSON rendering from felix-cli.ps1
-- Keep all scripts unchanged (agent, spec-builder, validator)
+- Create .NET 8 console application (~200 lines)
+- Use System.CommandLine for argument parsing
+- Call felix.ps1 for all actual work (no logic duplication)
 - Single-file executable distribution
+- Better tab completion and help text
 
 **Benefits:**
 
-- ⚡ 2s faster per invocation (no PowerShell startup)
-- 📦 Single-file distribution (no PowerShell/Python install needed)
-- 🔒 Type safety and compile-time validation
-- 🌍 Cross-platform (Windows/Linux/macOS via .NET 8)
-- 📚 Better IDE support and debugging
+- ⚡ ~2s faster per invocation (no PowerShell startup for parsing)
+- 📦 Single-file distribution (.exe feels more professional)
+- 🔍 Better discoverability (native help, tab completion)
+- 🔒 Argument validation before calling PowerShell
+- 🌍 Cross-platform potential (.NET 8 runs on Windows/Linux/macOS)
+
+**Critical Design Decision:**
+
+✅ **felix.exe calls felix.ps1** (thin wrapper approach)
+❌ NOT calling felix-agent.ps1 directly (avoids logic duplication)
+
+This keeps felix.ps1 as single source of truth for all command routing and business logic.
 
 **Prerequisites (all ✅):**
 
-- [x] Command interface defined and tested
+- [x] Command interface defined and tested (felix.ps1 working)
 - [x] Flag parsing patterns established
-- [x] NDJSON protocol documented
-- [x] Python validator interface stable
-- [x] requirements.json schema locked
 - [x] Exit code conventions established
+- [x] All 11 commands documented
 
 **Implementation phases:**
 
-1. **Project setup** (1-2 days)
-   - Create .NET 8 console app
-   - Add System.CommandLine NuGet package
-   - Set up project structure
-   - Configure build outputs
+1. **Project setup** (Day 1: 2-3 hours)
+   - Create .NET 8 console app in src/Felix.Cli
+   - Add System.CommandLine package
+   - Set up build configuration
 
-2. **Core routing** (2-3 days)
-   - Port command routing logic
-   - Implement flag parsing
-   - Add help/version commands
-   - Process spawning for scripts
+2. **Command definitions** (Day 2-3: 1-2 days)
+   - Define all 11 commands with System.CommandLine
+   - Add arguments and options with validation
+   - Implement ExecutePowerShell helper
+   - Test each command delegates correctly
 
-3. **NDJSON renderer** (2-3 days)
-   - Port format modes (json/plain/rich)
-   - Color console output
-   - Statistics tracking
-   - Progress indicators
+3. **Build and package** (Day 4: 4-6 hours)
+   - Configure single-file publish
+   - Output to .felix/bin/Felix.Cli.exe
+   - Test with real requirements
+   - Verify exit codes match felix.ps1
 
-4. **Integration & testing** (2-3 days)
-   - Test all 10 commands
-   - Verify script delegation
-   - Exit code validation
-   - Edge case handling
-
-5. **Distribution** (1-2 days)
-   - Single-file publish
-   - PATH installation
-   - Version management
+4. **Installation script** (Day 5: 2-3 hours)
+   - Create install-cli-csharp.ps1
+   - Add to PATH configuration
+   - Generate tab completion scripts
    - Update documentation
 
-**Effort:** 1-2 weeks full-time  
-**Value:** High (performance, distribution, type safety)  
-**Risk:** Medium (new technology, compilation complexity)  
-**Recommendation:** Do this if performance matters or distributing to others
+5. **Testing** (Day 6-7: 1-2 days)
+   - Behavior validation (output matches felix.ps1)
+   - Exit code validation
+   - All commands and flags
+   - Error handling
 
-**Detailed implementation guide:** See [CLI_MIGRATION.md](CLI_MIGRATION.md) Phase 2 section
+6. **Documentation** (Day 8: 4-6 hours)
+   - Update HOW_TO_USE.md
+   - Create CLI_EXEC_PLAN.md
+   - Document coexistence strategy
+   - Migration guide
+
+**Effort:** 1 week (5-7 days)  
+**Value:** High (performance, distribution, professional UX)  
+**Risk:** Low (felix.ps1 remains functional fallback)  
+**Recommendation:** Do this for better performance and distribution
+
+**Detailed implementation guide:** See [CLI_EXEC_PLAN.md](CLI_EXEC_PLAN.md)
 
 ---
 
