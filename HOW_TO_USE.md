@@ -180,8 +180,36 @@ felix status [req-id]    # Show requirement status
 felix list               # List all requirements
 felix validate <req-id>  # Run validation checks
 felix spec create        # Create a new specification interactively
+felix spec fix           # Align specs folder with requirements.json
+felix spec delete        # Delete a specification
 felix version            # Show version information
 felix help [command]     # Show help
+```
+
+#### Spec Management
+
+Create, validate, and manage specifications:
+
+```powershell
+# Create new spec interactively
+felix spec create
+
+# Create with description (AI asks followup questions)
+felix spec create "Add user authentication"
+
+# Quick mode - minimal questions, makes assumptions
+felix spec create --quick "Add export to CSV feature"
+felix spec create -q "Add dark mode toggle"
+
+# Fix alignment between specs/ folder and requirements.json
+felix spec fix
+
+# Fix alignment and auto-rename duplicate spec files
+felix spec fix --fix-duplicates
+felix spec fix -f
+
+# Delete a specification
+felix spec delete S-0042
 ```
 
 #### Spec Builder
@@ -211,6 +239,50 @@ felix spec create -q "Add dark mode toggle"
 
 - **Normal Mode**: Thorough conversation, asks detailed questions
 - **Quick Mode** (`--quick` or `-q`): Max 2 questions, makes reasonable assumptions based on Felix architecture
+
+#### Spec Fix
+
+Synchronize specs folder with requirements.json:
+
+```powershell
+# Scan specs/ folder and update requirements.json
+felix spec fix
+
+# Also auto-rename duplicate spec files to next available ID
+felix spec fix --fix-duplicates
+felix spec fix -f
+```
+
+**What it does:**
+
+- **Adds** new specs found in specs/ folder to requirements.json
+- **Updates** spec_path and title if changed
+- **Detects** orphaned entries (in JSON but file missing)
+- **Warns** about duplicate IDs (same ID used in multiple files)
+- **Fixes** duplicates by renaming to next available ID (with `--fix-duplicates`)
+- **Preserves** git history using `git mv` when files are tracked
+
+**Use cases:**
+
+- After manually creating/renaming spec files
+- Cleaning up duplicate spec IDs
+- Validating repository consistency
+- Preparing for commits
+
+#### Spec Delete
+
+Remove a specification and its requirements.json entry:
+
+```powershell
+# Delete a spec (prompts for confirmation)
+felix spec delete S-0042
+```
+
+**What it does:**
+
+- Removes spec file from specs/ folder
+- Removes entry from requirements.json
+- Prompts for confirmation before deletion
 
 **Output:**
 
