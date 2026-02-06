@@ -109,11 +109,11 @@ try {
     [System.IO.File]::WriteAllText($requirementsFile, $updatedContent, $utf8NoBom)
     
     Write-Host ""
-    Write-Host "✅ Successfully updated $updatedCount requirements" -ForegroundColor Green
+    Write-Host "[OK] Successfully updated $updatedCount requirements" -ForegroundColor Green
 }
 catch {
     Write-Host ""
-    Write-Host "❌ ERROR: Failed to write requirements.json: $_" -ForegroundColor Red
+    Write-Host " ERROR: Failed to write requirements.json: $_" -ForegroundColor Red
     exit 1
 }
 

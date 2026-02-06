@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # Felix Plugin Test Harness
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # This harness provides utilities for testing Felix plugins in isolation.
 
 param(
@@ -40,7 +40,7 @@ function Test-PluginHook {
     # Load plugin manifest
     $manifestPath = Join-Path $PluginPath "plugin.json"
     if (-not (Test-Path $manifestPath)) {
-        Write-Host "❌ FAILED: Plugin manifest not found" -ForegroundColor Red
+        Write-Host " FAILED: Plugin manifest not found" -ForegroundColor Red
         return $false
     }
     
@@ -48,7 +48,7 @@ function Test-PluginHook {
     
     # Check if plugin implements this hook
     if ($manifest.hooks -notcontains $HookName) {
-        Write-Host "⚠️  SKIPPED: Plugin does not implement $HookName" -ForegroundColor Yellow
+        Write-Host "  SKIPPED: Plugin does not implement $HookName" -ForegroundColor Yellow
         return $true
     }
     
@@ -62,7 +62,7 @@ function Test-PluginHook {
     }
     
     if (-not (Test-Path $hookScript)) {
-        Write-Host "❌ FAILED: Hook script not found: $hookScript" -ForegroundColor Red
+        Write-Host " FAILED: Hook script not found: $hookScript" -ForegroundColor Red
         return $false
     }
     
@@ -75,7 +75,7 @@ function Test-PluginHook {
         
         # Validate result type
         if (-not (Test-HookContract -HookName $HookName -Result $result)) {
-            Write-Host "❌ FAILED: Hook returned invalid result type" -ForegroundColor Red
+            Write-Host " FAILED: Hook returned invalid result type" -ForegroundColor Red
             return $false
         }
         
@@ -83,20 +83,20 @@ function Test-PluginHook {
         $passed = $true
         foreach ($key in $ExpectedResult.Keys) {
             if ($result.$key -ne $ExpectedResult[$key]) {
-                Write-Host "❌ FAILED: Expected $key = $($ExpectedResult[$key]), got $($result.$key)" -ForegroundColor Red
+                Write-Host " FAILED: Expected $key = $($ExpectedResult[$key]), got $($result.$key)" -ForegroundColor Red
                 $passed = $false
             }
         }
         
         if ($passed) {
-            Write-Host "✅ PASSED" -ForegroundColor Green
+            Write-Host " PASSED" -ForegroundColor Green
         }
         
         Write-Host ""
         return $passed
     }
     catch {
-        Write-Host "❌ FAILED: Exception during hook execution" -ForegroundColor Red
+        Write-Host " FAILED: Exception during hook execution" -ForegroundColor Red
         Write-Host $_.Exception.Message -ForegroundColor Red
         Write-Host $_.ScriptStackTrace -ForegroundColor Gray
         Write-Host ""
@@ -281,11 +281,11 @@ if ($PluginPath) {
         
         Write-Host ""
         if ($allPassed) {
-            Write-Host "All tests passed! ✅" -ForegroundColor Green
+            Write-Host "All tests passed! " -ForegroundColor Green
             exit 0
         }
         else {
-            Write-Host "Some tests failed ❌" -ForegroundColor Red
+            Write-Host "Some tests failed " -ForegroundColor Red
             exit 1
         }
     }

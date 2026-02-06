@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
 Main execution loop for Felix agent
 
@@ -431,7 +431,7 @@ function Build-IterationPrompt {
     # Add failure context from previous iteration if blocked
     if ($State.blocked_task) {
         $failedCommandsList = ($State.blocked_task.failed_commands | ForEach-Object { "- $_" }) -join "`n"
-        $retryInfo = "# âš ï¸ Previous Iteration - Task Blocked âš ï¸`n`n"
+        $retryInfo = "#  Previous Iteration - Task Blocked `n`n"
         $retryInfo += "**IMPORTANT:** The following task failed validation in the previous iteration. You MUST fix these issues before proceeding.`n`n"
         $retryInfo += "**Blocked Task:** $($State.blocked_task.description)`n"
         $retryInfo += "**Retry Attempt:** $($State.blocked_task.retry_count) of $($State.blocked_task.max_retries)`n"
@@ -893,7 +893,7 @@ $($failedCmdSummary | ForEach-Object { "- $_" } | Out-String)
         Emit-Error -ErrorType "MaxBackpressureRetriesExceeded" -Message "Maximum backpressure retries ($maxRetries) exceeded" -Severity "fatal"
         
         $maxRetriesReport = @"
-# âŒ Max Retries Exceeded âŒ
+#  Max Retries Exceeded 
 **Task:** $TaskDesc
 **Reason:** Backpressure validation failed $maxRetries consecutive times.
 "@

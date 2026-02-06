@@ -22,14 +22,14 @@ $validationResult = $HookData.ValidationResult
 
 # Build failed commands summary
 $failedCommands = $validationResult.failed_commands | ForEach-Object {
-    "• [$($_.type)] ``$($_.command)`` (exit: $($_.exit_code))"
+    " [$($_.type)] ``$($_.command)`` (exit: $($_.exit_code))"
 }
 
 $message = @{
     attachments = @(
         @{
             color = "danger"
-            title = "🚨 Felix - Backpressure Validation Failed"
+            title = " Felix - Backpressure Validation Failed"
             fields = @(
                 @{ title = "Requirement"; value = "$reqId - $reqTitle"; short = $false }
                 @{ title = "Retry Count"; value = "$retryCount"; short = $true }

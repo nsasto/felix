@@ -20,7 +20,7 @@ $reqTitle = $HookData.CurrentRequirement.title
 $passed = $HookData.ValidationPassed
 
 $color = if ($passed) { "good" } else { "warning" }
-$emoji = if ($passed) { "✅" } else { "❌" }
+$emoji = if ($passed) { "" } else { "" }
 
 $message = @{
     attachments = @(

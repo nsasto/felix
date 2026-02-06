@@ -294,10 +294,10 @@ function Invoke-Validate {
     $exitCode = $LASTEXITCODE
 
     if ($exitCode -eq 0) {
-        Write-Host "✅ Validation PASSED" -ForegroundColor Green
+        Write-Host " Validation PASSED" -ForegroundColor Green
     }
     else {
-        Write-Host "❌ Validation FAILED" -ForegroundColor Red
+        Write-Host " Validation FAILED" -ForegroundColor Red
     }
 
     exit $exitCode

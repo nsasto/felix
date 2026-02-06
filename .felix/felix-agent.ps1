@@ -17,6 +17,12 @@ param(
     [string]$RequirementId = $null,
     
     [Parameter(Mandatory = $false)]
+    [string]$InitialPrompt = "",
+    
+    [Parameter(Mandatory = $false)]
+    [switch]$SpecBuildMode,
+    
+    [Parameter(Mandatory = $false)]
     [switch]$NoCommit   # Use this flag for testing to prevent git commits
 )
 

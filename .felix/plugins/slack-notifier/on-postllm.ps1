@@ -24,7 +24,7 @@ $reqTitle = $HookData.CurrentRequirement.title
 $exitCode = $HookData.ExitCode
 
 $color = if ($exitCode -eq 0) { "good" } else { "danger" }
-$status = if ($exitCode -eq 0) { "✅ Success" } else { "❌ Failed" }
+$status = if ($exitCode -eq 0) { " Success" } else { " Failed" }
 
 $message = @{
     attachments = @(

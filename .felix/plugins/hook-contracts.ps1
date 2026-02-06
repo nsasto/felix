@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # Felix Plugin Hook Contracts
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # This file defines type-safe parameter and result classes for plugin hooks.
 # Plugins should follow these contracts to ensure compatibility with Felix.
 
@@ -298,9 +298,9 @@ class OnPostIterationResult {
     }
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # Hook Contract Validation Functions
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 
 function Test-HookContract {
     [CmdletBinding()]

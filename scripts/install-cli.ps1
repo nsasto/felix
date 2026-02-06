@@ -43,7 +43,7 @@ function Add-ToProfile {
     $existingContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
     
     if ($existingContent -and $existingContent.Contains($Content)) {
-        Write-Host "✅ Already in profile" -ForegroundColor Green
+        Write-Host "[OK] Already in profile" -ForegroundColor Green
         return $false
     }
     
@@ -64,10 +64,10 @@ function Remove-FromProfile {
     
     if ($content -ne $newContent) {
         Set-Content -Path $ProfilePath -Value $newContent -NoNewline
-        Write-Host "✅ Removed from profile" -ForegroundColor Green
+        Write-Host "[OK] Removed from profile" -ForegroundColor Green
     }
     else {
-        Write-Host "⚠️  Not found in profile" -ForegroundColor Yellow
+        Write-Host "[!] Not found in profile" -ForegroundColor Yellow
     }
 }
 
@@ -85,7 +85,7 @@ if ($Uninstall) {
     Remove-FromProfile "Set-Alias felix"
     
     Write-Host ""
-    Write-Host "✅ Uninstall complete" -ForegroundColor Green
+    Write-Host "[OK] Uninstall complete" -ForegroundColor Green
     Write-Host ""
     Write-Host "Restart your PowerShell session for changes to take effect." -ForegroundColor Yellow
     Write-Host ""
@@ -108,7 +108,7 @@ else {
     $addedPath = Add-ToProfile -Content $pathEntry
     
     if ($addedPath) {
-        Write-Host "✅ Added to profile" -ForegroundColor Green
+        Write-Host "[OK] Added to profile" -ForegroundColor Green
     }
     
     # Create felix alias
@@ -117,7 +117,7 @@ else {
     $addedAlias = Add-ToProfile -Content $aliasEntry
     
     if ($addedAlias) {
-        Write-Host "✅ Added to profile" -ForegroundColor Green
+        Write-Host "[OK] Added to profile" -ForegroundColor Green
     }
     
     Write-Host ""
@@ -134,14 +134,14 @@ else {
     & $felixScript help | Out-Null
     
     if ($LASTEXITCODE -eq 0 -or $null -eq $LASTEXITCODE) {
-        Write-Host "✅ Installation verified" -ForegroundColor Green
+        Write-Host "[OK] Installation verified" -ForegroundColor Green
     }
     else {
-        Write-Host "⚠️  Verification failed (this may be normal)" -ForegroundColor Yellow
+        Write-Host "[!] Verification failed (this may be normal)" -ForegroundColor Yellow
     }
     
     Write-Host ""
-    Write-Host "✅ Installation complete!" -ForegroundColor Green
+    Write-Host "[OK] Installation complete!" -ForegroundColor Green
     Write-Host ""
     Write-Host "Next Steps:" -ForegroundColor Cyan
     Write-Host "  1. Restart your PowerShell session (or run: . `$PROFILE)"

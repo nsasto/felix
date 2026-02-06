@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # Felix Plugin API Documentation Generator
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # Generates API documentation from hook contracts
 
 param(
@@ -225,7 +225,7 @@ See these reference implementations:
 # Write documentation
 Set-Content $OutputPath $doc -Encoding UTF8
 
-Write-Host "✅ Documentation generated: $OutputPath" -ForegroundColor Green
+Write-Host " Documentation generated: $OutputPath" -ForegroundColor Green
 Write-Host ""
 Write-Host "Preview:" -ForegroundColor Yellow
 Write-Host "  Lines: $((Get-Content $OutputPath | Measure-Object -Line).Lines)"

@@ -25,12 +25,12 @@ $backendProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object {
 
 if ($backendProcesses) {
     foreach ($proc in $backendProcesses) {
-        Write-Host "  ✗ Killing Backend: $($proc.ProcessName) (PID $($proc.Id))" -ForegroundColor Red
+        Write-Host "   Killing Backend: $($proc.ProcessName) (PID $($proc.Id))" -ForegroundColor Red
         Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
     }
 }
 else {
-    Write-Host "  ℹ No backend processes found" -ForegroundColor Gray
+    Write-Host "   No backend processes found" -ForegroundColor Gray
 }
 
 # Kill frontend processes (Node/Vite)
@@ -41,12 +41,12 @@ $frontendProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object {
 
 if ($frontendProcesses) {
     foreach ($proc in $frontendProcesses) {
-        Write-Host "  ✗ Killing Frontend: $($proc.ProcessName) (PID $($proc.Id))" -ForegroundColor Red
+        Write-Host "   Killing Frontend: $($proc.ProcessName) (PID $($proc.Id))" -ForegroundColor Red
         Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
     }
 }
 else {
-    Write-Host "  ℹ No frontend processes found" -ForegroundColor Gray
+    Write-Host "   No frontend processes found" -ForegroundColor Gray
 }
 
 # Wait for processes to fully terminate
@@ -58,10 +58,10 @@ $port8080 = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction Sile
 $port3000 = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
 
 if ($port8080) {
-    Write-Host "  ⚠ Warning: Port 8080 still in use (PID $($port8080.OwningProcess))" -ForegroundColor Yellow
+    Write-Host "   Warning: Port 8080 still in use (PID $($port8080.OwningProcess))" -ForegroundColor Yellow
 }
 if ($port3000) {
-    Write-Host "  ⚠ Warning: Port 3000 still in use (PID $($port3000.OwningProcess))" -ForegroundColor Yellow
+    Write-Host "   Warning: Port 3000 still in use (PID $($port3000.OwningProcess))" -ForegroundColor Yellow
 }
 
 Write-Host "`n[3/3] Starting Felix services..." -ForegroundColor Green
@@ -70,7 +70,7 @@ Write-Host "`n[3/3] Starting Felix services..." -ForegroundColor Green
 $projectRoot = $PSScriptRoot
 
 # Start backend in new window
-Write-Host "`n  → Starting Backend (http://localhost:8080)..." -ForegroundColor Cyan
+Write-Host "`n   Starting Backend (http://localhost:8080)..." -ForegroundColor Cyan
 $backendPath = Join-Path $projectRoot "app\backend"
 
 Start-Process powershell -ArgumentList @(
@@ -83,7 +83,7 @@ Start-Process powershell -ArgumentList @(
 Start-Sleep -Seconds 3
 
 # Start frontend in new window
-Write-Host "  → Starting Frontend (http://localhost:3000)..." -ForegroundColor Cyan
+Write-Host "   Starting Frontend (http://localhost:3000)..." -ForegroundColor Cyan
 $frontendPath = Join-Path $projectRoot "app\frontend"
 
 Start-Process powershell -ArgumentList @(
@@ -93,7 +93,7 @@ Start-Process powershell -ArgumentList @(
 )
 
 Write-Host "`n==================================================" -ForegroundColor Green
-Write-Host "  ✅ Felix Services Started" -ForegroundColor Green
+Write-Host "   Felix Services Started" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green
 
 Write-Host "`nService URLs:" -ForegroundColor White
@@ -101,7 +101,7 @@ Write-Host "  Frontend:  http://localhost:3000" -ForegroundColor Cyan
 Write-Host "  Backend:   http://localhost:8080" -ForegroundColor Cyan
 Write-Host "  API Docs:  http://localhost:8080/docs" -ForegroundColor Cyan
 
-Write-Host "`n⏳ Wait 10-15 seconds for services to fully initialize" -ForegroundColor Yellow
+Write-Host "`n Wait 10-15 seconds for services to fully initialize" -ForegroundColor Yellow
 Write-Host "   Then open http://localhost:3000 in your browser" -ForegroundColor Yellow
 
 Write-Host "`nNext Steps:" -ForegroundColor White
@@ -110,4 +110,4 @@ Write-Host "  2. Click 'Add Project' button" -ForegroundColor Gray
 Write-Host "  3. Browse to: $projectRoot" -ForegroundColor Gray
 Write-Host "  4. Kanban should load requirements from felix/requirements.json" -ForegroundColor Gray
 
-Write-Host "`n✨ Ready!" -ForegroundColor Green
+Write-Host "`n Ready!" -ForegroundColor Green

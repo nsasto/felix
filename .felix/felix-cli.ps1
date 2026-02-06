@@ -277,7 +277,7 @@ function Render-Plain {
             Write-Host "[$timestamp] TASK COMPLETED - Signal: $($data.signal)" -ForegroundColor Green
         }
         "state_transitioned" {
-            Write-Host "[$timestamp] STATE: $($data.from) → $($data.to)" -ForegroundColor Magenta
+            Write-Host "[$timestamp] STATE: $($data.from)  $($data.to)" -ForegroundColor Magenta
         }
         "artifact_created" {
             $sizeKb = if ($data.size_bytes) { ($data.size_bytes / 1KB).ToString("F1") + " KB" } else { "unknown" }
@@ -374,10 +374,10 @@ function Render-Rich {
         
         "validation_command_completed" {
             $status = if ($data.passed) {
-                "$($colors.Green)✅ PASSED$($colors.Reset)"
+                "$($colors.Green) PASSED$($colors.Reset)"
             }
             else {
-                "$($colors.Red)❌ FAILED (exit code: $($data.exit_code))$($colors.Reset)"
+                "$($colors.Red) FAILED (exit code: $($data.exit_code))$($colors.Reset)"
             }
             Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset)   $status"
         }
@@ -385,10 +385,10 @@ function Render-Rich {
         "validation_completed" {
             Write-Host ""
             if ($data.passed) {
-                Write-Host "$($colors.Bold)$($colors.Green)[$timestamp] ✅ VALIDATION PASSED$($colors.Reset)"
+                Write-Host "$($colors.Bold)$($colors.Green)[$timestamp]  VALIDATION PASSED$($colors.Reset)"
             }
             else {
-                Write-Host "$($colors.Bold)$($colors.Red)[$timestamp] ❌ VALIDATION FAILED$($colors.Reset)"
+                Write-Host "$($colors.Bold)$($colors.Red)[$timestamp]  VALIDATION FAILED$($colors.Reset)"
             }
             Write-Host "$($colors.Dim)  Passed: $($data.passed_count)/$($data.total_count)$($colors.Reset)"
             Write-Host ""
@@ -396,13 +396,13 @@ function Render-Rich {
         
         "task_completed" {
             Write-Host ""
-            Write-Host "$($colors.Bold)$($colors.Green)[$timestamp] ✅ TASK COMPLETED$($colors.Reset)"
+            Write-Host "$($colors.Bold)$($colors.Green)[$timestamp]  TASK COMPLETED$($colors.Reset)"
             Write-Host "$($colors.Green)  Signal: $($data.signal)$($colors.Reset)"
             Write-Host ""
         }
         
         "state_transitioned" {
-            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset) $($colors.Magenta)State:$($colors.Reset) $($data.from) → $($data.to)"
+            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset) $($colors.Magenta)State:$($colors.Reset) $($data.from)  $($data.to)"
         }
         
         "artifact_created" {
