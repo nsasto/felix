@@ -591,8 +591,8 @@ function Invoke-SpecFix {
                             Rename-Item -Path $oldPath -NewName $newFileName -ErrorAction Stop
                         }
                         
-                        Write-Host "  [FIX] Renamed duplicate $reqId → $newReqId ($newFileName)" -ForegroundColor Cyan
-                        $fixed += "$fileName → $newFileName"
+                        Write-Host "  [FIX] Renamed duplicate $reqId -> $newReqId ($newFileName)" -ForegroundColor Cyan
+                        $fixed += "$fileName -> $newFileName"
                         
                         # Update for continued processing
                         $reqId = $newReqId
