@@ -451,7 +451,7 @@ function Invoke-SpecFix {
     if (Test-Path $requirementsFile) {
         try {
             $requirementsData = Get-Content $requirementsFile -Raw | ConvertFrom-Json
-            Write-Host "+ Loaded requirements.json" -ForegroundColor Green
+            Write-Host "[OK] Loaded requirements.json" -ForegroundColor Green
         }
         catch {
             Write-Warning "Failed to parse requirements.json - will recreate"
@@ -520,10 +520,10 @@ function Invoke-SpecFix {
                         $existing.title = $title
                         $existing.updated_at = Get-Date -Format "o"
                         $updated += $reqId
-                        Write-Host "  * Updated $reqId - $fileName" -ForegroundColor Yellow
+                        Write-Host "  [UPDATE] $reqId - $fileName" -ForegroundColor Yellow
                     }
                     else {
-                        Write-Host "  + Valid   $reqId - $fileName" -ForegroundColor Green
+                        Write-Host "  [OK] $reqId - $fileName" -ForegroundColor Green
                     }
                 }
                 else {
@@ -539,7 +539,7 @@ function Invoke-SpecFix {
                     }
                     $requirementsData.requirements += $newReq
                     $added += $reqId
-                    Write-Host "  + Added   $reqId - $fileName" -ForegroundColor Green
+                    Write-Host "  [ADD] $reqId - $fileName" -ForegroundColor Green
                 }
                 
                 # Remove from tracking (so we can find orphans)
@@ -547,19 +547,19 @@ function Invoke-SpecFix {
             }
             catch {
                 $errors += "Failed to process $fileName : $_"
-                Write-Host "  X Error   $fileName - $_" -ForegroundColor Red
+                Write-Host "  [ERROR] $fileName - $_" -ForegroundColor Red
             }
         }
         else {
             $errors += "Invalid filename format: $fileName"
-            Write-Host "  ? Invalid $fileName - not in S-NNNN format" -ForegroundColor Magenta
+            Write-Host "  [WARN] Invalid $fileName - not in S-NNNN format" -ForegroundColor Magenta
         }
     }
     
     # Remaining items in existingReqs are orphaned (no matching file)
     foreach ($orphanedReq in $existingReqs.Values) {
         $orphaned += $orphanedReq.id
-        Write-Host "  ⚠ Orphaned $($orphanedReq.id) - file not found: $($orphanedReq.spec_file)" -ForegroundColor Yellow
+        Write-Host "  [ORPHAN] $($orphanedReq.id) - file not found: $($orphanedReq.spec_file)" -ForegroundColor Yellow
     }
     
     # Rebuild requirements array from hashtables
@@ -576,7 +576,7 @@ function Invoke-SpecFix {
         $json = $requirementsData | ConvertTo-Json -Depth 10
         Set-Content -Path $requirementsFile -Value $json -Encoding UTF8
         Write-Host ""
-        Write-Host "+ Saved requirements.json" -ForegroundColor Green
+        Write-Host "[OK] Saved requirements.json" -ForegroundColor Green
     }
     catch {
         Write-Error "Failed to save requirements.json: $_"
@@ -594,7 +594,7 @@ function Invoke-SpecFix {
     
     if ($orphaned.Count -gt 0) {
         Write-Host ""
-        Write-Host "! Orphaned entries (in requirements.json but file missing):" -ForegroundColor Yellow
+        Write-Host "[WARN] Orphaned entries (in requirements.json but file missing):" -ForegroundColor Yellow
         foreach ($id in $orphaned) {
             Write-Host "  - $id" -ForegroundColor Gray
         }
@@ -675,7 +675,7 @@ function Invoke-SpecDelete {
     if ($specFile) {
         try {
             Remove-Item $specFile.FullName -Force
-            Write-Host "+ Deleted file: $($specFile.Name)" -ForegroundColor Green
+            Write-Host "[OK] Deleted file: $($specFile.Name)" -ForegroundColor Green
         }
         catch {
             Write-Error "Failed to delete file: $_"
@@ -689,7 +689,7 @@ function Invoke-SpecDelete {
     try {
         $json = $requirementsData | ConvertTo-Json -Depth 10
         Set-Content -Path $requirementsFile -Value $json -Encoding UTF8
-        Write-Host "+ Removed from requirements.json" -ForegroundColor Green
+        Write-Host "[OK] Removed from requirements.json" -ForegroundColor Green
     }
     catch {
         Write-Error "Failed to update requirements.json: $_"
@@ -697,7 +697,7 @@ function Invoke-SpecDelete {
     }
     
     Write-Host ""
-    Write-Host "+ Specification $RequirementId deleted successfully" -ForegroundColor Green
+    Write-Host "[OK] Specification $RequirementId deleted successfully" -ForegroundColor Green
     Write-Host ""
 }
 

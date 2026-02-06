@@ -37,6 +37,129 @@ if ($text -match '(?s)<question>(.*?)</question>') {
 
 ---
 
+## Unicode vs ASCII Text in Output
+
+### Prefer ASCII Text Markers Over Unicode Symbols
+
+**Problem:** Unicode symbols (✓, ✗, ⚠, +, etc.) can cause PowerShell parser errors depending on file encoding, terminal capabilities, and PowerShell version.
+
+**Example Issue:**
+
+```powershell
+# May cause parser errors or display incorrectly
+Write-Host "✓ Success" -ForegroundColor Green
+Write-Host "✗ Failed" -ForegroundColor Red
+Write-Host "⚠ Warning" -ForegroundColor Yellow
+```
+
+**Solution:** Use ASCII text markers in brackets for consistency and reliability:
+
+```powershell
+# Reliable across all environments
+Write-Host "[OK] Success" -ForegroundColor Green
+Write-Host "[ERROR] Failed" -ForegroundColor Red
+Write-Host "[WARN] Warning" -ForegroundColor Yellow
+Write-Host "[ADD] Added item" -ForegroundColor Green
+Write-Host "[UPDATE] Updated item" -ForegroundColor Yellow
+Write-Host "[ORPHAN] Orphaned item" -ForegroundColor Yellow
+```
+
+**Best Practice:**
+
+- Use consistent text markers throughout scripts
+- Markers should be self-explanatory and parseable
+- Keep markers short (3-7 characters)
+- Use colors to reinforce meaning
+
+---
+
+## Hashtables
+
+### PSCustomObject vs Hashtable Mutability
+
+**Problem:** PowerShell JSON deserialization creates PSCustomObject instances, which cannot have properties added/modified easily. When you need to modify JSON data, you must convert to hashtables.
+
+**Example Failure:**
+
+```powershell
+$json = '{"id": "S-0001", "title": "Test"}'
+$obj = $json | ConvertFrom-Json
+
+# FAILS - Cannot add property to PSCustomObject in foreach
+$obj.new_property = "value"  # Error: Property cannot be found
+```
+
+**Solution:** Convert PSCustomObject to hashtable for mutability:
+
+```powershell
+# Convert to hashtable
+$hash = @{
+    id = $obj.id
+    title = $obj.title
+    new_property = "value"  # Can add freely
+}
+
+# Or use ordered hashtable to preserve order
+$hash = [ordered]@{
+    id = $obj.id
+    title = $obj.title
+}
+```
+
+### Building Lookup Tables with Hashtables
+
+**Pattern:** When you need fast lookups by ID, convert array of objects to hashtable:
+
+```powershell
+# Load JSON array
+$requirementsData = Get-Content requirements.json | ConvertFrom-Json
+$requirements = @($requirementsData.requirements)
+
+# Build hashtable for O(1) lookups
+$lookup = @{}
+foreach ($req in $requirements) {
+    $reqHash = @{
+        id = $req.id
+        title = $req.title
+        # ... copy other properties
+    }
+    $lookup[$req.id] = $reqHash
+}
+
+# Fast lookup and modification
+if ($lookup.ContainsKey("S-0001")) {
+    $lookup["S-0001"].title = "Updated Title"
+}
+```
+
+### Rebuilding Arrays from Hashtables
+
+**Pattern:** After modifying hashtable lookup, rebuild array for JSON serialization:
+
+```powershell
+# After modifications, rebuild array
+$allRequirements = @()
+foreach ($reqHash in $lookup.Values) {
+    $allRequirements += $reqHash
+}
+
+# Sort and save
+$requirementsData.requirements = $allRequirements | Sort-Object id
+$json = $requirementsData | ConvertTo-Json -Depth 10
+Set-Content -Path requirements.json -Value $json -Encoding UTF8
+```
+
+**Key Points:**
+
+- Hashtables use `@{}` syntax
+- Access with `$hash["key"]` or `$hash.key`
+- Check existence with `.ContainsKey("key")`
+- Iterate values with `.Values` or keys with `.Keys`
+- Remove entries with `.Remove("key")`
+- Use `[ordered]@{}` to preserve insertion order
+
+---
+
 ## Parameter Passing
 
 ### Switch Parameters Must Be Bare, Not Strings
