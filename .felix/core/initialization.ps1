@@ -36,7 +36,7 @@ function Initialize-ExecutionState {
     try {
         $rawContent = Get-Content $StateFile -Raw
         if ([string]::IsNullOrWhiteSpace($rawContent)) {
-            Emit-Log -Level "warn" -Message "State file is empty, initializing new state" -Component "init"
+            Emit-Log -Level "warn" -Message "State file is empty, initializing new state" -Component "init" | Out-Null
             return @{
                 current_requirement_id = $null
                 current_iteration      = 0
@@ -48,7 +48,7 @@ function Initialize-ExecutionState {
         
         $loadedState = $rawContent | ConvertFrom-Json
         if ($null -eq $loadedState) {
-            Emit-Log -Level "warn" -Message "State file loaded but resulted in null, initializing new state" -Component "init"
+            Emit-Log -Level "warn" -Message "State file loaded but resulted in null, initializing new state" -Component "init" | Out-Null
             return @{
                 current_requirement_id = $null
                 current_iteration      = 0
@@ -62,7 +62,7 @@ function Initialize-ExecutionState {
         # Requires ConvertTo-Hashtable from exit-handler.ps1
         $converted = ConvertTo-Hashtable $loadedState
         if ($null -eq $converted) {
-            Emit-Log -Level "warn" -Message "Conversion to hashtable failed, initializing new state" -Component "init"
+            Emit-Log -Level "warn" -Message "Conversion to hashtable failed, initializing new state" -Component "init" | Out-Null
             return @{
                 current_requirement_id = $null
                 current_iteration      = 0
@@ -76,7 +76,7 @@ function Initialize-ExecutionState {
     }
     catch {
         Emit-Log -Level "warn" -Message "Failed to load state file: $_" -Component "init"
-        Emit-Log -Level "warn" -Message "Initializing new state" -Component "init"
+        Emit-Log -Level "warn" -Message "Initializing new state" -Component "init" | Out-Null
         return @{
             current_requirement_id = $null
             current_iteration      = 0
@@ -116,7 +116,7 @@ function Get-CurrentRequirement {
     )
     
     if (-not (Test-Path $RequirementsFile)) {
-        Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFile" -Severity "fatal"
+        Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFile" -Severity "fatal" | Out-Null
         return $null
     }
     
@@ -130,7 +130,7 @@ function Get-CurrentRequirement {
         if ($RequirementId) {
             $currentReq = $requirements.requirements | Where-Object { $_.id -eq $RequirementId }
             if (-not $currentReq) {
-                Emit-Error -ErrorType "RequirementNotFound" -Message "Requirement $RequirementId not found" -Severity "fatal"
+                Emit-Error -ErrorType "RequirementNotFound" -Message "Requirement $RequirementId not found" -Severity "fatal" | Out-Null
                 return $null
             }
             
@@ -160,7 +160,7 @@ function Get-CurrentRequirement {
             # Find first planned or in_progress requirement
             $currentReq = $requirements.requirements | Where-Object { $_.status -eq "planned" -or $_.status -eq "in_progress" } | Select-Object -First 1
             if (-not $currentReq) {
-                Emit-Log -Level "info" -Message "No planned or in-progress requirements found" -Component "init"
+                Emit-Log -Level "info" -Message "No planned or in-progress requirements found" -Component "init" | Out-Null
                 return $null
             }
         }
@@ -168,7 +168,7 @@ function Get-CurrentRequirement {
         return $currentReq
     }
     catch {
-        Emit-Error -ErrorType "RequirementsLoadFailed" -Message "Failed to load requirements: $_" -Severity "fatal"
+        Emit-Error -ErrorType "RequirementsLoadFailed" -Message "Failed to load requirements: $_" -Severity "fatal" | Out-Null
         return $null
     }
 }
@@ -208,7 +208,7 @@ function Initialize-StateForRequirement {
         $State.status = "ready"
         $State.last_iteration_outcome = $null
         $State.blocked_task = $null
-        Emit-Log -Level "info" -Message "Starting new requirement, reset all state counters" -Component "state"
+        Emit-Log -Level "info" -Message "Starting new requirement, reset all state counters" -Component "state" | Out-Null
     }
     
     return $State

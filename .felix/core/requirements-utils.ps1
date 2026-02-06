@@ -56,16 +56,16 @@ function Update-RequirementStatus {
         }
         
         if (-not $found) {
-            Emit-Log -Level "warn" -Message "Warning: Requirement $RequirementId not found" -Component "requirements"
+            Emit-Log -Level "warn" -Message "Warning: Requirement $RequirementId not found" -Component "requirements" | Out-Null
             return $false
         }
         
         $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
-        Emit-Log -Level "info" -Message "Updated $RequirementId status to '$NewStatus'" -Component "requirements"
+        Emit-Log -Level "info" -Message "Updated $RequirementId status to '$NewStatus'" -Component "requirements" | Out-Null
         return $true
     }
     catch {
-        Emit-Error -ErrorType "StatusUpdateFailed" -Message "Error updating status: $_" -Severity "error"
+        Emit-Error -ErrorType "StatusUpdateFailed" -Message "Error updating status: $_" -Severity "error" | Out-Null
         return $false
     }
 }
@@ -117,16 +117,16 @@ function Update-RequirementRunId {
         }
         
         if (-not $found) {
-            Emit-Log -Level "warn" -Message "Could not find requirement $RequirementId in requirements.json" -Component "requirements"
+            Emit-Log -Level "warn" -Message "Could not find requirement $RequirementId in requirements.json" -Component "requirements" | Out-Null
             return $false
         }
         
         $json | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $RequirementsFilePath
-        Emit-Log -Level "info" -Message "Updated $RequirementId with last_run_id: $RunId" -Component "requirements"
+        Emit-Log -Level "info" -Message "Updated $RequirementId with last_run_id: $RunId" -Component "requirements" | Out-Null
         return $true
     }
     catch {
-        Emit-Error -ErrorType "RunIdUpdateFailed" -Message "Error updating last_run_id: $_" -Severity "error"
+        Emit-Error -ErrorType "RunIdUpdateFailed" -Message "Error updating last_run_id: $_" -Severity "error" | Out-Null
         return $false
     }
 }

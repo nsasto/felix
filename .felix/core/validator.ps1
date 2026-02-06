@@ -48,7 +48,7 @@ function Get-BackpressureCommands {
     
     # Parse commands from AGENTS.md
     if (-not (Test-Path $AgentsFilePath)) {
-        Emit-Log -Level "warn" -Message "AGENTS.md not found at $AgentsFilePath" -Component "backpressure"
+        Emit-Log -Level "warn" -Message "AGENTS.md not found at $AgentsFilePath" -Component "backpressure" | Out-Null
         return $commands
     }
     

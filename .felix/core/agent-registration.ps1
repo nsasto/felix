@@ -174,7 +174,7 @@ function Start-HeartbeatJob {
         }
     } -ArgumentList $AgentId, $BackendBaseUrl
     
-    Emit-Log -Level "debug" -Message "Started heartbeat job (every 5s)" -Component "agent"
+    Emit-Log -Level "debug" -Message "Started heartbeat job (every 5s)" -Component "agent" | Out-Null
     
     return $job
 }

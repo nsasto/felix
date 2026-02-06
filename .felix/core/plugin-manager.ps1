@@ -95,7 +95,7 @@ function Initialize-PluginSystem {
     }
     
     $count = @($plugins).Count
-    Emit-Log -Level "info" -Message "Initialized plugin system ($count plugins active)" -Component "plugins"
+    Emit-Log -Level "info" -Message "Initialized plugin system ($count plugins active)" -Component "plugins" | Out-Null
     return $script:PluginCache
 }
 
@@ -190,7 +190,7 @@ function Invoke-PluginHookSafely {
         return Invoke-PluginHook -HookName $HookName -RunId $RunId -HookData $HookData
     }
     catch {
-        Emit-Log -Level "warn" -Message "$HookName hook failed: $_" -Component "plugins"
+        Emit-Log -Level "warn" -Message "$HookName hook failed: $_" -Component "plugins" | Out-Null
         return @{ ShouldContinue = $true }
     }
 }

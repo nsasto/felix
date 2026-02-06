@@ -133,7 +133,7 @@ function Invoke-FelixIteration {
     }
     
     if ($hookResult.ContinueIteration -eq $false) {
-        Emit-Log -Level "info" -Message "Iteration skipped: $($hookResult.Reason)" -Component "plugins"
+        Emit-Log -Level "info" -Message "Iteration skipped: $($hookResult.Reason)" -Component "plugins" | Out-Null
         return @{ Continue = $false; ExitCode = 0 }
     }
     
@@ -241,7 +241,7 @@ function Invoke-FelixIteration {
     }
     
     if ($hookResult.ShouldContinue -eq $false) {
-        Emit-Log -Level "info" -Message "Stopping iterations: $($hookResult.Reason)" -Component "plugins"
+        Emit-Log -Level "info" -Message "Stopping iterations: $($hookResult.Reason)" -Component "plugins" | Out-Null
         return @{ Continue = $false; ExitCode = 0 }
     }
     
