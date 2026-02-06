@@ -438,6 +438,14 @@ function Invoke-SpecFix {
     Write-Host "Scanning specs folder and validating requirements.json..." -ForegroundColor Gray
     Write-Host ""
     
+    # Helper function to ensure array type
+    function Ensure-Array {
+        param($value)
+        if ($null -eq $value) { return @() }
+        if ($value -is [array]) { return @($value) }
+        return @($value)
+    }
+    
     $specsDir = Join-Path $RepoRoot "specs"
     $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
     
@@ -472,19 +480,27 @@ function Invoke-SpecFix {
     $updated = @()
     $orphaned = @()
     $errors = @()
+    $duplicates = @()
+    $processedIds = @{}
     
     # Build lookup of existing requirements (convert to hashtables for mutability)
     $existingReqs = @{}
     foreach ($req in $requirementsData.requirements) {
-        # Convert PSCustomObject to hashtable so we can modify it
-        $reqHash = @{
-            id         = $req.id
-            title      = $req.title
-            status     = $req.status
-            spec_file  = $req.spec_file
-            depends_on = if ($req.depends_on) { @($req.depends_on) } else { @() }
-            created_at = $req.created_at
-            updated_at = $req.updated_at
+        # Convert PSCustomObject to hashtable and preserve all existing properties
+        $reqHash = [ordered]@{
+            id                 = $req.id
+            title              = $req.title
+            spec_path          = $req.spec_path
+            status             = $req.status
+            priority           = $req.priority
+            labels             = Ensure-Array $req.labels
+            depends_on         = Ensure-Array $req.depends_on
+            updated_at         = $req.updated_at
+            commit_on_complete = if ($null -ne $req.commit_on_complete) { $req.commit_on_complete } else { $false }
+        }
+        # Preserve created_at if it exists
+        if ($req.created_at) {
+            $reqHash.created_at = $req.created_at
         }
         $existingReqs[$req.id] = $reqHash
     }
@@ -496,6 +512,14 @@ function Invoke-SpecFix {
         # Extract requirement ID from filename
         if ($fileName -match '^(S-\d{4})') {
             $reqId = $Matches[1]
+            
+            # Check for duplicate IDs
+            if ($processedIds.ContainsKey($reqId)) {
+                $duplicates += $fileName
+                Write-Host "  [WARN] Duplicate ID $reqId in $fileName (already processed $($processedIds[$reqId]))" -ForegroundColor Magenta
+                continue
+            }
+            $processedIds[$reqId] = $fileName
             
             # Read spec title
             try {
@@ -513,12 +537,22 @@ function Invoke-SpecFix {
                 if ($existingReqs.ContainsKey($reqId)) {
                     $existing = $existingReqs[$reqId]
                     
-                    # Check if spec_file path needs updating
-                    $relativePath = ".\specs\$fileName"
-                    if ($existing.spec_file -ne $relativePath) {
-                        $existing.spec_file = $relativePath
+                    # Check if spec_path needs updating (using forward slashes for consistency)
+                    $relativePath = "specs/$fileName"
+                    $needsUpdate = $false
+                    
+                    if ($existing.spec_path -ne $relativePath) {
+                        $existing.spec_path = $relativePath
+                        $needsUpdate = $true
+                    }
+                    
+                    if ($existing.title -ne $title) {
                         $existing.title = $title
-                        $existing.updated_at = Get-Date -Format "o"
+                        $needsUpdate = $true
+                    }
+                    
+                    if ($needsUpdate) {
+                        $existing.updated_at = Get-Date -Format "yyyy-MM-dd"
                         $updated += $reqId
                         Write-Host "  [UPDATE] $reqId - $fileName" -ForegroundColor Yellow
                     }
@@ -527,17 +561,20 @@ function Invoke-SpecFix {
                     }
                 }
                 else {
-                    # Add new requirement
-                    $newReq = @{
-                        id         = $reqId
-                        title      = $title
-                        status     = "planned"
-                        spec_file  = ".\specs\$fileName"
-                        depends_on = @()
-                        created_at = Get-Date -Format "o"
-                        updated_at = Get-Date -Format "o"
+                    # Add new requirement with minimal properties
+                    $newReq = [ordered]@{
+                        id                 = $reqId
+                        title              = $title
+                        spec_path          = "specs/$fileName"
+                        status             = "planned"
+                        priority           = "medium"
+                        labels             = @()
+                        depends_on         = @()
+                        updated_at         = Get-Date -Format "yyyy-MM-dd"
+                        commit_on_complete = $false
                     }
-                    $requirementsData.requirements += $newReq
+                    # Don't add to requirementsData.requirements yet - we'll rebuild it later
+                    $existingReqs[$reqId] = $newReq
                     $added += $reqId
                     Write-Host "  [ADD] $reqId - $fileName" -ForegroundColor Green
                 }
@@ -556,24 +593,150 @@ function Invoke-SpecFix {
         }
     }
     
-    # Remaining items in existingReqs are orphaned (no matching file)
-    foreach ($orphanedReq in $existingReqs.Values) {
-        $orphaned += $orphanedReq.id
-        Write-Host "  [ORPHAN] $($orphanedReq.id) - file not found: $($orphanedReq.spec_file)" -ForegroundColor Yellow
+    # Check for orphaned entries (in requirements.json but no matching file found)
+    # Any remaining items in existingReqs means we didn't find their spec file
+    if ($existingReqs.Count -gt 0) {
+        foreach ($orphanedReq in $existingReqs.Values) {
+            $orphaned += $orphanedReq.id
+            Write-Host "  [ORPHAN] $($orphanedReq.id) - file not found: $($orphanedReq.spec_path)" -ForegroundColor Yellow
+        }
     }
     
-    # Rebuild requirements array from hashtables
+    # Rebuild requirements array from all entries (existing + newly added)
+    # Note: We need to get all requirements from the original data that weren't removed,
+    # plus any new ones we added. Since we remove processed items from $existingReqs,
+    # we need to rebuild from the original requirementsData and merge with updates.
+    
     $allRequirements = @()
-    foreach ($reqHash in $existingReqs.Values) {
-        $allRequirements += $reqHash
+    
+    # Get all requirement IDs we've processed (both existing and new)
+    $processedIds = @{}
+    foreach ($specFile in $specFiles) {
+        if ($specFile.Name -match '^(S-\d{4})') {
+            $reqId = $Matches[1]
+            $processedIds[$reqId] = $true
+        }
+    }
+    
+    # Add all processed requirements from our lookup
+    foreach ($reqId in $processedIds.Keys | Sort-Object) {
+        # Build lookup of requirements by ID for quick access
+        $reqLookup = @{}
+        foreach ($req in $requirementsData.requirements) {
+            $reqLookup[$req.id] = $req
+        }
+        
+        # If this was an existing requirement that we updated, use our hashtable version
+        # Otherwise use the original from requirementsData
+        if ($reqLookup.ContainsKey($reqId)) {
+            # Find the updated version in our original data
+            $origReq = $requirementsData.requirements | Where-Object { $_.id -eq $reqId }
+            if ($origReq) {
+                # Build hashtable with all properties preserved
+                $reqHash = [ordered]@{
+                    id         = $origReq.id
+                    title      = $origReq.title
+                    spec_path  = $origReq.spec_path
+                    status     = $origReq.status
+                    priority   = $origReq.priority
+                    labels     = if ($origReq.labels) { @($origReq.labels) } else { @() }
+                    depends_on = if ($origReq.depends_on) { @($origReq.depends_on) } else { @() }
+                    updated_at = $origReq.updated_at
+                }
+                # Preserve created_at and commit_on_complete if they exist
+                if ($origReq.created_at) {
+                    $reqHash.created_at = $origReq.created_at
+                }
+                if ($null -ne $origReq.commit_on_complete) {
+                    $reqHash.commit_on_complete = $origReq.commit_on_complete
+                }
+                $allRequirements += $reqHash
+            }
+        }
+    }
+    
+    # Actually, let me simplify this - just iterate through all spec files and build from scratch
+    $allRequirements = @()
+    foreach ($specFile in $specFiles) {
+        if ($specFile.Name -match '^(S-\d{4})') {
+            $reqId = $Matches[1]
+            
+            # Find in original requirements
+            $origReq = $requirementsData.requirements | Where-Object { $_.id -eq $reqId }
+            
+            if ($origReq) {
+                # Preserve existing requirement with updated spec_path and title
+                $content = Get-Content $specFile.FullName -Raw -ErrorAction SilentlyContinue
+                $title = $origReq.title
+                if ($content -match '#\s+S-\d{4}:\s+(.+)') {
+                    $titleText = $Matches[1].Trim()
+                    $title = "${reqId}: $titleText"
+                }
+                elseif ($content -match '#\s+(.+)') {
+                    $title = $Matches[1].Trim()
+                }
+                
+                $reqHash = [ordered]@{
+                    id         = $origReq.id
+                    title      = $title
+                    spec_path  = "specs/$($specFile.Name)"
+                    status     = $origReq.status
+                    priority   = $origReq.priority
+                    labels     = Ensure-Array $origReq.labels
+                    depends_on = Ensure-Array $origReq.depends_on
+                    updated_at = if ($origReq.title -ne $title -or $origReq.spec_path -ne "specs/$($specFile.Name)") { Get-Date -Format "yyyy-MM-dd" } else { $origReq.updated_at }
+                }
+                if ($origReq.created_at) {
+                    $reqHash.created_at = $origReq.created_at
+                }
+                if ($null -ne $origReq.commit_on_complete) {
+                    $reqHash.commit_on_complete = $origReq.commit_on_complete
+                }
+                $allRequirements += $reqHash
+            }
+            else {
+                # New requirement
+                $content = Get-Content $specFile.FullName -Raw -ErrorAction SilentlyContinue
+                $title = "Untitled"
+                if ($content -match '#\s+S-\d{4}:\s+(.+)') {
+                    $titleText = $Matches[1].Trim()
+                    $title = "${reqId}: $titleText"
+                }
+                elseif ($content -match '#\s+(.+)') {
+                    $title = $Matches[1].Trim()
+                }
+                
+                $allRequirements += [ordered]@{
+                    id                 = $reqId
+                    title              = $title
+                    spec_path          = "specs/$($specFile.Name)"
+                    status             = "planned"
+                    priority           = "medium"
+                    labels             = @()
+                    depends_on         = @()
+                    updated_at         = Get-Date -Format "yyyy-MM-dd"
+                    commit_on_complete = $false
+                }
+            }
+        }
     }
     
     # Sort requirements by ID
     $requirementsData.requirements = $allRequirements | Sort-Object id
     
-    # Save requirements.json
+    # Save requirements.json with proper array serialization
     try {
-        $json = $requirementsData | ConvertTo-Json -Depth 10
+        # Convert to JSON
+        $json = $requirementsData | ConvertTo-Json -Depth 10 -Compress:$false
+        
+        # Fix PowerShell JSON serialization quirks:
+        # 1. Empty arrays converted to {} - replace with []
+        $json = $json -replace ':\s*\{\s*\}', ': []'
+        
+        # 2. Single-item arrays collapsed to strings - we need to fix specific fields
+        #    Match patterns like "depends_on": "S-0005" and wrap in array
+        $json = $json -creplace '("(?:depends_on|labels)":\s*)"([^"]+)"', '$1["$2"]'
+        
         Set-Content -Path $requirementsFile -Value $json -Encoding UTF8
         Write-Host ""
         Write-Host "[OK] Saved requirements.json" -ForegroundColor Green
@@ -589,8 +752,19 @@ function Invoke-SpecFix {
     Write-Host "Total specs:      $($specFiles.Count)" -ForegroundColor White
     Write-Host "Added:            $($added.Count)" -ForegroundColor Green
     Write-Host "Updated:          $($updated.Count)" -ForegroundColor Yellow
+    Write-Host "Duplicates:       $($duplicates.Count)" -ForegroundColor Magenta
     Write-Host "Orphaned:         $($orphaned.Count)" -ForegroundColor Yellow
     Write-Host "Errors:           $($errors.Count)" -ForegroundColor Red
+    
+    if ($duplicates.Count -gt 0) {
+        Write-Host ""
+        Write-Host "[WARN] Duplicate spec IDs found (skipped):" -ForegroundColor Magenta
+        foreach ($file in $duplicates) {
+            Write-Host "  - $file" -ForegroundColor Gray
+        }
+        Write-Host ""
+        Write-Host "Consider renaming or removing duplicate spec files." -ForegroundColor Gray
+    }
     
     if ($orphaned.Count -gt 0) {
         Write-Host ""
