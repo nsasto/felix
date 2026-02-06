@@ -1,5 +1,6 @@
 ﻿using System.CommandLine;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using Spectre.Console;
 
@@ -46,6 +47,7 @@ class Program
         rootCommand.AddCommand(CreateDepsCommand(felixPs1));
         rootCommand.AddCommand(CreateSpecCommand(felixPs1));
         rootCommand.AddCommand(CreateVersionCommand(felixPs1));
+        rootCommand.AddCommand(CreateDashboardCommand(felixPs1));
 
         return await rootCommand.InvokeAsync(args);
     }
@@ -305,6 +307,18 @@ class Program
         return cmd;
     }
 
+    static Command CreateDashboardCommand(string felixPs1)
+    {
+        var cmd = new Command("dashboard", "Interactive TUI dashboard");
+
+        cmd.SetHandler(async () =>
+        {
+            await ShowDashboard(felixPs1);
+        });
+
+        return cmd;
+    }
+
     static async Task ExecutePowerShell(string felixPs1, params string[] args)
     {
         var quotedArgs = string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
@@ -483,5 +497,326 @@ class Program
         await process.WaitForExitAsync();
 
         return output;
+    }
+
+    static async Task ShowDashboard(string felixPs1)
+    {
+        while (true)
+        {
+            AnsiConsole.Clear();
+
+            // ASCII Art Banner
+            var banner = new FigletText("FELIX")
+                .Centered()
+                .Color(Color.Cyan1);
+            AnsiConsole.Write(banner);
+            AnsiConsole.MarkupLine("[grey dim]Autonomous Agent Executor[/]");
+            AnsiConsole.WriteLine();
+
+            // Get status data
+            var output = await ExecutePowerShellCapture(felixPs1, "status", "--format", "json");
+            var doc = JsonDocument.Parse(output);
+            var requirements = doc.RootElement;
+            var total = requirements.GetArrayLength();
+
+            var statusCounts = new Dictionary<string, int>();
+            foreach (var req in requirements.EnumerateArray())
+            {
+                var status = req.GetProperty("status").GetString() ?? "unknown";
+                statusCounts[status] = statusCounts.GetValueOrDefault(status, 0) + 1;
+            }
+
+            // Horizontal bar chart
+            var complete = statusCounts.GetValueOrDefault("complete", 0);
+            var done = statusCounts.GetValueOrDefault("done", 0);
+            var inProgress = statusCounts.GetValueOrDefault("in_progress", 0);
+            var planned = statusCounts.GetValueOrDefault("planned", 0);
+            var blocked = statusCounts.GetValueOrDefault("blocked", 0);
+
+            var barChart = new BarChart()
+                .Width(60)
+                .Label("[yellow bold]Requirements Status[/]")
+                .CenterLabel();
+
+            if (complete > 0) barChart.AddItem("Complete", complete, Color.Green);
+            if (done > 0) barChart.AddItem("Done", done, Color.Blue);
+            if (inProgress > 0) barChart.AddItem("In Progress", inProgress, Color.Yellow);
+            if (planned > 0) barChart.AddItem("Planned", planned, Color.Cyan1);
+            if (blocked > 0) barChart.AddItem("Blocked", blocked, Color.Red);
+
+            AnsiConsole.Write(barChart);
+            AnsiConsole.MarkupLine($"\n[grey]Total: {total} requirements[/]\n");
+
+            // Quick Actions Table
+            var actionsTable = new Table()
+                .Border(TableBorder.Double)
+                .BorderColor(Color.Cyan1)
+                .Expand();
+
+            actionsTable.AddColumn(new TableColumn("[yellow bold]QUICK ACTIONS[/]").Centered());
+
+            actionsTable.AddRow("[cyan]1[/] → List Requirements       [cyan]4[/] → Run Agent");
+            actionsTable.AddRow("[cyan]2[/] → View Status             [cyan]5[/] → Validate");
+            actionsTable.AddRow("[cyan]3[/] → Check Dependencies");
+            actionsTable.AddEmptyRow();
+            actionsTable.AddRow("[grey]/[/] Commands  •  [grey]?[/] Help  •  [grey]q[/] Quit");
+
+            AnsiConsole.Write(actionsTable);
+
+            var key = Console.ReadKey(true);
+
+            if (key.KeyChar == 'q' || key.KeyChar == 'Q')
+            {
+                AnsiConsole.Clear();
+                AnsiConsole.MarkupLine("[grey]Goodbye! 👋[/]");
+                break;
+            }
+            else if (key.KeyChar == '?')
+            {
+                ShowHelp();
+            }
+            else if (key.KeyChar == '/')
+            {
+                await ShowCommands(felixPs1);
+            }
+            else if (key.KeyChar == '1')
+            {
+                await InteractiveList(felixPs1);
+            }
+            else if (key.KeyChar == '2')
+            {
+                await ShowStatusUI(felixPs1);
+                AnsiConsole.MarkupLine("\n[grey]Press any key to continue...[/]");
+                Console.ReadKey(true);
+            }
+            else if (key.KeyChar == '3')
+            {
+                await ShowDependencies(felixPs1);
+            }
+            else if (key.KeyChar == '4')
+            {
+                await RunAgentInteractive(felixPs1);
+            }
+            else if (key.KeyChar == '5')
+            {
+                await ValidateInteractive(felixPs1);
+            }
+        }
+    }
+
+    static void ShowHelp()
+    {
+        AnsiConsole.Clear();
+
+        var helpPanel = new Panel(
+            new Markup(
+                "[yellow bold]Keyboard Shortcuts[/]\n\n" +
+                "[cyan]1-5[/]     Quick actions\n" +
+                "[cyan]/[/]       Show all commands\n" +
+                "[cyan]?[/]       This help screen\n" +
+                "[cyan]q[/]       Quit dashboard\n\n" +
+                "[yellow bold]Commands[/]\n\n" +
+                "[cyan]run[/]         Execute a requirement\n" +
+                "[cyan]loop[/]        Run agent in loop mode\n" +
+                "[cyan]status[/]      Show requirements status\n" +
+                "[cyan]list[/]        List all requirements\n" +
+                "[cyan]validate[/]    Run validation checks\n" +
+                "[cyan]deps[/]        Show dependencies\n" +
+                "[cyan]spec[/]        Manage specifications\n" +
+                "[cyan]dashboard[/]   This dashboard\n"))
+        {
+            Header = new PanelHeader("[yellow]❓ Help[/]"),
+            Border = BoxBorder.Double,
+            BorderStyle = Style.Parse("yellow")
+        };
+
+        AnsiConsole.Write(helpPanel);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
+        Console.ReadKey(true);
+    }
+
+    static async Task ShowCommands(string felixPs1)
+    {
+        var command = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[cyan]Select a command:[/]")
+                .PageSize(10)
+                .MoreChoicesText("[grey](Move up and down to reveal more)[/]")
+                .AddChoices(new[] {
+                    "📋 List Requirements",
+                    "📊 Show Status",
+                    "🔗 Check Dependencies",
+                    "▶️  Run Agent",
+                    "✓ Validate",
+                    "📝 Create Spec",
+                    "🏠 Back to Dashboard"
+                }));
+
+        if (command == "📋 List Requirements")
+            await InteractiveList(felixPs1);
+        else if (command == "📊 Show Status")
+            await ShowStatusUI(felixPs1);
+        else if (command == "🔗 Check Dependencies")
+            await ShowDependencies(felixPs1);
+        else if (command == "▶️  Run Agent")
+            await RunAgentInteractive(felixPs1);
+        else if (command == "✓ Validate")
+            await ValidateInteractive(felixPs1);
+        else if (command == "📝 Create Spec")
+            await CreateSpecInteractive(felixPs1);
+
+        if (command != "🏠 Back to Dashboard")
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
+            Console.ReadKey(true);
+        }
+    }
+
+    static async Task InteractiveList(string felixPs1)
+    {
+        var statusFilter = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[cyan]Filter by status?[/]")
+                .AddChoices(new[] { "All", "planned", "in_progress", "done", "complete", "blocked" }));
+
+        if (statusFilter == "All")
+            statusFilter = null;
+
+        await ShowListUI(felixPs1, statusFilter, null);
+    }
+
+    static async Task ShowDependencies(string felixPs1)
+    {
+        AnsiConsole.Clear();
+        var rule = new Rule("[cyan]Dependency Check[/]").RuleStyle(Style.Parse("cyan dim"));
+        AnsiConsole.Write(rule);
+        AnsiConsole.WriteLine();
+
+        await ExecutePowerShell(felixPs1, "deps", "--incomplete");
+    }
+
+    static async Task RunAgentInteractive(string felixPs1)
+    {
+        var output = await ExecutePowerShellCapture(felixPs1, "status", "--format", "json");
+        var doc = JsonDocument.Parse(output);
+        var requirements = doc.RootElement;
+
+        var planned = requirements.EnumerateArray()
+            .Where(r => r.GetProperty("status").GetString() == "planned")
+            .Select(r => $"{r.GetProperty("id").GetString()}: {r.GetProperty("title").GetString()}")
+            .ToList();
+
+        if (!planned.Any())
+        {
+            AnsiConsole.MarkupLine("[yellow]No planned requirements found.[/]");
+            return;
+        }
+
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[cyan]Select requirement to run:[/]")
+                .PageSize(10)
+                .AddChoices(planned));
+
+        var reqId = selected.Split(':')[0];
+
+        AnsiConsole.Clear();
+        await ExecutePowerShell(felixPs1, "run", reqId);
+    }
+
+    static async Task ValidateInteractive(string felixPs1)
+    {
+        var output = await ExecutePowerShellCapture(felixPs1, "status", "--format", "json");
+        var doc = JsonDocument.Parse(output);
+        var requirements = doc.RootElement;
+
+        var done = requirements.EnumerateArray()
+            .Where(r => r.GetProperty("status").GetString() == "done")
+            .Select(r => $"{r.GetProperty("id").GetString()}: {r.GetProperty("title").GetString()}")
+            .ToList();
+
+        if (!done.Any())
+        {
+            AnsiConsole.MarkupLine("[yellow]No done requirements to validate.[/]");
+            return;
+        }
+
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[cyan]Select requirement to validate:[/]")
+                .PageSize(10)
+                .AddChoices(done));
+
+        var reqId = selected.Split(':')[0];
+
+        AnsiConsole.Clear();
+        await ExecutePowerShell(felixPs1, "validate", reqId);
+    }
+
+    static async Task CreateSpecInteractive(string felixPs1)
+    {
+        var description = AnsiConsole.Ask<string>("[cyan]Feature description:[/]");
+
+        AnsiConsole.Clear();
+        await ExecutePowerShell(felixPs1, "spec", "create", description);
+    }
+
+    static async Task ShowStatusUI(string felixPs1)
+    {
+        AnsiConsole.Clear();
+        var rule = new Rule("[cyan]Requirements Dashboard[/]").RuleStyle(Style.Parse("cyan dim"));
+        AnsiConsole.Write(rule);
+        AnsiConsole.WriteLine();
+
+        await AnsiConsole.Status()
+            .StartAsync("Loading requirements...", async ctx =>
+            {
+                var output = await ExecutePowerShellCapture(felixPs1, "status", "--format", "json");
+
+                try
+                {
+                    var doc = JsonDocument.Parse(output);
+                    var requirements = doc.RootElement;
+
+                    var statusCounts = new Dictionary<string, int>();
+                    foreach (var req in requirements.EnumerateArray())
+                    {
+                        var status = req.GetProperty("status").GetString() ?? "unknown";
+                        statusCounts[status] = statusCounts.GetValueOrDefault(status, 0) + 1;
+                    }
+
+                    var table = new Table()
+                        .Border(TableBorder.Rounded)
+                        .BorderColor(Color.Grey)
+                        .AddColumn(new TableColumn("[yellow]Status[/]").Centered())
+                        .AddColumn(new TableColumn("[yellow]Count[/]").Centered());
+
+                    foreach (var (status, count) in statusCounts.OrderByDescending(x => x.Value))
+                    {
+                        var (color, emoji) = status switch
+                        {
+                            "complete" => ("green", "✓"),
+                            "done" => ("blue", "●"),
+                            "in_progress" => ("yellow", "⟳"),
+                            "planned" => ("cyan", "○"),
+                            "blocked" => ("red", "✗"),
+                            _ => ("white", "?")
+                        };
+                        table.AddRow($"[{color}]{emoji} {status}[/]", $"[{color} bold]{count}[/]");
+                    }
+
+                    AnsiConsole.Write(table);
+
+                    var total = requirements.GetArrayLength();
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine($"[grey]Total: {total} requirement{(total != 1 ? "s" : "")}[/]");
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
+                }
+            });
     }
 }
