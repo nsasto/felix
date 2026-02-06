@@ -135,6 +135,7 @@ class Program
         var blockedByOpt = new Option<string?>("--blocked-by", "Filter by blocker type");
         var withDepsOpt = new Option<bool>("--with-deps", "Show dependencies inline");
         var formatOpt = new Option<string>("--format", () => "rich", "Output format");
+        var uiOpt = new Option<bool>("--ui", "Enhanced table UI with Spectre.Console");
 
         var cmd = new Command("list", "List all requirements")
         {
@@ -143,11 +144,18 @@ class Program
             labelsOpt,
             blockedByOpt,
             withDepsOpt,
-            formatOpt
+            formatOpt,
+            uiOpt
         };
 
-        cmd.SetHandler(async (status, priority, labels, blockedBy, withDeps, format) =>
+        cmd.SetHandler(async (status, priority, labels, blockedBy, withDeps, format, useUI) =>
         {
+            if (useUI)
+            {
+                await ShowListUI(felixPs1, status, priority);
+                return;
+            }
+
             var args = new List<string> { "list" };
             if (status != null) args.AddRange(new[] { "--status", status });
             if (priority != null) args.AddRange(new[] { "--priority", priority });
@@ -157,7 +165,7 @@ class Program
             if (format != "rich") args.AddRange(new[] { "--format", format });
 
             await ExecutePowerShell(felixPs1, args.ToArray());
-        }, statusOpt, priorityOpt, labelsOpt, blockedByOpt, withDepsOpt, formatOpt);
+        }, statusOpt, priorityOpt, labelsOpt, blockedByOpt, withDepsOpt, formatOpt, uiOpt);
 
         return cmd;
     }
@@ -363,5 +371,117 @@ class Program
 
         // Fall back to Windows PowerShell 5.1
         return "powershell.exe";
+    }
+
+    static async Task ShowListUI(string felixPs1, string? statusFilter, string? priorityFilter)
+    {
+        var rule = new Rule("[cyan]Requirements List[/]").RuleStyle(Style.Parse("cyan dim"));
+        AnsiConsole.Write(rule);
+        AnsiConsole.WriteLine();
+
+        await AnsiConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .StartAsync("Loading requirements...", async ctx =>
+            {
+                // Build args for filtering
+                var args = new List<string> { "status", "--format", "json" };
+                var output = await ExecutePowerShellCapture(felixPs1, args.ToArray());
+
+                try
+                {
+                    var doc = JsonDocument.Parse(output);
+                    var requirements = doc.RootElement;
+
+                    // Filter requirements
+                    var filtered = requirements.EnumerateArray().Where(req =>
+                    {
+                        var status = req.GetProperty("status").GetString();
+                        var priority = req.TryGetProperty("priority", out var p) ? p.GetString() : "medium";
+
+                        if (statusFilter != null && status != statusFilter) return false;
+                        if (priorityFilter != null && priority != priorityFilter) return false;
+
+                        return true;
+                    }).ToList();
+
+                    // Create table
+                    var table = new Table()
+                        .Border(TableBorder.Rounded)
+                        .BorderColor(Color.Grey)
+                        .AddColumn(new TableColumn("[yellow]ID[/]"))
+                        .AddColumn(new TableColumn("[yellow]Title[/]").Width(60))
+                        .AddColumn(new TableColumn("[yellow]Status[/]").Centered())
+                        .AddColumn(new TableColumn("[yellow]Priority[/]").Centered());
+
+                    foreach (var req in filtered)
+                    {
+                        var id = req.GetProperty("id").GetString() ?? "";
+                        var title = req.GetProperty("title").GetString() ?? "";
+                        var status = req.GetProperty("status").GetString() ?? "";
+                        var priority = req.TryGetProperty("priority", out var p) ? p.GetString() : "medium";
+
+                        var statusColor = status switch
+                        {
+                            "complete" => "green",
+                            "done" => "blue",
+                            "in_progress" => "yellow",
+                            "planned" => "cyan",
+                            "blocked" => "red",
+                            _ => "white"
+                        };
+
+                        var priorityColor = priority switch
+                        {
+                            "critical" => "red bold",
+                            "high" => "yellow",
+                            "medium" => "blue",
+                            "low" => "grey",
+                            _ => "white"
+                        };
+
+                        // Truncate long titles
+                        if (title.Length > 57) title = title.Substring(0, 54) + "...";
+
+                        table.AddRow(
+                            $"[cyan]{id}[/]",
+                            $"[white]{title.EscapeMarkup()}[/]",
+                            $"[{statusColor}]{status}[/]",
+                            $"[{priorityColor}]{priority}[/]"
+                        );
+                    }
+
+                    AnsiConsole.Write(table);
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine($"[grey]Showing {filtered.Count} of {requirements.GetArrayLength()} requirements[/]");
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
+                }
+            });
+    }
+
+    static async Task<string> ExecutePowerShellCapture(string felixPs1, params string[] args)
+    {
+        var quotedArgs = string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+        var pwshPath = FindPowerShell();
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = pwshPath,
+            Arguments = $"-NoProfile -File \"{felixPs1}\" {quotedArgs}",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        var process = Process.Start(psi);
+        if (process == null) return "";
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        return output;
     }
 }
