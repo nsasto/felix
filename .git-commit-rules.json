@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "encoding": "utf-8",
+  "options": {
+    "normalize": {
+      "trimTrailingWhitespace": true,
+      "collapseBlankLinesMax": 2,
+      "trimLeadingBlankLines": true,
+      "trimTrailingBlankLines": true,
+      "ensureFinalNewline": true
+    }
+  },
+  "rules": [
+    {
+      "name": "Strip Droid co-author trailer",
+      "enabled": true,
+      "type": "regex-replace",
+      "pattern": "(?m)^[ \\t]*Co-authored-by:\\s*Droid\\b.*\\r?\\n?",
+      "replacement": ""
+    },
+    {
+      "name": "Require Conventional Commit-ish header",
+      "enabled": false,
+      "type": "require",
+      "pattern": "^(feat|fix|docs|chore|refactor|test|build|ci|perf|revert)(\\([^)]+\\))?: .+"
+    },
+    {
+      "name": "Deny any other co-author trailers (optional)",
+      "enabled": false,
+      "type": "denylist",
+      "pattern": "(?mi)^[ \\t]*Co-authored-by:"
+    },
+    {
+      "name": "Prepend ticket",
+      "enabled": false,
+      "type": "prepend",
+      "text": "Refs: ABC-123"
+    },
+    {
+      "name": "Append signoff",
+      "enabled": false,
+      "type": "append",
+      "text": "Signed-off-by: Your Name <you@example.com>"
+    }
+  ]
+}

@@ -81,10 +81,186 @@ function Test-GitChanges {
     return ($null -ne $status -and $status.Length -gt 0)
 }
 
+function Get-CommitRulesConfig {
+    <#
+    .SYNOPSIS
+    Reads and parses .git-commit-rules.json configuration
+    #>
+    param([string]$Path = ".git-commit-rules.json")
+
+    if (-not (Test-Path $Path)) { return $null }
+
+    try {
+        $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+        return ($raw | ConvertFrom-Json)
+    }
+    catch {
+        throw "Failed to read/parse $Path. Ensure it is valid JSON. $($_.Exception.Message)"
+    }
+}
+
+function Normalize-CommitMessage {
+    <#
+    .SYNOPSIS
+    Normalizes commit message whitespace and blank lines
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [psobject]$NormalizeOptions
+    )
+
+    if (-not $NormalizeOptions) { return $Message }
+
+    $m = $Message
+
+    if ($NormalizeOptions.trimTrailingWhitespace -eq $true) {
+        $m = [regex]::Replace($m, "(?m)[ `t]+$", "")
+    }
+
+    if ($NormalizeOptions.trimLeadingBlankLines -eq $true) {
+        $m = [regex]::Replace($m, "^(?:\r?\n)+", "")
+    }
+
+    if ($NormalizeOptions.trimTrailingBlankLines -eq $true) {
+        $m = [regex]::Replace($m, "(?:\r?\n)+\z", "")
+    }
+
+    $maxBlanks = $NormalizeOptions.collapseBlankLinesMax
+    if ($null -ne $maxBlanks -and $maxBlanks -is [int] -and $maxBlanks -ge 1) {
+        $keep = "`r?`n"
+        $rep = ""
+        for ($i = 0; $i -lt $maxBlanks; $i++) { $rep += "`r`n" }
+        # convert to pattern that means:  (newline) repeated (max+1) or more -> replace with max newlines
+        $pattern = "(\r?\n){" + ($maxBlanks + 1) + ",}"
+        $m = [regex]::Replace($m, $pattern, $rep)
+    }
+
+    if ($NormalizeOptions.ensureFinalNewline -eq $true) {
+        if (-not $m.EndsWith("`n")) { $m += "`r`n" }
+    }
+
+    return $m
+}
+
+function Apply-CommitRules {
+    <#
+    .SYNOPSIS
+    Applies commit message rules (rewrite + validate)
+    
+    .DESCRIPTION
+    Processes commit message through configured rules:
+    - regex-replace: rewrite or strip patterns
+    - prepend/append: add text blocks
+    - require: validation - message must match
+    - denylist: validation - message must not match
+    
+    .OUTPUTS
+    Hashtable with Message (string) and Errors (array)
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [psobject]$Config
+    )
+
+    if (-not $Config) { return @{ Message = $Message; Errors = @() } }
+
+    $rules = $Config.rules
+    if (-not $rules) { return @{ Message = $Message; Errors = @() } }
+
+    $m = $Message
+    $errors = New-Object System.Collections.Generic.List[string]
+
+    foreach ($rule in $rules) {
+        if ($null -ne $rule.enabled -and -not $rule.enabled) { continue }
+
+        $type = [string]$rule.type
+        $name = if ($rule.name) { [string]$rule.name } else { $type }
+
+        switch ($type) {
+            "regex-replace" {
+                $pattern = [string]$rule.pattern
+                $replacement = [string]$rule.replacement
+                try {
+                    $m = [regex]::Replace($m, $pattern, $replacement)
+                }
+                catch {
+                    $errors.Add("Rule '$name' failed (invalid regex): $($_.Exception.Message)")
+                }
+            }
+
+            "prepend" {
+                $text = [string]$rule.text
+                if (-not [string]::IsNullOrWhiteSpace($text)) {
+                    $textBlock = $text.TrimEnd()
+                    if ([string]::IsNullOrWhiteSpace($m)) {
+                        $m = $textBlock
+                    }
+                    else {
+                        $m = $textBlock + "`r`n`r`n" + $m.TrimStart()
+                    }
+                }
+            }
+
+            "append" {
+                $text = [string]$rule.text
+                if (-not [string]::IsNullOrWhiteSpace($text)) {
+                    $textBlock = $text.TrimEnd()
+                    if ([string]::IsNullOrWhiteSpace($m)) {
+                        $m = $textBlock
+                    }
+                    else {
+                        $m = $m.TrimEnd() + "`r`n`r`n" + $textBlock
+                    }
+                }
+            }
+
+            "require" {
+                $pattern = [string]$rule.pattern
+                try {
+                    if (-not [regex]::IsMatch($m, $pattern)) {
+                        $errors.Add("Rule '$name' failed: commit message must match pattern: $pattern")
+                    }
+                }
+                catch {
+                    $errors.Add("Rule '$name' failed (invalid regex): $($_.Exception.Message)")
+                }
+            }
+
+            "denylist" {
+                $pattern = [string]$rule.pattern
+                try {
+                    if ([regex]::IsMatch($m, $pattern)) {
+                        $errors.Add("Rule '$name' failed: commit message matched denylist pattern: $pattern")
+                    }
+                }
+                catch {
+                    $errors.Add("Rule '$name' failed (invalid regex): $($_.Exception.Message)")
+                }
+            }
+
+            default {
+                $errors.Add("Unknown rule type '$type' in '$name'")
+            }
+        }
+    }
+
+    # optional normalize
+    if ($Config.options -and $Config.options.normalize) {
+        $m = Normalize-CommitMessage -Message $m -NormalizeOptions $Config.options.normalize
+    }
+
+    return @{ Message = $m; Errors = $errors.ToArray() }
+}
+
 function Invoke-GitCommit {
     <#
     .SYNOPSIS
-    Commits changes with proper error handling
+    Commits changes with proper error handling and commit message rule enforcement
+    
+    .DESCRIPTION
+    Applies rules from .git-commit-rules.json (if present) to rewrite/validate
+    commit messages before committing. Strips unwanted content like Droid co-author
+    lines and enforces message standards.
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -98,11 +274,33 @@ function Invoke-GitCommit {
         return $false
     }
 
-    git add . 2>&1 | Out-Null
-    git commit -m $Message 2>&1 | Out-Null
+    $cfg = Get-CommitRulesConfig -Path ".git-commit-rules.json"
+    $result = Apply-CommitRules -Message $Message -Config $cfg
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Git commit failed"
+    if ($result.Errors.Count -gt 0) {
+        $msg = "Commit message rejected by git-commit-rules:`n- " + ($result.Errors -join "`n- ")
+        throw $msg
+    }
+
+    $finalMessage = $result.Message
+    if ([string]::IsNullOrWhiteSpace($finalMessage)) {
+        throw "Commit message became empty after applying git-commit-rules."
+    }
+
+    $tempMsg = Join-Path $env:TEMP ("gitmsg_" + [guid]::NewGuid().ToString("N") + ".txt")
+
+    try {
+        Set-Content -LiteralPath $tempMsg -Value $finalMessage -Encoding UTF8
+
+        git add . 2>&1 | Out-Null
+        git commit -F $tempMsg 2>&1 | Out-Null
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Git commit failed"
+        }
+    }
+    finally {
+        if (Test-Path $tempMsg) { Remove-Item -LiteralPath $tempMsg -Force | Out-Null }
     }
 
     if ($Push) {
