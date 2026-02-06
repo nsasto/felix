@@ -179,9 +179,51 @@ felix loop               # Run agent in continuous loop mode
 felix status [req-id]    # Show requirement status
 felix list               # List all requirements
 felix validate <req-id>  # Run validation checks
+felix spec create        # Create a new specification interactively
 felix version            # Show version information
 felix help [command]     # Show help
 ```
+
+#### Spec Builder
+
+Create specifications through an interactive conversation with an AI agent:
+
+```powershell
+# Interactive mode - prompts for description
+felix spec create
+
+# Direct mode - provide description upfront
+felix spec create "Add user authentication"
+
+# Quick mode - minimal questions, makes assumptions
+felix spec create --quick "Add export to CSV feature"
+felix spec create -q "Add dark mode toggle"
+```
+
+**How it works:**
+
+1. **Auto-generates ID**: Finds next available S-NNNN number
+2. **AI Conversation**: Agent asks clarifying questions about your feature
+3. **Generates Spec**: Creates properly formatted specification following spec_rules.md
+4. **Updates Registry**: Adds entry to requirements.json with status "planned"
+
+**Modes:**
+
+- **Normal Mode**: Thorough conversation, asks detailed questions
+- **Quick Mode** (`--quick` or `-q`): Max 2 questions, makes reasonable assumptions based on Felix architecture
+
+**Output:**
+
+The spec builder emits pure JSON events for programmatic consumption:
+
+- `spec_builder_started` - Conversation begins
+- `spec_question` - Agent asks a question
+- `prompt_requested` - Waiting for user input via response file
+- `spec_draft` - Shows draft for review (if applicable)
+- `spec_builder_complete` - Spec written successfully
+- `spec_builder_cancelled` - User cancelled
+
+Response files are written to `.felix/prompts/spec_q_N.response.txt` for UI/TUI integration.
 
 ### Output Formats
 

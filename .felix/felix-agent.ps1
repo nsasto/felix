@@ -23,6 +23,9 @@ param(
     [switch]$SpecBuildMode,
     
     [Parameter(Mandatory = $false)]
+    [switch]$QuickMode,
+    
+    [Parameter(Mandatory = $false)]
     [switch]$NoCommit   # Use this flag for testing to prevent git commits
 )
 
@@ -92,10 +95,13 @@ Emit-Log -Level "debug" -Message "StateFile: $StateFile" -Component "init"
 Emit-Log -Level "debug" -Message "RequirementsFile: $RequirementsFile" -Component "init"
 
 # Load configuration
+Emit-Log -Level "debug" -Message "Loading Felix config from $ConfigFile" -Component "init"
 $config = Get-FelixConfig -ConfigFile $ConfigFile
 if (-not $config) {
+    Emit-Error -ErrorType "ConfigLoadFailed" -Message "Failed to load config" -Severity "fatal"
     exit 1
 }
+Emit-Log -Level "debug" -Message "Config loaded successfully" -Component "init"
 
 $maxIterations = $config.executor.max_iterations
 $defaultMode = $config.executor.default_mode
@@ -107,21 +113,50 @@ $agentId = if ($config.agent -and $null -ne $config.agent.agent_id) {
 else { 
     0  # Default to agent ID 0
 }
+Emit-Log -Level "debug" -Message "Using agent ID: $agentId" -Component "init"
 
+Emit-Log -Level "debug" -Message "Loading agents configuration" -Component "init"
 $agentsData = Get-AgentsConfiguration
 if (-not $agentsData) {
+    Emit-Error -ErrorType "AgentsDataLoadFailed" -Message "Failed to load agents.json" -Severity "fatal"
     exit 1
 }
+Emit-Log -Level "debug" -Message "Agents data loaded successfully" -Component "init"
 
+Emit-Log -Level "debug" -Message "Getting agent config for ID $agentId" -Component "init"
 $agentConfig = Get-AgentConfig -AgentsData $agentsData -AgentId $agentId -ConfigFile $ConfigFile
 if (-not $agentConfig) {
+    Emit-Error -ErrorType "AgentConfigLoadFailed" -Message "Failed to load agent config for ID $agentId" -Severity "fatal"
     exit 1
 }
+Emit-Log -Level "debug" -Message "Agent config loaded: $($agentConfig.name)" -Component "init"
 
 $agentName = $agentConfig.name
 $script:agentName = $agentName
 $script:agentId = $agentConfig.id
 $script:agentConfig = $agentConfig
+
+# ============================================================================
+# Mode Selection: Spec Builder vs Normal Execution
+# ============================================================================
+
+if ($SpecBuildMode) {
+    Emit-Log -Level "debug" -Message "Entering spec builder mode" -Component "init"
+    # Spec builder flow - different path entirely
+    . "$PSScriptRoot/core/spec-builder.ps1"
+    
+    Emit-Log -Level "debug" -Message "Calling Invoke-SpecBuilder with RequirementId=$RequirementId, QuickMode=$($QuickMode.IsPresent)" -Component "init"
+    $result = Invoke-SpecBuilder `
+        -RequirementId $RequirementId `
+        -InitialPrompt $InitialPrompt `
+        -QuickMode:$QuickMode `
+        -Config $config `
+        -AgentConfig $agentConfig `
+        -Paths $paths
+    
+    Emit-Log -Level "debug" -Message "Invoke-SpecBuilder returned with exit code $($result.ExitCode)" -Component "init"
+    Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $null
+}
 
 # ============================================================================
 # Agent Registration and Heartbeat Functions

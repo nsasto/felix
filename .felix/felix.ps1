@@ -30,7 +30,7 @@ Command-specific arguments and global flags
 
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("run", "loop", "status", "list", "validate", "version", "help")]
+    [ValidateSet("run", "loop", "status", "list", "validate", "spec", "version", "help")]
     [string]$Command,
 
     [Parameter(Mandatory = $false, Position = 1, ValueFromRemainingArguments = $true)]
@@ -303,6 +303,113 @@ function Invoke-Validate {
     exit $exitCode
 }
 
+function Invoke-SpecCreate {
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$Args
+    )
+
+
+    if ($Args.Count -eq 0) {
+        Write-Error "Usage: felix spec <create> <requirement-id> [description]"
+        exit 1
+    }
+
+    $subcommand = $Args[0]
+    
+    switch ($subcommand) {
+        "create" {
+            # Check for --quick flag
+            $quickMode = $false
+            $argsWithoutFlags = @()
+            for ($i = 1; $i -lt $Args.Count; $i++) {
+                if ($Args[$i] -eq "--quick" -or $Args[$i] -eq "-q") {
+                    $quickMode = $true
+                }
+                else {
+                    $argsWithoutFlags += $Args[$i]
+                }
+            }
+            
+            # Get description interactively or from command line
+            $description = if ($argsWithoutFlags.Count -gt 0) { 
+                $argsWithoutFlags -join " " 
+            }
+            else { 
+                Read-Host "What feature do you want to build?"
+            }
+
+            if (-not $description -or $description.Trim() -eq "") {
+                Write-Error "Description cannot be empty"
+                exit 1
+            }
+            
+            $description = $description.Trim()
+
+            # Auto-generate next available requirement ID
+            $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
+            $nextId = "S-0001"
+            
+            if (Test-Path $requirementsFile) {
+                try {
+                    $reqData = Get-Content $requirementsFile -Raw | ConvertFrom-Json
+                    $existingIds = $reqData.requirements | ForEach-Object { $_.id }
+                    
+                    # Find highest number
+                    $maxNum = 0
+                    foreach ($id in $existingIds) {
+                        if ($id -match '^S-(\d{4})$') {
+                            $num = [int]$matches[1]
+                            if ($num -gt $maxNum) {
+                                $maxNum = $num
+                            }
+                        }
+                    }
+                    
+                    $nextNum = $maxNum + 1
+                    $nextId = "S-{0:D4}" -f $nextNum
+                }
+                catch {
+                    # If there's an error reading, default to S-0001
+                    Write-Warning "Could not read requirements.json, using S-0001"
+                }
+            }
+
+            # Spawn agent in spec-builder mode
+            if ($quickMode) {
+                & "$PSScriptRoot\felix-agent.ps1" `
+                    -ProjectPath $RepoRoot `
+                    -SpecBuildMode `
+                    -QuickMode `
+                    -RequirementId $nextId `
+                    -InitialPrompt $description
+            }
+            else {
+                & "$PSScriptRoot\felix-agent.ps1" `
+                    -ProjectPath $RepoRoot `
+                    -SpecBuildMode `
+                    -RequirementId $nextId `
+                    -InitialPrompt $description
+            }
+            
+            exit $LASTEXITCODE
+        }
+        default {
+            Write-Error "Unknown spec subcommand: $subcommand"
+            Write-Host ""
+            Write-Host "Available subcommands:"
+            Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
+            Write-Host ""
+            Write-Host "Flags:"
+            Write-Host "  --quick, -q   Quick mode: minimal questions, makes reasonable assumptions"
+            Write-Host ""
+            Write-Host "Example:"
+            Write-Host "  felix spec create `"Add user authentication`""
+            exit 1
+        }
+    }
+}
+
 function Show-Version {
     Write-Host ""
     Write-Host "Felix CLI v0.3.0-alpha (Phase 1: PowerShell)" -ForegroundColor Cyan
@@ -454,6 +561,9 @@ switch ($Command) {
     }
     "validate" {
         Invoke-Validate @remainingArgs
+    }
+    "spec" {
+        & { Invoke-SpecCreate @remainingArgs }
     }
     "version" {
         Show-Version
