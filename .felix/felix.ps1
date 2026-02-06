@@ -1371,6 +1371,41 @@ function Show-Help {
                 Write-Host "  felix validate S-0001"
                 Write-Host ""
             }
+            "deps" {
+                Write-Host ""
+                Write-Host "felix deps [requirement-id] [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Show dependency information and validation status."
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --check              Check if dependencies are satisfied"
+                Write-Host "  --tree               Show dependency tree"
+                Write-Host "  --incomplete         Show incomplete dependencies only"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix deps S-0001"
+                Write-Host "  felix deps S-0001 --check"
+                Write-Host "  felix deps --incomplete"
+                Write-Host "  felix deps --tree"
+                Write-Host ""
+            }
+            "spec" {
+                Write-Host ""
+                Write-Host "felix spec <subcommand> [arguments]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Manage requirement specifications."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  create <description>   Create a new requirement spec"
+                Write-Host "  fix <req-id>           Fix an existing spec"
+                Write-Host "  delete <req-id>        Delete a requirement spec"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix spec create ""Add user authentication"""
+                Write-Host "  felix spec fix S-0001"
+                Write-Host "  felix spec delete S-0001"
+                Write-Host ""
+            }
             default {
                 Write-Host "Unknown command: $SubCommand" -ForegroundColor Red
                 Show-Help
@@ -1385,19 +1420,20 @@ function Show-Help {
         Write-Host "  felix <command> [arguments] [options]"
         Write-Host ""
         Write-Host "Commands:" -ForegroundColor Yellow
-        Write-Host "  run <req-id>        Execute a single requirement"
-        Write-Host "  loop                Run agent in continuous loop mode"
-        Write-Host "  status [req-id]     Show requirement status"
-        Write-Host "  list                List all requirements"
-        Write-Host "  validate <req-id>   Run validation checks"
-        Write-Host "  deps <req-id>       Show dependencies and validate status"
-        Write-Host "  version             Show version information"
-        Write-Host "  help [command]      Show help for a command"
+        Write-Host "  run <req-id>          Execute a single requirement"
+        Write-Host "  loop                  Run agent in continuous loop mode"
+        Write-Host "  status [req-id]       Show requirement status"
+        Write-Host "  list                  List all requirements with filters"
+        Write-Host "  validate <req-id>     Run validation checks"
+        Write-Host "  deps [req-id]         Show dependencies and validate status"
+        Write-Host "  spec <subcommand>     Manage requirement specifications"
+        Write-Host "  version               Show version information"
+        Write-Host "  help [command]        Show help for a command"
         Write-Host ""
         Write-Host "Global Options:" -ForegroundColor Yellow
-        Write-Host "  --format <mode>     Output format: json, plain, rich (default: rich)"
-        Write-Host "  --verbose           Enable verbose logging"
-        Write-Host "  --quiet             Suppress non-essential output"
+        Write-Host "  --format <mode>       Output format: json, plain, rich (default: rich)"
+        Write-Host "  --verbose             Enable verbose logging"
+        Write-Host "  --quiet               Suppress non-essential output"
         Write-Host ""
         Write-Host "Examples:"
         Write-Host "  felix run S-0001"
@@ -1405,6 +1441,8 @@ function Show-Help {
         Write-Host "  felix status S-0001 --format json"
         Write-Host "  felix list --status planned"
         Write-Host "  felix validate S-0001"
+        Write-Host "  felix deps S-0001 --check"
+        Write-Host "  felix spec create ""Add user authentication"""
         Write-Host "  felix help run"
         Write-Host ""
     }

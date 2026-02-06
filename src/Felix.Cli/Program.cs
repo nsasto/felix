@@ -506,10 +506,13 @@ class Program
             AnsiConsole.Clear();
 
             // ASCII Art Banner
-            var banner = new FigletText("FELIX")
-                .Centered()
-                .Color(Color.Cyan1);
-            AnsiConsole.Write(banner);
+            AnsiConsole.MarkupLine("[cyan1]███████╗███████╗██╗     ██╗██╗  ██╗[/]");
+            AnsiConsole.MarkupLine("[cyan1]██╔════╝██╔════╝██║     ██║╚██╗██╔╝[/]");
+            AnsiConsole.MarkupLine("[cyan1]█████╗  █████╗  ██║     ██║ ╚███╔╝[/] ");
+            AnsiConsole.MarkupLine("[cyan1]██╔══╝  ██╔══╝  ██║     ██║ ██╔██╗[/] ");
+            AnsiConsole.MarkupLine("[cyan1]██║     ███████╗███████╗██║██╔╝ ██╗[/]");
+            AnsiConsole.MarkupLine("[cyan1]╚═╝     ╚══════╝╚══════╝╚═╝╚═╝  ╚═╝[/]");
+            AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[grey dim]Autonomous Agent Executor[/]");
             AnsiConsole.WriteLine();
 
@@ -555,9 +558,10 @@ class Program
 
             actionsTable.AddColumn(new TableColumn("[yellow bold]QUICK ACTIONS[/]").Centered());
 
-            actionsTable.AddRow("[cyan]1[/] → List Requirements       [cyan]4[/] → Run Agent");
-            actionsTable.AddRow("[cyan]2[/] → View Status             [cyan]5[/] → Validate");
-            actionsTable.AddRow("[cyan]3[/] → Check Dependencies");
+            actionsTable.AddRow("[cyan]1[/] → List Requirements       [cyan]5[/] → Validate");
+            actionsTable.AddRow("[cyan]2[/] → View Status             [cyan]6[/] → Create Spec");
+            actionsTable.AddRow("[cyan]3[/] → Check Dependencies      [cyan]7[/] → View Deps");
+            actionsTable.AddRow("[cyan]4[/] → Run Agent");
             actionsTable.AddEmptyRow();
             actionsTable.AddRow("[grey]/[/] Commands  •  [grey]?[/] Help  •  [grey]q[/] Quit");
 
@@ -600,6 +604,14 @@ class Program
             else if (key.KeyChar == '5')
             {
                 await ValidateInteractive(felixPs1);
+            }
+            else if (key.KeyChar == '6')
+            {
+                await CreateSpecInteractive(felixPs1);
+            }
+            else if (key.KeyChar == '7')
+            {
+                await ShowDepsInteractive(felixPs1);
             }
         }
     }
@@ -695,6 +707,59 @@ class Program
         AnsiConsole.WriteLine();
 
         await ExecutePowerShell(felixPs1, "deps", "--incomplete");
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
+        Console.ReadKey(true);
+    }
+
+    static async Task ShowDepsInteractive(string felixPs1)
+    {
+        var option = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[cyan]Dependency view:[/]")
+                .AddChoices(new[] { "Tree View", "Incomplete Only", "Check Specific Requirement" }));
+
+        AnsiConsole.Clear();
+        var rule = new Rule("[cyan]Dependencies[/]").RuleStyle(Style.Parse("cyan dim"));
+        AnsiConsole.Write(rule);
+        AnsiConsole.WriteLine();
+
+        if (option == "Tree View")
+        {
+            await ExecutePowerShell(felixPs1, "deps", "--tree");
+        }
+        else if (option == "Incomplete Only")
+        {
+            await ExecutePowerShell(felixPs1, "deps", "--incomplete");
+        }
+        else
+        {
+            var output = await ExecutePowerShellCapture(felixPs1, "status", "--format", "json");
+            var doc = JsonDocument.Parse(output);
+            var requirements = doc.RootElement;
+
+            var reqs = requirements.EnumerateArray()
+                .Select(r => $"{r.GetProperty("id").GetString()}: {r.GetProperty("title").GetString()}")
+                .ToList();
+
+            if (reqs.Any())
+            {
+                var selected = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[cyan]Select requirement:[/]")
+                        .PageSize(10)
+                        .AddChoices(reqs));
+
+                var reqId = selected.Split(':')[0];
+                AnsiConsole.Clear();
+                await ExecutePowerShell(felixPs1, "deps", reqId, "--check");
+            }
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
+        Console.ReadKey(true);
     }
 
     static async Task RunAgentInteractive(string felixPs1)
