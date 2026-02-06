@@ -311,8 +311,22 @@ function Invoke-SpecCreate {
 
 
     if ($Args.Count -eq 0) {
-        Write-Error "Usage: felix spec <create> <requirement-id> [description]"
-        exit 1
+        Write-Host ""
+        Write-Host "Available subcommands:"
+        Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
+        Write-Host "  fix [--fix-duplicates]            Scan specs folder and fix requirements.json alignment"
+        Write-Host "  delete <requirement-id>           Delete a specification and remove from requirements.json"
+        Write-Host ""
+        Write-Host "Flags:"
+        Write-Host "  --quick, -q           Quick mode: minimal questions, makes reasonable assumptions"
+        Write-Host "  --fix-duplicates, -f  Automatically rename duplicate spec files to next available ID"
+        Write-Host ""
+        Write-Host "Examples:"
+        Write-Host "  felix spec create `"Add user authentication`""
+        Write-Host "  felix spec fix"
+        Write-Host "  felix spec fix --fix-duplicates"
+        Write-Host "  felix spec delete S-0042"
+        exit 0
     }
 
     $subcommand = $Args[0]
@@ -396,7 +410,14 @@ function Invoke-SpecCreate {
         }
         
         "fix" {
-            Invoke-SpecFix
+            # Check for --fix-duplicates flag
+            $fixDuplicates = $false
+            for ($i = 1; $i -lt $Args.Count; $i++) {
+                if ($Args[$i] -eq "--fix-duplicates" -or $Args[$i] -eq "-f") {
+                    $fixDuplicates = $true
+                }
+            }
+            Invoke-SpecFix -FixDuplicates:$fixDuplicates
             exit $LASTEXITCODE
         }
         
@@ -417,15 +438,17 @@ function Invoke-SpecCreate {
             Write-Host ""
             Write-Host "Available subcommands:"
             Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
-            Write-Host "  fix                               Scan specs folder and fix requirements.json alignment"
+            Write-Host "  fix [--fix-duplicates]            Scan specs folder and fix requirements.json alignment"
             Write-Host "  delete <requirement-id>           Delete a specification and remove from requirements.json"
             Write-Host ""
             Write-Host "Flags:"
-            Write-Host "  --quick, -q   Quick mode: minimal questions, makes reasonable assumptions"
+            Write-Host "  --quick, -q           Quick mode: minimal questions, makes reasonable assumptions"
+            Write-Host "  --fix-duplicates, -f  Automatically rename duplicate spec files to next available ID"
             Write-Host ""
             Write-Host "Examples:"
             Write-Host "  felix spec create `"Add user authentication`""
             Write-Host "  felix spec fix"
+            Write-Host "  felix spec fix --fix-duplicates"
             Write-Host "  felix spec delete S-0042"
             exit 1
         }
@@ -433,6 +456,10 @@ function Invoke-SpecCreate {
 }
 
 function Invoke-SpecFix {
+    param(
+        [switch]$FixDuplicates
+    )
+    
     Write-Host ""
     Write-Host "=== Spec Fix Utility ===" -ForegroundColor Cyan
     Write-Host "Scanning specs folder and validating requirements.json..." -ForegroundColor Gray
@@ -444,6 +471,16 @@ function Invoke-SpecFix {
         if ($null -eq $value) { return @() }
         if ($value -is [array]) { return @($value) }
         return @($value)
+    }
+    
+    # Helper function to find next available spec ID
+    function Get-NextAvailableSpecId {
+        param([int]$StartFrom)
+        $nextId = $StartFrom + 1
+        while (Test-Path (Join-Path $specsDir "S-$($nextId.ToString('0000'))*")) {
+            $nextId++
+        }
+        return $nextId
     }
     
     $specsDir = Join-Path $RepoRoot "specs"
@@ -481,7 +518,18 @@ function Invoke-SpecFix {
     $orphaned = @()
     $errors = @()
     $duplicates = @()
+    $fixed = @()
     $processedIds = @{}
+    
+    # Find max spec ID for duplicate renaming
+    $allSpecIds = @()
+    $tempFiles = Get-ChildItem -Path $specsDir -Filter "S-*.md"
+    foreach ($f in $tempFiles) {
+        if ($f.Name -match '^S-(\d{4})') {
+            $allSpecIds += [int]$Matches[1]
+        }
+    }
+    $maxSpecId = if ($allSpecIds.Count -gt 0) { ($allSpecIds | Measure-Object -Maximum).Maximum } else { 0 }
     
     # Build lookup of existing requirements (convert to hashtables for mutability)
     $existingReqs = @{}
@@ -515,9 +563,53 @@ function Invoke-SpecFix {
             
             # Check for duplicate IDs
             if ($processedIds.ContainsKey($reqId)) {
-                $duplicates += $fileName
-                Write-Host "  [WARN] Duplicate ID $reqId in $fileName (already processed $($processedIds[$reqId]))" -ForegroundColor Magenta
-                continue
+                if ($FixDuplicates) {
+                    # Find next available ID
+                    $nextId = Get-NextAvailableSpecId -StartFrom $maxSpecId
+                    $maxSpecId = $nextId
+                    $newReqId = "S-$($nextId.ToString('0000'))"
+                    $newFileName = $fileName -replace '^S-\d{4}', $newReqId
+                    
+                    # Rename with git if file is tracked, else use Rename-Item
+                    $oldPath = Join-Path $specsDir $fileName
+                    $newPath = Join-Path $specsDir $newFileName
+                    
+                    try {
+                        $useGit = $false
+                        if (Test-Path (Join-Path $RepoRoot ".git")) {
+                            # Try git mv silently, but if it fails (untracked file), fall back to Rename-Item
+                            $ErrorActionPreference = 'SilentlyContinue'
+                            $gitResult = git mv $oldPath $newPath 2>$null
+                            $ErrorActionPreference = 'Continue'
+                            if ($LASTEXITCODE -eq 0) {
+                                $useGit = $true
+                            }
+                        }
+                        
+                        if (-not $useGit) {
+                            # File not tracked or no git repo - use PowerShell rename
+                            Rename-Item -Path $oldPath -NewName $newFileName -ErrorAction Stop
+                        }
+                        
+                        Write-Host "  [FIX] Renamed duplicate $reqId → $newReqId ($newFileName)" -ForegroundColor Cyan
+                        $fixed += "$fileName → $newFileName"
+                        
+                        # Update for continued processing
+                        $reqId = $newReqId
+                        $fileName = $newFileName
+                        $specFile = Get-Item -Path $newPath
+                    }
+                    catch {
+                        $errors += "Failed to rename $fileName : $_"
+                        Write-Host "  [ERROR] Failed to rename $fileName - $_" -ForegroundColor Red
+                        continue
+                    }
+                }
+                else {
+                    $duplicates += $fileName
+                    Write-Host "  [WARN] Duplicate ID $reqId in $fileName (already processed $($processedIds[$reqId]))" -ForegroundColor Magenta
+                    continue
+                }
             }
             $processedIds[$reqId] = $fileName
             
@@ -752,9 +844,20 @@ function Invoke-SpecFix {
     Write-Host "Total specs:      $($specFiles.Count)" -ForegroundColor White
     Write-Host "Added:            $($added.Count)" -ForegroundColor Green
     Write-Host "Updated:          $($updated.Count)" -ForegroundColor Yellow
+    if ($fixed.Count -gt 0) {
+        Write-Host "Fixed:            $($fixed.Count)" -ForegroundColor Cyan
+    }
     Write-Host "Duplicates:       $($duplicates.Count)" -ForegroundColor Magenta
     Write-Host "Orphaned:         $($orphaned.Count)" -ForegroundColor Yellow
     Write-Host "Errors:           $($errors.Count)" -ForegroundColor Red
+    
+    if ($fixed.Count -gt 0) {
+        Write-Host ""
+        Write-Host "[OK] Fixed duplicate specs:" -ForegroundColor Cyan
+        foreach ($fix in $fixed) {
+            Write-Host "  - $fix" -ForegroundColor Gray
+        }
+    }
     
     if ($duplicates.Count -gt 0) {
         Write-Host ""
@@ -763,7 +866,8 @@ function Invoke-SpecFix {
             Write-Host "  - $file" -ForegroundColor Gray
         }
         Write-Host ""
-        Write-Host "Consider renaming or removing duplicate spec files." -ForegroundColor Gray
+        Write-Host "To automatically rename duplicates, run:" -ForegroundColor Yellow
+        Write-Host "  felix spec fix --fix-duplicates" -ForegroundColor Gray
     }
     
     if ($orphaned.Count -gt 0) {
@@ -786,7 +890,7 @@ function Invoke-SpecFix {
             Write-Host "  - $err" -ForegroundColor Gray
         }
     }
-    
+        
     Write-Host ""
 }
 
