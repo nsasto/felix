@@ -141,7 +141,21 @@ If the script fails, see the Troubleshooting section below.
 
 Felix provides a unified command-line interface for all operations.
 
-### Installation
+### Direct Usage (No Installation Required)
+
+You can use Felix CLI directly without installation:
+
+```powershell
+# Run from the .felix folder
+.\.felix\felix.ps1 run S-0001
+.\.felix\felix.ps1 status
+.\.felix\felix.ps1 list --status planned
+.\.felix\felix.ps1 loop
+```
+
+### Optional Installation (Convenience)
+
+For shorter commands, install to PATH:
 
 ```powershell
 # Install Felix CLI (adds .felix folder to PATH)
@@ -150,9 +164,12 @@ Felix provides a unified command-line interface for all operations.
 # Restart PowerShell or reload profile
 . $PROFILE
 
-# Verify installation
+# Now use short commands
+felix run S-0001
 felix version
 ```
+
+⚠️ **Phase 1 Limitation**: Current install is project-specific (adds this repo's `.felix` folder to PATH). Works only when the Felix repo is present. Phase 2 will provide universal `felix.exe` installed system-wide for use in any project.
 
 ### Available Commands
 
@@ -216,7 +233,17 @@ felix loop --max-iterations 10
 felix validate S-0001
 ```
 
-**Legacy Scripts**: The underlying PowerShell scripts (`.felix/felix-agent.ps1`, `.felix/felix-loop.ps1`) still work directly if needed, but the CLI provides a cleaner interface.
+**Direct Script Usage**: You can always call the underlying scripts directly:
+
+```powershell
+# Direct agent execution (single iteration)
+.\.felix\felix-agent.ps1 C:\path\to\project -RequirementId S-0001
+
+# Direct loop execution
+.\.felix\felix-loop.ps1 C:\path\to\project
+```
+
+The CLI wrapper (`.felix/felix.ps1`) provides a cleaner interface with output formatting, command routing, and argument parsing.
 
 ---
 
@@ -715,4 +742,3 @@ You do not need to change how specs or plans work.
 - rerunning Felix feels boring
 
 That boredom is the signal the system is working.
-

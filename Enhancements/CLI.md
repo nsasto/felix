@@ -576,6 +576,28 @@ proc = subprocess.Popen(
 4. **Standard:** Well-known format (JSON Lines)
 5. **Debuggable:** Human-readable for troubleshooting
 
+## Phase 1 Limitations
+
+**Project-Specific Installation:**
+- `install-cli.ps1` adds THIS repo's `.felix` folder to PATH
+- Only works when this Felix repository is present on the system
+- Not suitable for end-user projects or distribution (yet)
+- Requires Felix development repository to be cloned
+
+**Current Workarounds:**
+- Use direct paths: `.\..felix\felix.ps1 run S-0001`
+- Scripts work without installation (recommended for now)
+- Each project would need its own copy of scripts (not recommended)
+
+**Phase 2 Solution:**
+- System-wide `felix.exe` installed to standard location (e.g., `C:\Program Files\Felix` or `~/.local/bin`)
+- Works in ANY project directory without Felix repo present
+- No dependency on Felix development repository
+- Standard installers (MSI for Windows, homebrew for macOS, apt/snap for Linux)
+- Single universal installation serves all projects
+
+---
+
 ## Roadmap
 
 ### Phase 0: Foundation (Complete ✅)

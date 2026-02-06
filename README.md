@@ -18,9 +18,6 @@ Ralph's core insight is naive persistence: restart the agent in a simple outer l
 git clone https://github.com/yourusername/felix.git
 cd felix
 
-# Install Felix CLI (adds to PATH)
-.\scripts\install-cli.ps1
-
 # Start backend (in one terminal)
 python app/backend/main.py
 
@@ -29,11 +26,14 @@ cd app/frontend
 npm install
 npm run dev
 
-# Run agent on a requirement
-felix run S-0001
+# Run agent on a requirement (direct - no install needed)
+.\.felix\felix.ps1 run S-0001
 
 # Or run in continuous loop mode
-felix loop
+.\.felix\felix.ps1 loop
+
+# Optional: Install to PATH for shorter commands
+.\scripts\install-cli.ps1  # Then use 'felix run S-0001'
 ```
 
 📘 **[Complete setup guide →](HOW_TO_USE.md)**
@@ -273,4 +273,3 @@ Felix is under active development. Contributions welcome via issues and pull req
 ## License
 
 [Your license here]
-
