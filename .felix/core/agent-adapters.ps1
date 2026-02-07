@@ -34,20 +34,63 @@ class DroidAdapter {
             Error      = $null
         }
 
-        # Check for XML completion signals
-        if ($output -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
-            $result.IsComplete = $true
-            $result.NextMode = "building"
+        # Try parsing JSON event stream first (--output-format json)
+        $lines = $output -split '\r?\n' | Where-Object { $_.Trim() -ne '' }
+        $foundCompletion = $false
+        
+        foreach ($line in $lines) {
+            try {
+                $event = $line | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($event.type -eq 'completion_signal' -or $event.signal) {
+                    $signal = $event.signal ?? $event.data
+                    if ($signal -match 'PLANNING_COMPLETE') {
+                        $result.IsComplete = $true
+                        $result.NextMode = "building"
+                        $foundCompletion = $true
+                        break
+                    }
+                    elseif ($signal -match 'ALL_REQUIREMENTS_MET') {
+                        $result.IsComplete = $true
+                        $result.NextMode = "complete"
+                        $foundCompletion = $true
+                        break
+                    }
+                }
+            }
+            catch {
+                # Not JSON, continue
+            }
         }
-        elseif ($output -match '(?s)<promise>\s*ALL_REQUIREMENTS_MET\s*</promise>') {
-            $result.IsComplete = $true
-            $result.NextMode = "complete"
+
+        # Fallback: Check for XML completion signals (backward compatibility)
+        if (-not $foundCompletion) {
+            if ($output -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
+                $result.IsComplete = $true
+                $result.NextMode = "building"
+            }
+            elseif ($output -match '(?s)<promise>\s*ALL_REQUIREMENTS_MET\s*</promise>') {
+                $result.IsComplete = $true
+                $result.NextMode = "complete"
+            }
         }
 
         return $result
     }
 
     [bool] DetectCompletion([string]$output) {
+        # Check JSON event stream
+        $lines = $output -split '\r?\n' | Where-Object { $_.Trim() -ne '' }
+        foreach ($line in $lines) {
+            try {
+                $event = $line | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($event.type -eq 'completion_signal' -or $event.signal) {
+                    return $true
+                }
+            }
+            catch { }
+        }
+        
+        # Fallback: XML signals
         return $output -match '(?s)<promise>\s*(PLANNING_COMPLETE|ALL_REQUIREMENTS_MET)\s*</promise>'
     }
 

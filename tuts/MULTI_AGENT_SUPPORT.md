@@ -68,20 +68,33 @@ Transition: planning → building OR building → complete
 }
 ```
 
+**Profile:**
+
+```json
+{
+  "id": 0,
+  "name": "droid",
+  "adapter": "droid",
+  "executable": "droid",
+  "args": ["exec", "--skip-permissions-unsafe", "--output-format", "json"],
+  "description": "Factory.ai Droid - Fast, reliable, JSON event stream"
+}
+```
+
 **Characteristics:**
 
 - **Authentication:** API key via `FACTORY_API_KEY` environment variable
-- **Output Format:** Plain text with XML tags
-- **Completion Signals:** `<promise>PLANNING_COMPLETE</promise>`, `<promise>ALL_REQUIREMENTS_MET</promise>`
-- **Strengths:** Fast, low latency, stable XML parsing
+- **Output Format:** JSON event stream (newline-delimited JSON), fallback to XML
+- **Completion Signals:** JSON `{"type": "completion_signal", "signal": "PLANNING_COMPLETE"}` or XML `<promise>` tags
+- **Strengths:** Fast, low latency, structured JSON output, easy parsing
 - **Weaknesses:** Requires API key management
 
 **Adapter Behavior:**
 
 - `FormatPrompt()`: Pass through (no formatting needed)
-- `ParseResponse()`: Regex match `(?s)<promise>\s*(PLANNING_COMPLETE|ALL_REQUIREMENTS_MET)\s*</promise>`
-- `DetectCompletion()`: Boolean check for promise tags
-- `BuildArgs()`: Return args from profile directly
+- `ParseResponse()`: Parse JSON event stream first, fallback to XML regex `(?s)<promise>\s*(PLANNING_COMPLETE|ALL_REQUIREMENTS_MET)\s*</promise>`
+- `DetectCompletion()`: Check JSON events for `completion_signal` type or XML promise tags
+- `BuildArgs()`: Return args from profile (includes `--output-format json`)
 
 ### Claude (Anthropic) - ID 1
 
@@ -225,7 +238,7 @@ Available Agents:
 * ID: 0 - droid
   Executable: droid
   Adapter: droid
-  Description: Factory.ai Droid - Fast, reliable, uses XML completion signals
+  Description: Factory.ai Droid - Fast, reliable, JSON event stream
 
   ID: 1 - claude
   Executable: claude

@@ -7,11 +7,13 @@
       "executable": "droid",
       "args": [
         "exec",
-        "--skip-permissions-unsafe"
+        "--skip-permissions-unsafe",
+        "--output-format",
+        "json"
       ],
       "working_directory": ".",
       "environment": {},
-      "description": "Factory.ai Droid - Fast, reliable, uses XML completion signals"
+      "description": "Factory.ai Droid - Fast, reliable, JSON event stream"
     },
     {
       "id": 1,
