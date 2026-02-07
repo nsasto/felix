@@ -46,6 +46,7 @@ class Program
         rootCommand.AddCommand(CreateValidateCommand(felixPs1));
         rootCommand.AddCommand(CreateDepsCommand(felixPs1));
         rootCommand.AddCommand(CreateSpecCommand(felixPs1));
+        rootCommand.AddCommand(CreateAgentCommand(felixPs1));
         rootCommand.AddCommand(CreateVersionCommand(felixPs1));
         rootCommand.AddCommand(CreateDashboardCommand(felixPs1));
 
@@ -291,6 +292,54 @@ class Program
         cmd.AddCommand(createCmd);
         cmd.AddCommand(fixCmd);
         cmd.AddCommand(deleteCmd);
+
+        return cmd;
+    }
+
+    static Command CreateAgentCommand(string felixPs1)
+    {
+        var cmd = new Command("agent", "Manage and switch agents");
+
+        // agent list
+        var listCmd = new Command("list", "List all available agents");
+        listCmd.SetHandler(async () =>
+        {
+            await ExecutePowerShell(felixPs1, "agent", "list");
+        });
+
+        // agent current
+        var currentCmd = new Command("current", "Show current active agent");
+        currentCmd.SetHandler(async () =>
+        {
+            await ExecutePowerShell(felixPs1, "agent", "current");
+        });
+
+        // agent use
+        var targetArg = new Argument<string>("target", "Agent ID or name");
+        var useCmd = new Command("use", "Switch to a different agent")
+        {
+            targetArg
+        };
+        useCmd.SetHandler(async (target) =>
+        {
+            await ExecutePowerShell(felixPs1, "agent", "use", target);
+        }, targetArg);
+
+        // agent test
+        var testTargetArg = new Argument<string>("target", "Agent ID or name to test");
+        var testCmd = new Command("test", "Test agent connectivity")
+        {
+            testTargetArg
+        };
+        testCmd.SetHandler(async (target) =>
+        {
+            await ExecutePowerShell(felixPs1, "agent", "test", target);
+        }, testTargetArg);
+
+        cmd.AddCommand(listCmd);
+        cmd.AddCommand(currentCmd);
+        cmd.AddCommand(useCmd);
+        cmd.AddCommand(testCmd);
 
         return cmd;
     }
