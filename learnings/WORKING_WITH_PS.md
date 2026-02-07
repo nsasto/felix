@@ -195,6 +195,60 @@ $params = @{
 
 ---
 
+### Array Splatting vs Hashtable Splatting - Positional vs Named Parameters
+
+**Problem:** Using array splatting (`@array`) causes PowerShell to bind parameters POSITIONALLY, which fails when the array contains parameter names. This is one of the most common PowerShell gotchas.
+
+**Example Failure:**
+
+```powershell
+# Build args as array
+$cliArgs = @(
+    "C:\dev\Felix",
+    "-RequirementId", "S-0001",
+    "-Format", "plain"
+)
+
+# Array splatting uses POSITIONAL binding:
+# Position 0: "C:\dev\Felix"      → $ProjectPath ✓
+# Position 1: "-RequirementId"    → $RequirementId (treats flag as VALUE!)
+# Position 2: "S-0001"            → $Format (ERROR: not in ValidateSet!)
+& script.ps1 @cliArgs  # FAILS with parameter validation error
+```
+
+**Solution 1: Use Hashtable Splatting for Named Parameters**
+
+```powershell
+# Build args as hashtable for named parameter binding
+$cliArgs = @{
+    ProjectPath   = "C:\dev\Felix"
+    RequirementId = "S-0001"
+    Format        = "plain"
+}
+
+# Hashtable splatting uses NAMED binding (correct!)
+& script.ps1 @cliArgs  # ✓ Works
+```
+
+**Solution 2: Use Explicit Named Parameters**
+
+```powershell
+# Most explicit and reliable
+& script.ps1 -ProjectPath "C:\dev\Felix" -RequirementId "S-0001" -Format "plain"
+```
+
+**Key Rules:**
+
+- `@array` → Positional parameter binding (left to right)
+- `@hashtable` → Named parameter binding (by key name)
+- Array splatting CANNOT contain parameter names (like `-Format`)
+- Use hashtables when you need named parameters
+- Use explicit syntax when clarity is critical
+
+**Impact:** This causes mysterious "parameter validation" errors where values get bound to the wrong parameters. Always use hashtable splatting when parameter names are involved.
+
+---
+
 ## Interactive Console Detection
 
 ### Detecting Terminal vs Redirected Mode

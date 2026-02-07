@@ -1116,12 +1116,14 @@ function Process-CompletionSignals {
     
     # Task complete - continue to next iteration
     if ($Output -match '<promise>TASK_COMPLETE</promise>') {
-        Emit-Log -Level "info" -Message "Task complete, continuing to next task" -Component "executor"
+        Emit-Log -Level "info" -Message "Task complete signal detected, continuing to next task" -Component "executor"
         return @{ ShouldExit = $false }
     }
     
     # All requirements met?
+    Emit-Log -Level "debug" -Message "Checking for ALL_COMPLETE signal..." -Component "executor"
     if ($Output -match '<promise>ALL_COMPLETE</promise>') {
+        Emit-Log -Level "info" -Message "ALL_COMPLETE signal detected, marking requirement complete" -Component "executor"
         # Workflow Stage: update_status
         Set-WorkflowStage -Stage "update_status" -ProjectPath (Split-Path $RequirementsFile -Parent | Split-Path -Parent)
         

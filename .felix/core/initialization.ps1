@@ -116,7 +116,7 @@ function Get-CurrentRequirement {
     )
     
     if (-not (Test-Path $RequirementsFile)) {
-        Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFile" -Severity "fatal" | Out-Null
+        Emit-Error -ErrorType "RequirementsFileNotFound" -Message "Requirements file not found: $RequirementsFile" -Severity "fatal"
         return $null
     }
     
@@ -130,7 +130,7 @@ function Get-CurrentRequirement {
         if ($RequirementId) {
             $currentReq = $requirements.requirements | Where-Object { $_.id -eq $RequirementId }
             if (-not $currentReq) {
-                Emit-Error -ErrorType "RequirementNotFound" -Message "Requirement $RequirementId not found" -Severity "fatal" | Out-Null
+                Emit-Error -ErrorType "RequirementNotFound" -Message "Requirement $RequirementId not found" -Severity "fatal"
                 return $null
             }
             
@@ -168,7 +168,7 @@ function Get-CurrentRequirement {
         return $currentReq
     }
     catch {
-        Emit-Error -ErrorType "RequirementsLoadFailed" -Message "Failed to load requirements: $_" -Severity "fatal" | Out-Null
+        Emit-Error -ErrorType "RequirementsLoadFailed" -Message "Failed to load requirements: $_" -Severity "fatal"
         return $null
     }
 }

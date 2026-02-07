@@ -44,7 +44,7 @@ param(
     
     [Parameter(Mandatory = $false)]
     [ValidateSet("json", "plain", "rich")]
-    [string]$Format = "rich",
+    [string]$Format = "json",
     
     [Parameter(Mandatory = $false)]
     [string[]]$EventTypes = @(),
@@ -60,28 +60,31 @@ param(
 $ErrorActionPreference = "Continue"
 
 # ANSI color codes for terminal output
+# ANSI color codes - use compatible escape sequence for PowerShell 5.1
+$esc = if ($PSVersionTable.PSVersion.Major -ge 7) { "`e" } else { [char]0x1b }
+
 $colors = @{
-    Reset         = "`e[0m"
-    Bold          = "`e[1m"
-    Dim           = "`e[2m"
+    Reset         = "$esc[0m"
+    Bold          = "$esc[1m"
+    Dim           = "$esc[2m"
     
     # Foreground colors
-    Black         = "`e[30m"
-    Red           = "`e[31m"
-    Green         = "`e[32m"
-    Yellow        = "`e[33m"
-    Blue          = "`e[34m"
-    Magenta       = "`e[35m"
-    Cyan          = "`e[36m"
-    White         = "`e[37m"
+    Black         = "$esc[30m"
+    Red           = "$esc[31m"
+    Green         = "$esc[32m"
+    Yellow        = "$esc[33m"
+    Blue          = "$esc[34m"
+    Magenta       = "$esc[35m"
+    Cyan          = "$esc[36m"
+    White         = "$esc[37m"
     
     # Bright foreground
-    BrightRed     = "`e[91m"
-    BrightGreen   = "`e[92m"
-    BrightYellow  = "`e[93m"
-    BrightBlue    = "`e[94m"
-    BrightMagenta = "`e[95m"
-    BrightCyan    = "`e[96m"
+    BrightRed     = "$esc[91m"
+    BrightGreen   = "$esc[92m"
+    BrightYellow  = "$esc[93m"
+    BrightBlue    = "$esc[94m"
+    BrightMagenta = "$esc[95m"
+    BrightCyan    = "$esc[96m"
 }
 
 # Statistics tracking
@@ -450,9 +453,11 @@ $renderer = switch ($Format) {
 
 # Build felix-agent command
 $agentScript = Join-Path $PSScriptRoot "felix-agent.ps1"
-$agentArgs = @($ProjectPath)
+
+# Build argument string with proper quoting for ProcessStartInfo
+$argParts = @("-NoProfile", "-File", "`"$agentScript`"", "`"$ProjectPath`"")
 if ($RequirementId) {
-    $agentArgs += @("-RequirementId", $RequirementId)
+    $argParts += @("-RequirementId", "`"$RequirementId`"")
 }
 
 if ($Format -ne "json") {
@@ -467,11 +472,18 @@ if ($Format -ne "json") {
 # Start felix-agent as subprocess
 $processInfo = New-Object System.Diagnostics.ProcessStartInfo
 $processInfo.FileName = "powershell.exe"
-$processInfo.Arguments = "-NoProfile -File `"$agentScript`" $($agentArgs -join ' ')"
+$processInfo.Arguments = $argParts -join " "
 $processInfo.UseShellExecute = $false
 $processInfo.RedirectStandardOutput = $true
 $processInfo.RedirectStandardError = $true
-$processInfo.CreateNoWindow = $false
+# Start felix-agent as subprocess
+$processInfo = New-Object System.Diagnostics.ProcessStartInfo
+$processInfo.FileName = "powershell.exe"
+$processInfo.Arguments = $argParts -join " "
+$processInfo.UseShellExecute = $false
+$processInfo.RedirectStandardOutput = $true
+$processInfo.RedirectStandardError = $true
+$processInfo.CreateNoWindow = $true  # Changed to true to prevent extra window
 
 $process = New-Object System.Diagnostics.Process
 $process.StartInfo = $processInfo
@@ -479,48 +491,78 @@ $process.StartInfo = $processInfo
 try {
     $process.Start() | Out-Null
     
-    # Read stdout line by line
-    while (-not $process.StandardOutput.EndOfStream) {
-        $line = $process.StandardOutput.ReadLine()
-        
-        if ([string]::IsNullOrWhiteSpace($line)) {
-            continue
-        }
-        
-        # Try to parse as JSON
-        try {
-            $event = $line | ConvertFrom-Json
+    # Read stdout line by line with timeout protection
+    while (-not $process.HasExited) {
+        # Check if there's data available
+        if ($process.StandardOutput.Peek() -ge 0) {
+            $line = $process.StandardOutput.ReadLine()
             
-            # Validate it's an event (has type and data)
-            if ($event.type -and $event.data) {
-                # Update statistics
-                Update-Stats -Event $event
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+            
+            # Try to parse as JSON
+            try {
+                $event = $line | ConvertFrom-Json
                 
-                # Check if event should be displayed
-                if (Should-Display-Event -Event $event) {
-                    & $renderer $event $line
+                # Validate it's an event (has type and data)
+                if ($event.type -and $event.data) {
+                    # Update statistics
+                    Update-Stats -Event $event
+                    
+                    # Check if event should be displayed
+                    if (Should-Display-Event -Event $event) {
+                        & $renderer $event $line
+                    }
+                }
+                else {
+                    # Valid JSON but not an event
+                    if ($Format -eq "json") {
+                        Write-Output $line
+                    }
+                    elseif ($Format -ne "json") {
+                        Write-Host "$($colors.Dim)Non-event JSON: $line$($colors.Reset)"
+                    }
                 }
             }
-            else {
-                # Valid JSON but not an event
+            catch {
+                # Not JSON - treat as legacy console output
                 if ($Format -eq "json") {
                     Write-Output $line
                 }
-                elseif ($Format -ne "json") {
-                    Write-Host "$($colors.Dim)Non-event JSON: $line$($colors.Reset)"
+                else {
+                    Write-Host "$($colors.Yellow)[LEGACY OUTPUT]$($colors.Reset) $line"
                 }
             }
         }
-        catch {
-            # Not JSON - treat as legacy console output
-            if ($Format -eq "json") {
-                Write-Output $line
-            }
-            else {
-                Write-Host "$($colors.Yellow)[LEGACY OUTPUT]$($colors.Reset) $line"
-            }
+        else {
+            # No data available, sleep briefly to avoid busy-wait
+            Start-Sleep -Milliseconds 50
         }
     }
+    
+    # Read any remaining output after process exits
+    do {
+        $line = $process.StandardOutput.ReadLine()
+        if ($line) {
+            try {
+                $event = $line | ConvertFrom-Json
+                if ($event.type -and $event.data) {
+                    Update-Stats -Event $event
+                    if (Should-Display-Event -Event $event) {
+                        & $renderer $event $line
+                    }
+                }
+                else {
+                    if ($Format -eq "json") { Write-Output $line }
+                }
+            }
+            catch {
+                if ($Format -eq "json") { Write-Output $line }
+                else { Write-Host "$($colors.Yellow)[LEGACY OUTPUT]$($colors.Reset) $line" }
+            }
+        }
+    } while ($line)
     
     $process.WaitForExit()
     $exitCode = $process.ExitCode

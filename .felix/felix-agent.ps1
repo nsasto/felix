@@ -32,22 +32,29 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Load core modules
-. "$PSScriptRoot/core/emit-event.ps1"
-. "$PSScriptRoot/core/compat-utils.ps1"
-. "$PSScriptRoot/core/agent-state.ps1"
-. "$PSScriptRoot/core/git-manager.ps1"
-. "$PSScriptRoot/core/state-manager.ps1"
-. "$PSScriptRoot/core/plugin-manager.ps1"
-. "$PSScriptRoot/core/validator.ps1"
-. "$PSScriptRoot/core/workflow.ps1"
-. "$PSScriptRoot/core/agent-registration.ps1"
-. "$PSScriptRoot/core/guardrails.ps1"
-. "$PSScriptRoot/core/python-utils.ps1"
-. "$PSScriptRoot/core/requirements-utils.ps1"
-. "$PSScriptRoot/core/exit-handler.ps1"
-. "$PSScriptRoot/core/config-loader.ps1"
-. "$PSScriptRoot/core/initialization.ps1"
-. "$PSScriptRoot/core/executor.ps1"
+try {
+    . "$PSScriptRoot/core/emit-event.ps1"
+    . "$PSScriptRoot/core/compat-utils.ps1"
+    . "$PSScriptRoot/core/agent-state.ps1"
+    . "$PSScriptRoot/core/git-manager.ps1"
+    . "$PSScriptRoot/core/state-manager.ps1"
+    . "$PSScriptRoot/core/plugin-manager.ps1"
+    . "$PSScriptRoot/core/validator.ps1"
+    . "$PSScriptRoot/core/workflow.ps1"
+    . "$PSScriptRoot/core/agent-registration.ps1"
+    . "$PSScriptRoot/core/guardrails.ps1"
+    . "$PSScriptRoot/core/python-utils.ps1"
+    . "$PSScriptRoot/core/requirements-utils.ps1"
+    . "$PSScriptRoot/core/exit-handler.ps1"
+    . "$PSScriptRoot/core/config-loader.ps1"
+    . "$PSScriptRoot/core/initialization.ps1"
+    . "$PSScriptRoot/core/executor.ps1"
+}
+catch {
+    Write-Host "FATAL: Failed to load module: $_" -ForegroundColor Red
+    Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Red
+    exit 1
+}
 
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
@@ -181,8 +188,12 @@ Initialize-PluginState
 
 # Load requirements and select current requirement
 $currentReq = Get-CurrentRequirement -RequirementsFile $RequirementsFile -RequirementId $RequirementId -StateFile $StateFile
-if (-not $currentReq) {
-    exit 0
+if (-not $currentReq -or -not $currentReq.id) {
+    # Error already emitted by Get-CurrentRequirement (either RequirementNotFound or already complete)
+    Emit-Error -ErrorType "NoRequirementAvailable" -Message "Cannot proceed: requirement '$RequirementId' is not available for execution" -Severity "fatal"
+    [Console]::Out.Flush()  # Ensure error event is flushed before exit
+    Start-Sleep -Milliseconds 100  # Brief delay to ensure output is captured
+    exit 1
 }
 
 $RequirementId = $currentReq.id

@@ -43,7 +43,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 
 # Parse global flags
-$Format = "rich"
+$Format = "json"
 $Verbose = $false
 $Quiet = $false
 $NoStats = $false
@@ -258,7 +258,7 @@ function Invoke-Run {
     }
 
     $requirementId = $Args[0]
-    $formatValue = "rich"  # Default format
+    $formatValue = $Format  # Use script-level default
     
     # Parse optional --format flag
     for ($i = 1; $i -lt $Args.Count; $i++) {
@@ -268,19 +268,12 @@ function Invoke-Run {
         }
     }
 
-    # Build CLI args
-    $cliArgs = @(
-        $RepoRoot,
-        "-RequirementId", $requirementId,
-        "-Format", $formatValue
-    )
-    
-    if ($NoStats) {
-        $cliArgs += "-NoStats"
-    }
-
     # Execute felix-cli.ps1 which spawns agent internally
-    & "$PSScriptRoot\felix-cli.ps1" @cliArgs
+    if ($NoStats) {
+        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats
+    } else {
+        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue
+    }
     exit $LASTEXITCODE
 }
 
@@ -1638,22 +1631,22 @@ function Show-Help {
 # Route to appropriate command handler
 switch ($Command) {
     "run" {
-        Invoke-Run @remainingArgs
+        Invoke-Run -Args $remainingArgs
     }
     "loop" {
-        Invoke-Loop @remainingArgs
+        Invoke-Loop -Args $remainingArgs
     }
     "status" {
-        Invoke-Status @remainingArgs
+        Invoke-Status -Args $remainingArgs
     }
     "list" {
-        Invoke-List @remainingArgs
+        Invoke-List -Args $remainingArgs
     }
     "validate" {
-        Invoke-Validate @remainingArgs
+        Invoke-Validate -Args $remainingArgs
     }
     "deps" {
-        Invoke-Deps @remainingArgs
+        Invoke-Deps -Args $remainingArgs
     }
     "spec" {
         & { Invoke-SpecCreate @remainingArgs }
