@@ -501,119 +501,60 @@ class Program
 
     static async Task ShowDashboard(string felixPs1)
     {
-        while (true)
+        AnsiConsole.Clear();
+
+        // ASCII Art Banner
+        AnsiConsole.MarkupLine("[cyan1]███████╗███████╗██╗     ██╗██╗  ██╗[/]");
+        AnsiConsole.MarkupLine("[cyan1]██╔════╝██╔════╝██║     ██║╚██╗██╔╝[/]");
+        AnsiConsole.MarkupLine("[cyan1]█████╗  █████╗  ██║     ██║ ╚███╔╝[/] ");
+        AnsiConsole.MarkupLine("[cyan1]██╔══╝  ██╔══╝  ██║     ██║ ██╔██╗[/] ");
+        AnsiConsole.MarkupLine("[cyan1]██║     ███████╗███████╗██║██╔╝ ██╗[/]");
+        AnsiConsole.MarkupLine("[cyan1]╚═╝     ╚══════╝╚══════╝╚═╝╚═╝  ╚═╝[/]");
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey dim]Autonomous Agent Executor[/]");
+        AnsiConsole.WriteLine();
+
+        // Get status data
+        var output = await ExecutePowerShellCapture(felixPs1, "status", "--format", "json");
+        var doc = JsonDocument.Parse(output);
+        var requirements = doc.RootElement;
+        var total = requirements.GetArrayLength();
+
+        var statusCounts = new Dictionary<string, int>();
+        foreach (var req in requirements.EnumerateArray())
         {
-            AnsiConsole.Clear();
-
-            // ASCII Art Banner
-            AnsiConsole.MarkupLine("[cyan1]███████╗███████╗██╗     ██╗██╗  ██╗[/]");
-            AnsiConsole.MarkupLine("[cyan1]██╔════╝██╔════╝██║     ██║╚██╗██╔╝[/]");
-            AnsiConsole.MarkupLine("[cyan1]█████╗  █████╗  ██║     ██║ ╚███╔╝[/] ");
-            AnsiConsole.MarkupLine("[cyan1]██╔══╝  ██╔══╝  ██║     ██║ ██╔██╗[/] ");
-            AnsiConsole.MarkupLine("[cyan1]██║     ███████╗███████╗██║██╔╝ ██╗[/]");
-            AnsiConsole.MarkupLine("[cyan1]╚═╝     ╚══════╝╚══════╝╚═╝╚═╝  ╚═╝[/]");
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[grey dim]Autonomous Agent Executor[/]");
-            AnsiConsole.WriteLine();
-
-            // Get status data
-            var output = await ExecutePowerShellCapture(felixPs1, "status", "--format", "json");
-            var doc = JsonDocument.Parse(output);
-            var requirements = doc.RootElement;
-            var total = requirements.GetArrayLength();
-
-            var statusCounts = new Dictionary<string, int>();
-            foreach (var req in requirements.EnumerateArray())
-            {
-                var status = req.GetProperty("status").GetString() ?? "unknown";
-                statusCounts[status] = statusCounts.GetValueOrDefault(status, 0) + 1;
-            }
-
-            // Horizontal bar chart
-            var complete = statusCounts.GetValueOrDefault("complete", 0);
-            var done = statusCounts.GetValueOrDefault("done", 0);
-            var inProgress = statusCounts.GetValueOrDefault("in_progress", 0);
-            var planned = statusCounts.GetValueOrDefault("planned", 0);
-            var blocked = statusCounts.GetValueOrDefault("blocked", 0);
-
-            var barChart = new BarChart()
-                .Width(60)
-                .Label("[yellow bold]Requirements Status[/]")
-                .CenterLabel();
-
-            if (complete > 0) barChart.AddItem("Complete", complete, Color.Green);
-            if (done > 0) barChart.AddItem("Done", done, Color.Blue);
-            if (inProgress > 0) barChart.AddItem("In Progress", inProgress, Color.Yellow);
-            if (planned > 0) barChart.AddItem("Planned", planned, Color.Cyan1);
-            if (blocked > 0) barChart.AddItem("Blocked", blocked, Color.Red);
-
-            AnsiConsole.Write(barChart);
-            AnsiConsole.MarkupLine($"\n[grey]Total: {total} requirements[/]\n");
-
-            // Quick Actions Table
-            var actionsTable = new Table()
-                .Border(TableBorder.Double)
-                .BorderColor(Color.Cyan1)
-                .Expand();
-
-            actionsTable.AddColumn(new TableColumn("[yellow bold]QUICK ACTIONS[/]").Centered());
-
-            actionsTable.AddRow("[cyan]1[/] → List Requirements       [cyan]5[/] → Validate");
-            actionsTable.AddRow("[cyan]2[/] → View Status             [cyan]6[/] → Create Spec");
-            actionsTable.AddRow("[cyan]3[/] → Check Dependencies      [cyan]7[/] → View Deps");
-            actionsTable.AddRow("[cyan]4[/] → Run Agent");
-            actionsTable.AddEmptyRow();
-            actionsTable.AddRow("[grey]/[/] Commands  •  [grey]?[/] Help  •  [grey]q[/] Quit");
-
-            AnsiConsole.Write(actionsTable);
-
-            var key = Console.ReadKey(true);
-
-            if (key.KeyChar == 'q' || key.KeyChar == 'Q')
-            {
-                AnsiConsole.Clear();
-                AnsiConsole.MarkupLine("[grey]Goodbye! 👋[/]");
-                break;
-            }
-            else if (key.KeyChar == '?')
-            {
-                ShowHelp();
-            }
-            else if (key.KeyChar == '/')
-            {
-                await ShowCommands(felixPs1);
-            }
-            else if (key.KeyChar == '1')
-            {
-                await InteractiveList(felixPs1);
-            }
-            else if (key.KeyChar == '2')
-            {
-                await ShowStatusUI(felixPs1);
-                AnsiConsole.MarkupLine("\n[grey]Press any key to continue...[/]");
-                Console.ReadKey(true);
-            }
-            else if (key.KeyChar == '3')
-            {
-                await ShowDependencies(felixPs1);
-            }
-            else if (key.KeyChar == '4')
-            {
-                await RunAgentInteractive(felixPs1);
-            }
-            else if (key.KeyChar == '5')
-            {
-                await ValidateInteractive(felixPs1);
-            }
-            else if (key.KeyChar == '6')
-            {
-                await CreateSpecInteractive(felixPs1);
-            }
-            else if (key.KeyChar == '7')
-            {
-                await ShowDepsInteractive(felixPs1);
-            }
+            var status = req.GetProperty("status").GetString() ?? "unknown";
+            statusCounts[status] = statusCounts.GetValueOrDefault(status, 0) + 1;
         }
+
+        // Simple text bar chart
+        var complete = statusCounts.GetValueOrDefault("complete", 0);
+        var done = statusCounts.GetValueOrDefault("done", 0);
+        var inProgress = statusCounts.GetValueOrDefault("in_progress", 0);
+        var planned = statusCounts.GetValueOrDefault("planned", 0);
+        var blocked = statusCounts.GetValueOrDefault("blocked", 0);
+
+        // Horizontal stacked bar (like GitHub language stats)
+        var barWidth = 80;
+        var completeWidth = (int)((complete / (double)total) * barWidth);
+        var doneWidth = (int)((done / (double)total) * barWidth);
+        var inProgressWidth = (int)((inProgress / (double)total) * barWidth);
+        var plannedWidth = (int)((planned / (double)total) * barWidth);
+        var blockedWidth = barWidth - completeWidth - doneWidth - inProgressWidth - plannedWidth;
+
+        AnsiConsole.MarkupLine($"[green]{"".PadRight(completeWidth, '█')}[/][blue]{"".PadRight(doneWidth, '█')}[/][yellow]{"".PadRight(inProgressWidth, '█')}[/][cyan1]{"".PadRight(plannedWidth, '█')}[/][red]{"".PadRight(Math.Max(0, blockedWidth), '█')}[/]");
+        AnsiConsole.WriteLine();
+
+        if (complete > 0) AnsiConsole.MarkupLine($"[green]■[/] Complete {complete}%  ", false);
+        if (done > 0) AnsiConsole.MarkupLine($"[blue]■[/] Done {done}%  ", false);
+        if (inProgress > 0) AnsiConsole.MarkupLine($"[yellow]■[/] In Progress {inProgress}%  ", false);
+        if (planned > 0) AnsiConsole.MarkupLine($"[cyan1]■[/] Planned {planned}%  ", false);
+        if (blocked > 0) AnsiConsole.MarkupLine($"[red]■[/] Blocked {blocked}%", false);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[grey]Total: {total} requirements[/]");
+        AnsiConsole.WriteLine();
     }
 
     static void ShowHelp()
