@@ -310,6 +310,3 @@ function Get-AgentAdapter {
         }
     }
 }
-
-# Export functions
-Export-ModuleMember -Function Get-AgentAdapter
