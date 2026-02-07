@@ -546,7 +546,7 @@ function Invoke-AgentExecution {
     Emit-AgentExecutionStarted -AgentName $AgentConfig.name -AgentId $AgentConfig.id
     
     # Load agent adapter
-    $adapterType = $AgentConfig.adapter ?? "droid"
+    $adapterType = if ($AgentConfig.adapter) { $AgentConfig.adapter } else { "droid" }
     $adapter = Get-AgentAdapter -AdapterType $adapterType
     if (-not $adapter) {
         Write-Error "Failed to load adapter: $adapterType"

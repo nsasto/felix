@@ -42,7 +42,7 @@ class DroidAdapter {
             try {
                 $event = $line | ConvertFrom-Json -ErrorAction SilentlyContinue
                 if ($event.type -eq 'completion_signal' -or $event.signal) {
-                    $signal = $event.signal ?? $event.data
+                    $signal = if ($event.signal) { $event.signal } else { $event.data }
                     if ($signal -match 'PLANNING_COMPLETE') {
                         $result.IsComplete = $true
                         $result.NextMode = "building"
@@ -241,7 +241,7 @@ class GeminiAdapter {
             
             if ($json.phase_complete) {
                 $result.IsComplete = $true
-                $result.NextMode = $json.next_phase ?? "building"
+                $result.NextMode = if ($json.next_phase) { $json.next_phase } else { "building" }
             }
             elseif ($json.status -eq "done") {
                 $result.IsComplete = $true
