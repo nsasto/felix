@@ -178,6 +178,17 @@ function Invoke-FelixIteration {
     
     $output = $executionResult.Output
     $duration = $executionResult.Duration
+
+    if ($executionResult.Succeeded -eq $false) {
+        $State.last_iteration_outcome = "failure"
+        $State.status = "ready"
+        $State.updated_at = Get-Date -Format "o"
+        $State | ConvertTo-Json | Set-Content $Paths.StateFile
+
+        Create-IterationReport -RunDir $runDir -Mode $mode -Iteration $Iteration -State $State -Output $output
+        Emit-IterationCompleted -Iteration $Iteration -Outcome "failure"
+        return @{ Continue = $false; ExitCode = 1 }
+    }
     
     # Planning Mode Guardrails
     if ($mode -eq "planning") {
@@ -557,6 +568,7 @@ function Invoke-AgentExecution {
     $formattedPrompt = $adapter.FormatPrompt($Prompt)
     
     $executable = $AgentConfig.executable
+    $resolvedExecutable = $null
     $agentArgs = $adapter.BuildArgs($AgentConfig)
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
     $startTime = Get-Date
@@ -572,7 +584,49 @@ function Invoke-AgentExecution {
         $agentArgs = $hookResult.ModifiedArgs
         Write-Verbose "[PLUGINS] Using modified executable arguments"
     }
-    
+
+    $resolvedExecutable = if (Get-Command Resolve-FelixExecutablePath -ErrorAction SilentlyContinue) {
+        Resolve-FelixExecutablePath $executable
+    }
+    else {
+        $null
+    }
+
+    if (-not $resolvedExecutable) {
+        $message = "Agent executable not found: '$executable'. Ensure it is installed and/or on PATH (Windows npm global shim dir is usually '$($env:APPDATA)\\npm')."
+        Emit-Error -ErrorType "AgentExecutableNotFound" -Message $message -Severity "fatal" -Context @{
+            agent_name = $AgentConfig.name
+            agent_id   = $AgentConfig.id
+            executable = $executable
+        }
+
+        $duration = (Get-Date) - $startTime
+        $output = $message
+
+        # Write raw output to run directory
+        $outputPath = Join-Path $RunDir "output.log"
+        Set-Content $outputPath $output -Encoding UTF8
+        $relPath = $outputPath.Replace($ProjectPath + "\", "")
+        Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
+
+        Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
+        Emit-Log -Level "error" -Message "Execution failed: executable not found" -Component "agent"
+
+        return @{
+            Output            = $output
+            Duration          = $duration
+            Parsed            = @{
+                Output     = $output
+                IsComplete = $false
+                NextMode   = $null
+                Error      = "AgentExecutableNotFound"
+            }
+            ExitCode          = 127
+            Succeeded         = $false
+            ResolvedExecutable = $null
+        }
+    }
+
     # Execute the agent and capture output
     $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
         $agentWorkingDir
@@ -582,6 +636,8 @@ function Invoke-AgentExecution {
     }
     
     $envBackup = @{}
+    $exitCode = 0
+    $succeeded = $true
     try {
         # Apply agent environment variables (best-effort)
         if ($AgentConfig.environment) {
@@ -595,10 +651,32 @@ function Invoke-AgentExecution {
         
         Push-Location $agentCwd
         try {
-            $output = $formattedPrompt | & $executable @agentArgs 2>&1 | Out-String
+            $output = $formattedPrompt | & $resolvedExecutable @agentArgs 2>&1 | Out-String
+            $exitCode = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+            if ($exitCode -ne 0) {
+                $succeeded = $false
+                Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
+                    agent_name = $AgentConfig.name
+                    agent_id   = $AgentConfig.id
+                    executable = $executable
+                    resolved   = $resolvedExecutable
+                    exit_code  = $exitCode
+                }
+            }
         }
         finally {
             Pop-Location
+        }
+    }
+    catch {
+        $succeeded = $false
+        $exitCode = 1
+        $output = "Agent execution threw an exception: $($_.ToString())"
+        Emit-Error -ErrorType "AgentExecutionException" -Message "Agent execution failed: $($_.Exception.Message)" -Severity "fatal" -Context @{
+            agent_name = $AgentConfig.name
+            agent_id   = $AgentConfig.id
+            executable = $executable
+            resolved   = $resolvedExecutable
         }
     }
     finally {
@@ -610,6 +688,9 @@ function Invoke-AgentExecution {
     
     # Parse response using adapter
     $parsedResponse = $adapter.ParseResponse($output)
+    if (-not $succeeded) {
+        $parsedResponse.Error = "AgentExecutionFailed"
+    }
     
     # Write raw output to run directory
     $outputPath = Join-Path $RunDir "output.log"
@@ -628,9 +709,12 @@ function Invoke-AgentExecution {
     }
     
     return @{
-        Output   = $output
-        Duration = $duration
-        Parsed   = $parsedResponse
+        Output             = $output
+        Duration           = $duration
+        Parsed             = $parsedResponse
+        ExitCode           = $exitCode
+        Succeeded          = $succeeded
+        ResolvedExecutable = $resolvedExecutable
     }
 }
 

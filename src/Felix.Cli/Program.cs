@@ -38,11 +38,14 @@ class Program
             return 1;
         }
 
+        var formatOpt = new Option<string>("--format", () => "rich", "Output format");
+        rootCommand.AddOption(formatOpt);
+
         // Add commands
-        rootCommand.AddCommand(CreateRunCommand(felixPs1));
-        rootCommand.AddCommand(CreateLoopCommand(felixPs1));
-        rootCommand.AddCommand(CreateStatusCommand(felixPs1));
-        rootCommand.AddCommand(CreateListCommand(felixPs1));
+        rootCommand.AddCommand(CreateRunCommand(felixPs1, formatOpt));
+        rootCommand.AddCommand(CreateLoopCommand(felixPs1, formatOpt));
+        rootCommand.AddCommand(CreateStatusCommand(felixPs1, formatOpt));
+        rootCommand.AddCommand(CreateListCommand(felixPs1, formatOpt));
         rootCommand.AddCommand(CreateValidateCommand(felixPs1));
         rootCommand.AddCommand(CreateDepsCommand(felixPs1));
         rootCommand.AddCommand(CreateSpecCommand(felixPs1));
@@ -53,20 +56,19 @@ class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    static Command CreateRunCommand(string felixPs1)
+    static Command CreateRunCommand(string felixPs1, Option<string> formatOpt)
     {
         var reqIdArg = new Argument<string>("requirement-id", "Requirement ID (e.g., S-0001)");
-        var formatOpt = new Option<string>("--format", () => "rich", "Output format");
         var verboseOpt = new Option<bool>("--verbose", "Enable verbose logging");
         var quietOpt = new Option<bool>("--quiet", "Suppress non-essential output");
 
         var cmd = new Command("run", "Execute a single requirement")
         {
             reqIdArg,
-            formatOpt,
             verboseOpt,
             quietOpt
         };
+        cmd.AddOption(formatOpt);
 
         cmd.SetHandler(async (reqId, format, verbose, quiet) =>
         {
@@ -81,16 +83,15 @@ class Program
         return cmd;
     }
 
-    static Command CreateLoopCommand(string felixPs1)
+    static Command CreateLoopCommand(string felixPs1, Option<string> formatOpt)
     {
         var maxIterOpt = new Option<int?>("--max-iterations", "Maximum iterations");
-        var formatOpt = new Option<string>("--format", () => "rich", "Output format");
 
         var cmd = new Command("loop", "Run agent in continuous loop mode")
         {
             maxIterOpt,
-            formatOpt
         };
+        cmd.AddOption(formatOpt);
 
         cmd.SetHandler(async (maxIter, format) =>
         {
@@ -104,19 +105,18 @@ class Program
         return cmd;
     }
 
-    static Command CreateStatusCommand(string felixPs1)
+    static Command CreateStatusCommand(string felixPs1, Option<string> formatOpt)
     {
         var reqIdArg = new Argument<string?>("requirement-id", "Requirement ID (optional, shows summary if omitted)")
         {
             Arity = ArgumentArity.ZeroOrOne
         };
-        var formatOpt = new Option<string>("--format", () => "rich", "Output format");
 
         var cmd = new Command("status", "Show requirement status")
         {
             reqIdArg,
-            formatOpt
         };
+        cmd.AddOption(formatOpt);
 
         cmd.SetHandler(async (reqId, format) =>
         {
@@ -130,14 +130,13 @@ class Program
         return cmd;
     }
 
-    static Command CreateListCommand(string felixPs1)
+    static Command CreateListCommand(string felixPs1, Option<string> formatOpt)
     {
         var statusOpt = new Option<string?>("--status", "Filter by status");
         var priorityOpt = new Option<string?>("--priority", "Filter by priority");
         var labelsOpt = new Option<string?>("--labels", "Filter by labels (comma-separated)");
         var blockedByOpt = new Option<string?>("--blocked-by", "Filter by blocker type");
         var withDepsOpt = new Option<bool>("--with-deps", "Show dependencies inline");
-        var formatOpt = new Option<string>("--format", () => "rich", "Output format");
         var uiOpt = new Option<bool>("--ui", "Enhanced table UI with Spectre.Console");
 
         var cmd = new Command("list", "List all requirements")
@@ -147,9 +146,9 @@ class Program
             labelsOpt,
             blockedByOpt,
             withDepsOpt,
-            formatOpt,
             uiOpt
         };
+        cmd.AddOption(formatOpt);
 
         cmd.SetHandler(async (status, priority, labels, blockedBy, withDeps, format, useUI) =>
         {

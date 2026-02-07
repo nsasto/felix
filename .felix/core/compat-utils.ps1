@@ -77,3 +77,76 @@ function Invoke-SafeCommand {
         Set-Location $originalLocation
     }
 }
+
+function Resolve-FelixExecutablePath {
+    <#
+    .SYNOPSIS
+    Resolves an executable to a runnable filesystem path
+
+    .DESCRIPTION
+    Attempts to resolve an executable name (e.g., "codex") to an absolute path,
+    even when npm global shim directories are not on PATH.
+
+    Returns $null if not found.
+    #>
+    param([Parameter(Mandatory = $true)][string]$Executable)
+
+    if ([string]::IsNullOrWhiteSpace($Executable)) {
+        return $null
+    }
+
+    # Direct path (relative or absolute)
+    try {
+        if (Test-Path $Executable) {
+            return (Resolve-Path $Executable).Path
+        }
+    }
+    catch { }
+
+    # PATH / registered command
+    try {
+        return (Get-Command $Executable -ErrorAction Stop).Source
+    }
+    catch { }
+
+    $ext = [System.IO.Path]::GetExtension($Executable)
+    $names = if ($ext) {
+        @($Executable)
+    }
+    else {
+        # Prefer Windows npm shims first to avoid PowerShell execution-policy issues.
+        @("$Executable.cmd", "$Executable.exe", "$Executable.ps1", $Executable)
+    }
+
+    $candidateRoots = @()
+
+    # Windows npm global shim directory is usually %APPDATA%\npm (and equals `npm prefix -g` on Windows).
+    if ($env:APPDATA) {
+        $candidateRoots += (Join-Path $env:APPDATA "npm")
+    }
+
+    # Try npm global prefix if npm is installed, even if its shim dir is not in PATH.
+    try {
+        $null = Get-Command npm -ErrorAction Stop
+        $npmPrefix = (& npm prefix -g 2>$null).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($npmPrefix)) {
+            $candidateRoots += $npmPrefix
+            $candidateRoots += (Join-Path $npmPrefix "bin")
+        }
+    }
+    catch { }
+
+    foreach ($root in ($candidateRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+        foreach ($name in $names) {
+            try {
+                $candidate = Join-Path $root $name
+                if (Test-Path $candidate) {
+                    return (Resolve-Path $candidate).Path
+                }
+            }
+            catch { }
+        }
+    }
+
+    return $null
+}
