@@ -49,7 +49,13 @@ class DroidAdapter {
                         $foundCompletion = $true
                         break
                     }
-                    elseif ($signal -match 'ALL_REQUIREMENTS_MET') {
+                    elseif ($signal -match 'TASK_COMPLETE') {
+                        $result.IsComplete = $true
+                        $result.NextMode = "continue"
+                        $foundCompletion = $true
+                        break
+                    }
+                    elseif ($signal -match 'ALL_COMPLETE') {
                         $result.IsComplete = $true
                         $result.NextMode = "complete"
                         $foundCompletion = $true
@@ -68,7 +74,11 @@ class DroidAdapter {
                 $result.IsComplete = $true
                 $result.NextMode = "building"
             }
-            elseif ($output -match '(?s)<promise>\s*ALL_REQUIREMENTS_MET\s*</promise>') {
+            elseif ($output -match '(?s)<promise>\s*TASK_COMPLETE\s*</promise>') {
+                $result.IsComplete = $true
+                $result.NextMode = "continue"
+            }
+            elseif ($output -match '(?s)<promise>\s*ALL_COMPLETE\s*</promise>') {
                 $result.IsComplete = $true
                 $result.NextMode = "complete"
             }
@@ -91,7 +101,7 @@ class DroidAdapter {
         }
         
         # Fallback: XML signals
-        return $output -match '(?s)<promise>\s*(PLANNING_COMPLETE|ALL_REQUIREMENTS_MET)\s*</promise>'
+        return $output -match '(?s)<promise>\s*(PLANNING_COMPLETE|TASK_COMPLETE|ALL_COMPLETE)\s*</promise>'
     }
 
     [string[]] BuildArgs([object]$config) {

@@ -258,12 +258,21 @@ function Invoke-Run {
     }
 
     $requirementId = $Args[0]
+    $formatValue = "rich"  # Default format
+    
+    # Parse optional --format flag
+    for ($i = 1; $i -lt $Args.Count; $i++) {
+        if ($Args[$i] -eq "--format" -and ($i + 1) -lt $Args.Count) {
+            $formatValue = $Args[$i + 1]
+            $i++  # Skip the format value
+        }
+    }
 
     # Build CLI args
     $cliArgs = @(
         $RepoRoot,
         "-RequirementId", $requirementId,
-        "-Format", $Format
+        "-Format", $formatValue
     )
     
     if ($NoStats) {
