@@ -1032,6 +1032,7 @@ felix run S-0001
 **Droid:** Set `FACTORY_API_KEY` environment variable
 
 **Claude/Codex/Gemini:** One-time OAuth setup:
+
 ```bash
 claude auth login
 codex auth
