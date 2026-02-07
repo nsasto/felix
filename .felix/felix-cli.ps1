@@ -54,7 +54,10 @@ param(
     [string]$MinLevel = "info",
     
     [Parameter(Mandatory = $false)]
-    [switch]$NoStats
+    [switch]$NoStats,
+    
+    [Parameter(Mandatory = $false)]
+    [switch]$NoCommit
 )
 
 $ErrorActionPreference = "Continue"
@@ -459,6 +462,9 @@ $argParts = @("-NoProfile", "-File", "`"$agentScript`"", "`"$ProjectPath`"")
 if ($RequirementId) {
     $argParts += @("-RequirementId", "`"$RequirementId`"")
 }
+if ($NoCommit) {
+    $argParts += @("-NoCommit")
+}
 
 if ($Format -ne "json") {
     Write-Host "$($colors.Bold)$($colors.Cyan)Felix CLI Consumer$($colors.Reset)"
@@ -537,7 +543,7 @@ try {
         }
         else {
             # No data available, sleep briefly to avoid busy-wait
-            Start-Sleep -Milliseconds 50
+            Start-Sleep -Milliseconds 10
         }
     }
     

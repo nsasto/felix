@@ -15,7 +15,10 @@ param(
     [int]$MaxRequirements = 999,
     
     [Parameter(Mandatory = $false)]
-    [switch]$NoCommit   # Use this flag for testing to prevent git commits
+    [switch]$NoCommit,   # Use this flag for testing to prevent git commits
+    
+    [Parameter(Mandatory = $false)]
+    [string]$Format = "json"  # Output format: json, plain, or rich
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,7 +29,7 @@ $ErrorActionPreference = "Stop"
 # Resolve paths
 $ProjectPath = Resolve-Path $ProjectPath
 $RequirementsFile = Join-Path $ProjectPath ".felix\requirements.json"
-$AgentScript = Join-Path $PSScriptRoot "felix-agent.ps1"
+$CliScript = Join-Path $PSScriptRoot "felix-cli.ps1"
 
 Emit-Log -Level "info" -Message "Felix Loop - Autonomous Multi-Requirement Executor" -Component "loop"
 Emit-Log -Level "info" -Message "Project: $ProjectPath" -Component "loop"
@@ -128,14 +131,14 @@ while ($requirementsProcessed -lt $MaxRequirements) {
         continue
     }
     
-    # Execute felix-agent for this specific requirement
-    Emit-Log -Level "debug" -Message "Calling felix-agent with RequirementId='$($nextReq.id)'" -Component "loop"
+    # Execute felix-cli for this specific requirement
+    Emit-Log -Level "debug" -Message "Calling felix-cli with RequirementId='$($nextReq.id)', Format='$Format'" -Component "loop"
     
     if ($NoCommit) {
-        & $AgentScript $ProjectPath -RequirementId $nextReq.id -NoCommit
+        & $CliScript -ProjectPath $ProjectPath -RequirementId $nextReq.id -Format $Format -NoStats -NoCommit
     }
     else {
-        & $AgentScript $ProjectPath -RequirementId $nextReq.id
+        & $CliScript -ProjectPath $ProjectPath -RequirementId $nextReq.id -Format $Format -NoStats
     }
     $exitCode = $LASTEXITCODE
     
