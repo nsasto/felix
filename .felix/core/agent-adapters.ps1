@@ -94,7 +94,7 @@ class DroidAdapter {
         return $output -match '(?s)<promise>\s*(PLANNING_COMPLETE|ALL_REQUIREMENTS_MET)\s*</promise>'
     }
 
-    [string[]] BuildArgs([hashtable]$config) {
+    [string[]] BuildArgs([object]$config) {
         # Return agent args from config
         return $config.args
     }
@@ -153,7 +153,7 @@ class ClaudeAdapter {
         return $false
     }
 
-    [string[]] BuildArgs([hashtable]$config) {
+    [string[]] BuildArgs([object]$config) {
         # Claude args from config, ensure output format is set
         $args = @($config.args)
         
@@ -211,7 +211,7 @@ class CodexAdapter {
         return $false
     }
 
-    [string[]] BuildArgs([hashtable]$config) {
+    [string[]] BuildArgs([object]$config) {
         return $config.args
     }
 }
@@ -269,7 +269,7 @@ class GeminiAdapter {
         return $false
     }
 
-    [string[]] BuildArgs([hashtable]$config) {
+    [string[]] BuildArgs([object]$config) {
         $args = @($config.args)
         
         # Ensure JSON output for easier parsing
