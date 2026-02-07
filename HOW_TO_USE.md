@@ -139,9 +139,9 @@ If the script fails, see the Troubleshooting section below.
 
 ## Felix CLI
 
-Felix provides a unified command-line interface for all operations.
+Felix provides both PowerShell and C# command-line interfaces for all operations.
 
-### Direct Usage (No Installation Required)
+### Option 1: PowerShell CLI (Original)
 
 You can use Felix CLI directly without installation:
 
@@ -153,7 +153,7 @@ You can use Felix CLI directly without installation:
 .\.felix\felix.ps1 loop
 ```
 
-### Optional Installation (Convenience)
+**Optional Installation (Convenience)**
 
 For shorter commands, install to PATH:
 
@@ -169,15 +169,65 @@ felix run S-0001
 felix version
 ```
 
-⚠️ **Phase 1 Limitation**: Current install is project-specific (adds this repo's `.felix` folder to PATH). Works only when the Felix repo is present. Phase 2 will provide universal `felix.exe` installed system-wide for use in any project.
+### Option 2: C# CLI (Cross-Platform)
+
+A native C# executable that wraps felix.ps1. Provides identical functionality with better cross-platform support.
+
+**Installation:**
+
+```powershell
+# One-time setup: Build and install to PATH
+.\scripts\install-cli-csharp.ps1
+
+# Restart terminal to refresh PATH
+```
+
+**Usage:**
+
+```powershell
+# All commands work identically
+Felix.Cli.exe run S-0001
+Felix.Cli.exe status
+Felix.Cli.exe list --status planned
+Felix.Cli.exe dashboard  # Visual status overview
+
+# Short form (if you create an alias)
+felix run S-0001
+```
+
+**Dashboard Command:**
+
+The C# CLI includes an interactive dashboard:
+
+```powershell
+Felix.Cli.exe dashboard
+```
+
+Displays:
+- FELIX ASCII art banner
+- GitHub-style stacked bar chart showing requirement status
+- Total requirement count
+
+**Architecture:**
+
+Both CLIs use the same backend:
+- `Felix.Cli.exe` → `.felix/felix.ps1` → `scripts/*.ps1`
+- All logic lives in PowerShell scripts (single source of truth)
+- C# CLI is a thin wrapper with System.CommandLine
+- No logic duplication = impossible to drift
+
+⚠️ **Dev-Repo Only**: Current installation works from `C:\dev\Felix` only. CLI calls scripts using relative paths. Future: AppData installation for system-wide use.
 
 ### Available Commands
 
+Both CLIs support the same commands:
+
 ```powershell
+# PowerShell CLI
 felix run <req-id>       # Execute a single requirement
 felix loop               # Run agent in continuous loop mode
 felix status [req-id]    # Show requirement status
-felix list               # List all requirements
+felix list               # List all requirements with filters
 felix deps <req-id>      # Show dependencies and validate status
 felix validate <req-id>  # Run validation checks
 felix spec create        # Create a new specification interactively
@@ -185,6 +235,49 @@ felix spec fix           # Align specs folder with requirements.json
 felix spec delete        # Delete a specification
 felix version            # Show version information
 felix help [command]     # Show help
+
+# C# CLI (identical functionality)
+Felix.Cli.exe run <req-id>
+Felix.Cli.exe dashboard   # Bonus: Visual status overview
+Felix.Cli.exe list --status planned
+# ... (all commands work the same)
+```
+
+#### Command Details
+
+**run** - Execute a single requirement to completion
+```powershell
+felix run S-0001
+felix run S-0001 --format json
+Felix.Cli.exe run S-0001 --no-stats
+```
+
+**loop** - Continuous execution mode (processes all planned requirements)
+```powershell
+felix loop
+felix loop --max-iterations 10
+```
+
+**status** - Show requirement status summary or details
+```powershell
+felix status              # All requirements
+felix status S-0001       # Specific requirement
+felix status --format json
+```
+
+**list** - List requirements with filtering
+```powershell
+felix list
+felix list --status planned
+felix list --priority high
+felix list --blocked-by S-0001
+felix list --with-deps
+```
+
+**dashboard** - Visual overview (C# CLI only)
+```powershell
+Felix.Cli.exe dashboard
+# Shows: ASCII banner + GitHub-style status bar + total count
 ```
 
 #### Dependency Management
