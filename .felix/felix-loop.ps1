@@ -41,7 +41,7 @@ function Emit-Loop-Log {
 # Resolve paths
 $ProjectPath = Resolve-Path $ProjectPath
 $RequirementsFile = Join-Path $ProjectPath ".felix\requirements.json"
-$CliScript = Join-Path $PSScriptRoot "felix-cli.ps1"
+$FelixScript = Join-Path $ProjectPath ".felix\felix.ps1"
 
 # Only emit JSON events when format is json, otherwise use plain text
 if ($Format -eq "json") {
@@ -146,15 +146,15 @@ while ($requirementsProcessed -lt $MaxRequirements) {
         continue
     }
     
-    # Execute felix-cli for this specific requirement
-    Emit-Loop-Log -Level "debug" -Message "Calling felix-cli with RequirementId='$($nextReq.id)', Format='$Format'"
+    # Execute felix run for this specific requirement
+    Emit-Loop-Log -Level "debug" -Message "Calling felix run with RequirementId='$($nextReq.id)', Format='$Format'"
     
-    if ($NoCommit) {
-        & $CliScript -ProjectPath $ProjectPath -RequirementId $nextReq.id -Format $Format -NoStats -NoCommit
+    # Call felix run directly - output flows through to console
+    if ($Format -ne "json") {
+        Write-Host ""  # Blank line before requirement execution
     }
-    else {
-        & $CliScript -ProjectPath $ProjectPath -RequirementId $nextReq.id -Format $Format -NoStats
-    }
+    
+    & $FelixScript run $nextReq.id --format $Format
     $exitCode = $LASTEXITCODE
     
     switch ($exitCode) {
