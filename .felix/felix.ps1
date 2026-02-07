@@ -29,9 +29,9 @@ Command-specific arguments and global flags
 #>
 
 param(
-    [Parameter(Mandatory = $true, Position = 0)]
+    [Parameter(Mandatory = $false, Position = 0)]
     [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "agent", "version", "help")]
-    [string]$Command,
+    [string]$Command = "help",
 
     [Parameter(Mandatory = $false, Position = 1, ValueFromRemainingArguments = $true)]
     [string[]]$Arguments = @()
