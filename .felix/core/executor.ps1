@@ -1114,8 +1114,14 @@ function Process-CompletionSignals {
         }
     }
     
+    # Task complete - continue to next iteration
+    if ($Output -match '<promise>TASK_COMPLETE</promise>') {
+        Emit-Log -Level "info" -Message "Task complete, continuing to next task" -Component "executor"
+        return @{ ShouldExit = $false }
+    }
+    
     # All requirements met?
-    if ($Output -match '<promise>ALL_REQUIREMENTS_MET</promise>') {
+    if ($Output -match '<promise>ALL_COMPLETE</promise>') {
         # Workflow Stage: update_status
         Set-WorkflowStage -Stage "update_status" -ProjectPath (Split-Path $RequirementsFile -Parent | Split-Path -Parent)
         
