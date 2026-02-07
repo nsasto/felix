@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$felixBin = Join-Path $repoRoot ".felix" "bin"
+$felixBin = Join-Path (Join-Path $repoRoot ".felix") "bin"
 $exePath = Join-Path $felixBin "Felix.Cli.exe"
 
 Write-Host ""
