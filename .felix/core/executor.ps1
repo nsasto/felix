@@ -7,6 +7,9 @@ Handles the main iteration loop including mode determination, agent invocation,
 backpressure validation, git operations, and plugin hooks.
 #>
 
+# Import agent adapters
+. "$PSScriptRoot\agent-adapters.ps1"
+
 function Invoke-FelixIteration {
     <#
     .SYNOPSIS
@@ -540,10 +543,21 @@ function Invoke-AgentExecution {
     # Workflow Stage: execute_llm
     Set-WorkflowStage -Stage "execute_llm" -ProjectPath $ProjectPath
     
-    Emit-AgentExecutionStarted -AgentName $AgentConfig.name -AgentId 0
+    Emit-AgentExecutionStarted -AgentName $AgentConfig.name -AgentId $AgentConfig.id
+    
+    # Load agent adapter
+    $adapterType = $AgentConfig.adapter ?? "droid"
+    $adapter = Get-AgentAdapter -AdapterType $adapterType
+    if (-not $adapter) {
+        Write-Error "Failed to load adapter: $adapterType"
+        return @{ Output = ""; Duration = [TimeSpan]::Zero }
+    }
+    
+    # Format prompt using adapter
+    $formattedPrompt = $adapter.FormatPrompt($Prompt)
     
     $executable = $AgentConfig.executable
-    $agentArgs = $AgentConfig.args
+    $agentArgs = $adapter.BuildArgs($AgentConfig)
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
     $startTime = Get-Date
     
@@ -551,7 +565,7 @@ function Invoke-AgentExecution {
     $hookResult = Invoke-PluginHookSafely -HookName "OnPreExecution" -RunId $RunId -HookData @{
         Executable = $executable
         Args       = [System.Collections.ArrayList]@($agentArgs)
-        Prompt     = $Prompt
+        Prompt     = $formattedPrompt
     }
     
     if ($hookResult.ModifiedArgs) {
@@ -581,7 +595,7 @@ function Invoke-AgentExecution {
         
         Push-Location $agentCwd
         try {
-            $output = $Prompt | & $executable @agentArgs 2>&1 | Out-String
+            $output = $formattedPrompt | & $executable @agentArgs 2>&1 | Out-String
         }
         finally {
             Pop-Location
@@ -594,6 +608,9 @@ function Invoke-AgentExecution {
     }
     $duration = (Get-Date) - $startTime
     
+    # Parse response using adapter
+    $parsedResponse = $adapter.ParseResponse($output)
+    
     # Write raw output to run directory
     $outputPath = Join-Path $RunDir "output.log"
     Set-Content $outputPath $output -Encoding UTF8
@@ -605,13 +622,15 @@ function Invoke-AgentExecution {
     
     # Hook: OnPostExecution
     $hookResult = Invoke-PluginHookSafely -HookName "OnPostExecution" -RunId $RunId -HookData @{
-        Output   = $output
-        Duration = $duration.TotalSeconds
+        Output         = $output
+        Duration       = $duration.TotalSeconds
+        ParsedResponse = $parsedResponse
     }
     
     return @{
         Output   = $output
         Duration = $duration
+        Parsed   = $parsedResponse
     }
 }
 

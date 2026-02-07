@@ -2,14 +2,65 @@
   "agents": [
     {
       "id": 0,
-      "name": "felix-primary",
+      "name": "droid",
+      "adapter": "droid",
       "executable": "droid",
       "args": [
         "exec",
         "--skip-permissions-unsafe"
       ],
       "working_directory": ".",
-      "environment": {}
+      "environment": {},
+      "description": "Factory.ai Droid - Fast, reliable, uses XML completion signals"
+    },
+    {
+      "id": 1,
+      "name": "claude",
+      "adapter": "claude",
+      "executable": "claude",
+      "args": [
+        "-p",
+        "--model",
+        "sonnet",
+        "--output-format",
+        "text"
+      ],
+      "working_directory": ".",
+      "environment": {},
+      "description": "Anthropic Claude Code - Excellent reasoning, OAuth auth"
+    },
+    {
+      "id": 2,
+      "name": "codex",
+      "adapter": "codex",
+      "executable": "codex",
+      "args": [
+        "-C",
+        ".",
+        "-s",
+        "workspace-write",
+        "-a",
+        "never"
+      ],
+      "working_directory": ".",
+      "environment": {},
+      "description": "OpenAI Codex CLI - Diff-based workflow, OAuth auth"
+    },
+    {
+      "id": 3,
+      "name": "gemini",
+      "adapter": "gemini",
+      "executable": "gemini",
+      "args": [
+        "-m",
+        "auto",
+        "--approval-mode=auto_edit",
+        "--output-format",
+        "json"
+      ],
+      "working_directory": ".",
+      "environment": {},
+      "description": "Google Gemini CLI - JSON streaming, OAuth auth"
     }
   ]
 }

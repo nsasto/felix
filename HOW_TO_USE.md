@@ -997,6 +997,61 @@ You do not need to change how specs or plans work.
 
 ---
 
+## Multi-Agent Support
+
+Felix supports multiple LLM agents through an adapter system. Switch between Droid, Claude Code, Codex CLI, and Gemini CLI seamlessly.
+
+### Quick Start
+
+```bash
+# List available agents
+felix agent list
+
+# Check current agent
+felix agent current
+
+# Test an agent
+felix agent test claude
+
+# Switch agent
+felix agent use claude
+
+# Run with new agent
+felix run S-0001
+```
+
+### Available Agents
+
+- **Droid** (Factory.ai) - Fast, API key auth, XML completion signals
+- **Claude** (Anthropic) - Best reasoning, OAuth, excellent code quality
+- **Codex** (OpenAI) - Diff-based workflow, OAuth
+- **Gemini** (Google) - JSON streaming, OAuth
+
+### Authentication
+
+**Droid:** Set `FACTORY_API_KEY` environment variable
+
+**Claude/Codex/Gemini:** One-time OAuth setup:
+```bash
+claude auth login
+codex auth
+gemini auth login
+```
+
+### When to Switch
+
+- **Need speed?** Use Droid
+- **Complex requirements?** Use Claude
+- **Want diffs?** Use Codex
+- **Need JSON?** Use Gemini
+
+### Documentation
+
+- [SWITCHING_AGENTS.md](tuts/SWITCHING_AGENTS.md) - Quick start guide
+- [MULTI_AGENT_SUPPORT.md](tuts/MULTI_AGENT_SUPPORT.md) - Comprehensive architecture docs
+
+---
+
 ## Healthy Felix checklist
 
 - specs are small and readable

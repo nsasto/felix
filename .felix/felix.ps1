@@ -30,7 +30,7 @@ Command-specific arguments and global flags
 
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "version", "help")]
+    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "agent", "version", "help")]
     [string]$Command,
 
     [Parameter(Mandatory = $false, Position = 1, ValueFromRemainingArguments = $true)]
@@ -70,6 +70,183 @@ while ($i -lt $Arguments.Count) {
         }
     }
     $i++
+}
+
+function Invoke-Agent {
+    param([string[]]$AgentArgs)
+
+    # Load config and agents
+    . "$PSScriptRoot\core\config-loader.ps1"
+    $configPath = Join-Path $RepoRoot ".felix\config.json"
+    $config = Get-FelixConfig -ConfigFile $configPath
+    $agentsFile = Join-Path $RepoRoot ".felix\agents.json"
+    
+    if (-not (Test-Path $agentsFile)) {
+        Write-Error "agents.json not found at: $agentsFile"
+        exit 1
+    }
+    
+    $agents = (Get-Content $agentsFile -Raw | ConvertFrom-Json).agents
+    
+    if (-not $AgentArgs -or $AgentArgs.Count -eq 0) {
+        Write-Error "Usage: felix agent <list|current|use|test> [args]"
+        exit 1
+    }
+    
+    $subCmd = $AgentArgs[0]
+    $subArgs = $AgentArgs[1..($AgentArgs.Count - 1)]
+    
+    switch ($subCmd) {
+        "list" {
+            Write-Host ""
+            Write-Host "Available Agents:" -ForegroundColor Cyan
+            Write-Host ""
+            
+            foreach ($agent in $agents) {
+                $isCurrent = ($agent.id -eq $config.agent.agent_id)
+                $marker = if ($isCurrent) { "*" } else { " " }
+                $color = if ($isCurrent) { "Green" } else { "White" }
+                
+                Write-Host "$marker ID: $($agent.id) - $($agent.name)" -ForegroundColor $color
+                Write-Host "  Executable: $($agent.executable)" -ForegroundColor Gray
+                Write-Host "  Adapter: $($agent.adapter)" -ForegroundColor Gray
+                Write-Host "  Description: $($agent.description)" -ForegroundColor Gray
+                Write-Host ""
+            }
+        }
+        "current" {
+            $currentId = $config.agent.agent_id
+            $current = $agents | Where-Object { $_.id -eq $currentId } | Select-Object -First 1
+            
+            if ($current) {
+                Write-Host ""
+                Write-Host "Current Agent:" -ForegroundColor Cyan
+                Write-Host "  ID: $($current.id)"
+                Write-Host "  Name: $($current.name)"
+                Write-Host "  Executable: $($current.executable)"
+                Write-Host "  Adapter: $($current.adapter)"
+                Write-Host "  Description: $($current.description)"
+                Write-Host ""
+            }
+            else {
+                Write-Host "No current agent configured (ID: $currentId not found)" -ForegroundColor Red
+                exit 1
+            }
+        }
+        "use" {
+            if ($subArgs.Count -eq 0) {
+                Write-Error "Usage: felix agent use <id|name>"
+                exit 1
+            }
+            
+            $target = $subArgs[0]
+            $agent = $null
+            
+            # Try as ID first
+            if ($target -match '^\d+$') {
+                $agent = $agents | Where-Object { $_.id -eq [int]$target } | Select-Object -First 1
+            }
+            else {
+                # Try as name
+                $agent = $agents | Where-Object { $_.name -eq $target } | Select-Object -First 1
+            }
+            
+            if (-not $agent) {
+                Write-Error "Agent not found: $target"
+                exit 1
+            }
+            
+            # Verify executable exists
+            try {
+                $null = Get-Command $agent.executable -ErrorAction Stop
+            }
+            catch {
+                Write-Warning "Executable '$($agent.executable)' not found in PATH"
+                Write-Warning "Install the agent CLI before using it:"
+                switch ($agent.name) {
+                    "claude" { Write-Host "  npm install -g @anthropic-ai/claude-code" -ForegroundColor Gray }
+                    "codex" { Write-Host "  npm install -g @openai/codex-cli" -ForegroundColor Gray }
+                    "gemini" { Write-Host "  pip install google-gemini-cli" -ForegroundColor Gray }
+                    "droid" { Write-Host "  npm install -g @factory-ai/droid-cli" -ForegroundColor Gray }
+                }
+                
+                $response = Read-Host "Continue anyway? (y/N)"
+                if ($response -ne "y") {
+                    exit 1
+                }
+            }
+            
+            # Update config.json
+            $config.agent.agent_id = $agent.id
+            $configPath = Join-Path $RepoRoot ".felix\config.json"
+            $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+            
+            Write-Host ""
+            Write-Host "Switched to agent: $($agent.name) (ID: $($agent.id))" -ForegroundColor Green
+            Write-Host ""
+        }
+        "test" {
+            if ($subArgs.Count -eq 0) {
+                Write-Error "Usage: felix agent test <id|name>"
+                exit 1
+            }
+            
+            $target = $subArgs[0]
+            $agent = $null
+            
+            # Try as ID first
+            if ($target -match '^\d+$') {
+                $agent = $agents | Where-Object { $_.id -eq [int]$target } | Select-Object -First 1
+            }
+            else {
+                # Try as name
+                $agent = $agents | Where-Object { $_.name -eq $target } | Select-Object -First 1
+            }
+            
+            if (-not $agent) {
+                Write-Error "Agent not found: $target"
+                exit 1
+            }
+            
+            Write-Host ""
+            Write-Host "Testing agent: $($agent.name)" -ForegroundColor Cyan
+            Write-Host ""
+            
+            # Test 1: Executable exists
+            Write-Host "[1/2] Checking executable..." -NoNewline
+            try {
+                $exePath = (Get-Command $agent.executable -ErrorAction Stop).Source
+                Write-Host " OK" -ForegroundColor Green
+                Write-Host "      Path: $exePath" -ForegroundColor Gray
+            }
+            catch {
+                Write-Host " FAILED" -ForegroundColor Red
+                Write-Host "      Executable '$($agent.executable)' not found in PATH" -ForegroundColor Red
+                exit 1
+            }
+            
+            # Test 2: Simple version check
+            Write-Host "[2/2] Checking version..." -NoNewline
+            try {
+                $versionArgs = @("--version")
+                $versionOutput = & $agent.executable @versionArgs 2>&1 | Out-String
+                Write-Host " OK" -ForegroundColor Green
+                Write-Host "      $($versionOutput.Trim())" -ForegroundColor Gray
+            }
+            catch {
+                Write-Host " SKIPPED" -ForegroundColor Yellow
+                Write-Host "      (version check not supported)" -ForegroundColor Gray
+            }
+            
+            Write-Host ""
+            Write-Host "Agent test passed!" -ForegroundColor Green
+            Write-Host ""
+        }
+        default {
+            Write-Error "Unknown agent subcommand: $subCmd. Use: list, current, use, test"
+            exit 1
+        }
+    }
 }
 
 function Invoke-Run {
@@ -1427,6 +1604,7 @@ function Show-Help {
         Write-Host "  validate <req-id>     Run validation checks"
         Write-Host "  deps [req-id]         Show dependencies and validate status"
         Write-Host "  spec <subcommand>     Manage requirement specifications"
+        Write-Host "  agent <subcommand>    Manage and switch agents"
         Write-Host "  version               Show version information"
         Write-Host "  help [command]        Show help for a command"
         Write-Host ""
@@ -1470,6 +1648,9 @@ switch ($Command) {
     }
     "spec" {
         & { Invoke-SpecCreate @remainingArgs }
+    }
+    "agent" {
+        Invoke-Agent -AgentArgs $remainingArgs
     }
     "version" {
         Show-Version
