@@ -204,6 +204,7 @@ Felix.Cli.exe dashboard
 ```
 
 Displays:
+
 - FELIX ASCII art banner
 - GitHub-style stacked bar chart showing requirement status
 - Total requirement count
@@ -211,6 +212,7 @@ Displays:
 **Architecture:**
 
 Both CLIs use the same backend:
+
 - `Felix.Cli.exe` → `.felix/felix.ps1` → `scripts/*.ps1`
 - All logic lives in PowerShell scripts (single source of truth)
 - C# CLI is a thin wrapper with System.CommandLine
@@ -246,6 +248,7 @@ Felix.Cli.exe list --status planned
 #### Command Details
 
 **run** - Execute a single requirement to completion
+
 ```powershell
 felix run S-0001
 felix run S-0001 --format json
@@ -253,12 +256,14 @@ Felix.Cli.exe run S-0001 --no-stats
 ```
 
 **loop** - Continuous execution mode (processes all planned requirements)
+
 ```powershell
 felix loop
 felix loop --max-iterations 10
 ```
 
 **status** - Show requirement status summary or details
+
 ```powershell
 felix status              # All requirements
 felix status S-0001       # Specific requirement
@@ -266,6 +271,7 @@ felix status --format json
 ```
 
 **list** - List requirements with filtering
+
 ```powershell
 felix list
 felix list --status planned
@@ -275,6 +281,7 @@ felix list --with-deps
 ```
 
 **dashboard** - Visual overview (C# CLI only)
+
 ```powershell
 Felix.Cli.exe dashboard
 # Shows: ASCII banner + GitHub-style status bar + total count
