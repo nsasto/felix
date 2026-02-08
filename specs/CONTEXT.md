@@ -1,6 +1,6 @@
 # Context
 
-Felix is a plan-driven executor for Ralph-style autonomous software delivery. It transforms the Ralph concept from "a loop you run" into an operable system with durable state, explicit modes (planning/building), and enforced separation between planning and execution. The system orchestrates AI agents through filesystem-based artifacts while providing a web UI for monitoring and control.
+Felix is a plan-driven executor for autonomous software delivery. It transforms the Ralph concept from "a loop you run" into an operable system with durable state, explicit modes (planning/building), and enforced separation between planning and execution. The system orchestrates AI agents through filesystem-based artifacts while providing a web UI for monitoring and control.
 
 ## Tech Stack
 
@@ -166,7 +166,7 @@ Felix is a plan-driven executor for Ralph-style autonomous software delivery. It
   - `Views/` - XAML views
   - `ViewModels/` - MVVM view models
   - `Services/` - Application services
-- `specs/` - Requirement specifications (S-NNNN-*.md)
+- `specs/` - Requirement specifications (S-NNNN-\*.md)
 - `runs/` - Execution run artifacts (timestamped directories)
 - `scripts/` - Development and utility scripts
   - `test-backend.ps1`, `test-frontend.ps1` - Test runners
