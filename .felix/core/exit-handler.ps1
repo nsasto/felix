@@ -60,6 +60,23 @@ function Exit-FelixAgent {
         }
     }
     
+    # Emit final run completion event
+    if (Get-Command Emit-RunCompleted -ErrorAction SilentlyContinue) {
+        $status = if ($ExitCode -eq 0) { "success" } elseif ($ExitCode -eq 2) { "blocked_backpressure" } elseif ($ExitCode -eq 3) { "blocked_validation" } else { "error" }
+        Emit-RunCompleted -Status $status -ExitCode $ExitCode -DurationSeconds 0
+        
+        # Force flush to ensure completion event is delivered
+        try {
+            [Console]::Out.Flush()
+        }
+        catch {
+            # Ignore flush errors
+        }
+        
+        # Brief delay to ensure subprocess can read final output
+        Start-Sleep -Milliseconds 100
+    }
+    
     exit $ExitCode
 }
 

@@ -469,21 +469,18 @@ if ($Format -ne "json") {
     Write-Host ""
 }
 
+# Determine which PowerShell executable to use (prefer pwsh for better streaming)
+$pwshExe = Get-Command pwsh -ErrorAction SilentlyContinue
+$psExe = if ($pwshExe) { "pwsh" } else { "powershell.exe" }
+
 # Start felix-agent as subprocess
 $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-$processInfo.FileName = "powershell.exe"
+$processInfo.FileName = $psExe
 $processInfo.Arguments = $argParts -join " "
 $processInfo.UseShellExecute = $false
 $processInfo.RedirectStandardOutput = $true
 $processInfo.RedirectStandardError = $true
-# Start felix-agent as subprocess
-$processInfo = New-Object System.Diagnostics.ProcessStartInfo
-$processInfo.FileName = "powershell.exe"
-$processInfo.Arguments = $argParts -join " "
-$processInfo.UseShellExecute = $false
-$processInfo.RedirectStandardOutput = $true
-$processInfo.RedirectStandardError = $true
-$processInfo.CreateNoWindow = $true  # Changed to true to prevent extra window
+$processInfo.CreateNoWindow = $true
 
 $process = New-Object System.Diagnostics.Process
 $process.StartInfo = $processInfo
@@ -491,11 +488,12 @@ $process.StartInfo = $processInfo
 try {
     $process.Start() | Out-Null
     
-    # Read stdout line by line with timeout protection
-    while (-not $process.HasExited) {
-        # Check if there's data available
-        if ($process.StandardOutput.Peek() -ge 0) {
-            $line = $process.StandardOutput.ReadLine()
+    # Read stdout line by line using StreamReader for better buffering control
+    $reader = $process.StandardOutput
+    
+    while (-not $process.HasExited -or -not $reader.EndOfStream) {
+        if (-not $reader.EndOfStream) {
+            $line = $reader.ReadLine()
             
             if ([string]::IsNullOrWhiteSpace($line)) {
                 continue
@@ -536,33 +534,10 @@ try {
             }
         }
         else {
-            # No data available, sleep briefly to avoid busy-wait
+            # No data available, brief sleep
             Start-Sleep -Milliseconds 50
         }
     }
-    
-    # Read any remaining output after process exits
-    do {
-        $line = $process.StandardOutput.ReadLine()
-        if ($line) {
-            try {
-                $event = $line | ConvertFrom-Json
-                if ($event.type -and $event.data) {
-                    Update-Stats -Event $event
-                    if (Should-Display-Event -Event $event) {
-                        & $renderer $event $line
-                    }
-                }
-                else {
-                    if ($Format -eq "json") { Write-Output $line }
-                }
-            }
-            catch {
-                if ($Format -eq "json") { Write-Output $line }
-                else { Write-Host "$($colors.Yellow)[LEGACY OUTPUT]$($colors.Reset) $line" }
-            }
-        }
-    } while ($line)
     
     $process.WaitForExit()
     $exitCode = $process.ExitCode
@@ -584,5 +559,8 @@ catch {
 finally {
     if ($process -and -not $process.HasExited) {
         $process.Kill()
+    }
+    if ($process) {
+        $process.Dispose()
     }
 }
