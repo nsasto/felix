@@ -361,7 +361,7 @@ class Program
 
         cmd.SetHandler(async () =>
         {
-            await ShowDashboard(felixPs1);
+            await RunInteractiveDashboard(felixPs1);
         });
 
         return cmd;
@@ -605,6 +605,61 @@ class Program
         AnsiConsole.WriteLine();
     }
 
+    static async Task RunInteractiveDashboard(string felixPs1)
+    {
+        bool running = true;
+
+        while (running)
+        {
+            await ShowDashboard(felixPs1);
+
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[grey dim][cyan]1[/] Run  [cyan]2[/] Status  [cyan]3[/] List  [cyan]4[/] Validate  [cyan]5[/] Deps  [cyan]/[/] Commands  [cyan]?[/] Help  [cyan]q[/] Quit[/]");
+
+            var key = Console.ReadKey(true);
+
+            switch (key.KeyChar)
+            {
+                case '1':
+                    await RunAgentInteractive(felixPs1);
+                    break;
+                case '2':
+                    await ShowStatusUI(felixPs1);
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
+                    Console.ReadKey(true);
+                    break;
+                case '3':
+                    await InteractiveList(felixPs1);
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
+                    Console.ReadKey(true);
+                    break;
+                case '4':
+                    await ValidateInteractive(felixPs1);
+                    break;
+                case '5':
+                    await ShowDependencies(felixPs1);
+                    break;
+                case '/':
+                    await ShowCommands(felixPs1);
+                    break;
+                case '?':
+                    ShowHelp();
+                    break;
+                case 'q':
+                case 'Q':
+                    running = false;
+                    AnsiConsole.Clear();
+                    AnsiConsole.MarkupLine("[green]Felix TUI exited.[/]");
+                    break;
+                default:
+                    // Ignore other keys
+                    break;
+            }
+        }
+    }
+
     static void ShowHelp()
     {
         AnsiConsole.Clear();
@@ -624,7 +679,7 @@ class Program
                 "[cyan]validate[/]    Run validation checks\n" +
                 "[cyan]deps[/]        Show dependencies\n" +
                 "[cyan]spec[/]        Manage specifications\n" +
-                "[cyan]dashboard[/]   This dashboard\n"))
+                "[cyan]tui[/]         Interactive TUI dashboard\n"))
         {
             Header = new PanelHeader("[yellow]❓ Help[/]"),
             Border = BoxBorder.Double,
@@ -645,29 +700,29 @@ class Program
                 .PageSize(10)
                 .MoreChoicesText("[grey](Move up and down to reveal more)[/]")
                 .AddChoices(new[] {
-                    "📋 List Requirements",
-                    "📊 Show Status",
-                    "🔗 Check Dependencies",
-                    "▶️  Run Agent",
-                    "✓ Validate",
-                    "📝 Create Spec",
-                    "🏠 Back to Dashboard"
+                    "List Requirements",
+                    "Show Status",
+                    "Check Dependencies",
+                    "Run Agent",
+                    "Validate",
+                    "Create Spec",
+                    "Back to Dashboard"
                 }));
 
-        if (command == "📋 List Requirements")
+        if (command == "List Requirements")
             await InteractiveList(felixPs1);
-        else if (command == "📊 Show Status")
+        else if (command == "Show Status")
             await ShowStatusUI(felixPs1);
-        else if (command == "🔗 Check Dependencies")
+        else if (command == "Check Dependencies")
             await ShowDependencies(felixPs1);
-        else if (command == "▶️  Run Agent")
+        else if (command == "Run Agent")
             await RunAgentInteractive(felixPs1);
-        else if (command == "✓ Validate")
+        else if (command == "Validate")
             await ValidateInteractive(felixPs1);
-        else if (command == "📝 Create Spec")
+        else if (command == "Create Spec")
             await CreateSpecInteractive(felixPs1);
 
-        if (command != "🏠 Back to Dashboard")
+        if (command != "Back to Dashboard")
         {
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
