@@ -328,7 +328,28 @@ function Invoke-Context {
     . "$PSScriptRoot\core\config-loader.ps1"
     . "$PSScriptRoot\core\emit-event.ps1"
     
-    $subCmd = if ($Args -and $Args.Count -gt 0) { $Args[0] } else { "build" }
+    if (-not $Args -or $Args.Count -eq 0) {
+        Write-Host ""
+        Write-Host "Usage: felix context <build|show> [options]" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Subcommands:" -ForegroundColor Yellow
+        Write-Host "  build [options]       Analyze project and generate specs/CONTEXT.md"
+        Write-Host "  show                  Display current CONTEXT.md content"
+        Write-Host ""
+        Write-Host "Options for 'build':" -ForegroundColor Yellow
+        Write-Host "  --include-hidden      Include hidden files/folders in analysis"
+        Write-Host "  --force               Skip overwrite confirmation"
+        Write-Host ""
+        Write-Host "Examples:"
+        Write-Host "  felix context build"
+        Write-Host "  felix context build --include-hidden"
+        Write-Host "  felix context build --force"
+        Write-Host "  felix context show"
+        Write-Host ""
+        exit 0
+    }
+    
+    $subCmd = $Args[0]
     
     switch ($subCmd) {
         "build" {
