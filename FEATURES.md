@@ -2,7 +2,7 @@
 
 **Transform Your Development Workflow with Intelligent Autonomous Agent Swarms**
 
-Felix is a production-ready system for autonomous software delivery at scale, turning AI-powered development from concept into operable reality. Built on the Ralph principles with distributed orchestration capabilities, Felix provides the scaffolding, validation, and tooling needed to deploy autonomous agent swarms reliably across your entire team's infrastructure.
+Felix is a production-ready system for autonomous software delivery at scale, turning AI-powered development from concept into operable reality. Built on plan-driven execution with enforced validation and distributed orchestration capabilities, Felix provides the scaffolding, validation, and tooling needed to deploy autonomous agent swarms reliably across your entire team's infrastructure.
 
 ---
 
