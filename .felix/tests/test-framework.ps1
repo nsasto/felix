@@ -124,5 +124,10 @@ function Get-TestResults {
     return ($Global:TestResults.Failed -eq 0)
 }
 
-Export-ModuleMember -Function Describe, It, Assert-*, Get-TestResults
+try {
+    Export-ModuleMember -Function Describe, It, Assert-*, Get-TestResults
+}
+catch {
+    # Allow dot-sourcing this file in scripts (Export-ModuleMember only works inside modules).
+}
 

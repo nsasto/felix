@@ -4,6 +4,7 @@ Tests for configuration loading
 #>
 
 . "$PSScriptRoot/test-framework.ps1"
+. "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/config-loader.ps1"
 
 Describe "Get-ProjectPaths" {
@@ -13,13 +14,14 @@ Describe "Get-ProjectPaths" {
         
         Assert-Equal "C:\Test\Project" $paths.ProjectPath
         Assert-Equal "C:\Test\Project\specs" $paths.SpecsDir
-        Assert-Equal "C:\Test\Project\felix" $paths.FelixDir
+        Assert-Equal "C:\Test\Project\.felix" $paths.FelixDir
         Assert-Equal "C:\Test\Project\runs" $paths.RunsDir
         Assert-Equal "C:\Test\Project\AGENTS.md" $paths.AgentsFile
-        Assert-Equal "C:\Test\Project\felix\config.json" $paths.ConfigFile
-        Assert-Equal "C:\Test\Project\felix\state.json" $paths.StateFile
-        Assert-Equal "C:\Test\Project\felix\requirements.json" $paths.RequirementsFile
-        Assert-Equal "C:\Test\Project\felix\prompts" $paths.PromptsDir
+        Assert-Equal "C:\Test\Project\.felix\agents.json" $paths.AgentsJsonFile
+        Assert-Equal "C:\Test\Project\.felix\config.json" $paths.ConfigFile
+        Assert-Equal "C:\Test\Project\.felix\state.json" $paths.StateFile
+        Assert-Equal "C:\Test\Project\.felix\requirements.json" $paths.RequirementsFile
+        Assert-Equal "C:\Test\Project\.felix\prompts" $paths.PromptsDir
     }
 }
 
@@ -27,7 +29,7 @@ Describe "Test-ProjectStructure" {
 
     It "should return true for valid project" {
         $tempDir = New-Item -ItemType Directory -Path "$env:TEMP/test-project-$(Get-Random)" -Force
-        $felixDir = New-Item -ItemType Directory -Path "$tempDir/felix" -Force
+        $felixDir = New-Item -ItemType Directory -Path "$tempDir/.felix" -Force
         $specsDir = New-Item -ItemType Directory -Path "$tempDir/specs" -Force
         "{}" | Set-Content "$felixDir/config.json"
         "{}" | Set-Content "$felixDir/requirements.json"
@@ -113,7 +115,7 @@ Describe "Get-AgentsConfiguration" {
         
         Assert-NotNull $agentsData
         Assert-True ($agentsData.agents.Count -ge 1)
-        Assert-Equal "felix-primary" $agentsData.agents[0].name
+        Assert-Equal "droid" $agentsData.agents[0].name
         
         Remove-Item $tempHome -Recurse -Force
     }

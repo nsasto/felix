@@ -79,7 +79,8 @@ catch {
     exit 1
 }
 
-Emit-RunStarted -RunId "init" -RequirementId "" -ProjectPath $ProjectPath
+$initReqId = if ($RequirementId) { $RequirementId } else { "" }
+Emit-RunStarted -RunId "init" -RequirementId $initReqId -ProjectPath $ProjectPath
 Emit-Log -Level "info" -Message "Felix Agent starting for: $ProjectPath" -Component "agent"
 
 # Get project paths and validate structure
@@ -123,7 +124,7 @@ else {
 Emit-Log -Level "debug" -Message "Using agent ID: $agentId" -Component "init"
 
 Emit-Log -Level "debug" -Message "Loading agents configuration" -Component "init"
-$agentsData = Get-AgentsConfiguration
+$agentsData = Get-AgentsConfiguration -AgentsJsonFile $paths.AgentsJsonFile
 if (-not $agentsData) {
     Emit-Error -ErrorType "AgentsDataLoadFailed" -Message "Failed to load agents.json" -Severity "fatal"
     exit 1
@@ -237,7 +238,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         -NoCommit:$NoCommit
     
     if (-not $result.Continue) {
-        Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob
+        Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
     }
 }
 
@@ -246,4 +247,4 @@ Emit-Log -Level "warn" -Message "Reached max iterations ($maxIterations)" -Compo
 $state.status = "incomplete"
 $state.updated_at = Get-Date -Format "o"
 $state | ConvertTo-Json | Set-Content $StateFile
-Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob
+Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
