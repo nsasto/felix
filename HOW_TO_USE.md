@@ -235,12 +235,16 @@ felix validate <req-id>  # Run validation checks
 felix spec create        # Create a new specification interactively
 felix spec fix           # Align specs folder with requirements.json
 felix spec delete        # Delete a specification
+felix tui                # Launch interactive terminal UI
+felix procs [subcommand] # Manage active agent sessions
 felix version            # Show version information
 felix help [command]     # Show help
 
 # C# CLI (identical functionality)
 Felix.Cli.exe run <req-id>
 Felix.Cli.exe dashboard   # Bonus: Visual status overview
+Felix.Cli.exe tui
+Felix.Cli.exe procs
 Felix.Cli.exe list --status planned
 # ... (all commands work the same)
 ```
@@ -285,6 +289,56 @@ felix list --with-deps
 ```powershell
 Felix.Cli.exe dashboard
 # Shows: ASCII banner + GitHub-style status bar + total count
+```
+
+**tui** - Interactive terminal UI with live dashboard
+
+```powershell
+felix tui
+Felix.Cli.exe tui
+
+# Interactive keyboard shortcuts:
+# 1 - Run agent
+# 2 - Show status
+# 3 - List requirements
+# 4 - Validate
+# 5 - Show dependencies
+# 6 - Active sessions
+# / - Commands menu
+# ? - Help
+# q - Quit
+
+# Features:
+# - Real-time status overview
+# - Keyboard-driven navigation
+# - Context-aware menus
+# - Integrated session monitoring
+```
+
+**procs** - Manage active agent execution sessions
+
+```powershell
+felix procs              # List active sessions (default)
+felix procs list         # List all active sessions
+felix procs kill <id>    # Terminate a running session
+
+# Session information displayed:
+# - Session ID (run ID)
+# - Requirement being executed
+# - Agent name
+# - Process ID (PID)
+# - Running duration
+# - Status
+
+# Examples:
+felix procs
+felix procs kill S-0001-20260208-133511-it1
+
+# Use cases:
+# - Monitor concurrent agent executions
+# - Identify hung or stuck processes
+# - Kill problematic sessions
+# - Track resource usage by PID
 ```
 
 #### Dependency Management
@@ -447,6 +501,68 @@ The spec builder emits pure JSON events for programmatic consumption:
 - `spec_builder_cancelled` - User cancelled
 
 Response files are written to `.felix/prompts/spec_q_N.response.txt` for UI/TUI integration.
+
+### Session Management
+
+Felix now tracks active agent processes, enabling concurrent execution and better process control:
+
+**Features:**
+
+- **Track running agents**: View all active agent executions with details
+- **Concurrent execution**: Run multiple agents on different requirements simultaneously
+- **Process control**: Kill hung or problematic agent processes
+- **Automatic cleanup**: Stale PIDs are pruned automatically
+- **Ctrl+C handling**: Improved cancellation that terminates entire process tree
+
+**Commands:**
+
+```powershell
+# List active sessions
+felix procs              # Default: shows list
+felix procs list         # Explicit list command
+
+# Kill a specific session
+felix procs kill S-0001-20260208-133511-it1
+
+# View from TUI (press 6)
+felix tui                # Then press 6 for Active Sessions
+```
+
+**Session Information:**
+
+Each session displays:
+
+- **Session ID**: Unique run identifier (format: `{req-id}-{timestamp}-{iteration}`)
+- **Requirement**: Which requirement is being executed
+- **Agent**: Which agent profile is running
+- **PID**: Process ID for system-level monitoring
+- **Status**: Current execution state
+- **Duration**: How long the agent has been running
+
+**How It Works:**
+
+Sessions are automatically managed:
+
+1. **Registration**: When an agent starts, it registers itself in `.felix/sessions.json`
+2. **Tracking**: Felix monitors the process and updates status
+3. **Cleanup**: On normal exit or Ctrl+C, the session is unregistered
+4. **Stale Detection**: Dead processes (invalid PIDs) are automatically pruned
+
+**Ctrl+C Improvements:**
+
+The Ctrl+C handler now:
+
+- Catches the cancel signal immediately
+- Kills the entire process tree (not just parent process)
+- Unregisters the session properly
+- Prevents orphaned subprocesses
+
+**Use Cases:**
+
+- **Monitor progress**: Check which agents are running and for how long
+- **Kill stuck agents**: Terminate hung processes that won't respond to Ctrl+C
+- **Resource management**: Identify PIDs for system monitoring tools
+- **Concurrent workflows**: Run multiple requirements in parallel safely
 
 ### Output Formats
 

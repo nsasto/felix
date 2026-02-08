@@ -32,6 +32,12 @@ npm run dev
 # Or run in continuous loop mode
 .\.felix\felix.ps1 loop
 
+# Launch interactive TUI dashboard
+.\.felix\felix.ps1 tui
+
+# View active agent sessions
+.\.felix\felix.ps1 procs
+
 # Optional: Install to PATH for shorter commands
 .\scripts\install-cli.ps1  # Then use 'felix run S-0001'
 ```
