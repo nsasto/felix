@@ -30,7 +30,7 @@ Command-specific arguments and global flags
 
 param(
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "agent", "version", "help")]
+    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "agent", "tui", "version", "help")]
     [string]$Command = "help",
 
     [Parameter(Mandatory = $false, Position = 1, ValueFromRemainingArguments = $true)]
@@ -340,7 +340,8 @@ function Invoke-Run {
     # Execute felix-cli.ps1 which spawns agent internally
     if ($NoStats) {
         & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats
-    } else {
+    }
+    else {
         & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue
     }
     exit $LASTEXITCODE
@@ -382,6 +383,31 @@ function Invoke-Loop {
     else {
         & "$PSScriptRoot\felix-loop.ps1" -ProjectPath $RepoRoot -Format $formatValue
     }
+    exit $LASTEXITCODE
+}
+
+function Invoke-Tui {
+    # Launch interactive Terminal UI dashboard
+    $felixCliPath = Join-Path $RepoRoot "src\Felix.Cli"
+    
+    # Check if dotnet is available
+    $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
+    if (-not $dotnetCmd) {
+        Write-Host "[ERROR] dotnet CLI not found" -ForegroundColor Red
+        Write-Host "" 
+        Write-Host "The TUI requires .NET SDK to be installed." -ForegroundColor Yellow
+        Write-Host "Download from: https://dotnet.microsoft.com/download" -ForegroundColor Cyan
+        exit 1
+    }
+    
+    # Check if Felix.Cli project exists
+    if (-not (Test-Path $felixCliPath)) {
+        Write-Host "[ERROR] Felix.Cli project not found at: $felixCliPath" -ForegroundColor Red
+        exit 1
+    }
+    
+    # Launch TUI dashboard
+    & dotnet run --project $felixCliPath -- dashboard
     exit $LASTEXITCODE
 }
 
@@ -1664,6 +1690,28 @@ function Show-Help {
                 Write-Host "  felix spec delete S-0001"
                 Write-Host ""
             }
+            "tui" {
+                Write-Host ""
+                Write-Host "felix tui" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Launch interactive Terminal UI dashboard with:"
+                Write-Host "  - Visual requirement status and progress tracking"
+                Write-Host "  - Interactive command menu"
+                Write-Host "  - Real-time status visualization"
+                Write-Host ""
+                Write-Host "Requirements:" -ForegroundColor Yellow
+                Write-Host "  - .NET SDK (dotnet CLI)"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix tui"
+                Write-Host ""
+                Write-Host "Navigation:" -ForegroundColor Yellow
+                Write-Host "  1-5     Quick actions"
+                Write-Host "  /       Show all commands"
+                Write-Host "  ?       Help screen"
+                Write-Host "  q       Quit dashboard"
+                Write-Host ""
+            }
             default {
                 Write-Host "Unknown command: $SubCommand" -ForegroundColor Red
                 Show-Help
@@ -1686,6 +1734,7 @@ function Show-Help {
         Write-Host "  deps [req-id]         Show dependencies and validate status"
         Write-Host "  spec <subcommand>     Manage requirement specifications"
         Write-Host "  agent <subcommand>    Manage and switch agents"
+        Write-Host "  tui                   Launch interactive terminal UI"
         Write-Host "  version               Show version information"
         Write-Host "  help [command]        Show help for a command"
         Write-Host ""
@@ -1729,6 +1778,9 @@ switch ($Command) {
     }
     "spec" {
         & { Invoke-SpecCreate @remainingArgs }
+    }
+    "tui" {
+        Invoke-Tui
     }
     "agent" {
         Invoke-Agent -AgentArgs $remainingArgs
