@@ -5,7 +5,7 @@
 
 # Felix
 
-Felix is a plan-driven executor for Ralph-style autonomous software delivery. It turns Ralph from "a loop you run" into an operable system with durable state, explicit modes, and a clean separation between planning and doing.
+Felix is a plan-driven executor for autonomous software delivery. It turns the Ralph principles from "a loop you run" into an operable system with durable state, explicit modes, and a clean separation between planning and doing.
 
 Ralph's core insight is naive persistence: restart the agent in a simple outer loop so every iteration gets fresh context, while progress is kept on disk and validated by backpressure like tests, typechecks, and builds.¹ Felix keeps that philosophy, but moves the discipline from "best effort prompt compliance" into enforceable runtime scaffolding.
 
