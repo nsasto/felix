@@ -30,7 +30,7 @@ Command-specific arguments and global flags
 
 param(
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "agent", "tui", "version", "help")]
+    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "agent", "procs", "tui", "version", "help")]
     [string]$Command = "help",
 
     [Parameter(Mandatory = $false, Position = 1, ValueFromRemainingArguments = $true)]
@@ -313,6 +313,87 @@ function Invoke-Agent {
         }
         default {
             Write-Error "Unknown agent subcommand: $subCmd. Use: list, current, use, test"
+            exit 1
+        }
+    }
+}
+
+function Invoke-ProcessList {
+    param([string[]]$Args)
+    
+    # Load session manager
+    . "$PSScriptRoot\core\session-manager.ps1"
+    
+    $subCmd = if ($Args -and $Args.Count -gt 0) { $Args[0] } else { "list" }
+    $subArgs = if ($Args.Count -gt 1) { $Args[1..($Args.Count - 1)] } else { @() }
+    
+    switch ($subCmd) {
+        "list" {
+            $sessions = Get-ActiveSessions -ProjectPath $RepoRoot
+            
+            if ($sessions.Count -eq 0) {
+                Write-Host ""
+                Write-Host "No active sessions" -ForegroundColor Gray
+                Write-Host ""
+                exit 0
+            }
+            
+            Write-Host ""
+            Write-Host "Active Sessions:" -ForegroundColor Cyan
+            Write-Host ""
+            
+            # Show sessions in table format
+            $sessions | ForEach-Object {
+                $duration = (Get-Date).ToUniversalTime() - [DateTime]::Parse($_.start_time)
+                $durationStr = if ($duration.TotalHours -ge 1) {
+                    "{0:hh\:mm\:ss}" -f $duration
+                }
+                else {
+                    "{0:mm\:ss}" -f $duration
+                }
+                
+                Write-Host "  Session: $($_.session_id)" -ForegroundColor Yellow
+                Write-Host "  Requirement: $($_.requirement_id)" -ForegroundColor White
+                Write-Host "  Agent: $($_.agent)" -ForegroundColor Gray
+                Write-Host "  PID: $($_.pid)" -ForegroundColor Gray
+                Write-Host "  Duration: $durationStr" -ForegroundColor Gray
+                Write-Host "  Status: $($_.status)" -ForegroundColor $(if ($_.status -eq "running") { "Green" } else { "Yellow" })
+                Write-Host ""
+            }
+            
+            Write-Host "Commands:" -ForegroundColor Cyan
+            Write-Host "  felix ps kill <session-id>    Terminate a session"
+            Write-Host ""
+        }
+        "kill" {
+            if ($subArgs.Count -eq 0) {
+                Write-Error "Usage: felix ps kill <session-id>"
+                Write-Host ""
+                Write-Host "Tip: Use 'felix procs list' to see active sessions"
+                Write-Host ""
+                exit 1
+            }
+            
+            $sessionId = $subArgs[0]
+            
+            Write-Host ""
+            Write-Host "Terminating session: $sessionId" -ForegroundColor Yellow
+            
+            $success = Stop-Session -SessionId $sessionId -ProjectPath $RepoRoot
+            
+            if ($success) {
+                Write-Host "Session terminated successfully" -ForegroundColor Green
+                Write-Host ""
+            }
+            else {
+                Write-Host "Failed to terminate session" -ForegroundColor Red
+                Write-Host ""
+                exit 1
+            }
+        }
+        default {
+            Write-Error "Unknown procs subcommand: $subCmd"
+            Write-Host "Usage: felix procs <list|kill> [args]"
             exit 1
         }
     }
@@ -1712,6 +1793,29 @@ function Show-Help {
                 Write-Host "  q       Quit dashboard"
                 Write-Host ""
             }
+            "procs" {
+                Write-Host ""
+                Write-Host "felix procs [subcommand]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Manage active agent execution sessions."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  list                   List all active sessions (default)"
+                Write-Host "  kill <session-id>      Terminate a running session"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix procs"
+                Write-Host "  felix procs list"
+                Write-Host "  felix procs kill S-0001-20260208-133511-it1"
+                Write-Host ""
+                Write-Host "Session Info:" -ForegroundColor Yellow
+                Write-Host "  - Session ID (run ID)"
+                Write-Host "  - Requirement being executed"
+                Write-Host "  - Agent name"
+                Write-Host "  - Process ID (PID)"
+                Write-Host "  - Running duration"
+                Write-Host ""
+            }
             default {
                 Write-Host "Unknown command: $SubCommand" -ForegroundColor Red
                 Show-Help
@@ -1734,6 +1838,7 @@ function Show-Help {
         Write-Host "  deps [req-id]         Show dependencies and validate status"
         Write-Host "  spec <subcommand>     Manage requirement specifications"
         Write-Host "  agent <subcommand>    Manage and switch agents"
+        Write-Host "  procs [subcommand]    Manage active execution sessions"
         Write-Host "  tui                   Launch interactive terminal UI"
         Write-Host "  version               Show version information"
         Write-Host "  help [command]        Show help for a command"
@@ -1784,6 +1889,9 @@ switch ($Command) {
     }
     "agent" {
         Invoke-Agent -AgentArgs $remainingArgs
+    }
+    "procs" {
+        Invoke-ProcessList -Args $remainingArgs
     }
     "version" {
         Show-Version

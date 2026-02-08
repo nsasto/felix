@@ -614,7 +614,7 @@ class Program
             await ShowDashboard(felixPs1);
 
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[grey dim][cyan]1[/] Run  [cyan]2[/] Status  [cyan]3[/] List  [cyan]4[/] Validate  [cyan]5[/] Deps  [cyan]/[/] Commands  [cyan]?[/] Help  [cyan]q[/] Quit[/]");
+            AnsiConsole.MarkupLine("[grey dim][cyan]1[/] Run  [cyan]2[/] Status  [cyan]3[/] List  [cyan]4[/] Validate  [cyan]5[/] Deps  [cyan]6[/] Procs  [cyan]/[/] Commands  [cyan]?[/] Help  [cyan]q[/] Quit[/]");
 
             var key = Console.ReadKey(true);
 
@@ -640,6 +640,9 @@ class Program
                     break;
                 case '5':
                     await ShowDependencies(felixPs1);
+                    break;
+                case '6':
+                    await ShowProcs(felixPs1);
                     break;
                 case '/':
                     await ShowCommands(felixPs1);
@@ -667,7 +670,7 @@ class Program
         var helpPanel = new Panel(
             new Markup(
                 "[yellow bold]Keyboard Shortcuts[/]\n\n" +
-                "[cyan]1-5[/]     Quick actions\n" +
+                "[cyan]1-6[/]     Quick actions\n" +
                 "[cyan]/[/]       Show all commands\n" +
                 "[cyan]?[/]       This help screen\n" +
                 "[cyan]q[/]       Quit dashboard\n\n" +
@@ -706,6 +709,7 @@ class Program
                     "Run Agent",
                     "Validate",
                     "Create Spec",
+                    "Active Sessions",
                     "Back to Dashboard"
                 }));
 
@@ -721,6 +725,8 @@ class Program
             await ValidateInteractive(felixPs1);
         else if (command == "Create Spec")
             await CreateSpecInteractive(felixPs1);
+        else if (command == "Active Sessions")
+            await ShowProcs(felixPs1);
 
         if (command != "Back to Dashboard")
         {
@@ -927,5 +933,76 @@ class Program
                     AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
                 }
             });
+    }
+
+    static async Task ShowProcs(string felixPs1)
+    {
+        AnsiConsole.Clear();
+        var rule = new Rule("[cyan]Active Agent Sessions[/]").RuleStyle(Style.Parse("cyan dim"));
+        AnsiConsole.Write(rule);
+        AnsiConsole.WriteLine();
+
+        await AnsiConsole.Status()
+            .StartAsync("Loading sessions...", async ctx =>
+            {
+                var output = await ExecutePowerShellCapture(felixPs1, "procs", "list");
+
+                if (string.IsNullOrWhiteSpace(output) || output.Contains("No active sessions"))
+                {
+                    AnsiConsole.MarkupLine("[grey]No active sessions[/]");
+                    return;
+                }
+
+                // Parse the output (simple text format from felix procs list)
+                var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+                var table = new Table()
+                    .Border(TableBorder.Rounded)
+                    .BorderColor(Color.Grey)
+                    .AddColumn(new TableColumn("[yellow]Session ID[/]"))
+                    .AddColumn(new TableColumn("[yellow]Requirement[/]"))
+                    .AddColumn(new TableColumn("[yellow]Agent[/]"))
+                    .AddColumn(new TableColumn("[yellow]PID[/]").RightAligned())
+                    .AddColumn(new TableColumn("[yellow]Status[/]"))
+                    .AddColumn(new TableColumn("[yellow]Duration[/]"));
+
+                // Skip header lines and parse session data
+                bool foundData = false;
+                foreach (var line in lines)
+                {
+                    // Look for lines with session data (contains hyphens in session ID format)
+                    if (line.Contains("-2026") && line.Contains("it"))
+                    {
+                        var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 6)
+                        {
+                            table.AddRow(
+                                $"[cyan]{parts[0]}[/]",
+                                $"[white]{parts[1]}[/]",
+                                $"[green]{parts[2]}[/]",
+                                $"[grey]{parts[3]}[/]",
+                                $"[yellow]{parts[4]}[/]",
+                                $"[grey]{string.Join(" ", parts.Skip(5))}[/]"
+                            );
+                            foundData = true;
+                        }
+                    }
+                }
+
+                if (foundData)
+                {
+                    AnsiConsole.Write(table);
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine("[grey]Tip: Use 'felix procs kill <session-id>' to terminate a session[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[grey]No active sessions[/]");
+                }
+            });
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
+        Console.ReadKey(true);
     }
 }

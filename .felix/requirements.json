@@ -184,7 +184,7 @@
                              "id":  "S-0056",
                              "title":  "S-0056: Tray Manager UI Modernization and Multi-Agent Dashboard",
                              "spec_path":  "specs/S-0056-tray-manager-ui-modernization.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "labels":  [
 
@@ -192,7 +192,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-02-06",
+                             "updated_at":  "2026-02-08",
                              "commit_on_complete":  false
                          },
                          {
