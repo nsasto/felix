@@ -33,6 +33,9 @@ function Exit-FelixAgent {
         
         [Parameter(Mandatory = $false)]
         [int]$AgentId,
+
+        [Parameter(Mandatory = $false)]
+        [string]$BackendBaseUrl,
         
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.Job]$HeartbeatJob
@@ -56,7 +59,9 @@ function Exit-FelixAgent {
     # Unregister agent if we have an agent ID
     if ($AgentId) {
         if (Get-Command Unregister-Agent -ErrorAction SilentlyContinue) {
-            Unregister-Agent -AgentId $AgentId
+            if ($BackendBaseUrl) {
+                Unregister-Agent -AgentId $AgentId -BackendBaseUrl $BackendBaseUrl
+            }
         }
     }
     

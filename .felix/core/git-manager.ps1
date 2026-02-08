@@ -55,12 +55,19 @@ function Get-GitState {
     }
     
     try {
-        return @{
-            commitHash     = git rev-parse HEAD 2>&1
-            branch         = git rev-parse --abbrev-ref HEAD 2>&1
-            modifiedFiles  = @(git diff --name-only HEAD 2>&1)
-            untrackedFiles = @(git ls-files --others --exclude-standard 2>&1)
-            stagedFiles    = @(git diff --cached --name-only 2>&1)
+        $prevErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            return @{
+                commitHash     = git rev-parse HEAD 2>$null
+                branch         = git rev-parse --abbrev-ref HEAD 2>$null
+                modifiedFiles  = @(git diff --name-only HEAD 2>$null)
+                untrackedFiles = @(git ls-files --others --exclude-standard 2>$null)
+                stagedFiles    = @(git diff --cached --name-only 2>$null)
+            }
+        }
+        finally {
+            $ErrorActionPreference = $prevErrorAction
         }
     }
     finally {

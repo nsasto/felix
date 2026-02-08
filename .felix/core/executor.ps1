@@ -506,10 +506,16 @@ function Build-IterationPrompt {
     $gitDiff = ""
     if (Test-Path (Join-Path $Paths.ProjectPath ".git")) {
         Push-Location $Paths.ProjectPath
+        $prevErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
         try {
             $gitDiff = git diff 2>$null
         }
+        catch {
+            $gitDiff = ""
+        }
         finally {
+            $ErrorActionPreference = $prevErrorAction
             Pop-Location
         }
     }
@@ -648,11 +654,45 @@ function Invoke-AgentExecution {
                 [Environment]::SetEnvironmentVariable($key, $value, "Process")
             }
         }
-        
-        Push-Location $agentCwd
+
+        # Execute using Start-Process + redirected streams to avoid PowerShell treating stderr lines as errors
+        $inputPath = [System.IO.Path]::GetTempFileName()
+        $stdoutPath = [System.IO.Path]::GetTempFileName()
+        $stderrPath = [System.IO.Path]::GetTempFileName()
+
         try {
-            $output = $formattedPrompt | & $resolvedExecutable @agentArgs 2>&1 | Out-String
-            $exitCode = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            [System.IO.File]::WriteAllText($inputPath, $formattedPrompt, $utf8NoBom)
+
+            $argString = (@($agentArgs) | ForEach-Object {
+                $a = [string]$_
+                if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
+            }) -join ' '
+
+            $p = Start-Process `
+                -FilePath $resolvedExecutable `
+                -ArgumentList $argString `
+                -WorkingDirectory $agentCwd `
+                -NoNewWindow `
+                -PassThru `
+                -Wait `
+                -RedirectStandardInput $inputPath `
+                -RedirectStandardOutput $stdoutPath `
+                -RedirectStandardError $stderrPath
+
+            $exitCode = [int]$p.ExitCode
+
+            $stdout = ""
+            $stderr = ""
+            if (Test-Path $stdoutPath) { $stdout = Get-Content -Raw -LiteralPath $stdoutPath -ErrorAction SilentlyContinue }
+            if (Test-Path $stderrPath) { $stderr = Get-Content -Raw -LiteralPath $stderrPath -ErrorAction SilentlyContinue }
+
+            $output = $stdout
+            if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+                if (-not [string]::IsNullOrWhiteSpace($output)) { $output += "`n" }
+                $output += $stderr
+            }
+
             if ($exitCode -ne 0) {
                 $succeeded = $false
                 Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
@@ -665,7 +705,9 @@ function Invoke-AgentExecution {
             }
         }
         finally {
-            Pop-Location
+            foreach ($path in @($inputPath, $stdoutPath, $stderrPath)) {
+                try { if ($path -and (Test-Path $path)) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } } catch { }
+            }
         }
     }
     catch {

@@ -29,6 +29,7 @@ function Get-ProjectPaths {
         FelixDir         = Join-Path $ProjectPath ".felix"
         RunsDir          = Join-Path $ProjectPath "runs"
         AgentsFile       = Join-Path $ProjectPath "AGENTS.md"
+        AgentsJsonFile   = Join-Path (Join-Path $ProjectPath ".felix") "agents.json"
         ConfigFile       = Join-Path (Join-Path $ProjectPath ".felix") "config.json"
         StateFile        = Join-Path (Join-Path $ProjectPath ".felix") "state.json"
         RequirementsFile = Join-Path (Join-Path $ProjectPath ".felix") "requirements.json"
@@ -104,24 +105,31 @@ function Get-FelixConfig {
 function Get-AgentsConfiguration {
     <#
     .SYNOPSIS
-    Loads agents configuration from ~/.felix/agents.json
+    Loads agents configuration from a project or user agents.json
     
     .PARAMETER FelixHome
     Path to Felix home directory (defaults to ~/.felix)
+
+    .PARAMETER AgentsJsonFile
+    Optional explicit path to agents.json (e.g., <project>/.felix/agents.json). If provided, takes precedence.
     
     .OUTPUTS
     PSCustomObject containing agents configuration
     #>
     param(
         [Parameter(Mandatory = $false)]
-        [string]$FelixHome = $null
+        [string]$FelixHome = $null,
+
+        [Parameter(Mandatory = $false)]
+        [string]$AgentsJsonFile = $null
     )
     
-    if (-not $FelixHome) {
-        $FelixHome = if ($env:FELIX_HOME) { $env:FELIX_HOME } else { Join-Path $env:USERPROFILE ".felix" }
+    if (-not $AgentsJsonFile) {
+        if (-not $FelixHome) {
+            $FelixHome = if ($env:FELIX_HOME) { $env:FELIX_HOME } else { Join-Path $env:USERPROFILE ".felix" }
+        }
+        $AgentsJsonFile = Join-Path $FelixHome "agents.json"
     }
-    
-    $AgentsJsonFile = Join-Path $FelixHome "agents.json"
     
     # Create default agents.json if it doesn't exist
     if (-not (Test-Path $AgentsJsonFile)) {
@@ -131,27 +139,43 @@ function Get-AgentsConfiguration {
             agents = @(
                 @{
                     id                = 0
-                    name              = "felix-primary"
+                    name              = "droid"
+                    adapter           = "droid"
                     executable        = "droid"
-                    args              = @("exec", "--skip-permissions-unsafe")
+                    args              = @("exec", "--skip-permissions-unsafe", "--output-format", "json")
                     working_directory = "."
                     environment       = @{}
+                    description       = "Factory.ai Droid - Fast, reliable, JSON event stream"
                 }
                 @{
                     id                = 1
-                    name              = "codex-cli"
-                    executable        = "codex"
-                    args              = @("-C", ".", "-s", "workspace-write", "-a", "never", "exec", "--color", "never", "-")
+                    name              = "claude"
+                    adapter           = "claude"
+                    executable        = "claude"
+                    args              = @("-p", "--model", "sonnet", "--output-format", "text")
                     working_directory = "."
                     environment       = @{}
+                    description       = "Anthropic Claude Code - Excellent reasoning, OAuth auth"
                 }
                 @{
                     id                = 2
-                    name              = "claude-code"
-                    executable        = "claude"
-                    args              = @("-p", "--output-format", "text")
+                    name              = "codex"
+                    adapter           = "codex"
+                    executable        = "codex"
+                    args              = @("-C", ".", "-s", "workspace-write", "-a", "never")
                     working_directory = "."
                     environment       = @{}
+                    description       = "OpenAI Codex CLI - Diff-based workflow, OAuth auth"
+                }
+                @{
+                    id                = 3
+                    name              = "gemini"
+                    adapter           = "gemini"
+                    executable        = "gemini"
+                    args              = @("-m", "auto", "--approval-mode=auto_edit", "--output-format", "json")
+                    working_directory = "."
+                    environment       = @{}
+                    description       = "Google Gemini CLI - JSON streaming, OAuth auth"
                 }
             )
         }

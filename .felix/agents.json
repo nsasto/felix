@@ -42,7 +42,11 @@
         "-s",
         "workspace-write",
         "-a",
-        "never"
+        "never",
+        "exec",
+        "--color",
+        "never",
+        "-"
       ],
       "working_directory": ".",
       "environment": {},

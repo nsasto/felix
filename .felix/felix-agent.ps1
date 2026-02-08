@@ -79,7 +79,8 @@ catch {
     exit 1
 }
 
-Emit-RunStarted -RunId "init" -RequirementId "" -ProjectPath $ProjectPath
+$initReqId = if ($RequirementId) { $RequirementId } else { "" }
+Emit-RunStarted -RunId "init" -RequirementId $initReqId -ProjectPath $ProjectPath
 Emit-Log -Level "info" -Message "Felix Agent starting for: $ProjectPath" -Component "agent"
 
 # Get project paths and validate structure
@@ -88,6 +89,127 @@ if (-not (Test-ProjectStructure -Paths $paths)) {
     exit 1
 }
 
+function Acquire-FelixRunLock {
+    param(
+        [Parameter(Mandatory = $true)][string]$LockPath,
+        [Parameter(Mandatory = $true)][string]$ProjectPath,
+        [Parameter(Mandatory = $false)][string]$RequirementId
+    )
+
+    # Back-compat safety: if other felix-agent processes are already running for this repo,
+    # refuse to start even if no lock file exists (older processes won't have created one).
+    try {
+        $projectPathStr = [string]$ProjectPath
+        $escaped = [regex]::Escape($projectPathStr)
+        $others = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
+            Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -match 'felix-agent\.ps1' -and $_.CommandLine -match $escaped } |
+            Select-Object -ExpandProperty ProcessId
+
+        if ($others -and @($others).Count -gt 0) {
+            Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PIDs: $(@($others) -join ', ')). Stop it before starting a new run." -Severity "fatal" -Context @{
+                lock_path = $LockPath
+                pids      = @($others)
+            }
+            return $null
+        }
+    }
+    catch { }
+
+    for ($attempt = 0; $attempt -lt 2; $attempt++) {
+        try {
+            $handle = [System.IO.FileStream]::new(
+                $LockPath,
+                [System.IO.FileMode]::CreateNew,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+
+            $lockInfo = @{
+                pid            = $PID
+                project_path   = [string]$ProjectPath
+                requirement_id = if ($RequirementId) { [string]$RequirementId } else { "" }
+                started_at     = (Get-Date).ToUniversalTime().ToString("o")
+            }
+
+            $json = $lockInfo | ConvertTo-Json -Compress -Depth 5
+            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            $bytes = $utf8NoBom.GetBytes($json)
+            $handle.Write($bytes, 0, $bytes.Length)
+            $handle.Flush()
+
+            return $handle
+        }
+        catch {
+            if (-not (Test-Path -LiteralPath $LockPath)) {
+                throw
+            }
+
+            # Existing lock: check whether it's stale
+            $existing = $null
+            try {
+                $raw = Get-Content -Raw -LiteralPath $LockPath -ErrorAction SilentlyContinue
+                if ($raw) { $existing = $raw | ConvertFrom-Json -ErrorAction SilentlyContinue }
+            }
+            catch { }
+
+            $existingPid = $null
+            try {
+                if ($existing -and $existing.pid) { $existingPid = [int]$existing.pid }
+            }
+            catch { }
+
+            $isRunning = $false
+            if ($existingPid) {
+                $proc = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
+                if ($proc) { $isRunning = $true }
+            }
+
+            if ($isRunning) {
+                Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PID: $existingPid). Stop it before starting a new run." -Severity "fatal" -Context @{
+                    lock_path      = $LockPath
+                    existing_pid   = $existingPid
+                    existing_reqid = if ($existing -and $existing.requirement_id) { [string]$existing.requirement_id } else { "" }
+                }
+                return $null
+            }
+
+            # Stale lock: remove and retry once
+            try {
+                Remove-Item -LiteralPath $LockPath -Force -ErrorAction SilentlyContinue
+            }
+            catch { }
+        }
+    }
+
+    return $null
+}
+
+function Release-FelixRunLock {
+    param(
+        [Parameter(Mandatory = $false)]$LockHandle,
+        [Parameter(Mandatory = $true)][string]$LockPath
+    )
+
+    try {
+        if ($LockHandle) { $LockHandle.Dispose() }
+    }
+    catch { }
+
+    try {
+        if (Test-Path -LiteralPath $LockPath) {
+            Remove-Item -LiteralPath $LockPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+    catch { }
+}
+
+$lockPath = Join-Path $paths.FelixDir "run.lock"
+$script:FelixRunLockHandle = Acquire-FelixRunLock -LockPath $lockPath -ProjectPath $ProjectPath -RequirementId $RequirementId
+if (-not $script:FelixRunLockHandle) {
+    exit 1
+}
+
+try {
 # Extract paths for convenience
 $SpecsDir = $paths.SpecsDir
 $FelixDir = $paths.FelixDir
@@ -123,7 +245,7 @@ else {
 Emit-Log -Level "debug" -Message "Using agent ID: $agentId" -Component "init"
 
 Emit-Log -Level "debug" -Message "Loading agents configuration" -Component "init"
-$agentsData = Get-AgentsConfiguration
+$agentsData = Get-AgentsConfiguration -AgentsJsonFile $paths.AgentsJsonFile
 if (-not $agentsData) {
     Emit-Error -ErrorType "AgentsDataLoadFailed" -Message "Failed to load agents.json" -Severity "fatal"
     exit 1
@@ -237,7 +359,7 @@ for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         -NoCommit:$NoCommit
     
     if (-not $result.Continue) {
-        Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob
+        Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
     }
 }
 
@@ -246,4 +368,8 @@ Emit-Log -Level "warn" -Message "Reached max iterations ($maxIterations)" -Compo
 $state.status = "incomplete"
 $state.updated_at = Get-Date -Format "o"
 $state | ConvertTo-Json | Set-Content $StateFile
-Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob
+Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
+}
+finally {
+    Release-FelixRunLock -LockHandle $script:FelixRunLockHandle -LockPath $lockPath
+}
