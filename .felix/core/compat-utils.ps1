@@ -77,3 +77,59 @@ function Invoke-SafeCommand {
         Set-Location $originalLocation
     }
 }
+
+function Resolve-FelixExecutablePath {
+    <#
+    .SYNOPSIS
+    Resolves an executable to a runnable filesystem path
+    
+    .DESCRIPTION
+    Attempts to resolve an executable name (e.g., "codex", "droid") to an absolute path,
+    even when npm global shim directories are not on PATH.
+    
+    Returns $null if not found.
+    #>
+    param([Parameter(Mandatory = $true)][string]$Executable)
+    
+    if ([string]::IsNullOrWhiteSpace($Executable)) {
+        return $null
+    }
+    
+    # Direct path (relative or absolute)
+    try {
+        if (Test-Path $Executable) {
+            return (Resolve-Path $Executable).Path
+        }
+    }
+    catch { }
+    
+    # PATH / registered command
+    try {
+        return (Get-Command $Executable -ErrorAction Stop).Source
+    }
+    catch { }
+    
+    # Check npm global on Windows (common but not always on PATH)
+    if ($IsWindows -or ($PSVersionTable.PSVersion.Major -lt 6)) {
+        $npmPrefix = $null
+        try {
+            $npmPrefix = npm config get prefix 2>$null
+        }
+        catch { }
+        
+        if ($npmPrefix -and (Test-Path $npmPrefix)) {
+            $candidates = @(
+                (Join-Path $npmPrefix "$Executable.cmd"),
+                (Join-Path $npmPrefix "$Executable.ps1"),
+                (Join-Path $npmPrefix "$Executable")
+            )
+            foreach ($candidate in $candidates) {
+                if (Test-Path $candidate) {
+                    return (Resolve-Path $candidate).Path
+                }
+            }
+        }
+    }
+    
+    return $null
+}

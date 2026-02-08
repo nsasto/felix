@@ -349,12 +349,22 @@ function Invoke-Run {
 function Invoke-Loop {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
 
-    # Parse max-iterations flag
+    # Parse flags
     $maxIterations = 0
-    for ($i = 0; $i -lt $Args.Count; $i++) {
-        if ($Args[$i] -eq "--max-iterations") {
+    $formatValue = $Format  # Use script-level default
+    
+    $i = 0
+    while ($i -lt $Args.Count) {
+        if ($Args[$i] -eq "--max-iterations" -and ($i + 1) -lt $Args.Count) {
             $maxIterations = [int]$Args[$i + 1]
-            break
+            $i += 2
+        }
+        elseif ($Args[$i] -eq "--format" -and ($i + 1) -lt $Args.Count) {
+            $formatValue = $Args[$i + 1]
+            $i += 2
+        }
+        else {
+            $i++
         }
     }
 
@@ -365,13 +375,13 @@ function Invoke-Loop {
     }
     Write-Host ""
 
-    # Start loop process
-    $loopArgs = @($RepoRoot)
+    # Start loop process - use explicit named parameters
     if ($maxIterations -gt 0) {
-        $loopArgs += @("-MaxIterations", $maxIterations)
+        & "$PSScriptRoot\felix-loop.ps1" -ProjectPath $RepoRoot -MaxRequirements $maxIterations -Format $formatValue
     }
-
-    & "$PSScriptRoot\felix-loop.ps1" @loopArgs
+    else {
+        & "$PSScriptRoot\felix-loop.ps1" -ProjectPath $RepoRoot -Format $formatValue
+    }
     exit $LASTEXITCODE
 }
 

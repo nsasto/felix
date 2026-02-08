@@ -15,7 +15,10 @@ param(
     [int]$MaxRequirements = 999,
     
     [Parameter(Mandatory = $false)]
-    [switch]$NoCommit   # Use this flag for testing to prevent git commits
+    [switch]$NoCommit,   # Use this flag for testing to prevent git commits
+    
+    [Parameter(Mandatory = $false)]
+    [string]$Format = "json"  # Output format: json, plain, or rich
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,11 +29,28 @@ $ErrorActionPreference = "Stop"
 # Resolve paths
 $ProjectPath = Resolve-Path $ProjectPath
 $RequirementsFile = Join-Path $ProjectPath ".felix\requirements.json"
-$AgentScript = Join-Path $PSScriptRoot "felix-agent.ps1"
+$FelixScript = Join-Path $ProjectPath ".felix\felix.ps1"
 
-Emit-Log -Level "info" -Message "Felix Loop - Autonomous Multi-Requirement Executor" -Component "loop"
-Emit-Log -Level "info" -Message "Project: $ProjectPath" -Component "loop"
-Emit-Log -Level "info" -Message "Max requirements: $MaxRequirements" -Component "loop"
+# Helper function to emit logs only in JSON format (prevents format mixing)
+function Emit-Loop-Log {
+    param([string]$Level, [string]$Message)
+    if ($Format -eq "json") {
+        Emit-Log -Level $Level -Message $Message -Component "loop"
+    }
+}
+
+# Only emit JSON events when format is json, otherwise use plain text
+if ($Format -eq "json") {
+    Emit-Loop-Log -Level "info" -Message "Felix Loop - Autonomous Multi-Requirement Executor"
+    Emit-Loop-Log -Level "info" -Message "Project: $ProjectPath"
+    Emit-Loop-Log -Level "info" -Message "Max requirements: $MaxRequirements"
+}
+else {
+    Write-Host "Felix Loop - Autonomous Multi-Requirement Executor" -ForegroundColor Cyan
+    Write-Host "Project: $ProjectPath"
+    Write-Host "Max requirements: $MaxRequirements"
+    Write-Host ""
+}
 
 # Create process-specific lock file to track active loops
 $lockDir = Join-Path $ProjectPath ".felix\.locks"
@@ -46,13 +66,13 @@ $lockData = @{
 } | ConvertTo-Json
 
 Set-Content -Path $lockFile -Value $lockData
-Emit-Log -Level "debug" -Message "Created loop lock: $lockFile" -Component "loop"
+Emit-Loop-Log -Level "debug" -Message "Created loop lock: $lockFile"
 
 # Cleanup function
 function Remove-LoopLock {
     if (Test-Path $lockFile) {
         Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-        Emit-Log -Level "debug" -Message "Removed loop lock" -Component "loop"
+        Emit-Loop-Log -Level "debug" -Message "Removed loop lock"
     }
 }
 
@@ -95,16 +115,16 @@ while ($requirementsProcessed -lt $MaxRequirements) {
     $nextReq = Select-NextRequirement -RequirementsFilePath $RequirementsFile
     
     if (-not $nextReq) {
-        Emit-Log -Level "info" -Message "No more requirements to process - all done!" -Component "loop"
+        Emit-Loop-Log -Level "info" -Message "No more requirements to process - all done!"
         exit 0
     }
     
-    Emit-Log -Level "info" -Message "Processing requirement: $($nextReq.id) - $($nextReq.title)" -Component "loop"
+    Emit-Loop-Log -Level "info" -Message "Processing requirement: $($nextReq.id) - $($nextReq.title)"
     
-    # Validate parameters before calling felix-agent
+    # Validate parameters before calling felix run
     if (-not $nextReq.id) {
         Emit-Error -ErrorType "InvalidRequirementId" -Message "nextReq.id is null or empty" -Severity "error"
-        Emit-Log -Level "debug" -Message "nextReq object: $($nextReq | ConvertTo-Json -Depth 2)" -Component "loop"
+        Emit-Loop-Log -Level "debug" -Message "nextReq object: $($nextReq | ConvertTo-Json -Depth 2)"
         continue
     }
     
@@ -114,35 +134,35 @@ while ($requirementsProcessed -lt $MaxRequirements) {
         $freshReq = $freshReqs.requirements | Where-Object { $_.id -eq $nextReq.id } | Select-Object -First 1
         
         if (-not $freshReq) {
-            Emit-Log -Level "warn" -Message "Requirement $($nextReq.id) no longer exists - skipping" -Component "loop"
+            Emit-Loop-Log -Level "warn" -Message "Requirement $($nextReq.id) no longer exists - skipping"
             continue
         }
         
         if ($freshReq.status -notin @("planned", "in_progress")) {
-            Emit-Log -Level "warn" -Message "Requirement $($nextReq.id) status changed to '$($freshReq.status)' - skipping" -Component "loop"
+            Emit-Loop-Log -Level "warn" -Message "Requirement $($nextReq.id) status changed to '$($freshReq.status)' - skipping"
             continue
         }
     }
     catch {
-        Emit-Log -Level "warn" -Message "Failed to verify requirement status: $_ - skipping" -Component "loop"
+        Emit-Loop-Log -Level "warn" -Message "Failed to verify requirement status: $_ - skipping"
         continue
     }
     
-    # Execute felix-agent for this specific requirement
-    Emit-Log -Level "debug" -Message "Calling felix-agent with RequirementId='$($nextReq.id)'" -Component "loop"
+    # Execute felix run for this specific requirement
+    Emit-Loop-Log -Level "debug" -Message "Calling felix run with RequirementId='$($nextReq.id)', Format='$Format'"
     
-    if ($NoCommit) {
-        & $AgentScript $ProjectPath -RequirementId $nextReq.id -NoCommit
+    # Call felix run directly - output flows through to console
+    if ($Format -ne "json") {
+        Write-Host ""  # Blank line before requirement execution
     }
-    else {
-        & $AgentScript $ProjectPath -RequirementId $nextReq.id
-    }
+    
+    & $FelixScript run $nextReq.id --format $Format
     $exitCode = $LASTEXITCODE
     
     switch ($exitCode) {
         0 {
             # Success - requirement completed
-            Emit-Log -Level "info" -Message "$($nextReq.id) completed successfully" -Component "loop"
+            Emit-Loop-Log -Level "info" -Message "$($nextReq.id) completed successfully"
             
             # Brief pause to ensure requirements.json is updated
             Start-Sleep -Milliseconds 500
@@ -152,25 +172,25 @@ while ($requirementsProcessed -lt $MaxRequirements) {
             $completedReq = $updatedReqs.requirements | Where-Object { $_.id -eq $nextReq.id }
             
             if ($completedReq -and ($completedReq.status -eq "complete" -or $completedReq.status -eq "done")) {
-                Emit-Log -Level "info" -Message "Status verified: $($nextReq.id) marked as $($completedReq.status)" -Component "loop"
+                Emit-Loop-Log -Level "info" -Message "Status verified: $($nextReq.id) marked as $($completedReq.status)"
             }
             elseif ($completedReq -and $completedReq.status -in @("in_progress", "planned")) {
-                Emit-Log -Level "warn" -Message "$($nextReq.id) still has status '$($completedReq.status)' after processing" -Component "loop"
+                Emit-Loop-Log -Level "warn" -Message "$($nextReq.id) still has status '$($completedReq.status)' after processing"
             }
             else {
-                Emit-Log -Level "warn" -Message "$($nextReq.id) status is '$($completedReq.status)' (expected 'complete')" -Component "loop"
+                Emit-Loop-Log -Level "warn" -Message "$($nextReq.id) status is '$($completedReq.status)' (expected 'complete')"
             }
             
             $requirementsProcessed++
         }
         2 {
             # Blocked due to backpressure failures
-            Emit-Log -Level "warn" -Message "$($nextReq.id) blocked (backpressure failures) - moving to next" -Component "loop"
+            Emit-Loop-Log -Level "warn" -Message "$($nextReq.id) blocked (backpressure failures) - moving to next"
             $requirementsProcessed++
         }
         3 {
             # Blocked due to validation failures
-            Emit-Log -Level "warn" -Message "$($nextReq.id) blocked (validation failures) - moving to next" -Component "loop"
+            Emit-Loop-Log -Level "warn" -Message "$($nextReq.id) blocked (validation failures) - moving to next"
             $requirementsProcessed++
         }
         1 {
@@ -185,10 +205,10 @@ while ($requirementsProcessed -lt $MaxRequirements) {
         }
     }
     
-    Emit-Log -Level "info" -Message "Requirements processed: $requirementsProcessed / $MaxRequirements" -Component "loop"
+    Emit-Loop-Log -Level "info" -Message "Requirements processed: $requirementsProcessed / $MaxRequirements"
 }
 
-Emit-Log -Level "info" -Message "Max requirements limit reached ($MaxRequirements)" -Component "loop"
+Emit-Loop-Log -Level "info" -Message "Max requirements limit reached ($MaxRequirements)"
 
 # Cleanup
 Remove-LoopLock
