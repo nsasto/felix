@@ -1,65 +1,217 @@
 # Context
 
-This file documents product and system context for Felix.
+Felix is a plan-driven executor for Ralph-style autonomous software delivery. It transforms the Ralph concept from "a loop you run" into an operable system with durable state, explicit modes (planning/building), and enforced separation between planning and execution. The system orchestrates AI agents through filesystem-based artifacts while providing a web UI for monitoring and control.
 
 ## Tech Stack
 
-### Agent
+### Agent (CLI)
 
 - **Language:** PowerShell
-- **Runtime:** Windows PowerShell / PowerShell Core (pwsh)
-- **LLM Integration:** droid exec (Factory tool)
-- **Authentication:** FACTORY_API_KEY environment variable
-- **Location:** `felix-agent.ps1` at project root
+- **Runtime:** Windows PowerShell 5.1+ / PowerShell Core 7+ (pwsh)
+- **LLM Integration:** `droid exec` (Factory CLI tool)
+- **Authentication:** `FACTORY_API_KEY` environment variable
+- **Entry Point:** `.felix/felix.ps1` (dispatcher)
+- **Core Scripts:** `.felix/felix-agent.ps1`, `.felix/felix-loop.ps1`, `.felix/felix-cli.ps1`
+- **Location:** `.felix/` directory
 
-### Backend
+### Backend (API Server)
 
 - **Language:** Python 3.11+
-- **Framework:** FastAPI + Uvicorn (ASGI)
+- **Framework:** FastAPI 0.115.0 + Uvicorn 0.32.0 (ASGI)
 - **Port:** 8080
-- **Dependencies:** fastapi, uvicorn, websockets, aiofiles, watchfiles, pydantic
+- **Database:** PostgreSQL (asyncpg 0.29+, SQLAlchemy 2.0+, databases 0.8+)
+- **Key Dependencies:**
+  - `fastapi`, `uvicorn[standard]` - Web framework and server
+  - `websockets` - Real-time communication
+  - `aiofiles`, `watchfiles` - Async file operations
+  - `pydantic`, `pydantic-settings` - Data validation
+  - `anthropic`, `openai` - LLM client libraries (Copilot)
+  - `httpx` - Async HTTP client
+  - `python-dotenv` - Environment management
 - **Location:** `app/backend/`
-- **Process Management:** subprocess.Popen for spawning detached agents
+- **API Docs:** http://localhost:8080/docs (Swagger UI)
 
-### Frontend
+### Frontend (Web UI)
 
-- **Language:** TypeScript
-- **Framework:** React 19 + Vite
+- **Language:** TypeScript 5.8+
+- **Framework:** React 19.2 + Vite 6.2
 - **Port:** 3000 (development)
+- **Testing:** Vitest 4.0 + @testing-library/react 16.3 + happy-dom
+- **Key Dependencies:**
+  - `react`, `react-dom` - UI framework
+  - `marked` - Markdown rendering
+  - `ansi-to-react` - ANSI terminal output display
+  - `react-resizable-panels` - Resizable panel layouts
+  - `@google/genai` - Gemini API client
+- **Build Tool:** Vite with React plugin
 - **Location:** `app/frontend/`
-- **State Management:** REST API + WebSocket for real-time updates
+
+### Tray Manager (Windows System Tray)
+
+- **Language:** C# 8+
+- **Framework:** .NET 8.0 + WPF (Windows Presentation Foundation)
+- **UI Toolkit:** WPF-UI 3.0.5 (Fluent Design)
+- **Key Dependencies:**
+  - `CommunityToolkit.Mvvm` - MVVM framework
+  - `MdXaml` - Markdown rendering in WPF
+  - `System.Drawing.Common` - Graphics utilities
+- **Location:** `app/tray-manager/`
+
+### CLI Tool (Future/Optional)
+
+- **Language:** C# 12
+- **Framework:** .NET 10.0
+- **Key Dependencies:**
+  - `Spectre.Console` - Rich console output
+  - `System.CommandLine` - Command-line parsing
+- **Location:** `src/Felix.Cli/`
 
 ### Communication Architecture
 
-- **Agent ↔ Filesystem:** Direct read/write of project files
-- **Backend ↔ Agent:** Filesystem watching only (no IPC, sockets, or shared memory)
+- **Agent ↔ Filesystem:** Direct read/write of project files (specs, plans, state JSON)
+- **Backend ↔ Agent:** No direct communication; backend watches filesystem for changes
+- **Backend ↔ Database:** Async PostgreSQL via `databases` + `asyncpg`
 - **Backend ↔ Frontend:** REST API + WebSocket for real-time updates
-- **LLM Integration:** Agent shells out to droid exec which calls Factory API
+- **Frontend ↔ LLM (Copilot):** Via backend proxy endpoints or direct client (Gemini)
+- **Agent ↔ LLM:** Agent shells out to `droid exec` which calls Factory API
 
 ## Design Standards
 
-- Keep the outer mechanism dumb
-- File-based memory and state
-- Deterministic, reproducible iterations
+- **Keep the outer mechanism dumb:** Agent orchestration is simple; complexity lives in prompts
+- **File-based memory and state:** All state persisted as JSON/Markdown files in `.felix/` and `runs/`
+- **Deterministic, reproducible iterations:** Each agent run is self-contained with traceable artifacts
+- **Separation of concerns:** Agent (PowerShell) → Backend (Python) → Frontend (React) are independent
+- **Atomic task outcomes:** One iteration = one task outcome (success, failure, or blocked)
+- **Error handling:** Use structured try/catch in PowerShell; Python exceptions with FastAPI error handlers
+- **Naming conventions:**
+  - PowerShell: kebab-case files (`felix-agent.ps1`), PascalCase functions
+  - Python: snake_case files and functions, PascalCase classes
+  - TypeScript: PascalCase components, camelCase functions/variables
+  - Specs: `S-NNNN-descriptive-name.md` format
 
 ## UX Rules
 
-- Minimal UI - operator console, not the brain
-- State visible through file system
-- Clear separation between planning and building
+- **Minimal UI:** Operator console, not the brain; the agent does the thinking
+- **State visible through filesystem:** Users can inspect `.felix/state.json`, `runs/`, and spec files
+- **Clear separation:** Planning mode (generates plans) vs Building mode (writes code)
+- **Real-time feedback:** WebSocket streaming for agent console output
+- **Accessible defaults:** Light/dark themes, keyboard navigation
 
 ## Architectural Invariants
 
-- Planning mode cannot commit code
-- Building mode requires a plan
-- One iteration equals one task outcome
-- Backpressure is non-negotiable
+- **Planning mode cannot commit code:** Enforced by agent guardrails
+- **Building mode requires a plan:** Agent fails without a plan file present
+- **One iteration equals one task outcome:** Atomic units of work
+- **Backpressure is non-negotiable:** Tests must pass before marking complete (configurable in `.felix/config.json`)
+- **Spec files are test suites (persistent):** `specs/*.md` define what to build and how to validate
+- **Plan files are to-do lists (ephemeral):** `runs/*/plan-*.md` are checked off and archived
+- **Agent registry is authoritative:** `.felix/agents.json` defines available agents; `config.json` references by ID
 
 ## Testing Standards
 
-- All new features require tests
-- Backend: pytest (unit + integration tests)
-- Frontend: Jest/Vitest (component + integration tests)
-- Minimum coverage: Happy path + one error case
-- Tests must pass before marking requirements complete
-- Test files mirror source structure (e.g., `src/foo.py` → `tests/test_foo.py`)
+- **Backend:**
+  - Framework: pytest 8.3+ with pytest-asyncio
+  - Location: `app/backend/tests/test_*.py`
+  - Run: `powershell -File .\scripts\test-backend.ps1`
+  - Coverage: pytest-cov enabled
+  - Configuration: `app/backend/pytest.ini`
+- **Frontend:**
+  - Framework: Vitest 4.0 with @testing-library/react
+  - Location: `app/frontend/src/__tests__/*.test.tsx`
+  - Run: `powershell -File .\scripts\test-frontend.ps1`
+  - Setup: `app/frontend/src/__tests__/setup.ts`
+  - Environment: happy-dom
+- **Agent (PowerShell):**
+  - Location: `.felix/tests/`
+  - Harness: `.felix/plugins/test-harness.ps1`
+- **Requirements:**
+  - All new features require tests
+  - Minimum coverage: Happy path + one error case
+  - Tests must pass before marking requirements complete
+  - Validation: `py -3 scripts/validate-requirement.py S-NNNN`
+
+## File Organization
+
+- `.felix/` - Felix agent runtime configuration and scripts
+  - `felix.ps1` - CLI dispatcher (entry point)
+  - `felix-agent.ps1` - Core agent executor
+  - `felix-loop.ps1` - Continuous execution loop
+  - `config.json` - Runtime configuration
+  - `agents.json` - Agent registry (ID, executable, adapter)
+  - `requirements.json` - Requirements status tracking
+  - `state.json` - Current execution state
+  - `core/` - Core PowerShell modules
+  - `plugins/` - Plugin system (metrics, slack, prompt-enhancer)
+  - `policies/` - Allowlist/denylist for agent operations
+  - `prompts/` - LLM prompt templates (planning.md, building.md, etc.)
+  - `tests/` - Agent test files
+- `app/backend/` - FastAPI backend server
+  - `main.py` - Application entry point
+  - `routers/` - API route handlers (agents, runs, settings, copilot, etc.)
+  - `database/` - Database connection and writers
+  - `migrations/` - SQL schema migrations
+  - `services/` - Business logic services
+  - `websocket/` - WebSocket handlers
+  - `tests/` - pytest test files
+- `app/frontend/` - React web UI
+  - `App.tsx` - Main application component
+  - `index.tsx` - React entry point
+  - `components/` - React components (AgentDashboard, SettingsScreen, etc.)
+  - `hooks/` - Custom React hooks
+  - `services/` - API client services
+  - `src/api/` - API integration
+  - `src/__tests__/` - Vitest test files
+- `app/tray-manager/` - Windows system tray application
+  - `App.xaml` / `App.xaml.cs` - WPF application
+  - `Views/` - XAML views
+  - `ViewModels/` - MVVM view models
+  - `Services/` - Application services
+- `specs/` - Requirement specifications (S-NNNN-*.md)
+- `runs/` - Execution run artifacts (timestamped directories)
+- `scripts/` - Development and utility scripts
+  - `test-backend.ps1`, `test-frontend.ps1` - Test runners
+  - `validate-requirement.ps1/py` - Requirement validation
+  - `setup-db.ps1` - Database setup
+  - `install-cli.ps1` - CLI installation
+- `tuts/` - Tutorial and explanation documents
+- `learnings/` - Historical learnings and anti-patterns
+- `src/` - Additional source code (Felix.Cli)
+
+## Database Schema
+
+PostgreSQL database with 9 core tables:
+
+- `schema_migrations` - Migration version tracking
+- `organizations` - Multi-tenant organization records
+- `organization_members` - User membership with roles (owner/admin/member)
+- `projects` - Projects within organizations
+- `requirements` - Requirement tracking (planned/in-progress/completed/blocked)
+- `agents` - Agent registration and status
+- `agent_states` - Key-value state storage for agents
+- `runs` - Execution run records (pending/running/completed/failed/cancelled)
+- `run_artifacts` - Artifacts produced by runs
+
+Setup: `.\scripts\setup-db.ps1`
+
+## Key Dependencies
+
+### External Services
+
+- **Factory API:** LLM execution via `droid exec` command
+- **PostgreSQL:** Primary data store for backend (local or remote)
+- **Node.js/npm:** Frontend build and development
+- **Python 3.11+:** Backend runtime
+
+### Environment Variables
+
+- `FACTORY_API_KEY` - Authentication for Factory/droid CLI
+- `DATABASE_URL` - PostgreSQL connection string (backend)
+- `FELIX_COPILOT_API_KEY` - Optional: API key for Copilot features
+- `GEMINI_API_KEY` - Optional: Google Gemini API for frontend Copilot
+
+### Configuration Files
+
+- `.felix/config.json` - Agent runtime configuration
+- `.felix/agents.json` - Agent definitions registry
+- `app/backend/.env` - Backend environment variables
+- `app/frontend/.env` - Frontend environment variables (Vite)

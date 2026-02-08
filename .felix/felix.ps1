@@ -30,7 +30,7 @@ Command-specific arguments and global flags
 
 param(
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "agent", "procs", "tui", "version", "help")]
+    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "context", "agent", "procs", "tui", "version", "help")]
     [string]$Command = "help",
 
     [Parameter(Mandatory = $false, Position = 1, ValueFromRemainingArguments = $true)]
@@ -313,6 +313,87 @@ function Invoke-Agent {
         }
         default {
             Write-Error "Unknown agent subcommand: $subCmd. Use: list, current, use, test"
+            exit 1
+        }
+    }
+}
+
+function Invoke-Context {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
+    
+    # Load context-builder module
+    . "$PSScriptRoot\core\context-builder.ps1"
+    
+    # Load dependencies
+    . "$PSScriptRoot\core\config-loader.ps1"
+    . "$PSScriptRoot\core\emit-event.ps1"
+    
+    $subCmd = if ($Args -and $Args.Count -gt 0) { $Args[0] } else { "build" }
+    
+    switch ($subCmd) {
+        "build" {
+            # Parse flags
+            $includeHidden = $false
+            $force = $false
+            
+            for ($i = 1; $i -lt $Args.Count; $i++) {
+                switch ($Args[$i]) {
+                    "--include-hidden" { $includeHidden = $true }
+                    "--force" { $force = $true }
+                }
+            }
+            
+            Write-Host ""
+            Write-Host "=== Felix Context Builder ===" -ForegroundColor Cyan
+            Write-Host "Project: $RepoRoot" -ForegroundColor Gray
+            Write-Host ""
+            
+            # Load configuration
+            $configPath = Join-Path $RepoRoot ".felix\config.json"
+            $agentsFile = Join-Path $RepoRoot ".felix\agents.json"
+            $config = Get-FelixConfig -ConfigFile $configPath
+            $agentConfig = Get-AgentsConfiguration -AgentsJsonFile $agentsFile
+            $paths = @{
+                ProjectPath = $RepoRoot
+                FelixDir    = Join-Path $RepoRoot ".felix"
+                SpecsDir    = Join-Path $RepoRoot "specs"
+                PromptsDir  = Join-Path $RepoRoot ".felix\prompts"
+                AgentsFile  = Join-Path $RepoRoot "AGENTS.md"
+            }
+            
+            # Execute builder
+            $result = Invoke-ContextBuilder `
+                -ProjectPath $RepoRoot `
+                -IncludeHidden:$includeHidden `
+                -Force:$force `
+                -Config $config `
+                -AgentConfig $agentConfig `
+                -Paths $paths
+            
+            exit $result.ExitCode
+        }
+        
+        "show" {
+            $contextPath = Join-Path $RepoRoot "specs\CONTEXT.md"
+            if (-not (Test-Path $contextPath)) {
+                Write-Host ""
+                Write-Host "CONTEXT.md not found" -ForegroundColor Yellow
+                Write-Host "Run 'felix context build' to generate it" -ForegroundColor Gray
+                Write-Host ""
+                exit 1
+            }
+            
+            $content = Get-Content $contextPath -Raw
+            Write-Host $content
+        }
+        
+        default {
+            Write-Error "Unknown context subcommand: $subCmd"
+            Write-Host "Usage: felix context <build|show> [options]"
+            Write-Host ""
+            Write-Host "Options for 'build':"
+            Write-Host "  --include-hidden    Include hidden files/folders in analysis"
+            Write-Host "  --force             Skip overwrite confirmation"
             exit 1
         }
     }
@@ -1771,6 +1852,33 @@ function Show-Help {
                 Write-Host "  felix spec delete S-0001"
                 Write-Host ""
             }
+            "context" {
+                Write-Host ""
+                Write-Host "felix context <subcommand> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Generate or view comprehensive project context documentation."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  build [options]       Analyze project and generate specs/CONTEXT.md"
+                Write-Host "  show                  Display current CONTEXT.md content"
+                Write-Host ""
+                Write-Host "Options for 'build':" -ForegroundColor Yellow
+                Write-Host "  --include-hidden      Include hidden files/folders in analysis"
+                Write-Host "  --force               Skip overwrite confirmation"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix context build"
+                Write-Host "  felix context build --include-hidden"
+                Write-Host "  felix context build --force"
+                Write-Host "  felix context show"
+                Write-Host ""
+                Write-Host "Note:" -ForegroundColor Yellow
+                Write-Host "  The build command uses the configured agent to autonomously analyze"
+                Write-Host "  the project structure, tech stack, and architecture to generate"
+                Write-Host "  comprehensive documentation. Existing CONTEXT.md is backed up with"
+                Write-Host "  a timestamp before being updated."
+                Write-Host ""
+            }
             "tui" {
                 Write-Host ""
                 Write-Host "felix tui" -ForegroundColor Cyan
@@ -1837,6 +1945,7 @@ function Show-Help {
         Write-Host "  validate <req-id>     Run validation checks"
         Write-Host "  deps [req-id]         Show dependencies and validate status"
         Write-Host "  spec <subcommand>     Manage requirement specifications"
+        Write-Host "  context <subcommand>  Generate/view project context documentation"
         Write-Host "  agent <subcommand>    Manage and switch agents"
         Write-Host "  procs [subcommand]    Manage active execution sessions"
         Write-Host "  tui                   Launch interactive terminal UI"
@@ -1856,6 +1965,7 @@ function Show-Help {
         Write-Host "  felix validate S-0001"
         Write-Host "  felix deps S-0001 --check"
         Write-Host "  felix spec create ""Add user authentication"""
+        Write-Host "  felix context build"
         Write-Host "  felix help run"
         Write-Host ""
     }
@@ -1883,6 +1993,9 @@ switch ($Command) {
     }
     "spec" {
         & { Invoke-SpecCreate @remainingArgs }
+    }
+    "context" {
+        Invoke-Context -Args $remainingArgs
     }
     "tui" {
         Invoke-Tui
