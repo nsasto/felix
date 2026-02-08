@@ -43,7 +43,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 
 # Parse global flags
-$Format = "json"
+$Format = "rich"
 $Verbose = $false
 $Quiet = $false
 $NoStats = $false
