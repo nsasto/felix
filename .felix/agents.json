@@ -5,12 +5,7 @@
       "name": "droid",
       "adapter": "droid",
       "executable": "droid",
-      "args": [
-        "exec",
-        "--skip-permissions-unsafe",
-        "--output-format",
-        "json"
-      ],
+      "model": "claude-opus-4-5-20251101",
       "working_directory": ".",
       "environment": {},
       "description": "Factory.ai Droid - Fast, reliable, JSON event stream"
@@ -20,13 +15,7 @@
       "name": "claude",
       "adapter": "claude",
       "executable": "claude",
-      "args": [
-        "-p",
-        "--model",
-        "sonnet",
-        "--output-format",
-        "text"
-      ],
+      "model": "sonnet",
       "working_directory": ".",
       "environment": {},
       "description": "Anthropic Claude Code - Excellent reasoning, OAuth auth"
@@ -36,18 +25,6 @@
       "name": "codex",
       "adapter": "codex",
       "executable": "codex",
-      "args": [
-        "-C",
-        ".",
-        "-s",
-        "workspace-write",
-        "-a",
-        "never",
-        "exec",
-        "--color",
-        "never",
-        "-"
-      ],
       "working_directory": ".",
       "environment": {},
       "description": "OpenAI Codex CLI - Diff-based workflow, OAuth auth"
@@ -57,13 +34,7 @@
       "name": "gemini",
       "adapter": "gemini",
       "executable": "gemini",
-      "args": [
-        "-m",
-        "auto",
-        "--approval-mode=auto_edit",
-        "--output-format",
-        "json"
-      ],
+      "model": "auto",
       "working_directory": ".",
       "environment": {},
       "description": "Google Gemini CLI - JSON streaming, OAuth auth"

@@ -199,7 +199,7 @@
                              "id":  "S-0055",
                              "title":  "S-0055: Windows Tray Manager - Remote Agent Management",
                              "spec_path":  "specs/S-0055-windows-tray-remote-enhancements.md",
-                             "status":  "planned",
+                             "status":  "in_progress",
                              "priority":  "medium",
                              "labels":  [
 
@@ -207,7 +207,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-02-06",
+                             "updated_at":  "2026-02-09",
                              "commit_on_complete":  false
                          },
                          {
@@ -445,7 +445,7 @@
                                             "dummy"
                                         ],
                              "depends_on": [],
-                             "updated_at":  "2026-02-08",
+                             "updated_at":  "2026-02-09",
                              "commit_on_complete":  false
                          },
                          {

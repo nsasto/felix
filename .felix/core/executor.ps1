@@ -71,7 +71,10 @@ function Invoke-FelixIteration {
         [hashtable]$Paths,
         
         [Parameter(Mandatory = $false)]
-        [switch]$NoCommit
+        [switch]$NoCommit,
+        
+        [Parameter(Mandatory = $false)]
+        [switch]$VerboseMode
     )
     
     # Emit iteration started event
@@ -174,7 +177,8 @@ function Invoke-FelixIteration {
         -Prompt $fullPrompt `
         -ProjectPath $Paths.ProjectPath `
         -RunId $runId `
-        -RunDir $runDir
+        -RunDir $runDir `
+        -VerboseMode:$VerboseMode
     
     $output = $executionResult.Output
     $duration = $executionResult.Duration
@@ -554,7 +558,10 @@ function Invoke-AgentExecution {
         [string]$RunId,
         
         [Parameter(Mandatory = $true)]
-        [string]$RunDir
+        [string]$RunDir,
+        
+        [Parameter(Mandatory = $false)]
+        [switch]$VerboseMode
     )
     
     # Workflow Stage: execute_llm
@@ -575,7 +582,7 @@ function Invoke-AgentExecution {
     
     $executable = $AgentConfig.executable
     $resolvedExecutable = $null
-    $agentArgs = $adapter.BuildArgs($AgentConfig)
+    $agentArgs = $adapter.BuildArgs($AgentConfig, $VerboseMode)
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
     $startTime = Get-Date
     
@@ -619,16 +626,16 @@ function Invoke-AgentExecution {
         Emit-Log -Level "error" -Message "Execution failed: executable not found" -Component "agent"
 
         return @{
-            Output            = $output
-            Duration          = $duration
-            Parsed            = @{
+            Output             = $output
+            Duration           = $duration
+            Parsed             = @{
                 Output     = $output
                 IsComplete = $false
                 NextMode   = $null
                 Error      = "AgentExecutableNotFound"
             }
-            ExitCode          = 127
-            Succeeded         = $false
+            ExitCode           = 127
+            Succeeded          = $false
             ResolvedExecutable = $null
         }
     }
@@ -665,9 +672,9 @@ function Invoke-AgentExecution {
             [System.IO.File]::WriteAllText($inputPath, $formattedPrompt, $utf8NoBom)
 
             $argString = (@($agentArgs) | ForEach-Object {
-                $a = [string]$_
-                if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
-            }) -join ' '
+                    $a = [string]$_
+                    if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
+                }) -join ' '
 
             $p = Start-Process `
                 -FilePath $resolvedExecutable `

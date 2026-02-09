@@ -26,7 +26,10 @@ param(
     [switch]$QuickMode,
     
     [Parameter(Mandatory = $false)]
-    [switch]$NoCommit   # Use this flag for testing to prevent git commits
+    [switch]$NoCommit,   # Use this flag for testing to prevent git commits
+    
+    [Parameter(Mandatory = $false)]
+    [switch]$VerboseMode
 )
 
 $ErrorActionPreference = "Stop"
@@ -464,7 +467,8 @@ try {
             -AgentConfig $agentConfig `
             -AgentState $agentState `
             -Paths $paths `
-            -NoCommit:$NoCommit
+            -NoCommit:$NoCommit `
+            -VerboseMode:$VerboseMode
     
         if (-not $result.Continue) {
             Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob

@@ -44,7 +44,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 
 # Parse global flags
 $Format = "rich"
-$Verbose = $false
+$VerboseMode = $false
 $Quiet = $false
 $NoStats = $false
 
@@ -57,7 +57,7 @@ while ($i -lt $Arguments.Count) {
             $Format = $Arguments[$i]
         }
         "--verbose" {
-            $Verbose = $true
+            $VerboseMode = $true
         }
         "--quiet" {
             $Quiet = $true
@@ -538,11 +538,12 @@ function Invoke-Run {
 
     # Execute felix-cli.ps1 which spawns agent internally
     if ($NoStats) {
-        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats
+        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats -VerboseMode:$VerboseMode
     }
     else {
-        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue
+        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -VerboseMode:$VerboseMode
     }
+
     exit $LASTEXITCODE
 }
 

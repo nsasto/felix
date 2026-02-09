@@ -26,7 +26,6 @@ class DroidAdapter {
     }
 
     [hashtable] ParseResponse([string]$output) {
-        # Parse Droid's response for completion signals
         $result = @{
             Output     = $output
             IsComplete = $false
@@ -34,14 +33,74 @@ class DroidAdapter {
             Error      = $null
         }
 
-        # Try parsing JSON event stream first (--output-format json)
         $lines = $output -split '\r?\n' | Where-Object { $_.Trim() -ne '' }
         $foundCompletion = $false
+        $finalText = $null
+        $isStreamJson = $false
         
         foreach ($line in $lines) {
             try {
-                $event = $line | ConvertFrom-Json -ErrorAction SilentlyContinue
-                if ($event.type -eq 'completion_signal' -or $event.signal) {
+                $event = $line | ConvertFrom-Json -ErrorAction Stop
+                
+                # Check if this is stream-json format (has .type field)
+                if ($event.type) {
+                    $isStreamJson = $true
+                    
+                    switch ($event.type) {
+                        "system" {
+                            $toolCount = if ($event.tools) { $event.tools.Count } else { 0 }
+                            Emit-Log -Level "info" -Message "Session initialized: $($event.model) ($toolCount tools available)" -Component "droid"
+                        }
+                        "tool_call" {
+                            $paramStr = ""
+                            if ($event.parameters) {
+                                $paramParts = @()
+                                foreach ($prop in $event.parameters.PSObject.Properties) {
+                                    $val = if ($prop.Value.ToString().Length -gt 50) { $prop.Value.ToString().Substring(0, 50) + "..." } else { $prop.Value }
+                                    $paramParts += "$($prop.Name)=$val"
+                                }
+                                if ($paramParts.Count -gt 0) {
+                                    $paramStr = " | " + ($paramParts -join ", ")
+                                }
+                            }
+                            Emit-Log -Level "info" -Message "[TOOL] $($event.toolName)$paramStr" -Component "agent"
+                        }
+                        "tool_result" {
+                            $resultPreview = if ($event.value -and $event.value.Length -gt 200) { 
+                                $event.value.Substring(0, 200) + "..." 
+                            }
+                            elseif ($event.value) { 
+                                $event.value 
+                            }
+                            else {
+                                "(no output)"
+                            }
+                            $status = if ($event.isError) { "[ERROR]" } else { "[OK]" }
+                            $level = if ($event.isError) { "warn" } else { "debug" }
+                            Emit-Log -Level $level -Message "$status $resultPreview" -Component "agent"
+                        }
+                        "message" {
+                            if ($event.role -eq "assistant" -and $event.text) {
+                                Emit-Log -Level "debug" -Message "[THINKING] $($event.text)" -Component "agent"
+                            }
+                        }
+                        "completion" {
+                            $finalText = $event.finalText
+                            $foundCompletion = $true
+                            
+                            if ($event.durationMs -and $event.usage) {
+                                $durationSec = [math]::Round($event.durationMs / 1000.0, 1)
+                                $tokens = "in=$($event.usage.input_tokens) out=$($event.usage.output_tokens)"
+                                if ($event.usage.cache_read_input_tokens -gt 0) {
+                                    $tokens += " cached=$($event.usage.cache_read_input_tokens)"
+                                }
+                                Emit-Log -Level "info" -Message "Execution complete (${durationSec}s) Tokens: $tokens" -Component "agent"
+                            }
+                        }
+                    }
+                }
+                # Legacy: completion_signal events (old json format)
+                elseif ($event.type -eq 'completion_signal' -or $event.signal) {
                     $signal = if ($event.signal) { $event.signal } else { $event.data }
                     if ($signal -match 'PLANNING_COMPLETE') {
                         $result.IsComplete = $true
@@ -64,12 +123,30 @@ class DroidAdapter {
                 }
             }
             catch {
-                # Not JSON, continue
+                # Not JSON or parsing failed, continue
             }
         }
 
+        # If stream-json format, use finalText as output
+        if ($isStreamJson -and $finalText) {
+            $result.Output = $finalText
+            
+            # Check finalText for completion signals
+            if ($finalText -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
+                $result.IsComplete = $true
+                $result.NextMode = "building"
+            }
+            elseif ($finalText -match '(?s)<promise>\s*TASK_COMPLETE\s*</promise>') {
+                $result.IsComplete = $true
+                $result.NextMode = "continue"
+            }
+            elseif ($finalText -match '(?s)<promise>\s*ALL_COMPLETE\s*</promise>') {
+                $result.IsComplete = $true
+                $result.NextMode = "complete"
+            }
+        }
         # Fallback: Check for XML completion signals (backward compatibility)
-        if (-not $foundCompletion) {
+        elseif (-not $foundCompletion) {
             if ($output -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
                 $result.IsComplete = $true
                 $result.NextMode = "building"
@@ -105,8 +182,32 @@ class DroidAdapter {
     }
 
     [string[]] BuildArgs([object]$config) {
-        # Return agent args from config
-        return $config.args
+        return $this.BuildArgs($config, $false)
+    }
+
+    [string[]] BuildArgs([object]$config, [bool]$verbose) {
+        # Legacy: If args provided in config, use them (backward compat)
+        if ($config.args -and $config.args.Count -gt 0) {
+            Emit-Log -Level "warn" -Message "Using legacy 'args' from agents.json - consider removing, adapter controls args now" -Component "config"
+            return $config.args
+        }
+        
+        # Modern: Adapter builds args
+        $args = @("exec", "--skip-permissions-unsafe")
+        
+        if ($config.model) {
+            $args += @("--model", $config.model)
+        }
+        
+        # Adapter controls output format based on verbose mode
+        $format = if ($verbose) { "stream-json" } else { "json" }
+        $args += @("--output-format", $format)
+        
+        if ($verbose) {
+            Emit-Log -Level "debug" -Message "Verbose mode: using stream-json output format" -Component "droid"
+        }
+        
+        return $args
     }
 }
 
@@ -164,14 +265,25 @@ class ClaudeAdapter {
     }
 
     [string[]] BuildArgs([object]$config) {
-        # Claude args from config, ensure output format is set
-        $args = @($config.args)
-        
-        # Add output format if not specified
-        if ($args -notcontains "--output-format") {
-            $args += @("--output-format", "text")
-        }
+        return $this.BuildArgs($config, $false)
+    }
 
+    [string[]] BuildArgs([object]$config, [bool]$verbose) {
+        # Legacy: If args provided in config, use them
+        if ($config.args -and $config.args.Count -gt 0) {
+            Emit-Log -Level "warn" -Message "Using legacy 'args' from agents.json - consider removing, adapter controls args now" -Component "config"
+            return $config.args
+        }
+        
+        # Modern: Adapter builds args
+        $args = @("-p")  # Pipe mode
+        
+        if ($config.model) {
+            $args += @("--model", $config.model)
+        }
+        
+        $args += @("--output-format", "text")
+        
         return $args
     }
 }
@@ -222,7 +334,27 @@ class CodexAdapter {
     }
 
     [string[]] BuildArgs([object]$config) {
-        return $config.args
+        return $this.BuildArgs($config, $false)
+    }
+
+    [string[]] BuildArgs([object]$config, [bool]$verbose) {
+        # Legacy: If args provided in config, use them
+        if ($config.args -and $config.args.Count -gt 0) {
+            Emit-Log -Level "warn" -Message "Using legacy 'args' from agents.json - consider removing, adapter controls args now" -Component "config"
+            return $config.args
+        }
+        
+        # Modern: Adapter builds args
+        $args = @(
+            "-C", ".",
+            "-s", "workspace-write",
+            "-a", "never",
+            "exec",
+            "--color", "never",
+            "-"
+        )
+        
+        return $args
     }
 }
 
@@ -280,13 +412,28 @@ class GeminiAdapter {
     }
 
     [string[]] BuildArgs([object]$config) {
-        $args = @($config.args)
-        
-        # Ensure JSON output for easier parsing
-        if ($args -notcontains "--output-format") {
-            $args += @("--output-format", "json")
-        }
+        return $this.BuildArgs($config, $false)
+    }
 
+    [string[]] BuildArgs([object]$config, [bool]$verbose) {
+        # Legacy: If args provided in config, use them
+        if ($config.args -and $config.args.Count -gt 0) {
+            Emit-Log -Level "warn" -Message "Using legacy 'args' from agents.json - consider removing, adapter controls args now" -Component "config"
+            return $config.args
+        }
+        
+        # Modern: Adapter builds args
+        $args = @()
+        
+        if ($config.model) {
+            $args += @("-m", $config.model)
+        }
+        else {
+            $args += @("-m", "auto")
+        }
+        
+        $args += @("--approval-mode=auto_edit", "--output-format", "json")
+        
         return $args
     }
 }
