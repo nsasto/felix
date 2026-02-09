@@ -249,6 +249,55 @@
 .ansi-bright-bg-cyan { background-color: #56b6c2; }
 .ansi-bright-bg-white { background-color: #ffffff; }
 
+.projects-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--bg-base);
+}
+
+.projects-toolbar {
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.projects-grid {
+  gap: 1rem;
+}
+
+.project-card {
+  border-radius: 1rem;
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.project-card:hover {
+  border-color: var(--brand-500);
+  transform: translateY(-1px);
+}
+
+.projects-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.project-table-row {
+  transition: background 150ms ease;
+}
+
+.project-table-row.selected {
+  background-color: var(--bg-deep);
+}
+
+.projects-empty {
+  min-height: 260px;
+}
+
+.projects-error {
+  margin-top: 0.75rem;
+}
+
 .sidebar {
   min-width: 72px;
   background-color: var(--bg-base);

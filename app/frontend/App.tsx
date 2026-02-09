@@ -11,6 +11,8 @@ import {
   IconKanban,
   IconPlus,
   IconPulse,
+  IconZap,
+  IconGitBranch,
 } from "./components/Icons";
 import ProjectSelector from "./components/ProjectSelector";
 import RequirementsKanban from "./components/RequirementsKanban";
@@ -887,373 +889,13 @@ export const executeTask = (taskId: string) => {
   const renderProjects = () => {
     return (
       <div
-        className="flex-1 flex overflow-hidden"
+        className="flex-1 flex flex-col overflow-hidden"
         style={{ backgroundColor: "var(--bg-base)" }}
       >
-        {/* Project Selector Panel */}
-        <div
-          className="w-80 border-r flex flex-col flex-shrink-0"
-          style={{
-            borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-deep)",
-          }}
-        >
-          <ProjectSelector
-            selectedProjectId={selectedProjectId}
-            onSelectProject={handleSelectProject}
-          />
-        </div>
-
-        {/* Project Details Panel */}
-        <div
-          className="flex-1 flex flex-col min-w-0"
-          style={{ backgroundColor: "var(--bg-deep)" }}
-        >
-          {/* Show Run Artifact Viewer when a run is selected */}
-          {selectedRunId && selectedProjectId ? (
-            <RunArtifactViewer
-              projectId={selectedProjectId}
-              runId={selectedRunId}
-              onClose={() => setSelectedRunId(null)}
-            />
-          ) : selectedProject ? (
-            <>
-              {/* Project header */}
-              <div
-                className="h-16 border-b flex items-center px-8 backdrop-blur"
-                style={{
-                  borderColor: "var(--border-default)",
-                  backgroundColor: "var(--bg-base)",
-                }}
-              >
-                <div className="flex-1">
-                  <h2
-                    className="text-lg font-bold"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    {selectedProject.name ||
-                      selectedProject.path.split(/[\\/]/).pop()}
-                  </h2>
-                  <p
-                    className="text-[10px] font-mono truncate max-w-lg"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {selectedProject.path}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  {selectedProject.status && (
-                    <span
-                      className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase ${
-                        selectedProject.status === "running"
-                          ? "bg-brand-500/20 text-brand-400"
-                          : selectedProject.status === "complete"
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : selectedProject.status === "blocked"
-                              ? "bg-red-500/20 text-red-400"
-                              : ""
-                      }`}
-                      style={{
-                        backgroundColor: ![
-                          "running",
-                          "complete",
-                          "blocked",
-                        ].includes(selectedProject.status || "")
-                          ? "var(--bg-surface)"
-                          : undefined,
-                        color: !["running", "complete", "blocked"].includes(
-                          selectedProject.status || "",
-                        )
-                          ? "var(--text-tertiary)"
-                          : undefined,
-                      }}
-                    >
-                      {selectedProject.status}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Project overview */}
-              <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-3 gap-6 mb-8">
-                  {/* Specs card */}
-                  <div
-                    className="border rounded-2xl p-6 hover:border-brand-600/40 transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-elevated)",
-                      borderColor: "var(--border-default)",
-                    }}
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center">
-                        <IconFileText className="w-5 h-5 text-brand-400" />
-                      </div>
-                      <div>
-                        <h3
-                          className="text-2xl font-bold"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          {selectedProject.spec_count}
-                        </h3>
-                        <p
-                          className="text-[10px] font-mono uppercase"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          Specifications
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setUiState("assets")}
-                      className="w-full py-2 text-xs text-brand-400 hover:text-brand-300 transition-colors"
-                    >
-                      View Specs →
-                    </button>
-                  </div>
-
-                  {/* Plan card */}
-                  <div
-                    className="border rounded-2xl p-6 hover:border-brand-600/40 transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-elevated)",
-                      borderColor: "var(--border-default)",
-                    }}
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          selectedProject.has_plan ? "bg-emerald-500/10" : ""
-                        }`}
-                        style={{
-                          backgroundColor: !selectedProject.has_plan
-                            ? "var(--bg-surface)"
-                            : undefined,
-                        }}
-                      >
-                        <IconKanban
-                          className={`w-5 h-5 ${
-                            selectedProject.has_plan ? "text-emerald-400" : ""
-                          }`}
-                          style={{
-                            color: !selectedProject.has_plan
-                              ? "var(--text-muted)"
-                              : undefined,
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <h3
-                          className="text-sm font-bold"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          Project README
-                        </h3>
-                        <p
-                          className="text-[10px] font-mono uppercase"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          Documentation
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setUiState("plan")}
-                      className="w-full py-2 text-xs text-brand-400 hover:text-brand-300 transition-colors"
-                    >
-                      View README →
-                    </button>
-                  </div>
-
-                  {/* Requirements card */}
-                  <div
-                    className="border rounded-2xl p-6 hover:border-brand-600/40 transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-elevated)",
-                      borderColor: "var(--border-default)",
-                    }}
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          selectedProject.has_requirements
-                            ? "bg-amber-500/10"
-                            : ""
-                        }`}
-                        style={{
-                          backgroundColor: !selectedProject.has_requirements
-                            ? "var(--bg-surface)"
-                            : undefined,
-                        }}
-                      >
-                        <IconCpu
-                          className={`w-5 h-5 ${
-                            selectedProject.has_requirements
-                              ? "text-amber-400"
-                              : ""
-                          }`}
-                          style={{
-                            color: !selectedProject.has_requirements
-                              ? "var(--text-muted)"
-                              : undefined,
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <h3
-                          className="text-sm font-bold"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          {selectedProject.has_requirements
-                            ? "Configured"
-                            : "None"}
-                        </h3>
-                        <p
-                          className="text-[10px] font-mono uppercase"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          Requirements
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setUiState("kanban")}
-                      className="w-full py-2 text-xs text-brand-400 hover:text-brand-300 transition-colors"
-                    >
-                      View Board →
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick actions */}
-                <div
-                  className="border rounded-2xl p-6 mb-6"
-                  style={{
-                    backgroundColor: "var(--bg-elevated)",
-                    borderColor: "var(--border-default)",
-                  }}
-                >
-                  <h3
-                    className="text-xs font-bold uppercase tracking-wider mb-4"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    Quick Actions
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <button
-                      onClick={() => setUiState("assets")}
-                      className="py-3 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
-                      style={{
-                        backgroundColor: "var(--bg-surface)",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      <IconFileText className="w-4 h-4" />
-                      Edit Specs
-                    </button>
-                    <button
-                      onClick={() => setUiState("kanban")}
-                      className="py-3 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
-                      style={{
-                        backgroundColor: "var(--bg-surface)",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      <IconKanban className="w-4 h-4" />
-                      View Board
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setUiState("plan")}
-                      className="py-3 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
-                      style={{
-                        backgroundColor: "var(--bg-surface)",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      <IconFileCode className="w-4 h-4" />
-                      View README
-                    </button>
-                    <button
-                      onClick={() => setUiState("config")}
-                      className="py-3 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
-                      style={{
-                        backgroundColor: "var(--bg-surface)",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      Config
-                    </button>
-                  </div>
-                </div>
-
-                {/* Agent Controls */}
-                <AgentControls
-                  projectId={selectedProjectId!}
-                  onSelectRun={(runId) => setSelectedRunId(runId)}
-                />
-              </div>
-            </>
-          ) : (
-            // No project selected
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-              <div
-                className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6"
-                style={{ backgroundColor: "var(--bg-surface)" }}
-              >
-                <IconFelix
-                  className="w-10 h-10"
-                  style={{ color: "var(--text-faint)" }}
-                />
-              </div>
-              <h2
-                className="text-lg font-bold mb-2"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                No Project Selected
-              </h2>
-              <p
-                className="text-sm max-w-md mb-6"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Select a project from the list to view its details, or register
-                a new project to get started.
-              </p>
-              {backendStatus === "disconnected" && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 text-xs text-amber-400">
-                  <span className="font-bold">Backend Offline:</span> Start the
-                  Felix backend server to manage projects.
-                  <code
-                    className="block mt-2 px-2 py-1 rounded text-amber-300"
-                    style={{ backgroundColor: "var(--bg-deepest)" }}
-                  >
-                    cd app/backend && python main.py
-                  </code>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <ProjectSelector
+          selectedProjectId={selectedProjectId}
+          onSelectProject={handleSelectProject}
+        />
       </div>
     );
   };
@@ -1292,108 +934,108 @@ export const executeTask = (taskId: string) => {
       }}
     >
       <header
-        className="h-16 border-b flex items-center px-4 justify-between backdrop-blur-2xl z-10"
+        className="h-16 flex items-center px-6 justify-between gap-6 z-20"
         style={{
-          borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-deep)",
+          borderBottom: "1px solid var(--border-default)",
+          backgroundColor: "var(--bg-base)",
+          backdropFilter: "blur(12px)",
         }}
       >
-        <div className="flex items-center gap-8 flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(62, 207, 142, 0.15), rgba(62, 207, 142, 0.05))",
-              }}
-            >
-              <IconFelix className="w-5 h-5 text-brand-500" />
-            </div>
-            <div className="min-w-0 leading-tight">
-              <div className="flex items-center gap-2">
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  UntrueAxioms
-                </span>
-                <span
-                  className="text-[10px] font-semibold uppercase tracking-[0.3em] px-2 py-0.5 rounded-full border"
-                  style={{
-                    borderColor: "var(--border-muted)",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  FREE
-                </span>
-              </div>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm bg-gradient-to-br from-brand-400/20 to-brand-400/5">
+            <IconZap className="w-5 h-5" style={{ color: "var(--brand-500)" }} />
           </div>
+          <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+            /
+          </span>
+          <div className="flex items-center gap-2">
+            <IconFelix className="w-5 h-5" style={{ color: "var(--brand-500)" }} />
+            <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+              UntrueAxioms
+            </span>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5" style={{ borderColor: "var(--border-muted)", color: "var(--text-muted)" }}>
+              FREE
+            </span>
+          </div>
+        </div>
 
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-3">
+        <div className="flex-1 flex items-center gap-3 justify-center">
+          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
+            <span>/</span>
+            <div className="flex items-center gap-2">
               <span
                 className="w-2 h-2 rounded-full shadow"
                 style={{ backgroundColor: activeViewMeta.color }}
-              ></span>
-              <span
-                className="text-sm font-bold uppercase tracking-[0.2em]"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              />
+              <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
                 {activeViewMeta.label}
               </span>
             </div>
-          </div>
-        </div>
-
-        <div className="flex-1 flex justify-center">
-          <div className="max-w-2xl w-full">
-            <div
-              className="flex items-center gap-3 px-4 py-2 rounded-full border"
+            <span
+              className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
               style={{
                 borderColor: "var(--border-muted)",
-                backgroundColor: "var(--bg-base)",
+                color: "var(--text-muted)",
               }}
             >
-              <IconSearch
-                className="w-4 h-4"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                type="text"
-                placeholder="Search for a project or command"
-                className="flex-1 bg-transparent outline-none text-sm"
-                style={{ color: "var(--text-secondary)" }}
-              />
-              <span
-                className="text-[10px] uppercase tracking-[0.3em]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                ⌘K
-              </span>
-            </div>
+              {activeViewMeta.tag}
+            </span>
           </div>
+          <button
+            className="text-[11px] font-semibold px-4 py-1 border rounded-full flex items-center gap-2"
+            style={{
+              borderColor: "var(--border-muted)",
+              color: "var(--text-secondary)",
+              backgroundColor: "var(--bg-surface)",
+            }}
+          >
+            <IconPlus className="w-3 h-3" />
+            Connect
+          </button>
         </div>
 
-        <div className="flex items-center gap-5 flex-0">
+        <div className="flex items-center gap-3">
           <button
-            className="text-[11px] font-bold uppercase tracking-[0.3em] border border-transparent rounded-full px-4 py-1 transition-all"
-            style={{
-              color: "var(--text-secondary)",
-              borderColor: "transparent",
-            }}
+            className="text-xs font-semibold uppercase tracking-[0.3em]"
+            style={{ color: "var(--text-secondary)" }}
           >
             Feedback
           </button>
+          <div
+            className="flex items-center gap-3 px-3 py-2 border rounded-full"
+            style={{
+              borderColor: "var(--border-muted)",
+              backgroundColor: "var(--bg-surface)",
+            }}
+          >
+            <IconSearch
+              className="w-4 h-4"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <input
+              type="text"
+              placeholder="Search... ⌘K"
+              className="flex-1 bg-transparent outline-none text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            />
+          </div>
           <button
-            className="w-8 h-8 rounded-full border flex items-center justify-center"
+            className="w-9 h-9 rounded-full border flex items-center justify-center text-lg"
             style={{
               borderColor: "var(--border-muted)",
               color: "var(--text-muted)",
             }}
-            title="Help"
           >
             ?
+          </button>
+          <button
+            className="w-9 h-9 rounded-full border flex items-center justify-center text-xl"
+            style={{
+              borderColor: "var(--border-muted)",
+              color: "var(--text-muted)",
+            }}
+          >
+            💡
           </button>
           <div className="relative" ref={userMenuRef}>
             <button
@@ -1436,9 +1078,7 @@ export const executeTask = (taskId: string) => {
                   return (
                     <button
                       key={option.label}
-                      className={`user-menu-item ${
-                        showDot ? "selected" : ""
-                      }`}
+                      className={`user-menu-item ${showDot ? "selected" : ""}`}
                       onClick={() => {
                         setTheme(option.value);
                         setUserMenuOpen(false);
@@ -1463,6 +1103,7 @@ export const executeTask = (taskId: string) => {
           </div>
         </div>
       </header>
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           activeView={activeSidebarView}
