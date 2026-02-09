@@ -358,6 +358,21 @@ try {
     $script:agentId = $agentConfig.id
     $script:agentConfig = $agentConfig
 
+    # Show agent info for spec-builder mode (bypasses event suppression)
+    if ($SpecBuildMode -and $script:SuppressEventEmission) {
+        $timestamp = (Get-Date).ToString("HH:mm:ss.fff")
+        Write-Host "[$timestamp] " -NoNewline -ForegroundColor DarkGray
+        Write-Host "INFO" -NoNewline -ForegroundColor Cyan
+        Write-Host " [agent] " -NoNewline -ForegroundColor DarkGray
+        Write-Host "Using agent: $($agentConfig.name) (ID: $($agentConfig.id))"
+        
+        Write-Host "[$timestamp] " -NoNewline -ForegroundColor DarkGray
+        Write-Host "INFO" -NoNewline -ForegroundColor Cyan
+        Write-Host " [agent] " -NoNewline -ForegroundColor DarkGray
+        Write-Host "Executable: $($agentConfig.executable) $($agentConfig.args -join ' ')"
+        Write-Host ""
+    }
+
     # ============================================================================
     # Mode Selection: Spec Builder vs Normal Execution
     # ============================================================================
