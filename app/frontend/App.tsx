@@ -11,9 +11,11 @@ import {
   IconKanban,
   IconPlus,
   IconPulse,
-  IconZap,
-  IconGitBranch,
+  IconOrganization,
+  IconChevronDown,
 } from "./components/Icons";
+import FelixLogo from "../../img/felix_logo_small.png";
+import FelixLogoHover from "../../img/felix_logo_hammer_small.png";
 import ProjectSelector from "./components/ProjectSelector";
 import RequirementsKanban from "./components/RequirementsKanban";
 import AgentControls from "./components/AgentControls";
@@ -144,6 +146,7 @@ const App: React.FC = () => {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isLogoHovered, setLogoHovered] = useState(false);
 
   const recognizedSidebarStates: SidebarView[] = [
     "projects",
@@ -942,24 +945,50 @@ export const executeTask = (taskId: string) => {
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm bg-gradient-to-br from-brand-400/20 to-brand-400/5">
-            <IconZap className="w-5 h-5" style={{ color: "var(--brand-500)" }} />
+          <div
+            className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm transition-transform duration-150"
+            onMouseEnter={() => setLogoHovered(true)}
+            onMouseLeave={() => setLogoHovered(false)}
+          >
+            <img
+              src={isLogoHovered ? FelixLogoHover : FelixLogo}
+              alt="Felix logo"
+              className="w-full h-full object-cover"
+            />
           </div>
           <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
             /
           </span>
           <div className="flex items-center gap-2">
-            <IconFelix className="w-5 h-5" style={{ color: "var(--brand-500)" }} />
-            <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
-              UntrueAxioms
-            </span>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5" style={{ borderColor: "var(--border-muted)", color: "var(--text-muted)" }}>
+            <button
+              type="button"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-semibold transition-colors"
+              style={{
+                borderColor: "var(--border-muted)",
+                color: "var(--text-secondary)",
+                backgroundColor: "var(--bg-surface)",
+              }}
+              onClick={() => {
+                /* placeholder for org picker */
+              }}
+            >
+              <IconOrganization
+                className="w-4 h-4"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <span>UntrueAxioms</span>
+              <IconChevronDown
+                className="w-3 h-3"
+                style={{ color: "var(--text-muted)" }}
+              />
+            </button>
+            <span
+              className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
+              style={{ borderColor: "var(--border-muted)", color: "var(--text-muted)" }}
+            >
               FREE
             </span>
           </div>
-        </div>
-
-        <div className="flex-1 flex items-center gap-3 justify-center">
           <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
             <span>/</span>
             <div className="flex items-center gap-2">
@@ -981,6 +1010,9 @@ export const executeTask = (taskId: string) => {
               {activeViewMeta.tag}
             </span>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3 justify-end flex-1">
           <button
             className="text-[11px] font-semibold px-4 py-1 border rounded-full flex items-center gap-2"
             style={{

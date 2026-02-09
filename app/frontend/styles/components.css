@@ -304,10 +304,11 @@
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
-  padding: var(--spacing-4);
   gap: var(--spacing-4);
+  padding: var(--spacing-4);
   transition: width 250ms ease, transform 200ms ease;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   position: relative;
   z-index: var(--z-sticky);
 }
@@ -364,6 +365,11 @@
   line-height: 1.2;
 }
 
+.sidebar-collapsed .sidebar-labels,
+.sidebar-collapsed .sidebar-subtitle {
+  display: none;
+}
+
 .sidebar-label {
   font-size: 0.9rem;
   font-weight: 600;
@@ -381,6 +387,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+  padding: var(--spacing-3);
 }
 
 .sidebar-mode-menu-container {
@@ -407,9 +414,10 @@
 
 .sidebar-mode-menu {
   position: absolute;
-  bottom: 52px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 0;
+  transform: translateX(0);
   width: 200px;
   border-radius: var(--radius-xl);
   border: 1px solid var(--border-default);
@@ -464,6 +472,48 @@
 .sidebar-mode-menu-item.selected .sidebar-mode-menu-dot {
   background: var(--brand-500);
   box-shadow: 0 0 0 4px rgba(62, 207, 142, 0.2);
+}
+.sidebar-status-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+.sidebar-status-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.sidebar-status-project {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.sidebar-collapse-control {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-start;
+  z-index: var(--z-dropdown);
+  width: auto;
+  pointer-events: auto;
+}
+.sidebar-collapse-wrapper {
+  position: absolute;
+  left: var(--spacing-3);
+  bottom: var(--spacing-3);
+  display: flex;
+  justify-content: flex-start;
+  pointer-events: auto;
+}
+
+.sidebar-mode-menu-top {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 0;
+  transform: translateY(0);
+}
+
+.sidebar-collapsed .sidebar-project-status p {
+  display: none;
 }
 
 .user-menu-panel {

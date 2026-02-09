@@ -133,11 +133,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-footer">
         <div className="sidebar-project-status">
           <span className="sidebar-status-dot" />
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.25em]">
-              STATUS
-            </p>
-            <p className="text-xs font-semibold">
+          <div className="sidebar-status-content">
+            <p className="sidebar-status-label">STATUS</p>
+            <p className="sidebar-status-value">
               {backendStatus === "connected"
                 ? "Backend Online"
                 : backendStatus === "disconnected"
@@ -145,11 +143,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                   : "Connecting..."}
             </p>
             {isExpanded && projectName && (
-              <p className="text-[10px] opacity-60 truncate">{projectName}</p>
+              <p className="sidebar-status-project">{projectName}</p>
             )}
           </div>
         </div>
-        <div className="sidebar-mode-menu-container">
+      </div>
+      <div className="sidebar-collapse-wrapper">
+        <div
+          className="sidebar-collapse-control"
+          onMouseEnter={() => setModeMenuOpen(true)}
+          onMouseLeave={() => setModeMenuOpen(false)}
+        >
           <button
             onClick={() => setModeMenuOpen((prev) => !prev)}
             className="sidebar-mode-menu-btn"
@@ -159,7 +163,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             <IconPanelLeftDashed className="w-4 h-4" />
           </button>
           {modeMenuOpen && (
-            <div className="sidebar-mode-menu">
+            <div
+              className="sidebar-mode-menu sidebar-mode-menu-top"
+              onMouseEnter={() => setModeMenuOpen(true)}
+              onMouseLeave={() => setModeMenuOpen(false)}
+            >
               <p className="sidebar-mode-menu-heading">Sidebar control</p>
               {MODE_OPTIONS.map((modeOption) => (
                 <button
@@ -176,15 +184,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
-        {isExpanded && (
-          <div className="sidebar-user">
-            <div className="sidebar-avatar">NS</div>
-            <div>
-              <p className="font-semibold">nsasto</p>
-              <p className="text-[9px] opacity-60">nsasto@gmail.com</p>
-            </div>
-          </div>
-        )}
       </div>
     </aside>
   );
