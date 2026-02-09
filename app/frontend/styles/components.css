@@ -199,6 +199,10 @@
   max-height: 100px;
 }
 
+.z-50 {
+  z-index: var(--z-modal) !important;
+}
+
 /* ============================================
    ANSI Console Color Classes
    ============================================ */
@@ -534,6 +538,16 @@
 
 .sidebar-collapsed .sidebar-project-status p {
   display: none;
+}
+
+.main-view {
+  flex: 1;
+  min-width: 0;
+  transition: margin-left 200ms ease;
+}
+
+.sidebar-collapsed + .main-view {
+  margin-left: 72px;
 }
 
 .user-menu-panel {
