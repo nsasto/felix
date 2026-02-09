@@ -12,8 +12,6 @@ import {
   IconPlus,
   IconPulse,
 } from "./components/Icons";
-import felixLogo from "./img/felix_logo_small.png";
-import felixLogoHammer from "./img/felix_logo_hammer_small.png";
 import ProjectSelector from "./components/ProjectSelector";
 import RequirementsKanban from "./components/RequirementsKanban";
 import AgentControls from "./components/AgentControls";
@@ -26,6 +24,8 @@ import SettingsScreen from "./components/SettingsScreen";
 import AgentDashboard from "./components/AgentDashboard";
 import CopilotChat from "./components/CopilotChat";
 import { marked } from "marked";
+import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
+import Sidebar, { SidebarView } from "./components/Sidebar";
 
 // localStorage key for remembering the last selected project
 const LAST_PROJECT_KEY = "felix-last-project-id";
@@ -126,7 +126,6 @@ type ExtendedUIState =
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [uiState, setUiState] = useState<ExtendedUIState>("projects"); // Start with projects view
-  const [logoHovered, setLogoHovered] = useState(false);
 
   // Project management state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -141,6 +140,63 @@ const App: React.FC = () => {
 
   // Run artifact viewer state
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [isUserMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const recognizedSidebarStates: SidebarView[] = [
+    "projects",
+    "kanban",
+    "assets",
+    "orchestration",
+    "config",
+    "plan",
+    "settings",
+  ];
+  const activeSidebarView: SidebarView = recognizedSidebarStates.includes(
+    uiState as SidebarView,
+  )
+    ? (uiState as SidebarView)
+    : "projects";
+
+  const viewMetadata: Record<
+    SidebarView,
+    { label: string; tag: string; color: string }
+  > = {
+    projects: {
+      label: "Projects",
+      tag: "Workspace List",
+      color: "var(--brand-500)",
+    },
+    kanban: {
+      label: "System Board",
+      tag: "Requirement Flow",
+      color: "#fb923c",
+    },
+    assets: { label: "Specifications", tag: "Resource Docs", color: "#34d399" },
+    orchestration: {
+      label: "Agent Dashboard",
+      tag: "Runtime Control",
+      color: "#22d3ee",
+    },
+    config: {
+      label: "Configuration",
+      tag: "Project Settings",
+      color: "var(--text-muted)",
+    },
+    plan: { label: "Project README", tag: "Planning", color: "#38bdf8" },
+    settings: { label: "Settings", tag: "Preferences", color: "#c084fc" },
+  };
+  const activeViewMeta = viewMetadata[activeSidebarView];
+  const projectHeaderLabel = selectedProject
+    ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
+    : "No project selected";
+  const { theme, setTheme } = useTheme();
+  const themeOptions: Array<{ label: string; value: ThemeValue; isVariant?: boolean }> = [
+    { label: "Dark", value: "dark" },
+    { label: "Light", value: "light" },
+    { label: "Classic Dark", value: "dark", isVariant: true },
+    { label: "System", value: "system" },
+  ];
 
   // Ref to ensure auto-load only happens once on initial app load
   const hasAttemptedAutoLoad = useRef<boolean>(false);
@@ -1202,404 +1258,359 @@ export const executeTask = (taskId: string) => {
     );
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isUserMenuOpen &&
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setUserMenuOpen(false);
+      }
+    };
+
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [isUserMenuOpen]);
+
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden font-sans selection:bg-brand-500/30"
+      className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30"
       style={{
         backgroundColor: "var(--bg-deepest)",
         color: "var(--text-secondary)",
       }}
     >
-      {/* Primary Orchestration Sidebar */}
-      <aside
-        className="w-16 border-r flex flex-col items-center py-6 gap-6 z-30 shadow-2xl flex-shrink-0"
+      <header
+        className="h-16 border-b flex items-center px-4 justify-between backdrop-blur-2xl z-10"
         style={{
           borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-base)",
+          backgroundColor: "var(--bg-deep)",
         }}
       >
-        <div
-          onClick={() => setUiState("projects")}
-          onMouseEnter={() => setLogoHovered(true)}
-          onMouseLeave={() => setLogoHovered(false)}
-          className="p-2 rounded-2xl transform hover:scale-110 transition-transform cursor-pointer relative"
-          title="Projects"
-        >
-          <img
-            src={felixLogo}
-            alt="Felix"
-            className="w-[45px] h-[45px] transition-opacity duration-300"
-            style={{ opacity: logoHovered ? 0 : 1 }}
-          />
-          <img
-            src={felixLogoHammer}
-            alt="Felix with hammer"
-            className="w-[45px] h-[45px] absolute top-2 left-2 transition-opacity duration-300"
-            style={{ opacity: logoHovered ? 1 : 0 }}
-          />
-        </div>
-        <div className="flex-1 flex flex-col items-center gap-4 w-full px-2">
-          {/* Projects button */}
-          <button
-            onClick={() => setUiState("projects")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "projects" ? "text-brand-400 shadow-md" : ""}`}
-            style={{
-              backgroundColor:
-                uiState === "projects" ? "var(--bg-surface)" : "transparent",
-              color:
-                uiState === "projects"
-                  ? "var(--accent-primary)"
-                  : "var(--text-muted)",
-              borderWidth: uiState === "projects" ? "1px" : "0",
-              borderColor: "var(--border-muted)",
-            }}
-            title="Projects"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-5 h-5"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            {uiState === "projects" && (
-              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
-            )}
-          </button>
-          <button
-            onClick={() => setUiState("kanban")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "kanban" ? "text-brand-400 shadow-md" : ""}`}
-            style={{
-              backgroundColor:
-                uiState === "kanban" ? "var(--bg-surface)" : "transparent",
-              color:
-                uiState === "kanban"
-                  ? "var(--accent-primary)"
-                  : "var(--text-muted)",
-              borderWidth: uiState === "kanban" ? "1px" : "0",
-              borderColor: "var(--border-muted)",
-            }}
-            title="Project Board"
-          >
-            <IconKanban className="w-5 h-5" />
-            {uiState === "kanban" && (
-              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
-            )}
-          </button>
-          <button
-            onClick={() => setUiState("orchestration")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "orchestration" ? "text-brand-400 shadow-md" : ""}`}
-            style={{
-              backgroundColor:
-                uiState === "orchestration"
-                  ? "var(--bg-surface)"
-                  : "transparent",
-              color:
-                uiState === "orchestration"
-                  ? "var(--accent-primary)"
-                  : "var(--text-muted)",
-              borderWidth: uiState === "orchestration" ? "1px" : "0",
-              borderColor: "var(--border-muted)",
-            }}
-            title="Agent Dashboard"
-          >
-            <IconPulse className="w-5 h-5" />
-            {uiState === "orchestration" && (
-              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
-            )}
-          </button>
-          <button
-            onClick={() => setUiState("assets")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "assets" ? "text-brand-400 shadow-md" : ""}`}
-            style={{
-              backgroundColor:
-                uiState === "assets" ? "var(--bg-surface)" : "transparent",
-              color:
-                uiState === "assets"
-                  ? "var(--accent-primary)"
-                  : "var(--text-muted)",
-              borderWidth: uiState === "assets" ? "1px" : "0",
-              borderColor: "var(--border-muted)",
-            }}
-            title="Resource Documents"
-          >
-            <IconFileText className="w-5 h-5" />
-            {uiState === "assets" && (
-              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
-            )}
-          </button>
-          <div
-            className="h-px w-8 my-2"
-            style={{ backgroundColor: "var(--border-muted)" }}
-          ></div>
-          <button
-            className="p-3 transition-all w-full flex items-center justify-center rounded-2xl group"
-            style={{ color: "var(--text-faint)" }}
-          >
-            <IconSearch className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          </button>
-        </div>
-        <div className="mt-auto flex flex-col items-center gap-4 mb-4">
-          {/* Settings button */}
-          <button
-            onClick={() => setUiState("settings")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "settings" ? "text-brand-400 shadow-md" : ""}`}
-            style={{
-              backgroundColor:
-                uiState === "settings" ? "var(--bg-surface)" : "transparent",
-              color:
-                uiState === "settings"
-                  ? "var(--accent-primary)"
-                  : "var(--text-muted)",
-              borderWidth: uiState === "settings" ? "1px" : "0",
-              borderColor: "var(--border-muted)",
-            }}
-            title="Settings"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            {uiState === "settings" && (
-              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
-            )}
-          </button>
-          {/* Backend status indicator */}
-          <div
-            className={`w-2 h-2 rounded-full ${
-              backendStatus === "connected"
-                ? "bg-emerald-500"
-                : backendStatus === "disconnected"
-                  ? "bg-red-500"
-                  : ""
-            }`}
-            style={{
-              backgroundColor:
-                backendStatus === "unknown" ? "var(--text-muted)" : undefined,
-            }}
-            title={`Backend: ${backendStatus}`}
-          />
-          <div
-            className="w-9 h-9 rounded-2xl flex items-center justify-center text-[10px] font-bold border shadow-inner hover:border-brand-600/50 transition-colors cursor-pointer"
-            style={{
-              backgroundColor: "var(--bg-elevated)",
-              borderColor: "var(--border-default)",
-              color: "var(--text-muted)",
-            }}
-          >
-            NS
-          </div>
-        </div>
-      </aside>
-
-      {/* Main View Container */}
-      <div className="flex-1 flex flex-col relative min-w-0 mb-8">
-        <header
-          className="h-14 border-b flex items-center px-8 justify-between backdrop-blur-2xl flex-shrink-0 z-10"
-          style={{
-            borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-deep)",
-          }}
-        >
-          <div className="flex items-center gap-4">
-            <h2
-              className="text-sm font-bold tracking-[0.15em] uppercase flex items-center gap-3"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {uiState === "projects" && (
-                <div className="w-2 h-2 rounded-full bg-brand-500 shadow-lg shadow-brand-500/20"></div>
-              )}
-              {uiState === "kanban" && (
-                <div className="w-2 h-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/20"></div>
-              )}
-              {uiState === "canvas" && (
-                <div className="w-2 h-2 rounded-full bg-brand-400 shadow-lg shadow-brand-400/20"></div>
-              )}
-              {uiState === "assets" && (
-                <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/20"></div>
-              )}
-              {uiState === "config" && (
-                <div
-                  className="w-2 h-2 rounded-full shadow-lg"
-                  style={{ backgroundColor: "var(--text-muted)" }}
-                ></div>
-              )}
-              {uiState === "plan" && (
-                <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/20"></div>
-              )}
-              {uiState === "settings" && (
-                <div className="w-2 h-2 rounded-full bg-purple-400 shadow-lg shadow-purple-400/20"></div>
-              )}
-              {uiState === "orchestration" && (
-                <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-lg shadow-cyan-500/20"></div>
-              )}
-              {uiState === "projects"
-                ? "Projects"
-                : uiState === "kanban"
-                  ? "System Board"
-                  : uiState === "orchestration"
-                    ? "Agent Dashboard"
-                    : uiState === "assets"
-                      ? "Specifications"
-                      : uiState === "config"
-                        ? "Configuration"
-                        : uiState === "plan"
-                          ? "Project README"
-                          : uiState === "settings"
-                            ? "Settings"
-                            : "Workspace Assets"}
-            </h2>
+        <div className="flex items-center gap-8 flex-1 min-w-0">
+          <div className="flex items-center gap-3">
             <div
-              className="h-4 w-[1px] mx-2"
-              style={{ backgroundColor: "var(--border-default)" }}
-            ></div>
-            <span
-              className="text-[10px] font-mono truncate max-w-[300px] transition-colors cursor-default"
-              style={{ color: "var(--text-muted)" }}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(62, 207, 142, 0.15), rgba(62, 207, 142, 0.05))",
+              }}
             >
-              {selectedProject
-                ? selectedProject.name ||
-                  selectedProject.path.split(/[\\/]/).pop()
-                : "No project selected"}
-              {uiState !== "projects" &&
-                activeAsset &&
-                ` / ${activeAsset.name}`}
-            </span>
+              <IconFelix className="w-5 h-5 text-brand-500" />
+            </div>
+            <div className="min-w-0 leading-tight">
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  UntrueAxioms
+                </span>
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-[0.3em] px-2 py-0.5 rounded-full border"
+                  style={{
+                    borderColor: "var(--border-muted)",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  FREE
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-1.5 h-1.5 rounded-full ${backendStatus === "connected" ? "bg-emerald-500 animate-pulse" : "bg-red-500"} shadow-lg`}
-              ></div>
+
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-3">
               <span
-                className="text-[10px] font-mono font-bold uppercase tracking-tighter"
+                className="w-2 h-2 rounded-full shadow"
+                style={{ backgroundColor: activeViewMeta.color }}
+              ></span>
+              <span
+                className="text-sm font-bold uppercase tracking-[0.2em]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {activeViewMeta.label}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 flex justify-center">
+          <div className="max-w-2xl w-full">
+            <div
+              className="flex items-center gap-3 px-4 py-2 rounded-full border"
+              style={{
+                borderColor: "var(--border-muted)",
+                backgroundColor: "var(--bg-base)",
+              }}
+            >
+              <IconSearch
+                className="w-4 h-4"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <input
+                type="text"
+                placeholder="Search for a project or command"
+                className="flex-1 bg-transparent outline-none text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              />
+              <span
+                className="text-[10px] uppercase tracking-[0.3em]"
                 style={{ color: "var(--text-muted)" }}
               >
-                {backendStatus === "connected"
-                  ? "Backend Online"
-                  : "Backend Offline"}
+                ⌘K
               </span>
             </div>
           </div>
-        </header>
+        </div>
 
-        {uiState === "projects" ? (
-          renderProjects()
-        ) : uiState === "kanban" ? (
-          selectedProjectId ? (
-            <RequirementsKanban
-              projectId={selectedProjectId}
-              onSelectRequirement={(req) => {
-                // Open run artifact viewer if this requirement has a last run
-                if (req.last_run_id) {
-                  setSelectedRunId(req.last_run_id);
-                }
+        <div className="flex items-center gap-5 flex-0">
+          <button
+            className="text-[11px] font-bold uppercase tracking-[0.3em] border border-transparent rounded-full px-4 py-1 transition-all"
+            style={{
+              color: "var(--text-secondary)",
+              borderColor: "transparent",
+            }}
+          >
+            Feedback
+          </button>
+          <button
+            className="w-8 h-8 rounded-full border flex items-center justify-center"
+            style={{
+              borderColor: "var(--border-muted)",
+              color: "var(--text-muted)",
+            }}
+            title="Help"
+          >
+            ?
+          </button>
+          <div className="relative" ref={userMenuRef}>
+            <button
+              className="w-11 h-11 rounded-full border shadow-inner flex items-center justify-center text-[10px] font-bold"
+              style={{
+                borderColor: "var(--border-muted)",
+                color: "var(--text-muted)",
+                backgroundColor: "var(--bg-surface)",
               }}
-            />
-          ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-deepest)" }}
+              onClick={() => setUserMenuOpen((prev) => !prev)}
+              aria-haspopup="true"
+              aria-expanded={isUserMenuOpen}
+              title="User menu"
             >
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select a project to view requirements
-              </span>
-              <button
-                onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+              NS
+            </button>
+            {isUserMenuOpen && (
+              <div className="user-menu-panel">
+                <div className="user-menu-header">
+                  <p className="text-sm font-bold">nsasto</p>
+                  <p className="text-[10px] opacity-60">nsasto@gmail.com</p>
+                </div>
+                <hr />
+                <button
+                  className="user-menu-item"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Account preferences
+                </button>
+                <button
+                  className="user-menu-item"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Feature previews
+                </button>
+                <div className="user-menu-divider" />
+                <p className="user-menu-divider-label">Theme</p>
+                {themeOptions.map((option) => {
+                  const showDot = option.value === theme && !option.isVariant;
+                  return (
+                    <button
+                      key={option.label}
+                      className={`user-menu-item ${
+                        showDot ? "selected" : ""
+                      }`}
+                      onClick={() => {
+                        setTheme(option.value);
+                        setUserMenuOpen(false);
+                      }}
+                    >
+                      {showDot && (
+                        <span className="user-menu-item-dot" />
+                      )}
+                      {option.label}
+                    </button>
+                  );
+                })}
+                <div className="user-menu-divider" />
+                <button
+                  className="user-menu-item"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          activeView={activeSidebarView}
+          onChangeView={(view) => setUiState(view)}
+          backendStatus={backendStatus}
+          projectName={
+            selectedProject
+              ? selectedProject.name ||
+                selectedProject.path.split(/[\\/]/).pop()
+              : null
+          }
+        />
+        {/* Main View Container */}
+        <div className="flex-1 flex flex-col relative min-w-0 mb-8">
+          {uiState === "projects" ? (
+            renderProjects()
+          ) : uiState === "kanban" ? (
+            selectedProjectId ? (
+              <RequirementsKanban
+                projectId={selectedProjectId}
+                onSelectRequirement={(req) => {
+                  // Open run artifact viewer if this requirement has a last run
+                  if (req.last_run_id) {
+                    setSelectedRunId(req.last_run_id);
+                  }
+                }}
+              />
+            ) : (
+              <div
+                className="flex-1 flex flex-col items-center justify-center text-center"
+                style={{ backgroundColor: "var(--bg-deepest)" }}
               >
-                Go to Projects
-              </button>
-            </div>
-          )
-        ) : uiState === "orchestration" ? (
-          selectedProjectId ? (
-            <AgentDashboard projectId={selectedProjectId} />
-          ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-deepest)" }}
-            >
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select a project to view agent dashboard
-              </span>
-              <button
-                onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Select a project to view requirements
+                </span>
+                <button
+                  onClick={() => setUiState("projects")}
+                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                >
+                  Go to Projects
+                </button>
+              </div>
+            )
+          ) : uiState === "orchestration" ? (
+            selectedProjectId ? (
+              <AgentDashboard projectId={selectedProjectId} />
+            ) : (
+              <div
+                className="flex-1 flex flex-col items-center justify-center text-center"
+                style={{ backgroundColor: "var(--bg-deepest)" }}
               >
-                Go to Projects
-              </button>
-            </div>
-          )
-        ) : uiState === "assets" ? (
-          selectedProjectId ? (
-            <SpecsEditor
-              projectId={selectedProjectId}
-              onSelectSpec={(filename) => {
-                console.log("Selected spec:", filename);
-              }}
-            />
-          ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-deepest)" }}
-            >
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select a project to view specs
-              </span>
-              <button
-                onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Select a project to view agent dashboard
+                </span>
+                <button
+                  onClick={() => setUiState("projects")}
+                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                >
+                  Go to Projects
+                </button>
+              </div>
+            )
+          ) : uiState === "assets" ? (
+            selectedProjectId ? (
+              <SpecsEditor
+                projectId={selectedProjectId}
+                onSelectSpec={(filename) => {
+                  console.log("Selected spec:", filename);
+                }}
+              />
+            ) : (
+              <div
+                className="flex-1 flex flex-col items-center justify-center text-center"
+                style={{ backgroundColor: "var(--bg-deepest)" }}
               >
-                Go to Projects
-              </button>
-            </div>
-          )
-        ) : uiState === "config" ? (
-          selectedProjectId ? (
-            <ConfigPanel
-              projectId={selectedProjectId}
-              onClose={() => setUiState("projects")}
-            />
-          ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-deepest)" }}
-            >
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select a project to view configuration
-              </span>
-              <button
-                onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Select a project to view specs
+                </span>
+                <button
+                  onClick={() => setUiState("projects")}
+                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                >
+                  Go to Projects
+                </button>
+              </div>
+            )
+          ) : uiState === "config" ? (
+            selectedProjectId ? (
+              <ConfigPanel
+                projectId={selectedProjectId}
+                onClose={() => setUiState("projects")}
+              />
+            ) : (
+              <div
+                className="flex-1 flex flex-col items-center justify-center text-center"
+                style={{ backgroundColor: "var(--bg-deepest)" }}
               >
-                Go to Projects
-              </button>
-            </div>
-          )
-        ) : uiState === "plan" ? (
-          selectedProjectId ? (
-            <PlanViewer
-              projectId={selectedProjectId}
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Select a project to view configuration
+                </span>
+                <button
+                  onClick={() => setUiState("projects")}
+                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                >
+                  Go to Projects
+                </button>
+              </div>
+            )
+          ) : uiState === "plan" ? (
+            selectedProjectId ? (
+              <PlanViewer
+                projectId={selectedProjectId}
+                onBack={() => setUiState("projects")}
+              />
+            ) : (
+              <div
+                className="flex-1 flex flex-col items-center justify-center text-center"
+                style={{ backgroundColor: "var(--bg-deepest)" }}
+              >
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Select a project to view README
+                </span>
+                <button
+                  onClick={() => setUiState("projects")}
+                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                >
+                  Go to Projects
+                </button>
+              </div>
+            )
+          ) : uiState === "settings" ? (
+            <SettingsScreen
+              projectId={selectedProjectId ?? undefined}
               onBack={() => setUiState("projects")}
             />
           ) : (
@@ -1608,7 +1619,7 @@ export const executeTask = (taskId: string) => {
               style={{ backgroundColor: "var(--bg-deepest)" }}
             >
               <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select a project to view README
+                Unknown view state
               </span>
               <button
                 onClick={() => setUiState("projects")}
@@ -1617,34 +1628,14 @@ export const executeTask = (taskId: string) => {
                 Go to Projects
               </button>
             </div>
-          )
-        ) : uiState === "settings" ? (
-          <SettingsScreen
-            projectId={selectedProjectId ?? undefined}
-            onBack={() => setUiState("projects")}
-          />
-        ) : (
-          <div
-            className="flex-1 flex flex-col items-center justify-center text-center"
-            style={{ backgroundColor: "var(--bg-deepest)" }}
-          >
-            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Unknown view state
-            </span>
-            <button
-              onClick={() => setUiState("projects")}
-              className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-            >
-              Go to Projects
-            </button>
-          </div>
+          )}
+        </div>
+
+        {/* Copilot Chat - Always rendered when in specs view */}
+        {uiState === "assets" && selectedProjectId && (
+          <CopilotChat projectId={selectedProjectId} />
         )}
       </div>
-
-      {/* Copilot Chat - Always rendered when in specs view */}
-      {uiState === "assets" && selectedProjectId && (
-        <CopilotChat projectId={selectedProjectId} />
-      )}
 
       {/* Persistent OS Status Bar */}
       <footer

@@ -126,6 +126,25 @@ export const IconKanban = ({ className = "w-5 h-5", style }: IconProps) => (
   </svg>
 );
 
+export const IconPanelLeftDashed = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 14v1" />
+    <path d="M9 19v2" />
+    <path d="M9 3v2" />
+    <path d="M9 9v1" />
+  </svg>
+);
+
 export const IconMaximize = ({ className = "w-5 h-5", style }: IconProps) => (
   <svg
     viewBox="0 0 24 24"
@@ -499,5 +518,55 @@ export const IconWorkflow = ({ className = "w-5 h-5", style }: IconProps) => (
     <line x1="18" y1="9" x2="18" y2="13" />
     <line x1="6" y1="13" x2="12" y2="15" />
     <line x1="18" y1="13" x2="12" y2="15" />
+  </svg>
+);
+
+export const IconGridView = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+  </svg>
+);
+
+export const IconListView = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
+    <rect x="4" y="6" width="16" height="3" rx="1.5" />
+    <rect x="4" y="11" width="16" height="3" rx="1.5" />
+    <rect x="4" y="16" width="16" height="3" rx="1.5" />
+  </svg>
+);
+
+export const IconFilter = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
+    <path d="M4 5h16l-5.5 6.5V20l-5-3v-5.5L4 5z" />
   </svg>
 );
