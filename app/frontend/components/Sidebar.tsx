@@ -121,9 +121,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="sidebar-icon">{item.icon}</span>
               <div className="sidebar-labels">
                 <span className="sidebar-label">{item.label}</span>
-                {isExpanded && item.subtitle && (
-                  <span className="sidebar-subtitle">{item.subtitle}</span>
-                )}
               </div>
             </button>
           );

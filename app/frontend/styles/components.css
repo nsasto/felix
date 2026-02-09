@@ -371,8 +371,17 @@
 }
 
 .sidebar-label {
-  font-size: 0.9rem;
+  font-size: 0.65rem;
   font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sidebar-nav-item.active .sidebar-label {
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .sidebar-subtitle {
