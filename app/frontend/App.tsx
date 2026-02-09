@@ -194,14 +194,9 @@ const App: React.FC = () => {
     settings: { label: "Settings", tag: "Preferences", color: "#c084fc" },
   };
   const activeViewMeta = viewMetadata[activeSidebarView];
-  const footerSidebarWidth = sidebarMode === "collapsed" ? 72 : 240;
-  const footerStyle = {
-    borderColor: "var(--border-default)",
-    backgroundColor: "var(--bg-base)",
-    color: "var(--text-muted)",
-    left: `${footerSidebarWidth}px`,
-    width: `calc(100% - ${footerSidebarWidth}px)`,
-    zIndex: "var(--z-fixed)",
+  const rootStyle: React.CSSProperties = {
+    backgroundColor: "var(--bg-deepest)",
+    color: "var(--text-secondary)",
   };
   const projectHeaderLabel = selectedProject
     ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
@@ -940,13 +935,10 @@ export const executeTask = (taskId: string) => {
   }, [isUserMenuOpen]);
 
   return (
-    <div
-      className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30"
-      style={{
-        backgroundColor: "var(--bg-deepest)",
-        color: "var(--text-secondary)",
-      }}
-    >
+        <div
+          className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30"
+          style={rootStyle}
+        >
       <header
         className="h-16 flex items-center px-6 justify-between gap-6 z-20"
         style={{
@@ -1317,8 +1309,15 @@ export const executeTask = (taskId: string) => {
 
       {/* Persistent OS Status Bar */}
         <footer
-          className="h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
-          style={footerStyle}
+          className="footer-bar h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
+          style={{
+            borderColor: "var(--border-default)",
+            backgroundColor: "var(--bg-base)",
+            color: "var(--text-muted)",
+            zIndex: "var(--z-fixed)",
+            left: "var(--sidebar-offset, 240px)",
+            width: "calc(100% - var(--sidebar-offset, 240px))",
+          }}
         >
         <div className="flex items-center gap-6">
           <div

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   IconFileText,
   IconFileCode,
@@ -82,6 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onChangeView,
   backendStatus,
   projectName,
+  onModeChange,
 }) => {
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("expanded");
   const [hovered, setHovered] = useState(false);
@@ -92,6 +93,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (sidebarMode === "collapsed") return false;
     return hovered;
   }, [sidebarMode, hovered]);
+
+  useEffect(() => {
+    const width = isExpanded ? "240px" : "72px";
+    document.documentElement.style.setProperty("--sidebar-offset", width);
+  }, [isExpanded]);
 
   const handleModeChange = (mode: SidebarMode) => {
     setSidebarMode(mode);

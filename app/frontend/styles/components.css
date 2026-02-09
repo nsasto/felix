@@ -546,6 +546,10 @@
   transition: margin-left 200ms ease;
 }
 
+.footer-bar {
+  transition: left 200ms ease, width 200ms ease;
+}
+
 .user-menu-panel {
   position: absolute;
   right: 0;
