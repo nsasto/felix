@@ -546,10 +546,6 @@
   transition: margin-left 200ms ease;
 }
 
-.sidebar-collapsed + .main-view {
-  margin-left: 72px;
-}
-
 .user-menu-panel {
   position: absolute;
   right: 0;

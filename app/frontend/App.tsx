@@ -30,7 +30,7 @@ import AgentDashboard from "./components/AgentDashboard";
 import CopilotChat from "./components/CopilotChat";
 import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
-import Sidebar, { SidebarView } from "./components/Sidebar";
+import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
 
 // localStorage key for remembering the last selected project
 const LAST_PROJECT_KEY = "felix-last-project-id";
@@ -131,6 +131,7 @@ type ExtendedUIState =
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [uiState, setUiState] = useState<ExtendedUIState>("projects"); // Start with projects view
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("expanded");
 
   // Project management state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -193,6 +194,15 @@ const App: React.FC = () => {
     settings: { label: "Settings", tag: "Preferences", color: "#c084fc" },
   };
   const activeViewMeta = viewMetadata[activeSidebarView];
+  const footerSidebarWidth = sidebarMode === "collapsed" ? 72 : 240;
+  const footerStyle = {
+    borderColor: "var(--border-default)",
+    backgroundColor: "var(--bg-base)",
+    color: "var(--text-muted)",
+    left: `${footerSidebarWidth}px`,
+    width: `calc(100% - ${footerSidebarWidth}px)`,
+    zIndex: "var(--z-fixed)",
+  };
   const projectHeaderLabel = selectedProject
     ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
     : "No project selected";
@@ -1141,6 +1151,7 @@ export const executeTask = (taskId: string) => {
                 selectedProject.path.split(/[\\/]/).pop()
               : null
           }
+          onModeChange={setSidebarMode}
         />
         {/* Main View Container */}
         <div
@@ -1307,14 +1318,10 @@ export const executeTask = (taskId: string) => {
       </div>
 
       {/* Persistent OS Status Bar */}
-      <footer
-        className="h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono z-40 fixed bottom-0 left-0 right-0 select-none flex-shrink-0 backdrop-blur-xl"
-        style={{
-          borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-base)",
-          color: "var(--text-muted)",
-        }}
-      >
+        <footer
+          className="h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
+          style={footerStyle}
+        >
         <div className="flex items-center gap-6">
           <div
             className="flex items-center gap-2 group cursor-default"

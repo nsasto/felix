@@ -17,13 +17,14 @@ export type SidebarView =
   | "plan"
   | "settings";
 
-type SidebarMode = "expanded" | "collapsed" | "hover";
+export type SidebarMode = "expanded" | "collapsed" | "hover";
 
 interface SidebarProps {
   activeView: SidebarView;
   onChangeView: (view: SidebarView) => void;
   backendStatus: "unknown" | "connected" | "disconnected";
   projectName: string | null;
+  onModeChange?: (mode: SidebarMode) => void;
 }
 
 const NAV_ITEMS: Array<{
@@ -95,6 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleModeChange = (mode: SidebarMode) => {
     setSidebarMode(mode);
     setModeMenuOpen(false);
+    onModeChange?.(mode);
   };
 
   const MODE_OPTIONS: Array<{ key: SidebarMode; label: string }> = [
