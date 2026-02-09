@@ -137,13 +137,8 @@ I need help creating a specification for requirement ID: $RequirementId
                     $isInteractive = [Console]::IsInputRedirected -eq $false -and [Environment]::UserInteractive
                     
                     if ($isInteractive) {
-                        # Interactive mode: prompt directly
-                        Write-Host ""
-                        Write-Host "=== Question from AI ===" -ForegroundColor Cyan
-                        Write-Host $event.content
-                        Write-Host ""
-                        Write-Host "Your answer (or 'cancel' to abort): " -NoNewline -ForegroundColor Yellow
-                        $userInput = Read-Host
+                        # Interactive mode: prompt directly via stdin (Write-Host removed to avoid duplicate output)
+                        $userInput = Read-Host "Your answer (or type cancel to abort)"
                         
                         if ($userInput -eq "cancel") {
                             Emit-SpecBuilderCancelled
@@ -164,18 +159,13 @@ I need help creating a specification for requirement ID: $RequirementId
                         # Write prompt
                         $event.content | Set-Content $promptFile -Encoding UTF8
                         
-                        # Emit prompt requested event
-                        $promptEvent = @{
-                            type      = "prompt_requested"
-                            timestamp = Get-Date -Format "o"
-                            data      = @{
-                                prompt_id     = $promptId
-                                question      = $event.content
-                                prompt_file   = $promptFile
-                                response_file = $responseFile
-                            }
+                        # Emit prompt requested event (using standard Emit-Event)
+                        Emit-Event -EventType "prompt_requested" -Data @{
+                            prompt_id     = $promptId
+                            question      = $event.content
+                            prompt_file   = $promptFile
+                            response_file = $responseFile
                         }
-                        Write-Output ($promptEvent | ConvertTo-Json -Compress)
                         
                         # Wait for response file or cancel file
                         $timeout = 300 # 5 minutes
@@ -256,17 +246,7 @@ I need help creating a specification for requirement ID: $RequirementId
                         Emit-SpecBuilderComplete -RequirementId $RequirementId -SpecPath $finalSpecPath
                         $specComplete = $true
                         
-                        # Show success message to user
-                        $filename = Split-Path $finalSpecPath -Leaf
-                        Write-Host ""
-                        Write-Host "✅ Spec created successfully!" -ForegroundColor Green
-                        Write-Host "   ID:       " -NoNewline -ForegroundColor Cyan
-                        Write-Host $RequirementId
-                        Write-Host "   File:     " -NoNewline -ForegroundColor Cyan
-                        Write-Host $filename
-                        Write-Host "   Location: " -NoNewline -ForegroundColor Cyan
-                        Write-Host $finalSpecPath
-                        Write-Host ""
+                        # Success message displayed via NDJSON event (no Write-Host to avoid duplicate output)
                     }
                     else {
                         Emit-Error -ErrorType "FailedToUpdateRequirements" -Message "Failed to update requirements.json" -Severity "fatal"

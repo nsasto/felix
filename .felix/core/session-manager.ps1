@@ -149,7 +149,23 @@ function Stop-Session {
     try {
         $proc = Get-Process -Id $session.pid -ErrorAction SilentlyContinue
         if ($proc) {
-            $proc.Kill($true)  # Kill entire process tree
+            # Use taskkill for cross-version compatibility (kills process tree)
+            # PowerShell 5.1 doesn't support Kill($true), PowerShell 7+ does
+            if ($IsWindows -or $PSVersionTable.PSVersion.Major -le 5) {
+                # Windows: use taskkill to kill process tree
+                & taskkill /F /T /PID $session.pid 2>&1 | Out-Null
+            }
+            else {
+                # Unix-like: use Kill with tree parameter if available
+                try {
+                    $proc.Kill($true)
+                }
+                catch {
+                    # Fallback for older PowerShell versions
+                    $proc.Kill()
+                }
+            }
+            
             Start-Sleep -Milliseconds 500
             
             # Verify it's dead

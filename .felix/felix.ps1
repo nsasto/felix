@@ -421,13 +421,28 @@ function Invoke-Context {
 }
 
 function Invoke-ProcessList {
-    param([string[]]$Args)
+    param([string[]]$Arguments)
     
     # Load session manager
     . "$PSScriptRoot\core\session-manager.ps1"
     
-    $subCmd = if ($Args -and $Args.Count -gt 0) { $Args[0] } else { "list" }
-    $subArgs = if ($Args.Count -gt 1) { $Args[1..($Args.Count - 1)] } else { @() }
+    $subCmd = if ($Arguments -and $Arguments.Count -gt 0) { $Arguments[0] } else { "list" }
+    
+    # Handle array extraction carefully - PowerShell unwraps single-element @() arrays
+    # Use ArrayList.ToArray() to force proper array creation for single element
+    $subArgs = if ($Arguments.Count -eq 2) {
+        # Single argument after command - use ArrayList to force proper array
+        $temp = [System.Collections.ArrayList]@()
+        $null = $temp.Add($Arguments[1])
+        , $temp.ToArray()
+    }
+    elseif ($Arguments.Count -gt 2) {
+        # Multiple arguments - range operator works fine
+        $Arguments[1..($Arguments.Count - 1)]
+    }
+    else {
+        @()
+    }
     
     switch ($subCmd) {
         "list" {
@@ -464,12 +479,12 @@ function Invoke-ProcessList {
             }
             
             Write-Host "Commands:" -ForegroundColor Cyan
-            Write-Host "  felix ps kill <session-id>    Terminate a session"
+            Write-Host "  felix procs kill <session-id>    Terminate a session"
             Write-Host ""
         }
         "kill" {
             if ($subArgs.Count -eq 0) {
-                Write-Error "Usage: felix ps kill <session-id>"
+                Write-Error "Usage: felix procs kill <session-id>"
                 Write-Host ""
                 Write-Host "Tip: Use 'felix procs list' to see active sessions"
                 Write-Host ""
@@ -480,6 +495,7 @@ function Invoke-ProcessList {
             
             Write-Host ""
             Write-Host "Terminating session: $sessionId" -ForegroundColor Yellow
+            Write-Host ""
             
             $success = Stop-Session -SessionId $sessionId -ProjectPath $RepoRoot
             
@@ -1151,21 +1167,23 @@ function Invoke-SpecCreate {
                 }
             }
 
-            # Spawn agent in spec-builder mode
+            # Use felix-cli to spawn agent in spec-builder mode with formatting
             if ($quickMode) {
-                & "$PSScriptRoot\felix-agent.ps1" `
+                & "$PSScriptRoot\felix-cli.ps1" `
                     -ProjectPath $RepoRoot `
                     -SpecBuildMode `
                     -QuickMode `
                     -RequirementId $nextId `
-                    -InitialPrompt $description
+                    -InitialPrompt $description `
+                    -Format $Format
             }
             else {
-                & "$PSScriptRoot\felix-agent.ps1" `
+                & "$PSScriptRoot\felix-cli.ps1" `
                     -ProjectPath $RepoRoot `
                     -SpecBuildMode `
                     -RequirementId $nextId `
-                    -InitialPrompt $description
+                    -InitialPrompt $description `
+                    -Format $Format
             }
             
             exit $LASTEXITCODE
@@ -2025,7 +2043,7 @@ switch ($Command) {
         Invoke-Agent -AgentArgs $remainingArgs
     }
     "procs" {
-        Invoke-ProcessList -Args $remainingArgs
+        Invoke-ProcessList -Arguments $remainingArgs
     }
     "version" {
         Show-Version
