@@ -962,11 +962,11 @@ export const executeTask = (taskId: string) => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-semibold transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
               style={{
-                borderColor: "var(--border-muted)",
                 color: "var(--text-secondary)",
-                backgroundColor: "var(--bg-surface)",
+                backgroundColor: "transparent",
+                border: "none",
               }}
               onClick={() => {
                 /* placeholder for org picker */
