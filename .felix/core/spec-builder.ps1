@@ -100,9 +100,8 @@ I need help creating a specification for requirement ID: $RequirementId
     Write-Host "============================================================" -ForegroundColor Magenta
     Write-Host "  Spec Builder Started" -ForegroundColor Magenta
     Write-Host "  Requirement: $RequirementId" -ForegroundColor Magenta
-    if ($QuickMode) {
-        Write-Host "  Mode: Quick (minimal questions)" -ForegroundColor Magenta
-    }
+    $modeText = if ($QuickMode) { "Quick (minimal questions)" } else { "Standard (detailed)" }
+    Write-Host "  Build Mode: $modeText" -ForegroundColor Magenta
     Write-Host "============================================================" -ForegroundColor Magenta
     Write-Host ""
     
@@ -157,6 +156,9 @@ I need help creating a specification for requirement ID: $RequirementId
                         
                         # Format markdown: **bold** and bullet points
                         $formatted = $event.content -replace '\\n', "`n"
+                        $formatted = $formatted -replace '\\t', "`t"
+                        $formatted = $formatted -replace '\\"', '"'
+                        $formatted = $formatted -replace "\\'", "'"
                         $formatted = $formatted -replace '\*\*([^\*]+)\*\*', '$1'  # Remove ** markers (bold in markdown)
                         Write-Host $formatted
                         

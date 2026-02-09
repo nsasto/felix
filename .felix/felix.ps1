@@ -1138,6 +1138,14 @@ function Invoke-SpecCreate {
             
             $description = $description.Trim()
 
+            # Spec create is inherently interactive - JSON mode not supported
+            if ($Format -eq "json") {
+                Write-Host "⚠️  Warning: --format json is not supported for 'spec create'" -ForegroundColor Yellow
+                Write-Host "   Spec builder requires interactive input (questions/answers)" -ForegroundColor Gray
+                Write-Host "   Continuing with standard interactive mode..." -ForegroundColor Gray
+                Write-Host ""
+            }
+
             # Auto-generate next available requirement ID
             $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
             $nextId = "S-0001"
