@@ -56,6 +56,15 @@ catch {
     exit 1
 }
 
+# Suppress NDJSON events for interactive spec-builder mode
+# Must happen before any Emit-* calls to prevent JSON clutter in console
+if ($SpecBuildMode) {
+    $isInteractive = [Console]::IsInputRedirected -eq $false -and [Environment]::UserInteractive
+    if ($isInteractive) {
+        $script:SuppressEventEmission = $true
+    }
+}
+
 # Configure UTF-8 encoding for console output
 # Must be done in this specific order for Windows PowerShell compatibility
 # Skip console operations when running in non-interactive/redirected mode
@@ -93,7 +102,8 @@ function Acquire-FelixRunLock {
     param(
         [Parameter(Mandatory = $true)][string]$LockPath,
         [Parameter(Mandatory = $true)][string]$ProjectPath,
-        [Parameter(Mandatory = $false)][string]$RequirementId
+        [Parameter(Mandatory = $false)][string]$RequirementId,
+        [Parameter(Mandatory = $false)][switch]$Interactive
     )
 
     # Back-compat safety: if other felix-agent processes are already running for this repo,
@@ -115,11 +125,49 @@ function Acquire-FelixRunLock {
         }
 
         if ($others.Count -gt 0) {
-            Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PIDs: $(@($others) -join ', ')). Stop it before starting a new run." -Severity "fatal" -Context @{
-                lock_path = $LockPath
-                pids      = @($others)
+            $pidsStr = $others -join ', '
+            
+            if ($Interactive) {
+                Write-Host "`n⚠️  Another Felix agent is already running!" -ForegroundColor Yellow
+                Write-Host "   Process ID(s): $pidsStr" -ForegroundColor Cyan
+                Write-Host ""
+                $response = Read-Host "Kill the existing process and continue? (y/n)"
+                
+                if ($response -eq 'y' -or $response -eq 'Y') {
+                    foreach ($pid in $others) {
+                        try {
+                            Write-Host "Killing process $pid..." -ForegroundColor Yellow
+                            Stop-Process -Id $pid -Force -ErrorAction Stop
+                            Start-Sleep -Milliseconds 500
+                        }
+                        catch {
+                            Write-Host "Failed to kill process $pid`: $_" -ForegroundColor Red
+                        }
+                    }
+                    
+                    # Try to remove stale lock file
+                    try {
+                        if (Test-Path -LiteralPath $LockPath) {
+                            Remove-Item -LiteralPath $LockPath -Force -ErrorAction SilentlyContinue
+                            Start-Sleep -Milliseconds 200
+                        }
+                    }
+                    catch { }
+                    
+                    # Don't return null, let it retry the lock acquisition below
+                }
+                else {
+                    Write-Host "Cancelled by user." -ForegroundColor Gray
+                    return $null
+                }
             }
-            return $null
+            else {
+                Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PIDs: $pidsStr). Stop it before starting a new run." -Severity "fatal" -Context @{
+                    lock_path = $LockPath
+                    pids      = @($others)
+                }
+                return $null
+            }
         }
     }
     catch { }
@@ -174,12 +222,48 @@ function Acquire-FelixRunLock {
             }
 
             if ($isRunning) {
-                Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PID: $existingPid). Stop it before starting a new run." -Severity "fatal" -Context @{
-                    lock_path      = $LockPath
-                    existing_pid   = $existingPid
-                    existing_reqid = if ($existing -and $existing.requirement_id) { [string]$existing.requirement_id } else { "" }
+                if ($Interactive) {
+                    Write-Host "`n⚠️  Another Felix agent is already running!" -ForegroundColor Yellow
+                    Write-Host "   Process ID: $existingPid" -ForegroundColor Cyan
+                    if ($existing.requirement_id) {
+                        Write-Host "   Working on: $($existing.requirement_id)" -ForegroundColor Cyan
+                    }
+                    Write-Host ""
+                    $response = Read-Host "Kill the existing process and continue? (y/n)"
+                    
+                    if ($response -eq 'y' -or $response -eq 'Y') {
+                        try {
+                            Write-Host "Killing process $existingPid..." -ForegroundColor Yellow
+                            Stop-Process -Id $existingPid -Force -ErrorAction Stop
+                            Start-Sleep -Milliseconds 500
+                            
+                            # Remove the stale lock file
+                            try {
+                                Remove-Item -LiteralPath $LockPath -Force -ErrorAction SilentlyContinue
+                                Start-Sleep -Milliseconds 200
+                            }
+                            catch { }
+                            
+                            # Retry - don't return null, let it fall through to the retry logic
+                        }
+                        catch {
+                            Write-Host "Failed to kill process $existingPid`: $_" -ForegroundColor Red
+                            return $null
+                        }
+                    }
+                    else {
+                        Write-Host "Cancelled by user." -ForegroundColor Gray
+                        return $null
+                    }
                 }
-                return $null
+                else {
+                    Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PID: $existingPid). Stop it before starting a new run." -Severity "fatal" -Context @{
+                        lock_path      = $LockPath
+                        existing_pid   = $existingPid
+                        existing_reqid = if ($existing -and $existing.requirement_id) { [string]$existing.requirement_id } else { "" }
+                    }
+                    return $null
+                }
             }
 
             # Stale lock: remove and retry once
@@ -213,7 +297,7 @@ function Release-FelixRunLock {
 }
 
 $lockPath = Join-Path $paths.FelixDir "run.lock"
-$script:FelixRunLockHandle = Acquire-FelixRunLock -LockPath $lockPath -ProjectPath $ProjectPath -RequirementId $RequirementId
+$script:FelixRunLockHandle = Acquire-FelixRunLock -LockPath $lockPath -ProjectPath $ProjectPath -RequirementId $RequirementId -Interactive:$SpecBuildMode
 if (-not $script:FelixRunLockHandle) {
     exit 1
 }

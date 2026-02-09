@@ -1167,23 +1167,22 @@ function Invoke-SpecCreate {
                 }
             }
 
-            # Use felix-cli to spawn agent in spec-builder mode with formatting
+            # Spec-builder needs interactive stdin, so call felix-agent directly
+            # (felix-cli subprocess redirection breaks Read-Host)
             if ($quickMode) {
-                & "$PSScriptRoot\felix-cli.ps1" `
+                & "$PSScriptRoot\felix-agent.ps1" `
                     -ProjectPath $RepoRoot `
-                    -SpecBuildMode `
-                    -QuickMode `
+                    -SpecBuildMode:$true `
+                    -QuickMode:$true `
                     -RequirementId $nextId `
-                    -InitialPrompt $description `
-                    -Format $Format
+                    -InitialPrompt $description
             }
             else {
-                & "$PSScriptRoot\felix-cli.ps1" `
+                & "$PSScriptRoot\felix-agent.ps1" `
                     -ProjectPath $RepoRoot `
-                    -SpecBuildMode `
+                    -SpecBuildMode:$true `
                     -RequirementId $nextId `
-                    -InitialPrompt $description `
-                    -Format $Format
+                    -InitialPrompt $description
             }
             
             exit $LASTEXITCODE

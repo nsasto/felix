@@ -95,6 +95,17 @@ I need help creating a specification for requirement ID: $RequirementId
     # Start conversation loop
     Emit-SpecBuilderStarted -RequirementId $RequirementId
     
+    # Display welcome banner
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Magenta
+    Write-Host "  Spec Builder Started" -ForegroundColor Magenta
+    Write-Host "  Requirement: $RequirementId" -ForegroundColor Magenta
+    if ($QuickMode) {
+        Write-Host "  Mode: Quick (minimal questions)" -ForegroundColor Magenta
+    }
+    Write-Host "============================================================" -ForegroundColor Magenta
+    Write-Host ""
+    
     $maxTurns = 20
     $turnCount = 0
     $specComplete = $false
@@ -137,7 +148,19 @@ I need help creating a specification for requirement ID: $RequirementId
                     $isInteractive = [Console]::IsInputRedirected -eq $false -and [Environment]::UserInteractive
                     
                     if ($isInteractive) {
-                        # Interactive mode: prompt directly via stdin (Write-Host removed to avoid duplicate output)
+                        # Interactive mode: display formatted question and prompt for answer
+                        Write-Host ""
+                        Write-Host "============================================================" -ForegroundColor Cyan
+                        Write-Host "  Question from AI" -ForegroundColor Cyan
+                        Write-Host "============================================================" -ForegroundColor Cyan
+                        Write-Host ""
+                        
+                        # Format markdown: **bold** and bullet points
+                        $formatted = $event.content -replace '\\n', "`n"
+                        $formatted = $formatted -replace '\*\*([^\*]+)\*\*', '$1'  # Remove ** markers (bold in markdown)
+                        Write-Host $formatted
+                        
+                        Write-Host ""
                         $userInput = Read-Host "Your answer (or type cancel to abort)"
                         
                         if ($userInput -eq "cancel") {
@@ -246,7 +269,17 @@ I need help creating a specification for requirement ID: $RequirementId
                         Emit-SpecBuilderComplete -RequirementId $RequirementId -SpecPath $finalSpecPath
                         $specComplete = $true
                         
-                        # Success message displayed via NDJSON event (no Write-Host to avoid duplicate output)
+                        # Display success message
+                        $filename = Split-Path $finalSpecPath -Leaf
+                        Write-Host ""
+                        Write-Host "✅ Spec created successfully!" -ForegroundColor Green
+                        Write-Host "   ID:       " -NoNewline -ForegroundColor Cyan
+                        Write-Host $RequirementId
+                        Write-Host "   File:     " -NoNewline -ForegroundColor Cyan
+                        Write-Host $filename
+                        Write-Host "   Location: " -NoNewline -ForegroundColor Cyan
+                        Write-Host $finalSpecPath
+                        Write-Host ""
                     }
                     else {
                         Emit-Error -ErrorType "FailedToUpdateRequirements" -Message "Failed to update requirements.json" -Severity "fatal"

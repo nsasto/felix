@@ -45,6 +45,20 @@ function Emit-Event {
         [hashtable]$Data
     )
     
+    # Skip event emission if suppressed (e.g., interactive spec-builder mode)
+    # But show errors directly with Write-Host for interactive debugging
+    if ($script:SuppressEventEmission -eq $true) {
+        # Still show errors/fatals in interactive mode via console
+        if ($Severity -in @('error', 'fatal')) {
+            $color = if ($Severity -eq 'fatal') { 'Red' } else { 'Yellow' }
+            Write-Host "[$Severity] $ErrorType`: $Message" -ForegroundColor $color
+            if ($Context) {
+                Write-Host "  Context: $($Context | ConvertTo-Json -Compress)" -ForegroundColor Gray
+            }
+        }
+        return
+    }
+    
     # Build event object
     $event = @{
         timestamp = (Get-Date).ToUniversalTime().ToString("o")  # ISO 8601 format
@@ -244,6 +258,15 @@ function Emit-Error {
         [Parameter(Mandatory = $false)]
         [hashtable]$Context = @{}
     )
+    
+    # If events are suppressed (interactive mode), show errors directly on console
+    if ($script:SuppressEventEmission -eq $true) {
+        $color = if ($Severity -eq 'fatal') { 'Red' } elseif ($Severity -eq 'error') { 'Red' } else { 'Yellow' }
+        Write-Host "[$Severity] $ErrorType`: $Message" -ForegroundColor $color
+        if ($Context.Count -gt 0) {
+            Write-Host "  Context: $($Context | ConvertTo-Json -Compress)" -ForegroundColor Gray
+        }
+    }
     
     $data = @{
         error_type = $ErrorType
