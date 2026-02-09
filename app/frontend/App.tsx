@@ -1154,9 +1154,7 @@ export const executeTask = (taskId: string) => {
           onModeChange={setSidebarMode}
         />
         {/* Main View Container */}
-        <div
-          className="main-view flex-1 flex flex-col relative min-w-0 mb-8"
-        >
+        <div className="main-view flex-1 flex flex-col relative min-w-0 mb-8">
           {uiState === "projects" ? (
             renderProjects()
           ) : uiState === "kanban" ? (
