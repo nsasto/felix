@@ -149,11 +149,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
       <div className="sidebar-collapse-wrapper">
-        <div
-          className="sidebar-collapse-control"
-          onMouseEnter={() => setModeMenuOpen(true)}
-          onMouseLeave={() => setModeMenuOpen(false)}
-        >
+        <div className="sidebar-collapse-control">
           <button
             onClick={() => setModeMenuOpen((prev) => !prev)}
             className="sidebar-mode-menu-btn"
