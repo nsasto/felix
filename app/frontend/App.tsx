@@ -13,6 +13,7 @@ import {
   IconPulse,
   IconOrganization,
   IconChevronDown,
+  IconHelpCircle,
 } from "./components/Icons";
 import FelixLogo from "../../img/felix_logo_small.png";
 import FelixLogoHover from "../../img/felix_logo_hammer_small.png";
@@ -1052,22 +1053,15 @@ export const executeTask = (taskId: string) => {
             />
           </div>
           <button
-            className="w-9 h-9 rounded-full border flex items-center justify-center text-lg"
+            className="w-9 h-9 rounded-full border flex items-center justify-center"
             style={{
               borderColor: "var(--border-muted)",
               color: "var(--text-muted)",
+              backgroundColor: "transparent",
             }}
+            aria-label="Help"
           >
-            ?
-          </button>
-          <button
-            className="w-9 h-9 rounded-full border flex items-center justify-center text-xl"
-            style={{
-              borderColor: "var(--border-muted)",
-              color: "var(--text-muted)",
-            }}
-          >
-            💡
+            <IconHelpCircle className="w-4 h-4" />
           </button>
           <div className="relative" ref={userMenuRef}>
             <button

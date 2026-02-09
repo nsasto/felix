@@ -539,6 +539,23 @@ export const IconOrganization = ({ className = "w-5 h-5", style }: IconProps) =>
   </svg>
 );
 
+export const IconHelpCircle = ({ className = "w-5 h-5", style }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+  >
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 8h.01" />
+    <path d="M12 11c1 0 1.5.5 1.5 1.5s-1 1.5-1.5 1.5-1.5.5-1.5 1.5" />
+  </svg>
+);
+
 export const IconChevronDown = ({ className = "w-4 h-4", style }: IconProps) => (
   <svg
     viewBox="0 0 24 24"
