@@ -443,34 +443,25 @@ function Add-RequirementToJson {
 function Emit-SpecBuilderStarted {
     param([string]$RequirementId)
     
-    $event = @{
-        event          = "spec_builder_started"
+    Emit-Event -EventType "spec_builder_started" -Data @{
         requirement_id = $RequirementId
-        timestamp      = Get-Date -Format "o"
     }
-    Write-Output ($event | ConvertTo-Json -Compress)
 }
 
 function Emit-SpecQuestion {
     param([string]$Question)
     
-    $event = @{
-        event     = "spec_question"
-        question  = $Question
-        timestamp = Get-Date -Format "o"
+    Emit-Event -EventType "spec_question" -Data @{
+        question = $Question
     }
-    Write-Output ($event | ConvertTo-Json -Compress)
 }
 
 function Emit-SpecDraft {
     param([string]$Content)
     
-    $event = @{
-        event     = "spec_draft"
-        content   = $Content
-        timestamp = Get-Date -Format "o"
+    Emit-Event -EventType "spec_draft" -Data @{
+        content = $Content
     }
-    Write-Output ($event | ConvertTo-Json -Compress)
 }
 
 function Emit-SpecBuilderComplete {
@@ -479,21 +470,14 @@ function Emit-SpecBuilderComplete {
         [string]$SpecPath
     )
     
-    $event = @{
-        event          = "spec_builder_complete"
+    Emit-Event -EventType "spec_builder_complete" -Data @{
         requirement_id = $RequirementId
         spec_file      = $SpecPath
-        timestamp      = Get-Date -Format "o"
     }
-    Write-Output ($event | ConvertTo-Json -Compress)
 }
 
 function Emit-SpecBuilderCancelled {
-    $event = @{
-        event     = "spec_builder_cancelled"
-        timestamp = Get-Date -Format "o"
-    }
-    Write-Output ($event | ConvertTo-Json -Compress)
+    Emit-Event -EventType "spec_builder_cancelled" -Data @{}
 }
 
 function Invoke-Droid {

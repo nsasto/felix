@@ -101,11 +101,20 @@ function Acquire-FelixRunLock {
     try {
         $projectPathStr = [string]$ProjectPath
         $escaped = [regex]::Escape($projectPathStr)
-        $others = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
-            Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -match 'felix-agent\.ps1' -and $_.CommandLine -match $escaped } |
-            Select-Object -ExpandProperty ProcessId
+        $candidates = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
+        Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -match 'felix-agent\.ps1' -and $_.CommandLine -match $escaped } |
+        Select-Object -ExpandProperty ProcessId
 
-        if ($others -and @($others).Count -gt 0) {
+        # Verify each candidate is actually still running (not zombie/exiting)
+        $others = @()
+        foreach ($pid in $candidates) {
+            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            if ($proc) {
+                $others += $pid
+            }
+        }
+
+        if ($others.Count -gt 0) {
             Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PIDs: $(@($others) -join ', ')). Stop it before starting a new run." -Severity "fatal" -Context @{
                 lock_path = $LockPath
                 pids      = @($others)
@@ -210,165 +219,165 @@ if (-not $script:FelixRunLockHandle) {
 }
 
 try {
-# Extract paths for convenience
-$SpecsDir = $paths.SpecsDir
-$FelixDir = $paths.FelixDir
-$RunsDir = $paths.RunsDir
-$AgentsFile = $paths.AgentsFile
-$ConfigFile = $paths.ConfigFile
-$StateFile = $paths.StateFile
-$RequirementsFile = $paths.RequirementsFile
-$PromptsDir = $paths.PromptsDir
+    # Extract paths for convenience
+    $SpecsDir = $paths.SpecsDir
+    $FelixDir = $paths.FelixDir
+    $RunsDir = $paths.RunsDir
+    $AgentsFile = $paths.AgentsFile
+    $ConfigFile = $paths.ConfigFile
+    $StateFile = $paths.StateFile
+    $RequirementsFile = $paths.RequirementsFile
+    $PromptsDir = $paths.PromptsDir
 
-Emit-Log -Level "debug" -Message "StateFile: $StateFile" -Component "init"
-Emit-Log -Level "debug" -Message "RequirementsFile: $RequirementsFile" -Component "init"
+    Emit-Log -Level "debug" -Message "StateFile: $StateFile" -Component "init"
+    Emit-Log -Level "debug" -Message "RequirementsFile: $RequirementsFile" -Component "init"
 
-# Load configuration
-Emit-Log -Level "debug" -Message "Loading Felix config from $ConfigFile" -Component "init"
-$config = Get-FelixConfig -ConfigFile $ConfigFile
-if (-not $config) {
-    Emit-Error -ErrorType "ConfigLoadFailed" -Message "Failed to load config" -Severity "fatal"
-    exit 1
-}
-Emit-Log -Level "debug" -Message "Config loaded successfully" -Component "init"
-
-$maxIterations = $config.executor.max_iterations
-$defaultMode = $config.executor.default_mode
-
-# Load agent configuration
-$agentId = if ($config.agent -and $null -ne $config.agent.agent_id) { 
-    $config.agent.agent_id 
-}
-else { 
-    0  # Default to agent ID 0
-}
-Emit-Log -Level "debug" -Message "Using agent ID: $agentId" -Component "init"
-
-Emit-Log -Level "debug" -Message "Loading agents configuration" -Component "init"
-$agentsData = Get-AgentsConfiguration -AgentsJsonFile $paths.AgentsJsonFile
-if (-not $agentsData) {
-    Emit-Error -ErrorType "AgentsDataLoadFailed" -Message "Failed to load agents.json" -Severity "fatal"
-    exit 1
-}
-Emit-Log -Level "debug" -Message "Agents data loaded successfully" -Component "init"
-
-Emit-Log -Level "debug" -Message "Getting agent config for ID $agentId" -Component "init"
-$agentConfig = Get-AgentConfig -AgentsData $agentsData -AgentId $agentId -ConfigFile $ConfigFile
-if (-not $agentConfig) {
-    Emit-Error -ErrorType "AgentConfigLoadFailed" -Message "Failed to load agent config for ID $agentId" -Severity "fatal"
-    exit 1
-}
-Emit-Log -Level "debug" -Message "Agent config loaded: $($agentConfig.name)" -Component "init"
-
-$agentName = $agentConfig.name
-$script:agentName = $agentName
-$script:agentId = $agentConfig.id
-$script:agentConfig = $agentConfig
-
-# ============================================================================
-# Mode Selection: Spec Builder vs Normal Execution
-# ============================================================================
-
-if ($SpecBuildMode) {
-    Emit-Log -Level "debug" -Message "Entering spec builder mode" -Component "init"
-    # Spec builder flow - different path entirely
-    . "$PSScriptRoot/core/spec-builder.ps1"
-    
-    Emit-Log -Level "debug" -Message "Calling Invoke-SpecBuilder with RequirementId=$RequirementId, QuickMode=$($QuickMode.IsPresent)" -Component "init"
-    $result = Invoke-SpecBuilder `
-        -RequirementId $RequirementId `
-        -InitialPrompt $InitialPrompt `
-        -QuickMode:$QuickMode `
-        -Config $config `
-        -AgentConfig $agentConfig `
-        -Paths $paths
-    
-    Emit-Log -Level "debug" -Message "Invoke-SpecBuilder returned with exit code $($result.ExitCode)" -Component "init"
-    Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $null
-}
-
-# ============================================================================
-# Agent Registration and Heartbeat Functions
-# ============================================================================
-
-$script:BackendBaseUrl = "http://localhost:8080"
-$script:HeartbeatJob = $null
-
-# No wrappers needed - call module functions directly with all parameters
-
-# Resolve python upfront (hard stop if unavailable)
-try {
-    $null = Resolve-PythonCommand -Config $config
-}
-catch {
-    Emit-Error -ErrorType "PythonResolutionFailed" -Message "Python resolution failed: $_" -Severity "fatal"
-    exit 1
-}
-
-# Initialize plugin state
-Initialize-PluginState
-
-# Load requirements and select current requirement
-$currentReq = Get-CurrentRequirement -RequirementsFile $RequirementsFile -RequirementId $RequirementId -StateFile $StateFile
-if (-not $currentReq -or -not $currentReq.id) {
-    # Error already emitted by Get-CurrentRequirement (either RequirementNotFound or already complete)
-    Emit-Error -ErrorType "NoRequirementAvailable" -Message "Cannot proceed: requirement '$RequirementId' is not available for execution" -Severity "fatal"
-    [Console]::Out.Flush()  # Ensure error event is flushed before exit
-    Start-Sleep -Milliseconds 100  # Brief delay to ensure output is captured
-    exit 1
-}
-
-$RequirementId = $currentReq.id
-
-# Load or initialize execution state
-$state = Initialize-ExecutionState -StateFile $StateFile
-
-# Initialize state machine for this execution
-$agentState = New-AgentState -InitialMode "Planning"
-$agentState.RequirementId = $RequirementId
-Emit-Log -Level "debug" -Message "Initialized in Planning mode for requirement $RequirementId" -Component "state-machine"
-
-# Reset validation retry counter if we're starting a new requirement
-Emit-Log -Level "debug" -Message "About to call Initialize-StateForRequirement" -Component "init"
-$state = Initialize-StateForRequirement -State $state -Requirement $currentReq
-Emit-Log -Level "debug" -Message "Completed Initialize-StateForRequirement" -Component "init"
-
-# Register agent with backend
-Emit-Log -Level "debug" -Message "About to call Register-Agent" -Component "init"
-$registrationSucceeded = Register-Agent -AgentId $agentConfig.id -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME -BackendBaseUrl $script:BackendBaseUrl
-Emit-Log -Level "debug" -Message "Completed Register-Agent, success=$registrationSucceeded" -Component "init"
-if ($registrationSucceeded) {
-    Emit-Log -Level "debug" -Message "Starting heartbeat job" -Component "init"
-    $script:HeartbeatJob = Start-HeartbeatJob -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl
-    Emit-Log -Level "debug" -Message "Heartbeat job started" -Component "init"
-}
-
-Emit-Log -Level "debug" -Message "About to enter main iteration loop (max: $maxIterations)" -Component "init"
-# Main iteration loop
-for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
-    Emit-Log -Level "debug" -Message "Starting iteration $iteration of $maxIterations" -Component "executor"
-    $result = Invoke-FelixIteration `
-        -Iteration $iteration `
-        -MaxIterations $maxIterations `
-        -CurrentRequirement $currentReq `
-        -State $state `
-        -Config $config `
-        -AgentConfig $agentConfig `
-        -AgentState $agentState `
-        -Paths $paths `
-        -NoCommit:$NoCommit
-    
-    if (-not $result.Continue) {
-        Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
+    # Load configuration
+    Emit-Log -Level "debug" -Message "Loading Felix config from $ConfigFile" -Component "init"
+    $config = Get-FelixConfig -ConfigFile $ConfigFile
+    if (-not $config) {
+        Emit-Error -ErrorType "ConfigLoadFailed" -Message "Failed to load config" -Severity "fatal"
+        exit 1
     }
-}
+    Emit-Log -Level "debug" -Message "Config loaded successfully" -Component "init"
 
-# Max iterations reached
-Emit-Log -Level "warn" -Message "Reached max iterations ($maxIterations)" -Component "agent"
-$state.status = "incomplete"
-$state.updated_at = Get-Date -Format "o"
-$state | ConvertTo-Json | Set-Content $StateFile
-Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
+    $maxIterations = $config.executor.max_iterations
+    $defaultMode = $config.executor.default_mode
+
+    # Load agent configuration
+    $agentId = if ($config.agent -and $null -ne $config.agent.agent_id) { 
+        $config.agent.agent_id 
+    }
+    else { 
+        0  # Default to agent ID 0
+    }
+    Emit-Log -Level "debug" -Message "Using agent ID: $agentId" -Component "init"
+
+    Emit-Log -Level "debug" -Message "Loading agents configuration" -Component "init"
+    $agentsData = Get-AgentsConfiguration -AgentsJsonFile $paths.AgentsJsonFile
+    if (-not $agentsData) {
+        Emit-Error -ErrorType "AgentsDataLoadFailed" -Message "Failed to load agents.json" -Severity "fatal"
+        exit 1
+    }
+    Emit-Log -Level "debug" -Message "Agents data loaded successfully" -Component "init"
+
+    Emit-Log -Level "debug" -Message "Getting agent config for ID $agentId" -Component "init"
+    $agentConfig = Get-AgentConfig -AgentsData $agentsData -AgentId $agentId -ConfigFile $ConfigFile
+    if (-not $agentConfig) {
+        Emit-Error -ErrorType "AgentConfigLoadFailed" -Message "Failed to load agent config for ID $agentId" -Severity "fatal"
+        exit 1
+    }
+    Emit-Log -Level "debug" -Message "Agent config loaded: $($agentConfig.name)" -Component "init"
+
+    $agentName = $agentConfig.name
+    $script:agentName = $agentName
+    $script:agentId = $agentConfig.id
+    $script:agentConfig = $agentConfig
+
+    # ============================================================================
+    # Mode Selection: Spec Builder vs Normal Execution
+    # ============================================================================
+
+    if ($SpecBuildMode) {
+        Emit-Log -Level "debug" -Message "Entering spec builder mode" -Component "init"
+        # Spec builder flow - different path entirely
+        . "$PSScriptRoot/core/spec-builder.ps1"
+    
+        Emit-Log -Level "debug" -Message "Calling Invoke-SpecBuilder with RequirementId=$RequirementId, QuickMode=$($QuickMode.IsPresent)" -Component "init"
+        $result = Invoke-SpecBuilder `
+            -RequirementId $RequirementId `
+            -InitialPrompt $InitialPrompt `
+            -QuickMode:$QuickMode `
+            -Config $config `
+            -AgentConfig $agentConfig `
+            -Paths $paths
+    
+        Emit-Log -Level "debug" -Message "Invoke-SpecBuilder returned with exit code $($result.ExitCode)" -Component "init"
+        Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $null
+    }
+
+    # ============================================================================
+    # Agent Registration and Heartbeat Functions
+    # ============================================================================
+
+    $script:BackendBaseUrl = "http://localhost:8080"
+    $script:HeartbeatJob = $null
+
+    # No wrappers needed - call module functions directly with all parameters
+
+    # Resolve python upfront (hard stop if unavailable)
+    try {
+        $null = Resolve-PythonCommand -Config $config
+    }
+    catch {
+        Emit-Error -ErrorType "PythonResolutionFailed" -Message "Python resolution failed: $_" -Severity "fatal"
+        exit 1
+    }
+
+    # Initialize plugin state
+    Initialize-PluginState
+
+    # Load requirements and select current requirement
+    $currentReq = Get-CurrentRequirement -RequirementsFile $RequirementsFile -RequirementId $RequirementId -StateFile $StateFile
+    if (-not $currentReq -or -not $currentReq.id) {
+        # Error already emitted by Get-CurrentRequirement (either RequirementNotFound or already complete)
+        Emit-Error -ErrorType "NoRequirementAvailable" -Message "Cannot proceed: requirement '$RequirementId' is not available for execution" -Severity "fatal"
+        [Console]::Out.Flush()  # Ensure error event is flushed before exit
+        Start-Sleep -Milliseconds 100  # Brief delay to ensure output is captured
+        exit 1
+    }
+
+    $RequirementId = $currentReq.id
+
+    # Load or initialize execution state
+    $state = Initialize-ExecutionState -StateFile $StateFile
+
+    # Initialize state machine for this execution
+    $agentState = New-AgentState -InitialMode "Planning"
+    $agentState.RequirementId = $RequirementId
+    Emit-Log -Level "debug" -Message "Initialized in Planning mode for requirement $RequirementId" -Component "state-machine"
+
+    # Reset validation retry counter if we're starting a new requirement
+    Emit-Log -Level "debug" -Message "About to call Initialize-StateForRequirement" -Component "init"
+    $state = Initialize-StateForRequirement -State $state -Requirement $currentReq
+    Emit-Log -Level "debug" -Message "Completed Initialize-StateForRequirement" -Component "init"
+
+    # Register agent with backend
+    Emit-Log -Level "debug" -Message "About to call Register-Agent" -Component "init"
+    $registrationSucceeded = Register-Agent -AgentId $agentConfig.id -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME -BackendBaseUrl $script:BackendBaseUrl
+    Emit-Log -Level "debug" -Message "Completed Register-Agent, success=$registrationSucceeded" -Component "init"
+    if ($registrationSucceeded) {
+        Emit-Log -Level "debug" -Message "Starting heartbeat job" -Component "init"
+        $script:HeartbeatJob = Start-HeartbeatJob -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl
+        Emit-Log -Level "debug" -Message "Heartbeat job started" -Component "init"
+    }
+
+    Emit-Log -Level "debug" -Message "About to enter main iteration loop (max: $maxIterations)" -Component "init"
+    # Main iteration loop
+    for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
+        Emit-Log -Level "debug" -Message "Starting iteration $iteration of $maxIterations" -Component "executor"
+        $result = Invoke-FelixIteration `
+            -Iteration $iteration `
+            -MaxIterations $maxIterations `
+            -CurrentRequirement $currentReq `
+            -State $state `
+            -Config $config `
+            -AgentConfig $agentConfig `
+            -AgentState $agentState `
+            -Paths $paths `
+            -NoCommit:$NoCommit
+    
+        if (-not $result.Continue) {
+            Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
+        }
+    }
+
+    # Max iterations reached
+    Emit-Log -Level "warn" -Message "Reached max iterations ($maxIterations)" -Component "agent"
+    $state.status = "incomplete"
+    $state.updated_at = Get-Date -Format "o"
+    $state | ConvertTo-Json | Set-Content $StateFile
+    Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
 }
 finally {
     Release-FelixRunLock -LockHandle $script:FelixRunLockHandle -LockPath $lockPath
