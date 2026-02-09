@@ -1,0 +1,281 @@
+/**
+ * Felix Design Tokens
+ * Based on Supabase Design System
+ * https://supabase-design-system.vercel.app/design-system/docs
+ */
+
+/* ============================================
+   Color Tokens - Semantic Naming
+   ============================================ */
+
+/* Dark Theme (default) */
+:root,
+.dark {
+  /* Background Scale - Supabase-style semantic naming */
+  --bg: #0d1117;                    /* Main app background */
+  --bg-200: #050608;                /* Deepest background (alternative spaces) */
+  --bg-alternative: #161b22;        /* Alternative surface backgrounds */
+  --bg-surface-75: #1a1f26;         /* Surface level 75 */
+  --bg-surface-100: #161b22;        /* Surface level 100 (elevated) */
+  --bg-surface-200: #21262d;        /* Surface level 200 (more elevated) */
+  --bg-surface-300: #2d333b;        /* Surface level 300 (highest elevation) */
+  --bg-overlay: rgba(0, 0, 0, 0.8); /* Modal/overlay backgrounds */
+  --bg-selection: rgba(62, 207, 142, 0.15); /* Text selection */
+
+  /* Text Scale - From primary to muted */
+  --text: #f1f5f9;                  /* Primary text (foreground) */
+  --text-light: #c9d1d9;            /* Light text (foreground-light) */
+  --text-lighter: #8b949e;          /* Lighter text (foreground-lighter) */
+  --text-muted: #6e7781;            /* Muted text (foreground-muted) */
+  
+  /* Border Scale - Subtle to strong */
+  --border: rgba(48, 54, 61, 0.6);         /* Default border */
+  --border-muted: rgba(48, 54, 61, 0.4);   /* Muted border (less emphasis) */
+  --border-secondary: rgba(48, 54, 61, 0.3); /* Secondary border */
+  --border-strong: rgba(48, 54, 61, 0.8);  /* Strong border (more emphasis) */
+  --border-stronger: rgba(48, 54, 61, 1);  /* Strongest border */
+
+  /* Brand Colors - Supabase Green as primary */
+  --brand: #3ecf8e;                 /* Primary brand color (green) */
+  --brand-200: #7de2b1;             /* Lighter brand */
+  --brand-300: #60d99d;             /* Light brand */
+  --brand-400: #4dd796;             /* Medium-light brand */
+  --brand-500: #3ecf8e;             /* Base brand (primary) */
+  --brand-600: #2fb87a;             /* Medium brand */
+  --brand-link: #3ecf8e;            /* Links (meets contrast requirements) */
+
+  /* Status/Semantic Colors */
+  --destructive: #f85149;           /* Error/danger actions */
+  --destructive-200: #ffa198;       /* Lighter destructive */
+  --destructive-300: #ff8076;       /* Light destructive */
+  --destructive-400: #ff6b60;       /* Medium-light destructive */
+  --destructive-500: #f85149;       /* Base destructive */
+  --destructive-600: #da3633;       /* Medium destructive */
+  
+  --warning: #d29922;               /* Warning states */
+  --warning-200: #eac160;           /* Lighter warning */
+  --warning-300: #e2b245;           /* Light warning */
+  --warning-400: #dba433;           /* Medium-light warning */
+  --warning-500: #d29922;           /* Base warning */
+  --warning-600: #b87e1a;           /* Medium warning */
+
+  /* Interactive States */
+  --hover-bg: rgba(31, 41, 55, 0.5);
+  --active-bg: rgba(31, 41, 55, 0.8);
+
+  /* Shadows - Subtle elevation system */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  /* Scrollbar */
+  --scrollbar-thumb: #1f2937;
+  --scrollbar-thumb-hover: #374151;
+
+  /* Code/Syntax */
+  --code-bg: #1e293b;
+  --code-text: #3ecf8e;
+  --pre-bg: #0a0c10;
+  --pre-border: #1e293b;
+  --blockquote-bg: rgba(62, 207, 142, 0.05);
+  --table-header-bg: #1e293b;
+}
+
+/* Light Theme */
+.light {
+  /* Background Scale */
+  --bg: #ffffff;                    /* Main app background */
+  --bg-200: #f0f2f5;                /* Deepest background */
+  --bg-alternative: #f6f8fa;        /* Alternative surface */
+  --bg-surface-75: #fafbfc;         /* Surface level 75 */
+  --bg-surface-100: #ffffff;        /* Surface level 100 */
+  --bg-surface-200: #f6f8fa;        /* Surface level 200 */
+  --bg-surface-300: #eef0f2;        /* Surface level 300 */
+  --bg-overlay: rgba(0, 0, 0, 0.5); /* Modal overlay */
+  --bg-selection: rgba(62, 207, 142, 0.15); /* Text selection */
+
+  /* Text Scale */
+  --text: #24292f;                  /* Primary text */
+  --text-light: #57606a;            /* Light text */
+  --text-lighter: #6e7781;          /* Lighter text */
+  --text-muted: #8b949e;            /* Muted text */
+
+  /* Border Scale */
+  --border: rgba(208, 215, 222, 0.8);
+  --border-muted: rgba(208, 215, 222, 0.6);
+  --border-secondary: rgba(208, 215, 222, 0.5);
+  --border-strong: rgba(208, 215, 222, 1);
+  --border-stronger: rgba(180, 187, 194, 1);
+
+  /* Brand Colors - Same green, adjusted for light mode */
+  --brand: #2fb87a;                 /* Slightly darker for contrast */
+  --brand-200: #a3e7c7;
+  --brand-300: #7de2b1;
+  --brand-400: #60d99d;
+  --brand-500: #2fb87a;
+  --brand-600: #26a269;
+  --brand-link: #2fb87a;
+
+  /* Status Colors */
+  --destructive: #cf222e;
+  --destructive-200: #ffcdd2;
+  --destructive-300: #ff8076;
+  --destructive-400: #e74c3c;
+  --destructive-500: #cf222e;
+  --destructive-600: #a40e26;
+
+  --warning: #9a6700;
+  --warning-200: #ffe4b3;
+  --warning-300: #f4c430;
+  --warning-400: #d4a017;
+  --warning-500: #9a6700;
+  --warning-600: #7d5400;
+
+  /* Interactive States */
+  --hover-bg: rgba(208, 215, 222, 0.4);
+  --active-bg: rgba(208, 215, 222, 0.6);
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.15);
+
+  /* Scrollbar */
+  --scrollbar-thumb: #d0d7de;
+  --scrollbar-thumb-hover: #afb8c1;
+
+  /* Code/Syntax */
+  --code-bg: #f6f8fa;
+  --code-text: #2fb87a;
+  --pre-bg: #f6f8fa;
+  --pre-border: #d0d7de;
+  --blockquote-bg: rgba(62, 207, 142, 0.05);
+  --table-header-bg: #f6f8fa;
+}
+
+/* ============================================
+   Spacing Scale (4px base)
+   ============================================ */
+:root {
+  --spacing-1: 0.25rem;   /* 4px */
+  --spacing-2: 0.5rem;    /* 8px */
+  --spacing-3: 0.75rem;   /* 12px */
+  --spacing-4: 1rem;      /* 16px */
+  --spacing-5: 1.25rem;   /* 20px */
+  --spacing-6: 1.5rem;    /* 24px */
+  --spacing-8: 2rem;      /* 32px */
+  --spacing-10: 2.5rem;   /* 40px */
+  --spacing-12: 3rem;     /* 48px */
+  --spacing-16: 4rem;     /* 64px */
+}
+
+/* ============================================
+   Border Radius Scale
+   ============================================ */
+:root {
+  --radius-sm: 0.25rem;   /* 4px - small elements */
+  --radius-md: 0.5rem;    /* 8px - buttons, inputs */
+  --radius-lg: 0.75rem;   /* 12px - cards, panels */
+  --radius-xl: 1rem;      /* 16px - large cards */
+  --radius-full: 9999px;  /* Full radius (pills) */
+}
+
+/* ============================================
+   Typography Scale
+   ============================================ */
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Fira Code', 'Courier New', monospace;
+  
+  /* Font sizes */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
+
+  /* Line heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+
+  /* Font weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+}
+
+/* ============================================
+   Z-Index Scale
+   ============================================ */
+:root {
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+}
+
+/* ============================================
+   Backward Compatibility Aliases
+   Legacy variable names mapped to new tokens
+   ============================================ */
+:root,
+.dark {
+  /* Old background names → New semantic names */
+  --bg-deepest: var(--bg-200);
+  --bg-deep: var(--bg-alternative);
+  --bg-base: var(--bg);
+  --bg-elevated: var(--bg-surface-100);
+  --bg-surface: var(--bg-surface-200);
+
+  /* Old text names → New semantic names */
+  --text-primary: var(--text);
+  --text-secondary: var(--text-light);
+  --text-tertiary: var(--text-lighter);
+
+  /* Old accent names → New brand names */
+  --accent-primary: var(--brand);
+  --accent-secondary: var(--brand-600);
+  --accent-tertiary: var(--brand-400);
+
+  /* Border compatibility */
+  --border-default: var(--border);
+  --border-subtle: var(--border-secondary);
+}
+
+.light {
+  /* Old background names → New semantic names */
+  --bg-deepest: var(--bg-200);
+  --bg-deep: var(--bg-alternative);
+  --bg-base: var(--bg);
+  --bg-elevated: var(--bg-surface-100);
+  --bg-surface: var(--bg-surface-200);
+
+  /* Old text names → New semantic names */
+  --text-primary: var(--text);
+  --text-secondary: var(--text-light);
+  --text-tertiary: var(--text-lighter);
+
+  /* Old accent names → New brand names */
+  --accent-primary: var(--brand);
+  --accent-secondary: var(--brand-600);
+  --accent-tertiary: var(--brand-400);
+
+  /* Border compatibility */
+  --border-default: var(--border);
+  --border-subtle: var(--border-secondary);
+}

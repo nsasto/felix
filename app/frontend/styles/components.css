@@ -1,0 +1,288 @@
+/**
+ * Felix Component Styles
+ * Component-specific styling for Kanban, Markdown, and Console
+ */
+
+/* ============================================
+   Markdown Preview Styling
+   ============================================ */
+
+.markdown-preview h1 {
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--spacing-6);
+  color: var(--text);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: var(--spacing-3);
+  letter-spacing: -0.025em;
+}
+
+.markdown-preview h2 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  margin-top: var(--spacing-8);
+  margin-bottom: var(--spacing-4);
+  color: var(--text);
+  border-bottom: 1px solid var(--border-muted);
+  padding-bottom: var(--spacing-2);
+}
+
+.markdown-preview h3 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  margin-top: var(--spacing-6);
+  margin-bottom: var(--spacing-3);
+  color: var(--text-light);
+}
+
+.markdown-preview p {
+  margin-bottom: var(--spacing-5);
+  line-height: var(--leading-relaxed);
+  color: var(--text-lighter);
+  font-size: var(--text-sm);
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  list-style-position: outside;
+  padding-left: var(--spacing-6);
+  margin-bottom: var(--spacing-5);
+  color: var(--text-lighter);
+}
+
+.markdown-preview ul {
+  list-style-type: disc;
+}
+
+.markdown-preview ol {
+  list-style-type: decimal;
+}
+
+.markdown-preview li {
+  margin-bottom: var(--spacing-2);
+}
+
+.markdown-preview li input[type="checkbox"] {
+  margin-right: var(--spacing-2);
+  pointer-events: none;
+}
+
+.markdown-preview strong {
+  font-weight: var(--font-semibold);
+  color: var(--text);
+}
+
+.markdown-preview em {
+  font-style: italic;
+}
+
+.markdown-preview hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--spacing-8) 0;
+}
+
+.markdown-preview code {
+  font-family: var(--font-mono);
+  background-color: var(--code-bg);
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875em;
+  color: var(--code-text);
+}
+
+.markdown-preview pre {
+  background: var(--pre-bg) !important;
+  border: 1px solid var(--pre-border) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: var(--spacing-5) !important;
+  margin: var(--spacing-6) 0 !important;
+  overflow-x: auto;
+}
+
+.markdown-preview pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: var(--text-light);
+}
+
+.markdown-preview blockquote {
+  border-left: 4px solid var(--brand-600);
+  padding: var(--spacing-3) 0 var(--spacing-3) var(--spacing-6);
+  font-style: italic;
+  color: var(--text-muted);
+  background: var(--blockquote-bg);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  margin-bottom: var(--spacing-6);
+}
+
+.markdown-preview a {
+  color: var(--brand-link);
+  text-decoration: none;
+  font-weight: var(--font-medium);
+}
+
+.markdown-preview a:hover {
+  color: var(--brand-400);
+  text-decoration: underline;
+}
+
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--spacing-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.markdown-preview th {
+  background: var(--table-header-bg);
+  color: var(--text);
+  text-align: left;
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: var(--font-semibold);
+}
+
+.markdown-preview td {
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-lighter);
+  font-size: var(--text-sm);
+}
+
+/* ============================================
+   Kanban Card Styling
+   ============================================ */
+
+.kanban-card {
+  transition: padding 300ms ease-in-out, 
+              transform 300ms ease-in-out, 
+              opacity 300ms ease-in-out,
+              box-shadow 300ms ease-in-out,
+              max-height 300ms ease-in-out;
+  min-height: 0;
+  will-change: transform, opacity, max-height;
+}
+
+.kanban-card-compact {
+  max-height: 80px;
+  overflow: clip;
+}
+
+.kanban-card-section {
+  transition: opacity 300ms ease-in-out, 
+              max-height 300ms ease-in-out,
+              margin 300ms ease-in-out,
+              padding 300ms ease-in-out,
+              border-color 300ms ease-in-out;
+  overflow: hidden;
+}
+
+.kanban-card-compact .kanban-card-section-hideable {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.kanban-card-section-hideable {
+  opacity: 1;
+  max-height: 100px;
+}
+
+/* ============================================
+   ANSI Console Color Classes
+   ============================================ */
+
+.ansi-console {
+  background-color: var(--bg-200);
+  color: var(--text-light);
+  font-family: var(--font-mono);
+}
+
+/* ANSI Foreground Colors (Standard) */
+.ansi-black { color: #282c34; }
+.ansi-red { color: #e06c75; }
+.ansi-green { color: #98c379; }
+.ansi-yellow { color: #e5c07b; }
+.ansi-blue { color: #61afef; }
+.ansi-magenta { color: #c678dd; }
+.ansi-cyan { color: #56b6c2; }
+.ansi-white { color: #abb2bf; }
+
+/* ANSI Foreground Colors (Bright/Bold) */
+.ansi-bright-black { color: #5c6370; }
+.ansi-bright-red { color: #e06c75; }
+.ansi-bright-green { color: #98c379; }
+.ansi-bright-yellow { color: #d19a66; }
+.ansi-bright-blue { color: #61afef; }
+.ansi-bright-magenta { color: #c678dd; }
+.ansi-bright-cyan { color: #56b6c2; }
+.ansi-bright-white { color: #ffffff; }
+
+/* ANSI Background Colors (Standard) */
+.ansi-bg-black { background-color: #282c34; }
+.ansi-bg-red { background-color: #e06c75; }
+.ansi-bg-green { background-color: #98c379; }
+.ansi-bg-yellow { background-color: #e5c07b; }
+.ansi-bg-blue { background-color: #61afef; }
+.ansi-bg-magenta { background-color: #c678dd; }
+.ansi-bg-cyan { background-color: #56b6c2; }
+.ansi-bg-white { background-color: #abb2bf; }
+
+/* ANSI Background Colors (Bright) */
+.ansi-bright-bg-black { background-color: #5c6370; }
+.ansi-bright-bg-red { background-color: #e06c75; }
+.ansi-bright-bg-green { background-color: #98c379; }
+.ansi-bright-bg-yellow { background-color: #d19a66; }
+.ansi-bright-bg-blue { background-color: #61afef; }
+.ansi-bright-bg-magenta { background-color: #c678dd; }
+.ansi-bright-bg-cyan { background-color: #56b6c2; }
+.ansi-bright-bg-white { background-color: #ffffff; }
+
+/* ANSI Text Styles */
+.ansi-bold { font-weight: var(--font-bold); }
+.ansi-dim { opacity: 0.7; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+.ansi-blink { animation: blink 1s step-end infinite; }
+.ansi-reverse { filter: invert(1); }
+.ansi-hidden { visibility: hidden; }
+.ansi-strikethrough { text-decoration: line-through; }
+
+/* Light theme ANSI colors */
+.light .ansi-black { color: #24292f; }
+.light .ansi-red { color: #cf222e; }
+.light .ansi-green { color: #1a7f37; }
+.light .ansi-yellow { color: #9a6700; }
+.light .ansi-blue { color: #0969da; }
+.light .ansi-magenta { color: #8250df; }
+.light .ansi-cyan { color: #1b7c83; }
+.light .ansi-white { color: #57606a; }
+
+.light .ansi-bright-black { color: #6e7781; }
+.light .ansi-bright-red { color: #a40e26; }
+.light .ansi-bright-green { color: #116329; }
+.light .ansi-bright-yellow { color: #7d5400; }
+.light .ansi-bright-blue { color: #0550ae; }
+.light .ansi-bright-magenta { color: #6639ba; }
+.light .ansi-bright-cyan { color: #136166; }
+.light .ansi-bright-white { color: #24292f; }
+
+.light .ansi-bg-black { background-color: #24292f; color: #ffffff; }
+.light .ansi-bg-red { background-color: #cf222e; color: #ffffff; }
+.light .ansi-bg-green { background-color: #1a7f37; color: #ffffff; }
+.light .ansi-bg-yellow { background-color: #9a6700; color: #ffffff; }
+.light .ansi-bg-blue { background-color: #0969da; color: #ffffff; }
+.light .ansi-bg-magenta { background-color: #8250df; color: #ffffff; }
+.light .ansi-bg-cyan { background-color: #1b7c83; color: #ffffff; }
+.light .ansi-bg-white { background-color: #f6f8fa; color: #24292f; }
