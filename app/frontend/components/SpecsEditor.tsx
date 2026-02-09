@@ -980,7 +980,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   onClick={() => handleSelectSpec(spec.filename)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border group ${
                     selectedFilename === spec.filename
-                      ? "bg-felix-600/10 text-felix-400 border-felix-500/20 shadow-lg shadow-felix-900/10"
+                      ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10"
                       : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50"
                   }`}
                 >
@@ -1040,7 +1040,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         >
           <button
             onClick={handleOpenNewSpec}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-felix-500 hover:bg-felix-600 text-white rounded-lg text-xs font-semibold transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold transition-colors"
             title="Create a new spec"
           >
             <IconPlus className="w-4 h-4" />
@@ -1060,7 +1060,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 onClick={() => setViewMode("edit")}
                 className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
                   viewMode === "edit"
-                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    ? "bg-slate-800 text-brand-400 shadow-sm"
                     : "text-slate-500 hover:text-slate-400"
                 }`}
               >
@@ -1070,7 +1070,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 onClick={() => setViewMode("split")}
                 className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
                   viewMode === "split"
-                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    ? "bg-slate-800 text-brand-400 shadow-sm"
                     : "text-slate-500 hover:text-slate-400"
                 }`}
               >
@@ -1080,7 +1080,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 onClick={() => setViewMode("preview")}
                 className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
                   viewMode === "preview"
-                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    ? "bg-slate-800 text-brand-400 shadow-sm"
                     : "text-slate-500 hover:text-slate-400"
                 }`}
               >
@@ -1093,28 +1093,28 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               <div className="flex items-center gap-0.5 border-l border-slate-800 pl-4">
                 <button
                   onClick={() => insertFormatting("# ")}
-                  className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                   title="H1"
                 >
                   <span className="font-bold text-xs">H1</span>
                 </button>
                 <button
                   onClick={() => insertFormatting("## ")}
-                  className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                   title="H2"
                 >
                   <span className="font-bold text-xs">H2</span>
                 </button>
                 <button
                   onClick={() => insertFormatting("**", "**")}
-                  className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Bold"
                 >
                   <span className="font-bold text-xs uppercase">B</span>
                 </button>
                 <button
                   onClick={() => insertFormatting("*", "*")}
-                  className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Italic"
                 >
                   <span className="italic text-xs font-serif font-bold uppercase">
@@ -1123,7 +1123,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </button>
                 <button
                   onClick={() => insertFormatting("- ")}
-                  className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                   title="List"
                 >
                   <svg
@@ -1142,7 +1142,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </button>
                 <button
                   onClick={() => insertFormatting("`", "`")}
-                  className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Code"
                 >
                   <svg
@@ -1161,7 +1161,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </button>
                 <button
                   onClick={() => insertFormatting("- [ ] ")}
-                  className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                   title="Checkbox"
                 >
                   <svg
@@ -1197,7 +1197,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               disabled={!hasChanges || saving}
               className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 ${
                 hasChanges
-                  ? "bg-felix-600 text-white hover:bg-felix-500"
+                  ? "bg-brand-600 text-white hover:bg-brand-500"
                   : "bg-slate-800 text-slate-500 cursor-not-allowed"
               }`}
             >
@@ -1271,7 +1271,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             {/* Copy button */}
             <button
               onClick={copyToClipboard}
-              className="text-[10px] font-bold text-slate-500 hover:text-felix-400 transition-colors uppercase tracking-widest flex items-center gap-2"
+              className="text-[10px] font-bold text-slate-500 hover:text-brand-400 transition-colors uppercase tracking-widest flex items-center gap-2"
             >
               <svg
                 className="w-3 h-3"
@@ -1324,7 +1324,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           // Loading content
           <div className="flex-1 flex items-center justify-center theme-bg-deepest/20">
             <div className="flex items-center gap-3 theme-text-muted">
-              <div className="w-5 h-5 border-2 theme-border border-t-felix-500 rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 theme-border border-t-brand-500 rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading spec...</span>
             </div>
           </div>
@@ -1352,7 +1352,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   ref={editorRef}
                   value={specContent}
                   onChange={(e) => setSpecContent(e.target.value)}
-                  className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30"
+                  className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
                   style={{ backgroundColor: "var(--bg-deepest)" }}
                   placeholder="# Spec content..."
                 />
@@ -1396,7 +1396,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             {/* Modal header */}
             <div className="h-12 border-b theme-border flex items-center justify-between px-4">
               <div className="flex items-center gap-2">
-                <IconPlus className="w-4 h-4 text-felix-400" />
+                <IconPlus className="w-4 h-4 text-brand-400" />
                 <span className="text-xs font-bold theme-text-secondary">
                   Create New Spec
                 </span>
@@ -1428,7 +1428,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   value={newSpecId}
                   onChange={(e) => setNewSpecId(e.target.value.toUpperCase())}
                   placeholder="S-0006"
-                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none font-mono"
+                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-all outline-none font-mono"
                 />
                 <p className="mt-1.5 text-[9px] text-slate-600">
                   Format: S-XXXX (auto-incremented from existing specs)
@@ -1445,7 +1445,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   value={newSpecTitle}
                   onChange={(e) => setNewSpecTitle(e.target.value)}
                   placeholder="My New Feature"
-                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-felix-500 focus:border-felix-500 transition-all outline-none"
+                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-all outline-none"
                 />
                 <p className="mt-1.5 text-[9px] text-slate-600">
                   Filename will be:{" "}
@@ -1473,7 +1473,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                           onClick={() => setNewSpecTemplate(templateKey)}
                           className={`p-3 rounded-xl border text-left transition-all ${
                             newSpecTemplate === templateKey
-                              ? "bg-felix-600/10 border-felix-500/30 text-felix-400"
+                              ? "bg-brand-600/10 border-brand-500/30 text-brand-400"
                               : "theme-bg-elevated theme-border-muted theme-text-tertiary hover:theme-border"
                           }`}
                         >
@@ -1511,7 +1511,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 disabled={
                   !newSpecId.trim() || !newSpecTitle.trim() || isCreating
                 }
-                className="px-4 py-2 bg-felix-600 text-white text-xs font-bold rounded-xl hover:bg-felix-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isCreating ? (
                   <>

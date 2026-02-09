@@ -160,7 +160,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
     return (
       <div className="flex-1 flex items-center justify-center theme-bg-base">
         <div className="flex items-center gap-3 theme-text-muted">
-          <div className="w-5 h-5 border-2 theme-border border-t-felix-500 rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 theme-border border-t-brand-500 rounded-full animate-spin" />
           <span className="text-xs font-mono">
             Loading implementation plan...
           </span>
@@ -222,7 +222,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               onClick={() => setViewMode("view")}
               className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
                 viewMode === "view"
-                  ? "bg-slate-800 text-felix-400 shadow-sm"
+                  ? "bg-slate-800 text-brand-400 shadow-sm"
                   : "text-slate-500 hover:text-slate-400"
               }`}
             >
@@ -232,7 +232,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               onClick={() => setViewMode("edit")}
               className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
                 viewMode === "edit"
-                  ? "bg-slate-800 text-felix-400 shadow-sm"
+                  ? "bg-slate-800 text-brand-400 shadow-sm"
                   : "text-slate-500 hover:text-slate-400"
               }`}
             >
@@ -245,28 +245,28 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
             <div className="flex items-center gap-0.5 border-l border-slate-800 pl-4">
               <button
                 onClick={() => insertFormatting("# ")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="H1"
               >
                 <span className="font-bold text-xs">H1</span>
               </button>
               <button
                 onClick={() => insertFormatting("## ")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="H2"
               >
                 <span className="font-bold text-xs">H2</span>
               </button>
               <button
                 onClick={() => insertFormatting("### ")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="H3"
               >
                 <span className="font-bold text-xs">H3</span>
               </button>
               <button
                 onClick={() => insertFormatting("- [ ] ")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Task Checkbox"
               >
                 <svg
@@ -293,7 +293,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               </button>
               <button
                 onClick={() => insertFormatting("- [x] ")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Completed Task"
               >
                 <svg
@@ -322,7 +322,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               </button>
               <button
                 onClick={() => insertFormatting("- ")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="List"
               >
                 <svg
@@ -341,14 +341,14 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               </button>
               <button
                 onClick={() => insertFormatting("**", "**")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Bold"
               >
                 <span className="font-bold text-xs uppercase">B</span>
               </button>
               <button
                 onClick={() => insertFormatting("`", "`")}
-                className="p-1.5 text-slate-500 hover:text-felix-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
                 title="Code"
               >
                 <svg
@@ -386,7 +386,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                 disabled={!hasChanges || saving}
                 className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 ${
                   hasChanges
-                    ? "bg-felix-600 text-white hover:bg-felix-500"
+                    ? "bg-brand-600 text-white hover:bg-brand-500"
                     : "bg-slate-800 text-slate-500 cursor-not-allowed"
                 }`}
               >
@@ -433,7 +433,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           {/* Copy button */}
           <button
             onClick={copyToClipboard}
-            className="text-[10px] font-bold text-slate-500 hover:text-felix-400 transition-colors uppercase tracking-widest flex items-center gap-2"
+            className="text-[10px] font-bold text-slate-500 hover:text-brand-400 transition-colors uppercase tracking-widest flex items-center gap-2"
           >
             <svg
               className="w-3 h-3"
@@ -477,7 +477,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               ref={editorRef}
               value={planContent}
               onChange={(e) => setPlanContent(e.target.value)}
-              className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30"
+              className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
               style={{ backgroundColor: "var(--bg-deepest)" }}
               placeholder="# Implementation Plan..."
             />

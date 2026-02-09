@@ -320,7 +320,7 @@ const App: React.FC = () => {
                     col.status === "todo"
                       ? "bg-amber-500"
                       : col.status === "in-progress"
-                        ? "bg-felix-500 animate-pulse"
+                        ? "bg-brand-500 animate-pulse"
                         : col.status === "completed"
                           ? "bg-emerald-500"
                           : ""
@@ -356,7 +356,7 @@ const App: React.FC = () => {
                 .map((task) => (
                   <div
                     key={task.id}
-                    className="border p-4 rounded-xl hover:border-felix-600/40 transition-all cursor-pointer group shadow-lg"
+                    className="border p-4 rounded-xl hover:border-brand-600/40 transition-all cursor-pointer group shadow-lg"
                     style={{
                       backgroundColor: "var(--bg-base)",
                       borderColor: "var(--border-default)",
@@ -395,7 +395,7 @@ const App: React.FC = () => {
                       </button>
                     </div>
                     <h4
-                      className="text-sm font-semibold mb-1 group-hover:text-felix-400 transition-colors"
+                      className="text-sm font-semibold mb-1 group-hover:text-brand-400 transition-colors"
                       style={{ color: "var(--text-secondary)" }}
                     >
                       {task.title}
@@ -475,7 +475,7 @@ const App: React.FC = () => {
               </span>
             </div>
           </div>
-          <div className="flex-1 p-8 font-mono text-sm leading-relaxed overflow-y-auto custom-scrollbar selection:bg-felix-500/30">
+          <div className="flex-1 p-8 font-mono text-sm leading-relaxed overflow-y-auto custom-scrollbar selection:bg-brand-500/30">
             <pre className="!bg-transparent !border-none !p-0">
               {`// Felix Orchestrator Logic
 import { Gemini } from '@google/genai';
@@ -533,7 +533,7 @@ export const executeTask = (taskId: string) => {
                 onClick={() => {
                   setSelectedAssetId(asset.id);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${selectedAssetId === asset.id ? "bg-felix-600/10 text-felix-400 border-felix-500/20 shadow-lg shadow-felix-900/10" : "border-transparent"}`}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${selectedAssetId === asset.id ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10" : "border-transparent"}`}
                 style={{
                   color:
                     selectedAssetId !== asset.id
@@ -766,7 +766,7 @@ export const executeTask = (taskId: string) => {
                   onChange={(e) =>
                     updateAssetContent(activeAsset.id, e.target.value)
                   }
-                  className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-felix-500/30"
+                  className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
                   style={{
                     backgroundColor: "var(--bg-deepest)",
                     color: "var(--text-secondary)",
@@ -890,7 +890,7 @@ export const executeTask = (taskId: string) => {
                     <span
                       className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase ${
                         selectedProject.status === "running"
-                          ? "bg-felix-500/20 text-felix-400"
+                          ? "bg-brand-500/20 text-brand-400"
                           : selectedProject.status === "complete"
                             ? "bg-emerald-500/20 text-emerald-400"
                             : selectedProject.status === "blocked"
@@ -923,15 +923,15 @@ export const executeTask = (taskId: string) => {
                 <div className="grid grid-cols-3 gap-6 mb-8">
                   {/* Specs card */}
                   <div
-                    className="border rounded-2xl p-6 hover:border-felix-600/40 transition-all"
+                    className="border rounded-2xl p-6 hover:border-brand-600/40 transition-all"
                     style={{
                       backgroundColor: "var(--bg-elevated)",
                       borderColor: "var(--border-default)",
                     }}
                   >
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-felix-500/10 rounded-xl flex items-center justify-center">
-                        <IconFileText className="w-5 h-5 text-felix-400" />
+                      <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center">
+                        <IconFileText className="w-5 h-5 text-brand-400" />
                       </div>
                       <div>
                         <h3
@@ -950,7 +950,7 @@ export const executeTask = (taskId: string) => {
                     </div>
                     <button
                       onClick={() => setUiState("assets")}
-                      className="w-full py-2 text-xs text-felix-400 hover:text-felix-300 transition-colors"
+                      className="w-full py-2 text-xs text-brand-400 hover:text-brand-300 transition-colors"
                     >
                       View Specs →
                     </button>
@@ -958,7 +958,7 @@ export const executeTask = (taskId: string) => {
 
                   {/* Plan card */}
                   <div
-                    className="border rounded-2xl p-6 hover:border-felix-600/40 transition-all"
+                    className="border rounded-2xl p-6 hover:border-brand-600/40 transition-all"
                     style={{
                       backgroundColor: "var(--bg-elevated)",
                       borderColor: "var(--border-default)",
@@ -1003,7 +1003,7 @@ export const executeTask = (taskId: string) => {
                     </div>
                     <button
                       onClick={() => setUiState("plan")}
-                      className="w-full py-2 text-xs text-felix-400 hover:text-felix-300 transition-colors"
+                      className="w-full py-2 text-xs text-brand-400 hover:text-brand-300 transition-colors"
                     >
                       View README →
                     </button>
@@ -1011,7 +1011,7 @@ export const executeTask = (taskId: string) => {
 
                   {/* Requirements card */}
                   <div
-                    className="border rounded-2xl p-6 hover:border-felix-600/40 transition-all"
+                    className="border rounded-2xl p-6 hover:border-brand-600/40 transition-all"
                     style={{
                       backgroundColor: "var(--bg-elevated)",
                       borderColor: "var(--border-default)",
@@ -1062,7 +1062,7 @@ export const executeTask = (taskId: string) => {
                     </div>
                     <button
                       onClick={() => setUiState("kanban")}
-                      className="w-full py-2 text-xs text-felix-400 hover:text-felix-300 transition-colors"
+                      className="w-full py-2 text-xs text-brand-400 hover:text-brand-300 transition-colors"
                     >
                       View Board →
                     </button>
@@ -1151,8 +1151,6 @@ export const executeTask = (taskId: string) => {
                   </div>
                 </div>
 
-
-
                 {/* Agent Controls */}
                 <AgentControls
                   projectId={selectedProjectId!}
@@ -1206,7 +1204,7 @@ export const executeTask = (taskId: string) => {
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden font-sans selection:bg-felix-500/30"
+      className="flex h-screen w-screen overflow-hidden font-sans selection:bg-brand-500/30"
       style={{
         backgroundColor: "var(--bg-deepest)",
         color: "var(--text-secondary)",
@@ -1244,7 +1242,7 @@ export const executeTask = (taskId: string) => {
           {/* Projects button */}
           <button
             onClick={() => setUiState("projects")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "projects" ? "text-felix-400 shadow-md" : ""}`}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "projects" ? "text-brand-400 shadow-md" : ""}`}
             style={{
               backgroundColor:
                 uiState === "projects" ? "var(--bg-surface)" : "transparent",
@@ -1269,12 +1267,12 @@ export const executeTask = (taskId: string) => {
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
             {uiState === "projects" && (
-              <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
+              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
             )}
           </button>
           <button
             onClick={() => setUiState("kanban")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "kanban" ? "text-felix-400 shadow-md" : ""}`}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "kanban" ? "text-brand-400 shadow-md" : ""}`}
             style={{
               backgroundColor:
                 uiState === "kanban" ? "var(--bg-surface)" : "transparent",
@@ -1289,12 +1287,12 @@ export const executeTask = (taskId: string) => {
           >
             <IconKanban className="w-5 h-5" />
             {uiState === "kanban" && (
-              <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
+              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
             )}
           </button>
           <button
             onClick={() => setUiState("orchestration")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "orchestration" ? "text-felix-400 shadow-md" : ""}`}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "orchestration" ? "text-brand-400 shadow-md" : ""}`}
             style={{
               backgroundColor:
                 uiState === "orchestration"
@@ -1311,12 +1309,12 @@ export const executeTask = (taskId: string) => {
           >
             <IconPulse className="w-5 h-5" />
             {uiState === "orchestration" && (
-              <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
+              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
             )}
           </button>
           <button
             onClick={() => setUiState("assets")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "assets" ? "text-felix-400 shadow-md" : ""}`}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "assets" ? "text-brand-400 shadow-md" : ""}`}
             style={{
               backgroundColor:
                 uiState === "assets" ? "var(--bg-surface)" : "transparent",
@@ -1331,7 +1329,7 @@ export const executeTask = (taskId: string) => {
           >
             <IconFileText className="w-5 h-5" />
             {uiState === "assets" && (
-              <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
+              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
             )}
           </button>
           <div
@@ -1349,7 +1347,7 @@ export const executeTask = (taskId: string) => {
           {/* Settings button */}
           <button
             onClick={() => setUiState("settings")}
-            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "settings" ? "text-felix-400 shadow-md" : ""}`}
+            className={`p-3 rounded-2xl transition-all w-full flex items-center justify-center group relative ${uiState === "settings" ? "text-brand-400 shadow-md" : ""}`}
             style={{
               backgroundColor:
                 uiState === "settings" ? "var(--bg-surface)" : "transparent",
@@ -1382,7 +1380,7 @@ export const executeTask = (taskId: string) => {
               />
             </svg>
             {uiState === "settings" && (
-              <div className="absolute -left-2 w-1 h-6 bg-felix-500 rounded-full"></div>
+              <div className="absolute -left-2 w-1 h-6 bg-brand-500 rounded-full"></div>
             )}
           </button>
           {/* Backend status indicator */}
@@ -1401,7 +1399,7 @@ export const executeTask = (taskId: string) => {
             title={`Backend: ${backendStatus}`}
           />
           <div
-            className="w-9 h-9 rounded-2xl flex items-center justify-center text-[10px] font-bold border shadow-inner hover:border-felix-600/50 transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-2xl flex items-center justify-center text-[10px] font-bold border shadow-inner hover:border-brand-600/50 transition-colors cursor-pointer"
             style={{
               backgroundColor: "var(--bg-elevated)",
               borderColor: "var(--border-default)",
@@ -1428,13 +1426,13 @@ export const executeTask = (taskId: string) => {
               style={{ color: "var(--text-primary)" }}
             >
               {uiState === "projects" && (
-                <div className="w-2 h-2 rounded-full bg-felix-500 shadow-lg shadow-felix-500/20"></div>
+                <div className="w-2 h-2 rounded-full bg-brand-500 shadow-lg shadow-brand-500/20"></div>
               )}
               {uiState === "kanban" && (
                 <div className="w-2 h-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/20"></div>
               )}
               {uiState === "canvas" && (
-                <div className="w-2 h-2 rounded-full bg-felix-400 shadow-lg shadow-felix-400/20"></div>
+                <div className="w-2 h-2 rounded-full bg-brand-400 shadow-lg shadow-brand-400/20"></div>
               )}
               {uiState === "assets" && (
                 <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/20"></div>
@@ -1527,7 +1525,7 @@ export const executeTask = (taskId: string) => {
               </span>
               <button
                 onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
               >
                 Go to Projects
               </button>
@@ -1546,7 +1544,7 @@ export const executeTask = (taskId: string) => {
               </span>
               <button
                 onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
               >
                 Go to Projects
               </button>
@@ -1570,7 +1568,7 @@ export const executeTask = (taskId: string) => {
               </span>
               <button
                 onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
               >
                 Go to Projects
               </button>
@@ -1592,7 +1590,7 @@ export const executeTask = (taskId: string) => {
               </span>
               <button
                 onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
               >
                 Go to Projects
               </button>
@@ -1614,7 +1612,7 @@ export const executeTask = (taskId: string) => {
               </span>
               <button
                 onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
               >
                 Go to Projects
               </button>
@@ -1635,7 +1633,7 @@ export const executeTask = (taskId: string) => {
             </span>
             <button
               onClick={() => setUiState("projects")}
-              className="mt-4 px-4 py-2 text-xs font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors"
+              className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
             >
               Go to Projects
             </button>

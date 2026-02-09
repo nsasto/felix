@@ -81,7 +81,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
           {/* Warning message */}
           <div className="space-y-3">
             <p className="text-sm text-slate-300">
-              You are about to edit <span className="font-mono text-felix-400">{requirementId}</span>:
+              You are about to edit <span className="font-mono text-brand-400">{requirementId}</span>:
             </p>
             <p className="text-sm font-medium text-slate-200 bg-slate-800/50 px-3 py-2 rounded-lg">
               "{requirementTitle}"
@@ -106,7 +106,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
             <p><strong className="text-slate-400">Choose an option:</strong></p>
             <ul className="space-y-1.5">
               <li className="flex items-start gap-2">
-                <span className="text-felix-400 mt-0.5">•</span>
+                <span className="text-brand-400 mt-0.5">•</span>
                 <span><strong className="text-slate-300">Continue Editing</strong> – Proceed knowing work is in progress (use caution)</span>
               </li>
               <li className="flex items-start gap-2">
@@ -150,7 +150,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
           <button
             onClick={() => onAction('continue')}
             disabled={isLoading}
-            className="px-4 py-2 bg-felix-600 text-white text-xs font-bold rounded-xl hover:bg-felix-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <IconEdit className="w-3 h-3" />
             Continue Editing

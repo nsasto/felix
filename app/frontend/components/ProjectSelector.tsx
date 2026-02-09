@@ -11,7 +11,7 @@ import { IconPlus, IconFelix } from './Icons';
 const getStatusColor = (status: string | null): string => {
   switch (status?.toLowerCase()) {
     case 'running':
-      return 'bg-felix-500 animate-pulse';
+      return 'bg-brand-500 animate-pulse';
     case 'complete':
     case 'done':
       return 'bg-emerald-500';
@@ -356,7 +356,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   value={registerPath}
                   onChange={(e) => setRegisterPath(e.target.value)}
                   placeholder="C:\path\to\your\project"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-felix-500 transition-all outline-none"
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-brand-500 transition-all outline-none"
                   style={{ 
                     backgroundColor: 'var(--bg-elevated)', 
                     border: '1px solid var(--border-muted)',
@@ -377,7 +377,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
                   placeholder="My Project"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-felix-500 transition-all outline-none"
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-brand-500 transition-all outline-none"
                   style={{ 
                     backgroundColor: 'var(--bg-elevated)', 
                     border: '1px solid var(--border-muted)',
@@ -407,7 +407,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               <button
                 onClick={handleRegister}
                 disabled={!registerPath.trim() || isRegistering}
-                className="px-4 py-2 bg-felix-600 text-white text-xs font-bold rounded-xl hover:bg-felix-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isRegistering ? 'Registering...' : 'Register'}
               </button>

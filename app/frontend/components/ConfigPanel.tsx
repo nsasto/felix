@@ -147,7 +147,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 theme-border border-t-felix-500 rounded-full animate-spin mb-4" />
+          <div className="w-8 h-8 border-2 theme-border border-t-brand-500 rounded-full animate-spin mb-4" />
           <span className="text-xs font-mono theme-text-muted uppercase">Loading configuration...</span>
         </div>
       </div>
@@ -223,7 +223,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
             disabled={saving || !hasChanges || Object.keys(validationErrors).length > 0}
             className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
               hasChanges && Object.keys(validationErrors).length === 0
-                ? 'bg-felix-600 text-white hover:bg-felix-500'
+                ? 'bg-brand-600 text-white hover:bg-brand-500'
                 : 'theme-bg-surface theme-text-muted cursor-not-allowed'
             }`}
           >
@@ -254,8 +254,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           {/* Executor Settings */}
           <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-felix-500/10 rounded-xl flex items-center justify-center">
-                <IconFelix className="w-5 h-5 text-felix-400" />
+              <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center">
+                <IconFelix className="w-5 h-5 text-brand-400" />
               </div>
               <div>
                 <h3 className="text-sm font-bold theme-text-primary">Executor Settings</h3>
@@ -277,7 +277,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all ${
                     validationErrors.max_iterations 
                       ? 'border-red-500/50 focus:border-red-500'
-                      : 'theme-border-muted focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+                      : 'theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20'
                   }`}
                 />
                 {validationErrors.max_iterations && (
@@ -299,7 +299,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all cursor-pointer ${
                     validationErrors.default_mode
                       ? 'border-red-500/50'
-                      : 'theme-border-muted focus:border-felix-500/50 focus:ring-1 focus:ring-felix-500/20'
+                      : 'theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20'
                   }`}
                 >
                   <option value="planning">Planning</option>
@@ -327,7 +327,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   onClick={() => handleExecutorChange('auto_transition', !config.executor.auto_transition)}
                   className={`w-12 h-6 rounded-full transition-all relative ${
                     config.executor.auto_transition 
-                      ? 'bg-felix-600' 
+                      ? 'bg-brand-600' 
                       : 'theme-bg-surface'
                   }`}
                 >
@@ -370,7 +370,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   onClick={() => handleBackpressureChange('enabled', !config.backpressure.enabled)}
                   className={`w-12 h-6 rounded-full transition-all relative ${
                     config.backpressure.enabled 
-                      ? 'bg-felix-600' 
+                      ? 'bg-brand-600' 
                       : 'theme-bg-surface'
                   }`}
                 >
