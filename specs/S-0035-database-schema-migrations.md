@@ -228,7 +228,7 @@ CREATE INDEX idx_organization_members_user_id ON organization_members(user_id);
 
 ### PostgreSQL Running
 
-- [ ] Check PostgreSQL status: `pg_ctl.exe -D C:\dev\postgres\pgsql\data status`
+- [ ] Check PostgreSQL status (use your PGDATA path): `pg_ctl.exe -D <PGDATA> status`
 - [ ] Should output: `server is running`
 
 ### Database Exists

@@ -117,13 +117,26 @@ Output:
 
 ## Quick Setup
 
-Run the automated setup script:
+Run the automated setup script. The script now accepts `-PgBin` and `-DataDir` parameters
+and reads `PG_BIN` / `PGDATA` / `DATABASE_URL` environment variables when present.
+
+Examples (Windows PowerShell):
 
 ```powershell
+# Use explicit Postgres install location and data directory
+.\scripts\setup-db.ps1 -PgBin 'C:\Program Files\PostgreSQL\18\bin' -DataDir 'C:\Program Files\PostgreSQL\18\data'
+
+# Or set environment variables (requires reopening shells to pick up User PATH changes):
+setx PG_BIN "C:\Program Files\PostgreSQL\18\bin"
+setx PGDATA "C:\Program Files\PostgreSQL\18\data"
+.\scripts\setup-db.ps1
+
+# If you already have a DATABASE_URL (e.g. for CI), the script will use it automatically:
+$env:DATABASE_URL = 'postgresql://postgres:password@localhost:5432/felix'
 .\scripts\setup-db.ps1
 ```
 
-This will:
+What the script does:
 
 - Create the database if it doesn't exist
 - Create the migration tracking table
