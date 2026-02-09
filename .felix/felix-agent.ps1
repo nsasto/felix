@@ -181,7 +181,7 @@ function Acquire-FelixRunLock {
                 $LockPath,
                 [System.IO.FileMode]::CreateNew,
                 [System.IO.FileAccess]::ReadWrite,
-                [System.IO.FileShare]::None
+                [System.IO.FileShare]::ReadWrite  # Allow others to read lock info while we hold it
             )
 
             $lockInfo = @{
@@ -207,7 +207,18 @@ function Acquire-FelixRunLock {
             # Existing lock: check whether it's stale
             $existing = $null
             try {
-                $raw = Get-Content -Raw -LiteralPath $LockPath -ErrorAction SilentlyContinue
+                # Open with FileShare.ReadWrite to read while lock holder keeps file open
+                $fileStream = [System.IO.FileStream]::new(
+                    $LockPath,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::Read,
+                    [System.IO.FileShare]::ReadWrite
+                )
+                $reader = [System.IO.StreamReader]::new($fileStream)
+                $raw = $reader.ReadToEnd()
+                $reader.Close()
+                $fileStream.Close()
+                
                 if ($raw) { $existing = $raw | ConvertFrom-Json -ErrorAction SilentlyContinue }
             }
             catch { }
@@ -223,6 +234,8 @@ function Acquire-FelixRunLock {
                 $proc = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
                 if ($proc) { $isRunning = $true }
             }
+
+            Emit-Log -Level "debug" -Message "Lock check: existingPid=$existingPid isRunning=$isRunning Interactive=$Interactive" -Component "lock"
 
             if ($isRunning) {
                 if ($Interactive) {
@@ -260,11 +273,14 @@ function Acquire-FelixRunLock {
                     }
                 }
                 else {
-                    Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo (PID: $existingPid). Stop it before starting a new run." -Severity "fatal" -Context @{
+                    $reqInfo = if ($existing -and $existing.requirement_id) { " (working on: $($existing.requirement_id))" } else { "" }
+                    Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo$reqInfo`n`nTo kill the blocking process, run:`n  Stop-Process -Id $existingPid -Force`n  Remove-Item '$LockPath' -Force" -Severity "fatal" -Context @{
                         lock_path      = $LockPath
                         existing_pid   = $existingPid
                         existing_reqid = if ($existing -and $existing.requirement_id) { [string]$existing.requirement_id } else { "" }
                     }
+                    # Give time for event to flush before exit
+                    Start-Sleep -Milliseconds 100
                     return $null
                 }
             }
@@ -300,7 +316,12 @@ function Release-FelixRunLock {
 }
 
 $lockPath = Join-Path $paths.FelixDir "run.lock"
-$script:FelixRunLockHandle = Acquire-FelixRunLock -LockPath $lockPath -ProjectPath $ProjectPath -RequirementId $RequirementId -Interactive:$SpecBuildMode
+
+# Enable interactive lock resolution ONLY for SpecBuildMode
+# (felix-cli spawns with redirected stdout/stderr but NOT stdin, so IsInputRedirected returns false)
+$enableInteractiveLock = $SpecBuildMode
+
+$script:FelixRunLockHandle = Acquire-FelixRunLock -LockPath $lockPath -ProjectPath $ProjectPath -RequirementId $RequirementId -Interactive:$enableInteractiveLock
 if (-not $script:FelixRunLockHandle) {
     exit 1
 }
