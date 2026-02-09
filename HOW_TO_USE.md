@@ -564,6 +564,51 @@ The Ctrl+C handler now:
 - **Resource management**: Identify PIDs for system monitoring tools
 - **Concurrent workflows**: Run multiple requirements in parallel safely
 
+### Lock Conflict Resolution
+
+Felix prevents multiple agents from running simultaneously on the same repository using a lock file. When a conflict occurs, you have two options to resolve it:
+
+**Option 1: Direct process termination**
+
+```powershell
+Stop-Process -Id <pid> -Force
+Remove-Item '.felix\run.lock' -Force
+```
+
+**Option 2: Session manager (recommended)**
+
+```powershell
+felix procs kill <session-id>
+```
+
+The session manager (`felix procs kill`) automatically cleans up the session registry, while direct process termination requires manual lock file removal.
+
+**Error message example:**
+
+```
+Another Felix run is already active for this repo (working on: S-0055)
+
+To kill the blocking process, run:
+  Stop-Process -Id 38540 -Force
+  Remove-Item 'C:\dev\Felix\.felix\run.lock' -Force
+
+Or use Felix's session manager:
+  felix procs kill S-0055-20260209-175515
+```
+
+**Why lock conflicts occur:**
+
+- Attempting to run `felix run` or `felix loop` when another agent is already active
+- Previous run didn't exit cleanly (crashed or forcefully terminated)
+- Running multiple commands on the same repository simultaneously
+
+**Resolution workflow:**
+
+1. Check if the process is actually running: `Get-Process -Id <pid>`
+2. If running and you want to stop it: `felix procs kill <session-id>`
+3. If process is dead but lock remains: `Remove-Item '.felix\run.lock' -Force`
+4. Retry your command
+
 ### Output Formats
 
 All commands support multiple output formats:
@@ -593,6 +638,9 @@ felix run S-0001 --MinLevel warn
 
 # Suppress statistics
 felix run S-0001 --no-stats
+
+# Show detailed agent thinking and tool calls
+felix run S-0001 --verbose
 ```
 
 ### Examples
