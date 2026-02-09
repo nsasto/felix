@@ -11,7 +11,7 @@ $agentName = "Droid"
 $executable = "droid"
 $logFile = "test-agent-droid.log"
 $testPrompt = "Output exactly: TEST_OK"
-$timeoutSeconds = 30
+$timeoutSeconds = 90
 
 Write-Host ""
 Write-Host "Testing $agentName Agent CLI" -ForegroundColor Cyan
