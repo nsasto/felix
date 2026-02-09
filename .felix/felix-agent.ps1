@@ -273,11 +273,32 @@ function Acquire-FelixRunLock {
                     }
                 }
                 else {
+                    # Try to find the session ID for this PID
+                    $sessionId = $null
+                    $felixDir = Join-Path $ProjectPath ".felix"
+                    $sessionsFile = Join-Path $felixDir "sessions.json"
+                    if (Test-Path $sessionsFile) {
+                        try {
+                            $sessions = Get-Content $sessionsFile -Raw | ConvertFrom-Json
+                            $matchingSession = $sessions | Where-Object { $_.pid -eq $existingPid } | Select-Object -First 1
+                            if ($matchingSession) {
+                                $sessionId = $matchingSession.session_id
+                            }
+                        }
+                        catch { }
+                    }
+                    
                     $reqInfo = if ($existing -and $existing.requirement_id) { " (working on: $($existing.requirement_id))" } else { "" }
-                    Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo$reqInfo`n`nTo kill the blocking process, run:`n  Stop-Process -Id $existingPid -Force`n  Remove-Item '$LockPath' -Force" -Severity "fatal" -Context @{
+                    $killMsg = "To kill the blocking process, run:`n  Stop-Process -Id $existingPid -Force`n  Remove-Item '$LockPath' -Force"
+                    if ($sessionId) {
+                        $killMsg += "`n`nOr use Felix's session manager:`n  felix procs kill $sessionId"
+                    }
+                    
+                    Emit-Error -ErrorType "FelixRunAlreadyInProgress" -Message "Another Felix run is already active for this repo$reqInfo`n`n$killMsg" -Severity "fatal" -Context @{
                         lock_path      = $LockPath
                         existing_pid   = $existingPid
                         existing_reqid = if ($existing -and $existing.requirement_id) { [string]$existing.requirement_id } else { "" }
+                        session_id     = if ($sessionId) { $sessionId } else { "" }
                     }
                     # Give time for event to flush before exit
                     Start-Sleep -Milliseconds 100
