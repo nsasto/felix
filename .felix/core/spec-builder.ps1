@@ -579,18 +579,39 @@ function Invoke-Droid {
         throw "Droid execution failed with exit code ${LASTEXITCODE}"
     }
     
-    # Parse JSON response to extract content
-    # Droid with --output-format json returns: {"content": "..."}
-    try {
-        $jsonResponse = $output.Trim() | ConvertFrom-Json
-        if ($jsonResponse.content) {
-            return $jsonResponse.content
+    # Parse response based on output format
+    # Verbose mode (stream-json): Multiple NDJSON events, look for "completion" event with finalText
+    # Normal mode (json): Single JSON object with "content" field
+    
+    $lines = $output.Trim() -split '\r?\n' | Where-Object { $_.Trim() -ne '' }
+    
+    # Check if this is NDJSON format (multiple JSON objects)
+    if ($lines.Count -gt 1) {
+        try {
+            foreach ($line in $lines) {
+                $event = $line | ConvertFrom-Json -ErrorAction Stop
+                if ($event.type -eq "completion" -and $event.finalText) {
+                    return $event.finalText
+                }
+            }
+            # No completion event found, return raw output
+            return $output.Trim()
         }
-        # Fallback if no content field (shouldn't happen with droid)
-        return $output.Trim()
+        catch {
+            return $output.Trim()
+        }
     }
-    catch {
-        # If JSON parsing fails, return raw output (e.g., for verbose/stream-json mode)
-        return $output.Trim()
+    else {
+        # Single JSON object with content field (normal json mode)
+        try {
+            $jsonResponse = $output.Trim() | ConvertFrom-Json
+            if ($jsonResponse.content) {
+                return $jsonResponse.content
+            }
+            return $output.Trim()
+        }
+        catch {
+            return $output.Trim()
+        }
     }
 }
