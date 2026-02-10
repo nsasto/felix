@@ -74,9 +74,9 @@ const StatusIcon: React.FC<{ status: string }> = ({ status }) => {
 const RunStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const styles = {
     running: {
-      bg: "bg-felix-500/10",
-      text: "text-felix-400",
-      border: "border-felix-500/20",
+      bg: "bg-brand-500/10",
+      text: "text-brand-400",
+      border: "border-brand-500/20",
       icon: "🔄",
     },
     completed: {
@@ -209,7 +209,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isAgentActive ? "bg-felix-500/20" : ""
+                  isAgentActive ? "bg-brand-500/20" : ""
                 }`}
                 style={{
                   backgroundColor: isAgentActive
@@ -218,7 +218,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                 }}
               >
                 <IconFelix
-                  className={`w-5 h-5 ${isAgentActive ? "text-felix-400 animate-pulse" : ""}`}
+                  className={`w-5 h-5 ${isAgentActive ? "text-brand-400 animate-pulse" : ""}`}
                   style={{
                     color: isAgentActive ? undefined : "var(--text-muted)",
                   }}
@@ -249,7 +249,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
               )}
               {getUptime() && <span>Uptime: {getUptime()}</span>}
               {selectedAgent.agent.current_run_id && (
-                <span className="px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
+                <span className="px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
                   {selectedAgent.agent.current_run_id}
                 </span>
               )}
@@ -317,7 +317,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={() => setShowStartDropdown(!showStartDropdown)}
             disabled={!canStartAgent || actionInProgress !== null}
-            className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-white bg-felix-600 hover:bg-felix-500 active:bg-felix-700 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm hover:shadow-md"
+            className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm hover:shadow-md"
           >
             {actionInProgress === "start" ? (
               <>
@@ -358,10 +358,10 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                       onStart(req.id);
                       setShowStartDropdown(false);
                     }}
-                    className="w-full px-3 py-2 text-left hover:bg-felix-500/10 transition-colors flex items-center justify-between"
+                    className="w-full px-3 py-2 text-left hover:bg-brand-500/10 transition-colors flex items-center justify-between"
                   >
                     <div>
-                      <span className="text-xs font-mono text-felix-400">
+                      <span className="text-xs font-mono text-brand-400">
                         {req.id}
                       </span>
                       <p
@@ -464,7 +464,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
         {/* Settings button */}
         <button
           onClick={onSettings}
-          className="p-2 rounded-lg border transition-all duration-150 hover:border-felix-500/30 hover:bg-felix-500/5"
+          className="p-2 rounded-lg border transition-all duration-150 hover:border-brand-500/30 hover:bg-brand-500/5"
           style={{
             borderColor: "var(--border-default)",
             color: "var(--text-muted)",
@@ -477,7 +477,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
         {/* Refresh button */}
         <button
           onClick={onRefresh}
-          className="p-2 rounded-lg border transition-all duration-150 hover:border-felix-500/30 hover:bg-felix-500/5"
+          className="p-2 rounded-lg border transition-all duration-150 hover:border-brand-500/30 hover:bg-brand-500/5"
           style={{
             borderColor: "var(--border-default)",
             color: "var(--text-muted)",
@@ -540,8 +540,8 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
         onClick={() => onSelectAgent({ id: agent.id, agent })}
         className={`w-full p-3 rounded-xl text-left transition-all border ${
           isSelected
-            ? "border-felix-500/50 bg-felix-500/10"
-            : "hover:border-felix-500/20"
+            ? "border-brand-500/50 bg-brand-500/10"
+            : "hover:border-brand-500/20"
         }`}
         style={{
           backgroundColor: isSelected ? undefined : "var(--bg-base)",
@@ -559,7 +559,7 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
                 {agent.name}
               </span>
               {agent.current_run_id && (
-                <span className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
+                <span className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
                   {agent.current_run_id}
                 </span>
               )}
@@ -978,7 +978,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         }}
       >
         <div className="flex items-center gap-3">
-          <IconTerminal className="w-4 h-4 text-felix-400" />
+          <IconTerminal className="w-4 h-4 text-brand-400" />
           <span
             className="text-xs font-bold"
             style={{ color: "var(--text-secondary)" }}
@@ -986,7 +986,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             {selectedAgent?.name || "Live Console"}
           </span>
           {selectedAgent?.agent?.current_run_id && (
-            <span className="text-[10px] px-2 py-0.5 rounded bg-felix-500/10 text-felix-400 border border-felix-500/20">
+            <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
               {selectedAgent.agent.current_run_id}
             </span>
           )}
@@ -1009,7 +1009,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
           <button
             onClick={() => setScrollLocked(!scrollLocked)}
             className={`p-1.5 rounded transition-colors ${
-              scrollLocked ? "bg-felix-500/10 text-felix-400" : ""
+              scrollLocked ? "bg-brand-500/10 text-brand-400" : ""
             }`}
             style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
             title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
@@ -1090,7 +1090,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             className="flex items-center gap-2"
             style={{ color: "var(--text-muted)" }}
           >
-            <div className="w-2 h-2 rounded-full bg-felix-500 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
             <span>Waiting for output...</span>
           </div>
         )}
@@ -1228,7 +1228,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
           </h2>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-1 rounded transition-colors ${showFilters ? "bg-felix-500/10 text-felix-400" : ""}`}
+            className={`p-1 rounded transition-colors ${showFilters ? "bg-brand-500/10 text-brand-400" : ""}`}
             style={{ color: showFilters ? undefined : "var(--text-muted)" }}
           >
             <svg
@@ -1254,7 +1254,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
             placeholder="Search runs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 pl-8 rounded-lg text-xs border outline-none focus:border-felix-500/50"
+            className="w-full px-3 py-2 pl-8 rounded-lg text-xs border outline-none focus:border-brand-500/50"
             style={{
               backgroundColor: "var(--bg-base)",
               borderColor: "var(--border-default)",
@@ -1306,7 +1306,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
                     }}
                     className={`px-2 py-1 text-[10px] rounded-lg border transition-colors ${
                       statusFilter.includes(status)
-                        ? "bg-felix-500/10 border-felix-500/30 text-felix-400"
+                        ? "bg-brand-500/10 border-brand-500/30 text-brand-400"
                         : ""
                     }`}
                     style={{
@@ -1425,7 +1425,7 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
   const getStatusStyle = (status: string) => {
     switch (status) {
       case "running":
-        return { bg: "bg-felix-500/10", text: "text-felix-400", border: "border-felix-500/20", icon: "🔄" };
+        return { bg: "bg-brand-500/10", text: "text-brand-400", border: "border-brand-500/20", icon: "🔄" };
       case "completed":
         return { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20", icon: "✅" };
       case "failed":
@@ -1444,14 +1444,14 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
   return (
     <button
       onClick={() => onClick(run.id)}
-      className="w-full p-3 rounded-xl text-left transition-all border hover:border-felix-500/30"
+      className="w-full p-3 rounded-xl text-left transition-all border hover:border-brand-500/30"
       style={{
         backgroundColor: "var(--bg-base)",
         borderColor: "var(--border-default)",
       }}
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-mono text-felix-400 truncate" style={{ maxWidth: "60%" }}>
+        <span className="text-xs font-mono text-brand-400 truncate" style={{ maxWidth: "60%" }}>
           {run.id.substring(0, 8)}...
         </span>
         <span

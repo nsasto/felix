@@ -149,13 +149,13 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
                   flex items-center justify-center
                   transition-all duration-200 ease-in-out
                   ${column.bgColor} ${column.borderColor}
-                  ${isDropTarget ? "border-felix-500/70 bg-felix-500/10 scale-105 shadow-lg" : ""}
-                  ${isCurrentColumn ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-felix-500/50"}
+                  ${isDropTarget ? "border-brand-500/70 bg-brand-500/10 scale-105 shadow-lg" : ""}
+                  ${isCurrentColumn ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-brand-500/50"}
                   touch-manipulation min-h-[44px]
                 `}
                 style={{
                   boxShadow: isDropTarget
-                    ? "0 8px 32px rgba(var(--felix-500), 0.3)"
+                    ? "0 8px 32px rgba(var(--brand-500), 0.3)"
                     : "var(--shadow-md)",
                 }}
                 onDragOver={(e) =>
@@ -486,7 +486,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
     return (
       <div className="flex-1 flex items-center justify-center theme-bg-deepest">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
           <span className="text-xs font-mono theme-text-muted uppercase tracking-widest">
             Loading requirements...
           </span>
@@ -515,7 +515,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col theme-bg-deepest overflow-hidden">
+    <div
+      className="flex-1 flex flex-col overflow-hidden"
+      style={{ backgroundColor: "var(--bg-base)" }}
+    >
       {/* Sticky Drop Zones - Always show all columns including Done */}
       <StickyDropZones
         visibleColumns={COLUMNS}
@@ -543,7 +546,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
         <select
           value={priorityFilter || ""}
           onChange={(e) => setPriorityFilter(e.target.value || null)}
-          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-felix-500/50 cursor-pointer"
+          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-brand-500/50 cursor-pointer"
         >
           <option value="">All Priorities</option>
           {allPriorities.map((priority) => (
@@ -557,7 +560,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
         <select
           value={labelFilter || ""}
           onChange={(e) => setLabelFilter(e.target.value || null)}
-          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-felix-500/50 cursor-pointer"
+          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-brand-500/50 cursor-pointer"
         >
           <option value="">All Labels</option>
           {allLabels.map((label) => (
@@ -602,7 +605,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
             type="checkbox"
             checked={isCompactView}
             onChange={(e) => setIsCompactView(e.target.checked)}
-            className="w-3.5 h-3.5 rounded border theme-border bg-transparent checked:bg-felix-500 checked:border-felix-500 cursor-pointer accent-felix-500"
+            className="w-3.5 h-3.5 rounded border theme-border bg-transparent checked:bg-brand-500 checked:border-brand-500 cursor-pointer accent-brand-500"
           />
           <span
             className="text-[10px] font-bold theme-text-muted uppercase tracking-widest flex items-center gap-1"
@@ -656,7 +659,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
               <div
                 className={`flex-1 space-y-3 min-h-[200px] rounded-xl transition-colors ${
                   isDropTarget
-                    ? "theme-bg-surface border-2 border-dashed border-felix-500/30"
+                    ? "theme-bg-surface border-2 border-dashed border-brand-500/30"
                     : ""
                 }`}
                 style={
@@ -694,7 +697,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                       }}
                       className={`
                         kanban-card theme-bg-base border theme-border rounded-xl 
-                        hover:border-felix-600/40 cursor-grab group 
+                        hover:border-brand-600/40 cursor-grab group 
                         ${isCompactView ? "kanban-card-compact p-3" : "p-4"}
                         ${isDragging ? "opacity-50 scale-95" : ""}
                         ${hasBlockedDeps && requirement.status !== "blocked" ? "border-l-2 border-l-amber-500/50" : ""}
@@ -706,7 +709,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         className={`flex justify-between items-start ${isCompactView ? "mb-1" : "mb-2"}`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono font-bold text-felix-400 bg-felix-500/10 px-2 py-0.5 rounded border border-felix-500/20">
+                          <span className="text-[10px] font-mono font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/20">
                             {requirement.id}
                           </span>
                           {/* In-progress indicator for actively worked on requirements */}
@@ -730,7 +733,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
                       {/* Title */}
                       <h4
-                        className={`font-semibold theme-text-primary group-hover:text-felix-400 ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}
+                        className={`font-semibold theme-text-primary group-hover:text-brand-400 ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}
                       >
                         {requirement.title}
                       </h4>
@@ -846,7 +849,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                             setSelectedRequirement(requirement);
                             onSelectRequirement?.(requirement);
                           }}
-                          className="text-[9px] font-bold theme-text-muted hover:text-felix-400 transition-colors flex items-center gap-1"
+                          className="text-[9px] font-bold theme-text-muted hover:text-brand-400 transition-colors flex items-center gap-1"
                         >
                           <IconFileText className="w-3 h-3" />
                           View Spec
@@ -862,7 +865,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                     className={`
                     flex flex-col items-center justify-center py-8 text-center
                     border border-dashed rounded-xl
-                    ${isDropTarget ? "border-felix-500/50 bg-felix-500/5" : "theme-border-muted"}
+                    ${isDropTarget ? "border-brand-500/50 bg-brand-500/5" : "theme-border-muted"}
                   `}
                   >
                     <span className="text-[10px] font-mono theme-text-tertiary uppercase">

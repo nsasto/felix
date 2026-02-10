@@ -147,9 +147,9 @@ const AgentControls: React.FC<AgentControlsProps> = ({
     switch (status) {
       case "running":
         return {
-          bg: "bg-felix-500/10 border-felix-500/20",
-          text: "text-felix-400",
-          dot: "bg-felix-500 animate-pulse",
+          bg: "bg-brand-500/10 border-brand-500/20",
+          text: "text-brand-400",
+          dot: "bg-brand-500 animate-pulse",
         };
       case "completed":
         return {
@@ -239,13 +239,13 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         {/* Status indicator */}
         <div className="flex items-center gap-2">
           <div
-            className={`w-2 h-2 rounded-full ${isRunning ? "bg-felix-500 animate-pulse" : ""}`}
+            className={`w-2 h-2 rounded-full ${isRunning ? "bg-brand-500 animate-pulse" : ""}`}
             style={{
               backgroundColor: isRunning ? undefined : "var(--text-faint)",
             }}
           />
           <span
-            className={`text-[10px] font-bold uppercase ${isRunning ? "text-felix-400" : "theme-text-muted"}`}
+            className={`text-[10px] font-bold uppercase ${isRunning ? "text-brand-400" : "theme-text-muted"}`}
           >
             {isRunning ? "Running" : "Idle"}
           </span>
@@ -264,7 +264,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           <button
             onClick={handleStartAgent}
             disabled={actionInProgress === "start"}
-            className="px-3 py-1.5 text-[10px] font-bold text-felix-400 border border-felix-500/20 rounded-lg hover:bg-felix-500/10 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-[10px] font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors disabled:opacity-50"
           >
             {actionInProgress === "start" ? "Starting..." : "Start"}
           </button>
@@ -287,11 +287,11 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         <div className="flex items-center gap-3">
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isRunning ? "bg-felix-500/20" : "theme-bg-surface"
+              isRunning ? "bg-brand-500/20" : "theme-bg-surface"
             }`}
           >
             <IconFelix
-              className={`w-5 h-5 ${isRunning ? "text-felix-400 animate-pulse" : "theme-text-muted"}`}
+              className={`w-5 h-5 ${isRunning ? "text-brand-400 animate-pulse" : "theme-text-muted"}`}
             />
           </div>
           <div>
@@ -308,7 +308,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         <div
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
             isRunning
-              ? "bg-felix-500/10 border-felix-500/20"
+              ? "bg-brand-500/10 border-brand-500/20"
               : "theme-bg-surface"
           }`}
           style={{ borderColor: isRunning ? undefined : "var(--border-muted)" }}
@@ -316,7 +316,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           <div
             className={`w-2 h-2 rounded-full ${
               isRunning
-                ? "bg-felix-500 animate-pulse shadow-lg shadow-felix-500/50"
+                ? "bg-brand-500 animate-pulse shadow-lg shadow-brand-500/50"
                 : ""
             }`}
             style={{
@@ -325,7 +325,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           />
           <span
             className={`text-[10px] font-bold uppercase ${
-              isRunning ? "text-felix-400" : "theme-text-muted"
+              isRunning ? "text-brand-400" : "theme-text-muted"
             }`}
           >
             {isRunning ? "Running" : "Stopped"}
@@ -457,7 +457,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           <button
             onClick={handleStartAgent}
             disabled={actionInProgress === "start"}
-            className="px-4 py-2 text-xs font-bold text-white bg-felix-600 hover:bg-felix-500 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-felix-900/30"
+            className="px-4 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-brand-900/30"
           >
             {actionInProgress === "start" ? (
               <>

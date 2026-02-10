@@ -99,12 +99,12 @@ const StageNode: React.FC<{
     switch (status) {
       case "active":
         return {
-          border: "border-felix-500",
-          bg: "bg-felix-500/20",
-          iconColor: "text-felix-400",
-          nameColor: "text-felix-400",
+          border: "border-brand-500",
+          bg: "bg-brand-500/20",
+          iconColor: "text-brand-400",
+          nameColor: "text-brand-400",
           animation: "animate-workflow-pulse",
-          glow: "shadow-lg shadow-felix-500/30",
+          glow: "shadow-lg shadow-brand-500/30",
         };
       case "completed":
         return {

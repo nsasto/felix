@@ -184,7 +184,7 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all flex items-center gap-2 ${
                   activeTab === tab.id
-                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    ? "bg-slate-800 text-brand-400 shadow-sm"
                     : "text-slate-500 hover:text-slate-400"
                 }`}
               >
@@ -207,7 +207,7 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
                 px-3 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1.5
                 ${
                   activeTab === tab.id
-                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    ? "bg-slate-800 text-brand-400 shadow-sm"
                     : "text-slate-500 hover:text-slate-400"
                 }
               `}
@@ -223,7 +223,7 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
       <div className="flex-1 overflow-hidden">
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center h-full">
-            <div className="w-8 h-8 border-2 border-slate-600/30 border-t-felix-500 rounded-full animate-spin mb-4" />
+            <div className="w-8 h-8 border-2 border-slate-600/30 border-t-brand-500 rounded-full animate-spin mb-4" />
             <span className="text-xs font-mono text-slate-600 uppercase">
               Loading artifact...
             </span>

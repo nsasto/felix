@@ -2847,7 +2847,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     return (
       <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-felix-500 rounded-full animate-spin mb-4" />
+          <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-brand-500 rounded-full animate-spin mb-4" />
           <span className="text-xs font-mono theme-text-muted uppercase">
             Loading settings...
           </span>

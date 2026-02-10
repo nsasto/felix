@@ -52,7 +52,7 @@ const RunCard: React.FC<RunCardProps> = ({
         w-full text-left px-3 py-2 rounded-lg border transition-all
         ${
           isSelected
-            ? "theme-bg-elevated border-felix-500/50 ring-1 ring-felix-500/30"
+            ? "theme-bg-elevated border-brand-500/50 ring-1 ring-brand-500/30"
             : "theme-bg-elevated/50 theme-border hover:border-slate-600"
         }
       `}

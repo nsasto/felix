@@ -5,9 +5,40 @@ Write-Host ""
 Write-Host "Starting Felix..." -ForegroundColor Green
 Write-Host ""
 
+# Auto-detect and start PostgreSQL
+Write-Host "Checking PostgreSQL..." -ForegroundColor Cyan
+try {
+    $psqlPath = Get-Command psql -ErrorAction Stop | Select-Object -ExpandProperty Source
+    $pgBin = Split-Path $psqlPath
+    $pgData = Join-Path (Split-Path $pgBin) "data"
+    
+    # Check if PostgreSQL is running
+    $testConnection = & $psqlPath -U postgres -c "SELECT 1;" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Starting PostgreSQL server..." -ForegroundColor Yellow
+        $pgCtl = Join-Path $pgBin "pg_ctl.exe"
+        if (Test-Path $pgCtl) {
+            & $pgCtl -D $pgData start -l "$pgData\logfile" 2>&1 | Out-Null
+            Start-Sleep -Seconds 2
+            Write-Host "PostgreSQL started" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "PostgreSQL already running" -ForegroundColor Green
+    }
+    
+    # Set environment for backend
+    $env:DATABASE_URL = "postgresql://postgres@localhost:5432/felix"
+}
+catch {
+    Write-Host "PostgreSQL not found - backend will fail to start without it" -ForegroundColor Yellow
+    Write-Host "  Install PostgreSQL or run: .\scripts\setup-db.ps1" -ForegroundColor Gray
+}
+Write-Host ""
+
 # Start Backend in new terminal
 Write-Host "Starting Backend (http://localhost:8080)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\app\backend'; if (Test-Path .venv\Scripts\Activate.ps1) { & .\.venv\Scripts\Activate.ps1 }; python main.py"
+$backendCmd = "cd '$PSScriptRoot\app\backend'; `$env:DATABASE_URL='postgresql://postgres@localhost:5432/felix'; if (Test-Path .venv\Scripts\Activate.ps1) { & .\.venv\Scripts\Activate.ps1 }; python main.py"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
 
 # Wait a moment for backend to start
 Start-Sleep -Seconds 3

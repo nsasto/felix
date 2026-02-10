@@ -296,7 +296,7 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
         {/* Empty state */}
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center px-6">
-            <div className="w-16 h-16 bg-felix-500/10 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-brand-500/10 rounded-full flex items-center justify-center mb-4">
               <span className="text-3xl">✨</span>
             </div>
             <p className="text-sm theme-text-primary font-medium mb-2">
@@ -318,7 +318,7 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
               className={`
                 max-w-[85%] rounded-2xl px-4 py-2
                 ${msg.role === 'user'
-                  ? 'bg-felix-500 text-white'
+                  ? 'bg-brand-500 text-white'
                   : 'theme-bg-elevated theme-text-primary'
                 }
               `}
@@ -344,9 +344,9 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
               <button
                 onClick={() => onInsertSpec(msg.content)}
                 className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg
-                  bg-gradient-to-r from-felix-500 to-felix-600 
+                  bg-gradient-to-r from-brand-500 to-brand-600 
                   text-white shadow-sm
-                  hover:from-felix-600 hover:to-felix-700
+                  hover:from-brand-600 hover:to-brand-700
                   transition-all duration-200
                   flex items-center gap-1.5"
                 title="Insert this spec into the editor"
@@ -367,9 +367,9 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
           <div className="flex justify-start">
             <div className="theme-bg-elevated rounded-2xl px-4 py-3">
               <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-felix-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-felix-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-felix-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -387,9 +387,9 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
             <button
               onClick={onQuickDraft}
               className="px-3 py-1.5 text-xs font-medium rounded-lg
-                bg-gradient-to-r from-felix-500 to-felix-600 
+                bg-gradient-to-r from-brand-500 to-brand-600 
                 text-white shadow-sm
-                hover:from-felix-600 hover:to-felix-700
+                hover:from-brand-600 hover:to-brand-700
                 transition-all duration-200
                 flex items-center gap-1.5"
               title="Start drafting a new spec"
@@ -438,7 +438,7 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
                 rounded-lg theme-bg-elevated theme-border
                 theme-text-primary placeholder:theme-text-muted
                 resize-none
-                focus:outline-none focus:ring-2 focus:ring-felix-500/50
+                focus:outline-none focus:ring-2 focus:ring-brand-500/50
                 ${isOverLimit ? 'border-red-500' : ''}
               `}
               disabled={isStreaming}
@@ -475,7 +475,7 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
               className={`
                 px-4 rounded-lg transition-colors flex items-center justify-center
                 ${inputValue.trim() && !isOverLimit
-                  ? 'bg-felix-500 hover:bg-felix-600 text-white'
+                  ? 'bg-brand-500 hover:bg-brand-600 text-white'
                   : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                 }
               `}
@@ -494,34 +494,34 @@ const CopilotChatPanel: React.FC<CopilotChatPanelProps> = ({
 
       {/* Inline CSS for felix colors and markdown styling */}
       <style>{`
-        .bg-felix-500 {
+        .bg-brand-500 {
           background-color: #738ef1;
         }
-        .bg-felix-500\\/10 {
+        .bg-brand-500\\/10 {
           background-color: rgba(115, 142, 241, 0.1);
         }
-        .hover\\:bg-felix-600:hover {
+        .hover\\:bg-brand-600:hover {
           background-color: #5268e8;
         }
-        .ring-felix-500\\/50 {
+        .ring-brand-500\\/50 {
           --tw-ring-color: rgba(115, 142, 241, 0.5);
         }
         
         /* Felix gradient classes for buttons */
-        .from-felix-500 {
+        .from-brand-500 {
           --tw-gradient-from: #738ef1;
           --tw-gradient-to: rgba(115, 142, 241, 0);
           --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
         }
-        .to-felix-600 {
+        .to-brand-600 {
           --tw-gradient-to: #5268e8;
         }
-        .hover\\:from-felix-600:hover {
+        .hover\\:from-brand-600:hover {
           --tw-gradient-from: #5268e8;
           --tw-gradient-to: rgba(82, 104, 232, 0);
           --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
         }
-        .hover\\:to-felix-700:hover {
+        .hover\\:to-brand-700:hover {
           --tw-gradient-to: #4055d6;
         }
         

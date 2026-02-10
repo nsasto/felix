@@ -70,11 +70,11 @@ const CopilotChatButton: React.FC<CopilotChatButtonProps> = ({
       className={`
         fixed bottom-12 right-4 z-50
         w-14 h-14 rounded-full
-        bg-gradient-to-br from-felix-500 to-felix-600
+        bg-gradient-to-br from-brand-500 to-brand-600
         text-white shadow-lg
         hover:scale-105 transition-all duration-200
         flex items-center justify-center
-        focus:outline-none focus:ring-2 focus:ring-felix-500/50 focus:ring-offset-2 focus:ring-offset-transparent
+        focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:ring-offset-2 focus:ring-offset-transparent
         ${isOpen ? "scale-95 shadow-md" : "hover:shadow-xl"}
       `}
       aria-label={
@@ -112,17 +112,17 @@ const CopilotChatButton: React.FC<CopilotChatButtonProps> = ({
 
       {/* Inline CSS for felix colors (in case they're not in tailwind config) */}
       <style>{`
-        .from-felix-500 {
+        .from-brand-500 {
           --tw-gradient-from: #738ef1;
           --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(115, 142, 241, 0));
         }
-        .to-felix-600 {
+        .to-brand-600 {
           --tw-gradient-to: #5268e8;
         }
-        .bg-felix-500 {
+        .bg-brand-500 {
           background-color: #738ef1;
         }
-        .ring-felix-500\\/50 {
+        .ring-brand-500\\/50 {
           --tw-ring-color: rgba(115, 142, 241, 0.5);
         }
       `}</style>

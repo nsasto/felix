@@ -442,7 +442,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
           {specLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
             </div>
           ) : specError ? (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
@@ -453,12 +453,12 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               className="prose prose-invert prose-sm max-w-none
                 prose-headings:text-slate-200 prose-headings:font-bold
                 prose-p:text-slate-400 prose-p:leading-relaxed
-                prose-a:text-felix-400 prose-a:no-underline hover:prose-a:underline
+                prose-a:text-brand-400 prose-a:no-underline hover:prose-a:underline
                 prose-code:text-amber-400 prose-code:bg-slate-800/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
                 prose-pre:theme-bg-elevated prose-pre:border prose-pre:theme-border
                 prose-li:text-slate-400
                 prose-strong:text-slate-200
-                prose-blockquote:border-l-felix-500 prose-blockquote:text-slate-400"
+                prose-blockquote:border-l-brand-500 prose-blockquote:text-slate-400"
               dangerouslySetInnerHTML={{ __html: specHtml }}
             />
           ) : (
@@ -487,7 +487,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {historyLoading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="w-6 h-6 border-2 border-felix-500/30 border-t-felix-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
               </div>
             ) : historyError ? (
               <div className="p-4">
@@ -588,7 +588,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         {/* Header */}
         <div className="h-16 border-b theme-border flex items-center px-6 justify-between flex-shrink-0 theme-bg-base">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="text-sm font-mono font-bold text-felix-400 bg-felix-500/10 px-2.5 py-1 rounded-lg border border-felix-500/20">
+            <span className="text-sm font-mono font-bold text-brand-400 bg-brand-500/10 px-2.5 py-1 rounded-lg border border-brand-500/20">
               {requirement.id}
             </span>
             <h2
@@ -630,7 +630,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
                 px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 whitespace-nowrap
                 ${
                   activeTab === tab.id
-                    ? "bg-slate-800 text-felix-400 shadow-sm"
+                    ? "bg-slate-800 text-brand-400 shadow-sm"
                     : "text-slate-500 hover:text-slate-400"
                 }
               `}
