@@ -3,23 +3,23 @@
 -- Uses fixed UUIDs for consistency across environments
 
 -- ============================================================================
--- DEV ORGANIZATION
+-- DEV ORGANIZATION (untruaxioms)
 -- Fixed UUID: 00000000-0000-0000-0000-000000000001
 -- ============================================================================
 INSERT INTO organizations (id, name, slug, owner_id, metadata)
 VALUES (
     '00000000-0000-0000-0000-000000000001',
-    'Dev Org',
-    'dev-org',
-    'dev-user',
-    '{}'::jsonb
+    'untruaxioms',
+    'untruaxioms',
+    'nsasto',
+    '{"email": "nsasto@gmail.com"}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- DEV PROJECT
 -- Fixed UUID: 00000000-0000-0000-0000-000000000001
--- Belongs to dev-org organization
+-- Belongs to untruaxioms organization
 -- ============================================================================
 INSERT INTO projects (id, org_id, name, slug, description, metadata)
 VALUES (
@@ -33,13 +33,13 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
--- DEV USER MEMBERSHIP
--- User 'dev-user' is the owner of the dev organization
+-- DEV USER MEMBERSHIP (nsasto)
+-- User 'nsasto' is the owner of the untruaxioms organization
 -- ============================================================================
 INSERT INTO organization_members (org_id, user_id, role)
 VALUES (
     '00000000-0000-0000-0000-000000000001',
-    'dev-user',
+    'nsasto',
     'owner'
 )
 ON CONFLICT (org_id, user_id) DO NOTHING;

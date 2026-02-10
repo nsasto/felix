@@ -1077,7 +1077,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         >
           <button
             onClick={handleOpenNewSpec}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
+            style={{ backgroundColor: "var(--accent-primary)", color: "white" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = "0.9";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = "1";
+            }}
             title="Create a new spec"
           >
             <IconPlus className="w-4 h-4" />
@@ -1424,7 +1431,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             {/* Copy button */}
             <button
               onClick={copyToClipboard}
-              className="text-[10px] font-bold text-slate-500 hover:text-brand-400 transition-colors uppercase tracking-widest flex items-center gap-2"
+              className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.color = "var(--accent-primary)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.color = "var(--text-muted)")
+              }
             >
               <svg
                 className="w-3 h-3"
@@ -1561,7 +1575,10 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             {/* Modal header */}
             <div className="h-12 border-b theme-border flex items-center justify-between px-4">
               <div className="flex items-center gap-2">
-                <IconPlus className="w-4 h-4 text-brand-400" />
+                <IconPlus
+                  className="w-4 h-4"
+                  style={{ color: "var(--accent-primary)" }}
+                />
                 <span className="text-xs font-bold theme-text-secondary">
                   Create New Spec
                 </span>
@@ -1676,7 +1693,18 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 disabled={
                   !newSpecId.trim() || !newSpecTitle.trim() || isCreating
                 }
-                className="px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 text-xs font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                style={{
+                  backgroundColor: "var(--accent-primary)",
+                  color: "white",
+                }}
+                onMouseEnter={(e) => {
+                  if (!e.currentTarget.disabled)
+                    e.currentTarget.style.opacity = "0.9";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = "1";
+                }}
               >
                 {isCreating ? (
                   <>

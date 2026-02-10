@@ -96,6 +96,14 @@ export interface AgentStatus {
   current_run_id: string | null;
 }
 
+export interface UserProfile {
+  user_id: string;
+  email: string | null;
+  organization: string | null;
+  org_slug: string | null;
+  role: string;
+}
+
 // --- Agent Registry Types (for S-0013: Agent Settings Registry) ---
 
 export interface AgentEntry {
@@ -771,8 +779,12 @@ class FelixApiService {
    * Falls back to default workflow stages if file is missing or invalid.
    */
   async getWorkflowConfig(projectId?: string): Promise<WorkflowConfigResponse> {
-    const params = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
-    return this.request<WorkflowConfigResponse>(`/agents/workflow-config${params}`);
+    const params = projectId
+      ? `?project_id=${encodeURIComponent(projectId)}`
+      : "";
+    return this.request<WorkflowConfigResponse>(
+      `/agents/workflow-config${params}`,
+    );
   }
 
   // --- Global Settings Endpoints (project-independent) ---
@@ -1079,6 +1091,14 @@ class FelixApiService {
   }
 
   // --- Health Check ---
+
+  async getUserProfile(): Promise<UserProfile> {
+    const response = await fetch(`${this.baseUrl}/user/me`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user profile: ${response.statusText}`);
+    }
+    return response.json();
+  }
 
   async healthCheck(): Promise<{
     status: string;

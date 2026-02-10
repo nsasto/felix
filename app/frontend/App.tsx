@@ -154,6 +154,13 @@ const App: React.FC = () => {
   const orgMenuRef = useRef<HTMLDivElement | null>(null);
   const [orgSearch, setOrgSearch] = useState("");
   const [selectedOrg, setSelectedOrg] = useState("UntrueAxioms");
+  const [userProfile, setUserProfile] = useState<{
+    user_id: string;
+    email: string | null;
+    organization: string | null;
+    org_slug: string | null;
+    role: string;
+  } | null>(null);
 
   const recognizedSidebarStates: SidebarView[] = [
     "projects",
@@ -241,6 +248,23 @@ const App: React.FC = () => {
       }
     };
     checkBackend();
+  }, []);
+
+  // Fetch user profile from backend
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const profile = await felixApi.getUserProfile();
+        setUserProfile(profile);
+        // Update organization name if available
+        if (profile.organization) {
+          setSelectedOrg(profile.organization);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch user profile:", e);
+      }
+    };
+    fetchUserProfile();
   }, []);
 
   // Auto-load last selected project on app startup
@@ -1165,13 +1189,24 @@ export const executeTask = (taskId: string) => {
               aria-expanded={isUserMenuOpen}
               title="User menu"
             >
-              NS
+              {userProfile?.user_id
+                ? userProfile.user_id
+                    .split(/[^a-zA-Z0-9]/)
+                    .filter((part) => part.length > 0)
+                    .map((part) => part[0].toUpperCase())
+                    .slice(0, 2)
+                    .join("")
+                : "?"}
             </button>
             {isUserMenuOpen && (
               <div className="user-menu-panel">
                 <div className="user-menu-header">
-                  <p className="text-sm font-bold">nsasto</p>
-                  <p className="text-[10px] opacity-60">nsasto@gmail.com</p>
+                  <p className="text-sm font-bold">
+                    {userProfile?.user_id || "Loading..."}
+                  </p>
+                  <p className="text-[10px] opacity-60">
+                    {userProfile?.email || ""}
+                  </p>
                 </div>
                 <hr />
                 <button
