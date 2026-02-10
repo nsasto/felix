@@ -14,6 +14,7 @@ import {
   IconOrganization,
   IconChevronDown,
   IconHelpCircle,
+  IconCheckCircle,
 } from "./components/Icons";
 import FelixLogo from "../../img/felix_logo_small.png";
 import FelixLogoHover from "../../img/felix_logo_hammer_small.png";
@@ -149,6 +150,10 @@ const App: React.FC = () => {
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const [isLogoHovered, setLogoHovered] = useState(false);
+  const [isOrgMenuOpen, setOrgMenuOpen] = useState(false);
+  const orgMenuRef = useRef<HTMLDivElement | null>(null);
+  const [orgSearch, setOrgSearch] = useState("");
+  const [selectedOrg, setSelectedOrg] = useState("UntrueAxioms");
 
   const recognizedSidebarStates: SidebarView[] = [
     "projects",
@@ -207,6 +212,11 @@ const App: React.FC = () => {
     { label: "Light", value: "light" },
     { label: "Classic Dark", value: "dark", isVariant: true },
     { label: "System", value: "system" },
+  ];
+  const orgOptions = [
+    { id: "untrueaxioms", label: "UntrueAxioms", type: "org" },
+    { id: "all", label: "All Organizations", type: "org" },
+    { id: "new", label: "New organization", type: "action" },
   ];
 
   // Ref to ensure auto-load only happens once on initial app load
@@ -911,18 +921,27 @@ export const executeTask = (taskId: string) => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
       if (
         isUserMenuOpen &&
         userMenuRef.current &&
-        !userMenuRef.current.contains(event.target as Node)
+        !userMenuRef.current.contains(target)
       ) {
         setUserMenuOpen(false);
+      }
+      if (
+        isOrgMenuOpen &&
+        orgMenuRef.current &&
+        !orgMenuRef.current.contains(target)
+      ) {
+        setOrgMenuOpen(false);
       }
     };
 
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setUserMenuOpen(false);
+        setOrgMenuOpen(false);
       }
     };
 
@@ -932,7 +951,7 @@ export const executeTask = (taskId: string) => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEsc);
     };
-  }, [isUserMenuOpen]);
+  }, [isUserMenuOpen, isOrgMenuOpen]);
 
   return (
         <div
@@ -940,11 +959,13 @@ export const executeTask = (taskId: string) => {
           style={rootStyle}
         >
       <header
-        className="h-16 flex items-center px-6 justify-between gap-6 z-20"
+        className="h-16 flex items-center px-6 justify-between gap-6"
         style={{
           borderBottom: "1px solid var(--border-default)",
           backgroundColor: "var(--bg-base)",
           backdropFilter: "blur(12px)",
+          position: "relative",
+          zIndex: "var(--z-fixed)",
         }}
       >
         <div className="flex items-center gap-3">
@@ -962,35 +983,81 @@ export const executeTask = (taskId: string) => {
           <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
             /
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
-              style={{
-                color: "var(--text-secondary)",
-                backgroundColor: "transparent",
-                border: "none",
-              }}
-              onClick={() => {
-                /* placeholder for org picker */
-              }}
-            >
-              <IconOrganization
-                className="w-4 h-4"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <span>UntrueAxioms</span>
-              <IconChevronDown
-                className="w-3 h-3"
-                style={{ color: "var(--text-muted)" }}
-              />
-            </button>
-            <span
-              className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
-              style={{ borderColor: "var(--border-muted)", color: "var(--text-muted)" }}
-            >
-              FREE
-            </span>
+          <div className="org-menu-group" ref={orgMenuRef}>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
+                style={{
+                  color: "var(--text-secondary)",
+                  backgroundColor: "transparent",
+                  border: "none",
+                }}
+                onClick={() => setOrgMenuOpen((prev) => !prev)}
+                aria-haspopup="true"
+                aria-expanded={isOrgMenuOpen}
+              >
+                <IconOrganization
+                  className="w-4 h-4"
+                  style={{ color: "var(--text-muted)" }}
+                />
+                <span>{selectedOrg}</span>
+              </button>
+              <button
+                type="button"
+                className="org-menu-trigger"
+                onClick={() => setOrgMenuOpen((prev) => !prev)}
+                aria-label="Organization menu"
+              >
+                <IconChevronDown className="w-4 h-4" />
+              </button>
+              <span
+                className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
+                style={{ borderColor: "var(--border-muted)", color: "var(--text-muted)" }}
+              >
+                FREE
+              </span>
+            </div>
+            {isOrgMenuOpen && (
+              <div className="org-menu-panel">
+                <div className="org-menu-search">
+                  <IconSearch className="w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Find organization..."
+                    value={orgSearch}
+                    onChange={(event) => setOrgSearch(event.target.value)}
+                  />
+                </div>
+                <div className="org-menu-list">
+                  {orgOptions
+                    .filter((option) =>
+                      option.label.toLowerCase().includes(orgSearch.toLowerCase()),
+                    )
+                    .map((option) => {
+                      const isSelected = option.label === selectedOrg;
+                      return (
+                        <button
+                          key={option.id}
+                          className={`org-menu-item ${isSelected ? "selected" : ""}`}
+                          onClick={() => {
+                            if (option.type === "org") {
+                              setSelectedOrg(option.label);
+                            }
+                            setOrgMenuOpen(false);
+                          }}
+                        >
+                          <span>{option.label}</span>
+                          {isSelected && <IconCheckCircle className="w-4 h-4" />}
+                          {option.type === "action" && !isSelected && (
+                            <IconPlus className="w-4 h-4" />
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
             <span>/</span>
