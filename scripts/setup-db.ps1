@@ -28,10 +28,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Allow overriding via environment variables
-$PgBin = $PgBin -or $env:PG_BIN
-$DataDir = $DataDir -or $env:PGDATA
-$POSTGRES_USER = $env:POSTGRES_USER -or 'postgres'
-$DATABASE_NAME = $env:DATABASE_NAME -or 'felix'
+if (-not $PgBin) { $PgBin = $env:PG_BIN }
+if (-not $DataDir) { $DataDir = $env:PGDATA }
+$POSTGRES_USER = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { 'postgres' }
+$DATABASE_NAME = if ($env:DATABASE_NAME) { $env:DATABASE_NAME } else { 'felix' }
 $MIGRATIONS_DIR = 'app/backend/migrations'
 
 # Resolve psql/pg_ctl paths
@@ -65,13 +65,9 @@ function Resolve-PostgresTools {
     catch { }
 }
 
-$psqlExe = New-Object System.Object
-$psqlExe = [ref] ''
-$pgCtlExe = New-Object System.Object
-$pgCtlExe = [ref] ''
+$psqlExe = ''
+$pgCtlExe = ''
 Resolve-PostgresTools -pgBin $PgBin -psqlExe ([ref]$psqlExe) -pgCtlExe ([ref]$pgCtlExe)
-$psqlExe = $psqlExe.Value
-$pgCtlExe = $pgCtlExe.Value
 
 Write-Host "==> Felix Database Setup" -ForegroundColor Cyan
 Write-Host ""
@@ -90,7 +86,7 @@ try {
         $version = & $psqlExe -d $env:DATABASE_URL -c "SELECT version();" 2>&1
     }
     else {
-        $version = & $psqlExe -U $POSTGRES_USER -c "SELECT version();" 2>&1
+        $version = & $psqlExe -U $POSTGRES_USER -d postgres -c "SELECT version();" 2>&1
     }
     if ($LASTEXITCODE -ne 0) {
         throw "PostgreSQL connection failed"
@@ -123,23 +119,23 @@ if ($Force) {
     }
     
     # Disconnect all clients
-    & $psqlExe -U $POSTGRES_USER -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DATABASE_NAME';" 2>&1 | Out-Null
+    & $psqlExe -U $POSTGRES_USER -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DATABASE_NAME';" 2>&1 | Out-Null
     
     # Drop database
-    & $psqlExe -U $POSTGRES_USER -c "DROP DATABASE IF EXISTS $DATABASE_NAME;" 2>&1 | Out-Null
+    & $psqlExe -U $POSTGRES_USER -d postgres -c "DROP DATABASE IF EXISTS $DATABASE_NAME;" 2>&1 | Out-Null
     Write-Host "[OK] Database dropped" -ForegroundColor Green
 }
 
 # Create database if it doesn't exist
 Write-Host ""
 Write-Host "==> Creating database (if not exists)..." -ForegroundColor Cyan
-$dbExists = & $psqlExe -U $POSTGRES_USER -tAc "SELECT 1 FROM pg_database WHERE datname = '$DATABASE_NAME';" 2>&1
+$dbExists = & $psqlExe -U $POSTGRES_USER -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$DATABASE_NAME';" 2>&1
 
 if ($dbExists -eq "1") {
     Write-Host "[OK] Database '$DATABASE_NAME' already exists" -ForegroundColor Green
 }
 else {
-    & $psqlExe -U $POSTGRES_USER -c "CREATE DATABASE $DATABASE_NAME;" 2>&1 | Out-Null
+    & $psqlExe -U $POSTGRES_USER -d postgres -c "CREATE DATABASE $DATABASE_NAME;" 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-Host "[OK] Database '$DATABASE_NAME' created" -ForegroundColor Green
     }
@@ -160,8 +156,12 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 "@
 
+$ErrorActionPreference = "Continue"
 & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -c $createMigrationsTable 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
+$exitCode = $LASTEXITCODE
+$ErrorActionPreference = "Stop"
+
+if ($exitCode -eq 0) {
     Write-Host "[OK] schema_migrations table ready" -ForegroundColor Green
 }
 else {
@@ -211,10 +211,13 @@ foreach ($file in $migrationFiles) {
     
     Write-Host "  [+] Applying $version..." -ForegroundColor Cyan
     
-    # Run the migration
+    # Run the migration (temporarily allow stderr output from psql)
+    $ErrorActionPreference = "Continue"
     & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -f $file.FullName 2>&1 | Out-Null
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
     
-    if ($LASTEXITCODE -ne 0) {
+    if ($exitCode -ne 0) {
         Write-Host "    ERROR: Migration failed!" -ForegroundColor Red
         exit 1
     }
