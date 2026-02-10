@@ -547,9 +547,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold theme-text-secondary">
-              General Settings
-            </h3>
+            <h3 className="text-lg font-semibold">General Settings</h3>
             <p className="text-xs theme-text-muted mt-1">
               Basic Felix configuration options
             </p>
@@ -694,7 +692,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     return (
       <div className="space-y-6">
         <div className="mb-6">
-          <h3 className="text-lg font-bold theme-text-secondary">Paths</h3>
+          <h3 className="text-lg font-semibold">Paths</h3>
           <p className="text-xs theme-text-muted mt-1">
             File and directory locations (read-only)
           </p>
@@ -778,9 +776,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold theme-text-secondary">
-              Advanced Settings
-            </h3>
+            <h3 className="text-lg font-semibold">Advanced Settings</h3>
             <p className="text-xs theme-text-muted mt-1">
               Developer options and debug settings
             </p>
@@ -916,7 +912,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold theme-text-secondary">Projects</h3>
+            <h3 className="text-lg font-semibold">Projects</h3>
             <p className="text-xs theme-text-muted mt-1">
               Manage registered Felix projects
             </p>
@@ -1532,9 +1528,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold theme-text-secondary">
-              Agent Configurations
-            </h3>
+            <h3 className="text-lg font-semibold">Agent Configurations</h3>
             <p className="text-xs theme-text-muted mt-1">
               Manage saved agent presets from agents.json
             </p>
@@ -2336,9 +2330,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold theme-text-secondary">
-              Felix Copilot
-            </h3>
+            <h3 className="text-lg font-semibold">Felix Copilot</h3>
             <p className="text-xs theme-text-muted mt-1">
               AI-powered spec writing assistant
             </p>
@@ -2942,9 +2934,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {category.icon}
               </div>
               <div className="min-w-0">
-                <span className="block text-sm font-medium">
-                  {category.label}
-                </span>
+                <span className="sidebar-label">{category.label}</span>
                 <span className="block text-[10px] theme-text-muted truncate">
                   {category.description}
                 </span>
