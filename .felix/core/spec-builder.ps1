@@ -12,6 +12,9 @@ function Invoke-SpecBuilder {
         [Parameter(Mandatory = $false)]
         [switch]$QuickMode,
         
+        [Parameter(Mandatory = $false)]
+        [switch]$VerboseMode,
+        
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Config,
         
@@ -116,7 +119,7 @@ I need help creating a specification for requirement ID: $RequirementId
         
         # Call droid
         try {
-            $response = Invoke-Droid -Messages $messages -Config $Config -AgentConfig $AgentConfig -Paths $Paths
+            $response = Invoke-Droid -Messages $messages -Config $Config -AgentConfig $AgentConfig -Paths $Paths -VerboseMode:$VerboseMode
         }
         catch {
             Emit-Error -ErrorType "DroidCallFailed" -Message "Failed to call droid: $_" -Severity "fatal"
@@ -500,7 +503,8 @@ function Invoke-Droid {
         [array]$Messages,
         [PSCustomObject]$Config,
         [PSCustomObject]$AgentConfig,
-        [PSCustomObject]$Paths
+        [PSCustomObject]$Paths,
+        [switch]$VerboseMode
     )
     
     # Format messages for droid - include system message first, then conversation
@@ -524,7 +528,16 @@ function Invoke-Droid {
     
     # Call droid CLI directly (like Invoke-AgentExecution does)
     $executable = $AgentConfig.executable
-    $agentArgs = $AgentConfig.args
+    
+    # Load agent adapter to build args (instead of accessing config.args directly)
+    . "$PSScriptRoot\agent-adapters.ps1"
+    $adapterType = if ($AgentConfig.adapter) { $AgentConfig.adapter } else { "droid" }
+    $adapter = Get-AgentAdapter -AdapterType $adapterType
+    if (-not $adapter) {
+        throw "Failed to load adapter: $adapterType"
+    }
+    $agentArgs = $adapter.BuildArgs($AgentConfig, $VerboseMode.IsPresent)
+    
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
     
     $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
@@ -566,5 +579,39 @@ function Invoke-Droid {
         throw "Droid execution failed with exit code ${LASTEXITCODE}"
     }
     
-    return $output.Trim()
+    # Parse response based on output format
+    # Verbose mode (stream-json): Multiple NDJSON events, look for "completion" event with finalText
+    # Normal mode (json): Single JSON object with "content" field
+    
+    $lines = $output.Trim() -split '\r?\n' | Where-Object { $_.Trim() -ne '' }
+    
+    # Check if this is NDJSON format (multiple JSON objects)
+    if ($lines.Count -gt 1) {
+        try {
+            foreach ($line in $lines) {
+                $event = $line | ConvertFrom-Json -ErrorAction Stop
+                if ($event.type -eq "completion" -and $event.finalText) {
+                    return $event.finalText
+                }
+            }
+            # No completion event found, return raw output
+            return $output.Trim()
+        }
+        catch {
+            return $output.Trim()
+        }
+    }
+    else {
+        # Single JSON object with content field (normal json mode)
+        try {
+            $jsonResponse = $output.Trim() | ConvertFrom-Json
+            if ($jsonResponse.content) {
+                return $jsonResponse.content
+            }
+            return $output.Trim()
+        }
+        catch {
+            return $output.Trim()
+        }
+    }
 }

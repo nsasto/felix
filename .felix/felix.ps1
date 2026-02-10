@@ -1184,14 +1184,16 @@ function Invoke-SpecCreate {
                     -SpecBuildMode:$true `
                     -QuickMode:$true `
                     -RequirementId $nextId `
-                    -InitialPrompt $description
+                    -InitialPrompt $description `
+                    -VerboseMode:$VerboseMode
             }
             else {
                 & "$PSScriptRoot\felix-agent.ps1" `
                     -ProjectPath $RepoRoot `
                     -SpecBuildMode:$true `
                     -RequirementId $nextId `
-                    -InitialPrompt $description
+                    -InitialPrompt $description `
+                    -VerboseMode:$VerboseMode
             }
             
             exit $LASTEXITCODE
