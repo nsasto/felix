@@ -12,6 +12,16 @@ import {
   clearCopilotApiKey,
 } from "../services/felixApi";
 import { IconFelix } from "./Icons";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { Switch } from "./ui/switch";
 import { useTheme, ThemeValue } from "../hooks/ThemeProvider";
 
@@ -553,12 +563,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               Basic Felix configuration options
             </p>
           </div>
-          <button
+          <Button
             onClick={handleResetCategory}
-            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
+            variant="ghost"
+            size="sm"
+            className="text-[10px] font-bold"
           >
             Reset to Defaults
-          </button>
+          </Button>
         </div>
 
         {/* Appearance Section - Theme (Local Only, not saved to backend config) */}
@@ -574,15 +586,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </p>
             </div>
           </div>
-          <select
+          <Select
             value={theme}
-            onChange={(e) => setTheme(e.target.value as ThemeValue)}
-            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
+            onValueChange={(value) => setTheme(value as ThemeValue)}
           >
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-            <option value="system">System (Auto)</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dark">Dark</SelectItem>
+              <SelectItem value="light">Light</SelectItem>
+              <SelectItem value="system">System (Auto)</SelectItem>
+            </SelectContent>
+          </Select>
           <p className="mt-2 text-[11px] theme-text-muted">
             Choose your preferred color theme. "System" automatically follows
             your operating system preference.
@@ -594,7 +610,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <label className="block text-sm font-bold theme-text-secondary mb-2">
             Max Iterations
           </label>
-          <input
+          <Input
             type="number"
             min="1"
             value={config.executor.max_iterations}
@@ -604,14 +620,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 parseInt(e.target.value) || 0,
               )
             }
-            className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+            className={
               validationErrors.max_iterations
-                ? "border-[var(--status-error)]/50 focus:border-[var(--status-error)]"
-                : "border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-            }`}
+                ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                : ""
+            }
           />
           {validationErrors.max_iterations && (
-            <p className="mt-1.5 text-[10px] text-[var(--status-error)]">
+            <p className="mt-1.5 text-[10px] text-[var(--destructive-500)]">
               {validationErrors.max_iterations}
             </p>
           )}
@@ -625,22 +641,28 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <label className="block text-sm font-bold theme-text-secondary mb-2">
             Default Mode
           </label>
-          <select
+          <Select
             value={config.executor.default_mode}
-            onChange={(e) =>
-              handleExecutorChange("default_mode", e.target.value)
+            onValueChange={(value) =>
+              handleExecutorChange("default_mode", value)
             }
-            className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all cursor-pointer ${
-              validationErrors.default_mode
-                ? "border-[var(--status-error)]/50"
-                : "border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-            }`}
           >
-            <option value="planning">Planning</option>
-            <option value="building">Building</option>
-          </select>
+            <SelectTrigger
+              className={
+                validationErrors.default_mode
+                  ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                  : ""
+              }
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="planning">Planning</SelectItem>
+              <SelectItem value="building">Building</SelectItem>
+            </SelectContent>
+          </Select>
           {validationErrors.default_mode && (
-            <p className="mt-1.5 text-[10px] text-[var(--status-error)]">
+            <p className="mt-1.5 text-[10px] text-[var(--destructive-500)]">
               {validationErrors.default_mode}
             </p>
           )}
@@ -661,25 +683,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 complete
               </p>
             </div>
-            <button
-              onClick={() =>
-                handleExecutorChange(
-                  "auto_transition",
-                  !config.executor.auto_transition,
-                )
+            <Switch
+              checked={config.executor.auto_transition}
+              onCheckedChange={(checked) =>
+                handleExecutorChange("auto_transition", checked)
               }
-              className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
-                config.executor.auto_transition
-                  ? "bg-[var(--accent-secondary)]"
-                  : "theme-bg-surface"
-              }`}
-            >
-              <div
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                  config.executor.auto_transition ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
+            />
           </div>
         </div>
       </div>
@@ -741,10 +750,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </div>
 
-        <div className="bg-[var(--status-warning)]/5 border border-[var(--status-warning)]/20 rounded-xl p-4">
-          <div className="flex items-start gap-3">
+        <Alert className="border-[var(--warning-500)]/30 bg-[var(--warning-500)]/10 text-[var(--warning-500)]">
+          <AlertDescription className="flex items-start gap-3 text-[var(--warning-500)]/80">
             <svg
-              className="w-4 h-4 text-[var(--status-warning)] mt-0.5 flex-shrink-0"
+              className="w-4 h-4 mt-0.5 flex-shrink-0"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -756,15 +765,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <p className="text-xs text-[var(--status-warning)]/80">
+            <p className="text-xs">
               Path settings are read-only. Edit{" "}
-              <code className="bg-[var(--status-warning)]/10 px-1 rounded">
+              <code className="bg-[var(--warning-500)]/10 px-1 rounded">
                 felix/config.json
               </code>{" "}
               directly to modify these values.
             </p>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   };
@@ -782,12 +791,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               Developer options and debug settings
             </p>
           </div>
-          <button
+          <Button
             onClick={handleResetCategory}
-            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
+            variant="ghost"
+            size="sm"
+            className="text-[10px] font-bold"
           >
             Reset to Defaults
-          </button>
+          </Button>
         </div>
 
         {/* Backpressure Section */}
@@ -801,25 +812,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 Run lint/test/build commands between agent iterations
               </p>
             </div>
-            <button
-              onClick={() =>
-                handleBackpressureChange(
-                  "enabled",
-                  !config.backpressure.enabled,
-                )
+            <Switch
+              checked={config.backpressure.enabled}
+              onCheckedChange={(checked) =>
+                handleBackpressureChange("enabled", checked)
               }
-              className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
-                config.backpressure.enabled
-                  ? "bg-[var(--accent-secondary)]"
-                  : "theme-bg-surface"
-              }`}
-            >
-              <div
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                  config.backpressure.enabled ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
+            />
           </div>
 
           {config.backpressure.enabled && (
@@ -829,7 +827,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Max Retries
                 </label>
-                <input
+                <Input
                   type="number"
                   min="0"
                   value={(config.backpressure as any).max_retries || 3}
@@ -839,14 +837,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       parseInt(e.target.value) || 0,
                     )
                   }
-                  className={`w-full theme-bg-base border rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
+                  className={
                     validationErrors.max_retries
-                      ? "border-[var(--status-error)]/50 focus:border-[var(--status-error)]"
-                      : "border-[var(--border-muted)] focus:border-[var(--accent-primary)]/50"
-                  }`}
+                      ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                      : ""
+                  }
                 />
                 {validationErrors.max_retries && (
-                  <p className="mt-1 text-[10px] text-[var(--status-error)]">
+                  <p className="mt-1 text-[10px] text-[var(--destructive-500)]">
                     {validationErrors.max_retries}
                   </p>
                 )}
@@ -918,9 +916,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               Manage registered Felix projects
             </p>
           </div>
-          <button
+          <Button
             onClick={() => setShowRegisterForm(true)}
-            className="px-4 py-2 text-xs font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-colors flex items-center gap-2"
+            size="sm"
+            className="uppercase"
           >
             <svg
               className="w-4 h-4"
@@ -936,17 +935,17 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               />
             </svg>
             Register New Project
-          </button>
+          </Button>
         </div>
 
         {/* Search/Filter */}
         <div className="relative">
-          <input
+          <Input
             type="text"
             placeholder="Search projects by name or path..."
             value={projectSearchQuery}
             onChange={(e) => setProjectSearchQuery(e.target.value)}
-            className="w-full theme-bg-elevated border border-[var(--border-default)] rounded-xl px-4 py-3 pl-10 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20 transition-all"
+            className="h-11 pl-10"
           />
           <svg
             className="w-4 h-4 theme-text-muted absolute left-4 top-1/2 -translate-y-1/2"
@@ -970,13 +969,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <h4 className="text-sm font-bold theme-text-secondary">
                 Register New Project
               </h4>
-              <button
+              <Button
                 onClick={() => {
                   setShowRegisterForm(false);
                   setRegisterPath("");
                   setRegisterName("");
                 }}
-                className="theme-text-muted hover:theme-text-secondary transition-colors"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
               >
                 <svg
                   className="w-4 h-4"
@@ -991,19 +992,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
-              </button>
+              </Button>
             </div>
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Project Path *
                 </label>
-                <input
+                <Input
                   type="text"
                   placeholder="C:\path\to\your\project"
                   value={registerPath}
                   onChange={(e) => setRegisterPath(e.target.value)}
-                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                  className="font-mono"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
                   Full path to the project directory (must contain specs/ and
@@ -1016,26 +1017,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Project Name (optional)
                 </label>
-                <input
+                <Input
                   type="text"
                   placeholder="My Project"
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
-                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button
+                <Button
                   onClick={() => {
                     setShowRegisterForm(false);
                     setRegisterPath("");
                     setRegisterName("");
                   }}
-                  className="px-4 py-2 text-xs font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  className="uppercase"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={async () => {
                     if (!registerPath.trim()) return;
                     setIsRegistering(true);
@@ -1060,11 +1062,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     }
                   }}
                   disabled={!registerPath.trim() || isRegistering}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                    registerPath.trim() && !isRegistering
-                      ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
-                      : "theme-bg-surface theme-text-muted cursor-not-allowed"
-                  }`}
+                  size="sm"
+                  className="uppercase"
                 >
                   {isRegistering ? (
                     <>
@@ -1074,7 +1073,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   ) : (
                     "Register Project"
                   )}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -1092,10 +1091,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
         {/* Error State */}
         {projectsError && !projectsLoading && (
-          <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-xl p-4">
-            <div className="flex items-start gap-3">
+          <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+            <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
               <svg
-                className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0"
+                className="w-4 h-4 mt-0.5 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1108,18 +1107,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 />
               </svg>
               <div>
-                <p className="text-xs text-[var(--status-error)]">
-                  {projectsError}
-                </p>
-                <button
+                <p className="text-xs">{projectsError}</p>
+                <Button
                   onClick={fetchProjects}
-                  className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 text-[10px] text-[var(--destructive-500)]"
                 >
                   Try again
-                </button>
+                </Button>
               </div>
-            </div>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Empty State */}
@@ -1194,11 +1193,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         <code className="text-[11px] font-mono theme-text-muted truncate block">
                           {project.path}
                         </code>
-                        <button
+                        <Button
                           onClick={() =>
                             navigator.clipboard.writeText(project.path)
                           }
-                          className="flex-shrink-0 theme-text-muted hover:theme-text-tertiary transition-colors"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
                           title="Copy path"
                         >
                           <svg
@@ -1214,7 +1215,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                             />
                           </svg>
-                        </button>
+                        </Button>
                       </div>
                       <p className="text-[10px] theme-text-muted mt-2">
                         Registered{" "}
@@ -1222,31 +1223,37 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
+                      <Button
                         onClick={() => {
                           // TODO: Open project action - requires callback from parent
                         }}
-                        className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
+                        variant="secondary"
+                        size="sm"
+                        className="text-[10px] font-bold"
                       >
                         Open
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => {
                           setConfiguringProjectId(project.id);
                           setConfigProjectName(project.name || "");
                           setConfigProjectPath(project.path);
                         }}
-                        className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
+                        variant="secondary"
+                        size="sm"
+                        className="text-[10px] font-bold"
                       >
                         Configure
-                      </button>
+                      </Button>
                       {project.id !== projectId && (
-                        <button
+                        <Button
                           onClick={() => setShowUnregisterConfirm(project.id)}
-                          className="px-3 py-1.5 text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] border border-[var(--status-error)]/20 rounded-lg hover:bg-[var(--status-error)]/10 transition-all"
+                          variant="destructive"
+                          size="sm"
+                          className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
                         >
                           Unregister
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -1259,7 +1266,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           <label className="block text-xs font-bold theme-text-tertiary mb-2">
                             Project Name
                           </label>
-                          <input
+                          <Input
                             type="text"
                             value={configProjectName}
                             onChange={(e) =>
@@ -1269,7 +1276,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               project.path.split(/[/\\]/).pop() ||
                               "Project name"
                             }
-                            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
                           />
                           <p className="mt-1.5 text-[10px] theme-text-muted">
                             Display name for this project (leave empty to use
@@ -1280,14 +1286,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           <label className="block text-xs font-bold theme-text-tertiary mb-2">
                             Project Folder
                           </label>
-                          <input
+                          <Input
                             type="text"
                             value={configProjectPath}
                             onChange={(e) =>
                               setConfigProjectPath(e.target.value)
                             }
                             placeholder="C:\path\to\your\project"
-                            className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                            className="font-mono"
                           />
                           <p className="mt-1.5 text-[10px] theme-text-muted">
                             Full path to the project directory (must contain
@@ -1295,17 +1301,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           </p>
                         </div>
                         <div className="flex justify-end gap-3">
-                          <button
+                          <Button
                             onClick={() => {
                               setConfiguringProjectId(null);
                               setConfigProjectName("");
                               setConfigProjectPath("");
                             }}
-                            className="px-4 py-2 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                            variant="ghost"
+                            size="sm"
+                            className="uppercase"
                           >
                             Cancel
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={async () => {
                               setIsSavingConfig(true);
                               try {
@@ -1336,11 +1344,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               }
                             }}
                             disabled={isSavingConfig}
-                            className={`px-4 py-2 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
-                              !isSavingConfig
-                                ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
-                                : "theme-bg-surface theme-text-muted cursor-not-allowed"
-                            }`}
+                            size="sm"
+                            className="uppercase"
                           >
                             {isSavingConfig ? (
                               <>
@@ -1350,7 +1355,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                             ) : (
                               "Save"
                             )}
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -1365,13 +1370,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           disk.
                         </p>
                         <div className="flex items-center gap-2">
-                          <button
+                          <Button
                             onClick={() => setShowUnregisterConfirm(null)}
-                            className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] font-bold"
                           >
                             Cancel
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={async () => {
                               setUnregisteringId(project.id);
                               try {
@@ -1392,7 +1399,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               }
                             }}
                             disabled={unregisteringId === project.id}
-                            className="px-3 py-1.5 text-[10px] font-bold bg-[var(--status-error)]/20 text-[var(--status-error)] rounded-lg hover:bg-[var(--status-error)]/30 transition-all flex items-center gap-2"
+                            variant="destructive"
+                            size="sm"
+                            className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
                           >
                             {unregisteringId === project.id ? (
                               <>
@@ -1402,7 +1411,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                             ) : (
                               "Confirm Unregister"
                             )}
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -1537,13 +1546,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Button
               onClick={() => {
                 fetchAgentConfigurations();
                 fetchAgents();
               }}
               disabled={agentConfigsLoading || agentsLoading}
-              className="px-4 py-2 text-xs font-bold theme-text-tertiary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-colors flex items-center gap-2"
+              variant="secondary"
+              size="sm"
+              className="text-xs font-bold"
             >
               <svg
                 className={`w-4 h-4 ${agentConfigsLoading || agentsLoading ? "animate-spin" : ""}`}
@@ -1561,11 +1572,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {agentConfigsLoading || agentsLoading
                 ? "Refreshing..."
                 : "Refresh"}
-            </button>
-            <button
-              onClick={openAddAgentForm}
-              className="px-4 py-2 text-xs font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-colors flex items-center gap-2"
-            >
+            </Button>
+            <Button onClick={openAddAgentForm} size="sm" className="uppercase">
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -1580,7 +1588,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 />
               </svg>
               Add Agent
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1591,9 +1599,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <h4 className="text-sm font-bold theme-text-secondary">
                 {editingAgentId !== null ? "Edit Agent" : "Add New Agent"}
               </h4>
-              <button
+              <Button
                 onClick={resetAgentForm}
-                className="theme-text-muted hover:theme-text-secondary transition-colors"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
               >
                 <svg
                   className="w-4 h-4"
@@ -1608,16 +1618,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
-              </button>
+              </Button>
             </div>
 
             {/* Form Error */}
             {agentFormError && (
-              <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-3 mb-4">
-                <p className="text-xs text-[var(--status-error)]">
+              <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+                <AlertDescription className="text-[var(--destructive-500)]">
                   {agentFormError}
-                </p>
-              </div>
+                </AlertDescription>
+              </Alert>
             )}
 
             <div className="space-y-4">
@@ -1626,12 +1636,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Agent Name *
                 </label>
-                <input
+                <Input
                   type="text"
                   placeholder="my-agent"
                   value={agentFormName}
                   onChange={(e) => setAgentFormName(e.target.value)}
-                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none focus:border-[var(--accent-primary)]/50 transition-all"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
                   A unique name for this agent configuration
@@ -1643,12 +1652,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Executable Path *
                 </label>
-                <input
+                <Input
                   type="text"
                   placeholder="droid"
                   value={agentFormExecutable}
                   onChange={(e) => setAgentFormExecutable(e.target.value)}
-                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                  className="font-mono"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
                   Path to the agent executable (e.g., droid, python, npx)
@@ -1660,12 +1669,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Arguments
                 </label>
-                <input
+                <Input
                   type="text"
                   placeholder="exec --no-interactive"
                   value={agentFormArgs}
                   onChange={(e) => setAgentFormArgs(e.target.value)}
-                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                  className="font-mono"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
                   Command-line arguments passed to the executable
@@ -1678,12 +1687,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Working Directory
                 </label>
-                <input
+                <Input
                   type="text"
                   placeholder="."
                   value={agentFormWorkingDir}
                   onChange={(e) => setAgentFormWorkingDir(e.target.value)}
-                  className="w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none focus:border-[var(--accent-primary)]/50 transition-all"
+                  className="font-mono"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
                   Working directory for agent execution (use "." for project
@@ -1693,26 +1702,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
               {/* Form Actions */}
               <div className="flex justify-end gap-3 pt-2">
-                <button
+                <Button
                   onClick={resetAgentForm}
-                  className="px-4 py-2 text-xs font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  className="uppercase"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleAgentFormSave}
                   disabled={
                     agentFormSaving ||
                     !agentFormName.trim() ||
                     !agentFormExecutable.trim()
                   }
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                    agentFormName.trim() &&
-                    agentFormExecutable.trim() &&
-                    !agentFormSaving
-                      ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
-                      : "theme-bg-surface theme-text-muted cursor-not-allowed"
-                  }`}
+                  size="sm"
+                  className="uppercase"
                 >
                   {agentFormSaving ? (
                     <>
@@ -1724,7 +1730,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   ) : (
                     "Create Agent"
                   )}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -1738,10 +1744,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {/* Error State */}
           {agentConfigsError && (
-            <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-4 mb-4">
-              <div className="flex items-start gap-3">
+            <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+              <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
                 <svg
-                  className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0"
+                  className="w-4 h-4 mt-0.5 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1754,18 +1760,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-[var(--status-error)]">
-                    {agentConfigsError}
-                  </p>
-                  <button
+                  <p className="text-xs">{agentConfigsError}</p>
+                  <Button
                     onClick={fetchAgentConfigurations}
-                    className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-[10px] text-[var(--destructive-500)]"
                   >
                     Try again
-                  </button>
+                  </Button>
                 </div>
-              </div>
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Loading State */}
@@ -1875,10 +1881,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {!isActive && (
-                            <button
+                            <Button
                               onClick={() => handleSetActiveAgent(agent.id)}
                               disabled={settingActiveAgent === agent.id}
-                              className="px-3 py-1.5 text-[10px] font-bold bg-[var(--accent-secondary)] text-white rounded-lg hover:bg-[var(--accent-primary)] transition-all flex items-center gap-1"
+                              size="sm"
+                              className="text-[10px] font-bold uppercase"
                             >
                               {settingActiveAgent === agent.id ? (
                                 <>
@@ -1888,29 +1895,35 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               ) : (
                                 "Set Active"
                               )}
-                            </button>
+                            </Button>
                           )}
-                          <button
+                          <Button
                             onClick={() => openEditAgentForm(agent)}
-                            className="px-3 py-1.5 text-[10px] font-bold theme-text-tertiary hover:theme-text-secondary border border-[var(--border-muted)] rounded-lg hover:bg-[var(--hover-bg)] transition-all"
+                            variant="secondary"
+                            size="sm"
+                            className="text-[10px] font-bold"
                           >
                             Edit
-                          </button>
+                          </Button>
                           {isSystemDefault ? (
-                            <button
+                            <Button
                               disabled
-                              className="px-3 py-1.5 text-[10px] font-bold theme-text-muted border border-[var(--border-muted)] rounded-lg cursor-not-allowed opacity-50"
+                              variant="secondary"
+                              size="sm"
+                              className="text-[10px] font-bold"
                               title="System default cannot be deleted"
                             >
                               Delete
-                            </button>
+                            </Button>
                           ) : (
-                            <button
+                            <Button
                               onClick={() => setShowDeleteConfirm(agent.id)}
-                              className="px-3 py-1.5 text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] border border-[var(--status-error)]/20 rounded-lg hover:bg-[var(--status-error)]/10 transition-all"
+                              variant="destructive"
+                              size="sm"
+                              className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
                             >
                               Delete
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -1924,16 +1937,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               undone.
                             </p>
                             <div className="flex items-center gap-2">
-                              <button
+                              <Button
                                 onClick={() => setShowDeleteConfirm(null)}
-                                className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                                variant="ghost"
+                                size="sm"
+                                className="text-[10px] font-bold"
                               >
                                 Cancel
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 onClick={() => handleDeleteAgent(agent.id)}
                                 disabled={deletingAgentId === agent.id}
-                                className="px-3 py-1.5 text-[10px] font-bold bg-[var(--status-error)]/20 text-[var(--status-error)] rounded-lg hover:bg-[var(--status-error)]/30 transition-all flex items-center gap-2"
+                                variant="destructive"
+                                size="sm"
+                                className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
                               >
                                 {deletingAgentId === agent.id ? (
                                   <>
@@ -1943,7 +1960,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                                 ) : (
                                   "Confirm Delete"
                                 )}
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -1963,10 +1980,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {/* Error State */}
           {agentsError && (
-            <div className="bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 rounded-lg p-4 mb-4">
-              <div className="flex items-start gap-3">
+            <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+              <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
                 <svg
-                  className="w-4 h-4 text-[var(--status-error)] mt-0.5 flex-shrink-0"
+                  className="w-4 h-4 mt-0.5 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1979,18 +1996,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-[var(--status-error)]">
-                    {agentsError}
-                  </p>
-                  <button
+                  <p className="text-xs">{agentsError}</p>
+                  <Button
                     onClick={fetchAgents}
-                    className="text-[10px] text-[var(--status-error)]/70 hover:text-[var(--status-error)] mt-2 underline"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-[10px] text-[var(--destructive-500)]"
                   >
                     Try again
-                  </button>
+                  </Button>
                 </div>
-              </div>
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Loading State */}
@@ -2338,12 +2355,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               AI-powered spec writing assistant
             </p>
           </div>
-          <button
+          <Button
             onClick={handleResetCopilot}
-            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)]"
+            variant="ghost"
+            size="sm"
+            className="text-[10px] font-bold"
           >
             Reset to Defaults
-          </button>
+          </Button>
         </div>
 
         {/* Enable/Disable Toggle */}
@@ -2357,18 +2376,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 Turn on AI-powered assistance for spec writing
               </p>
             </div>
-            <button
-              onClick={() => handleCopilotChange("enabled", !isEnabled)}
-              className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
-                isEnabled ? "bg-[var(--accent-secondary)]" : "theme-bg-surface"
-              }`}
-            >
-              <div
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                  isEnabled ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
+            <Switch
+              checked={isEnabled}
+              onCheckedChange={(checked) =>
+                handleCopilotChange("enabled", checked)
+              }
+            />
           </div>
         </div>
 
@@ -2379,20 +2392,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <label className="block text-sm font-bold theme-text-secondary mb-2">
             Provider
           </label>
-          <select
+          <Select
             value={provider}
-            onChange={(e) => handleCopilotChange("provider", e.target.value)}
+            onValueChange={(value) => handleCopilotChange("provider", value)}
             disabled={!isEnabled}
-            className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
-              isEnabled
-                ? "cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-                : "cursor-not-allowed"
-            }`}
           >
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="custom">Custom</option>
-          </select>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openai">OpenAI</SelectItem>
+              <SelectItem value="anthropic">Anthropic</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
           <p className="mt-2 text-[11px] theme-text-muted">
             Choose your LLM provider. Felix uses your API key from .env file.
           </p>
@@ -2455,31 +2468,33 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {/* API Key Status */}
           {copilotApiKeyHasValue && (
-            <div className="flex items-center gap-2 mb-4 p-3 bg-[var(--status-success)]/10 border border-[var(--status-success)]/20 rounded-lg">
-              <svg
-                className="w-4 h-4 text-[var(--status-success)]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-              <span className="text-xs text-[var(--status-success)]">
-                API key configured
-              </span>
-              <button
-                onClick={handleClearCopilotApiKey}
-                disabled={!isEnabled}
-                className={`ml-auto text-[10px] font-bold text-[var(--status-error)]/70 hover:text-[var(--status-error)] transition-colors ${!isEnabled ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Clear
-              </button>
-            </div>
+            <Alert className="mb-4 border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]">
+              <AlertDescription className="flex items-center gap-2 text-[var(--brand-500)]">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span className="text-xs">API key configured</span>
+                <Button
+                  onClick={handleClearCopilotApiKey}
+                  disabled={!isEnabled}
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-[10px] text-[var(--destructive-500)]"
+                >
+                  Clear
+                </Button>
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* API Key Input */}
@@ -2489,7 +2504,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {copilotApiKeyHasValue ? "Update API Key" : "Enter API Key"}
               </label>
               <div className="flex gap-2">
-                <input
+                <Input
                   type="password"
                   value={copilotApiKeyInput}
                   onChange={(e) => setCopilotApiKeyInput(e.target.value)}
@@ -2497,26 +2512,17 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   placeholder={
                     copilotApiKeyHasValue ? "••••••••••••••••" : "sk-proj-..."
                   }
-                  className={`flex-1 theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all ${
-                    isEnabled
-                      ? "focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-                      : "cursor-not-allowed opacity-50"
-                  }`}
+                  className="flex-1 font-mono"
                 />
-                <button
+                <Button
                   onClick={handleSaveCopilotApiKey}
                   disabled={
                     !isEnabled ||
                     !copilotApiKeyInput.trim() ||
                     copilotApiKeySaving
                   }
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                    isEnabled &&
-                    copilotApiKeyInput.trim() &&
-                    !copilotApiKeySaving
-                      ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
-                      : "theme-bg-surface theme-text-muted cursor-not-allowed"
-                  }`}
+                  size="sm"
+                  className="uppercase"
                 >
                   {copilotApiKeySaving ? (
                     <>
@@ -2526,7 +2532,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   ) : (
                     "Save"
                   )}
-                </button>
+                </Button>
               </div>
               <p className="mt-1.5 text-[10px] theme-text-muted">
                 Your API key is stored in your browser's localStorage (not sent
@@ -2536,7 +2542,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
             {/* Save Confirmation */}
             {copilotApiKeySaved && (
-              <div className="flex items-center gap-2 text-xs text-[var(--status-success)]">
+              <div className="flex items-center gap-2 text-xs text-[var(--brand-500)]">
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -2557,16 +2563,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {/* Test Connection Button */}
           <div className="flex items-center gap-3 mb-4">
-            <button
+            <Button
               onClick={handleTestCopilotConnection}
               disabled={
                 !isEnabled || copilotTestLoading || !copilotApiKeyHasValue
               }
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                isEnabled && !copilotTestLoading && copilotApiKeyHasValue
-                  ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
-                  : "theme-bg-surface theme-text-muted cursor-not-allowed"
-              }`}
+              size="sm"
+              className="uppercase"
             >
               {copilotTestLoading ? (
                 <>
@@ -2576,7 +2579,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               ) : (
                 "Test Connection"
               )}
-            </button>
+            </Button>
 
             {copilotTestResult && (
               <div
@@ -2610,35 +2613,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             Model
           </label>
           {provider === "custom" ? (
-            <input
+            <Input
               type="text"
               value={copilotConfig.model}
               onChange={(e) => handleCopilotChange("model", e.target.value)}
               disabled={!isEnabled}
               placeholder="Enter model name"
-              className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary font-mono outline-none transition-all ${
-                isEnabled
-                  ? "focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-                  : "cursor-not-allowed"
-              }`}
+              className="font-mono"
             />
           ) : (
-            <select
+            <Select
               value={copilotConfig.model}
-              onChange={(e) => handleCopilotChange("model", e.target.value)}
+              onValueChange={(value) => handleCopilotChange("model", value)}
               disabled={!isEnabled}
-              className={`w-full theme-bg-base border border-[var(--border-muted)] rounded-lg px-4 py-2.5 text-sm theme-text-secondary outline-none transition-all ${
-                isEnabled
-                  ? "cursor-pointer focus:border-[var(--accent-primary)]/50 focus:ring-1 focus:ring-[var(--accent-primary)]/20"
-                  : "cursor-not-allowed"
-              }`}
             >
-              {modelOptions[provider]?.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {modelOptions[provider]?.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           <p className="mt-2 text-[11px] theme-text-muted">
             Model used for spec generation and conversations
@@ -2756,10 +2755,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
         {/* Warning when enabled but no API key in localStorage */}
         {isEnabled && !copilotApiKeyHasValue && (
-          <div className="bg-[var(--status-warning)]/5 border border-[var(--status-warning)]/20 rounded-xl p-4">
-            <div className="flex items-start gap-3">
+          <Alert className="border-[var(--warning-500)]/30 bg-[var(--warning-500)]/10 text-[var(--warning-500)]">
+            <AlertDescription className="flex items-start gap-3 text-[var(--warning-500)]/80">
               <svg
-                className="w-4 h-4 text-[var(--status-warning)] mt-0.5 flex-shrink-0"
+                className="w-4 h-4 mt-0.5 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -2771,7 +2770,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                 />
               </svg>
-              <p className="text-xs text-[var(--status-warning)]/80">
+              <p className="text-xs">
                 Copilot is enabled but no API key is configured. Enter your{" "}
                 {provider === "openai"
                   ? "OpenAI"
@@ -2780,8 +2779,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     : ""}{" "}
                 API key above to use copilot features.
               </p>
-            </div>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
       </div>
     );
@@ -2845,12 +2844,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             Failed to Load Settings
           </h3>
           <p className="text-xs theme-text-muted max-w-md mb-4">{error}</p>
-          <button
+          <Button
             onClick={onBack}
-            className="px-4 py-2 text-xs font-bold text-[var(--accent-primary)] border border-[var(--accent-primary)]/20 rounded-lg hover:bg-[var(--accent-primary)]/10 transition-colors"
+            variant="secondary"
+            size="sm"
+            className="text-[var(--accent-primary)] border-[var(--accent-primary)]/20 hover:bg-[var(--accent-primary)]/10"
           >
             ← Back to Projects
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -2859,15 +2860,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   return (
     <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Left Sidebar - Categories Navigation */}
-      <div
-        className="w-64 border-r border-[var(--border-default)] flex flex-col theme-bg-deep flex-shrink-0"
-        style={{ backgroundColor: "var(--bg-deep)" }}
-      >
+      <div className="w-64 border-r border-[var(--border-default)] flex flex-col theme-bg-deep flex-shrink-0 bg-[var(--bg-deep)]">
         {/* Sidebar Header */}
         <div className="h-14 border-b border-[var(--border-default)] flex items-center px-5">
-          <button
+          <Button
             onClick={onBack}
-            className="p-1.5 hover:bg-[var(--hover-bg)] rounded-lg transition-all theme-text-muted hover:theme-text-secondary mr-3"
+            variant="ghost"
+            size="icon"
+            className="mr-3 h-8 w-8"
             title="Back to Projects"
           >
             <svg
@@ -2883,7 +2883,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 d="M15 19l-7-7 7-7"
               />
             </svg>
-          </button>
+          </Button>
           <span className="text-xs font-bold theme-text-tertiary uppercase tracking-widest">
             Settings
           </span>
@@ -2892,10 +2892,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Categories List */}
         <div className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
           {CATEGORIES.map((category) => (
-            <button
+            <Button
               key={category.id}
               onClick={() => setActiveCategory(category.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
+              variant="ghost"
+              size="sm"
+              className={`w-full justify-start gap-3 px-4 py-3 rounded-xl text-left ${
                 activeCategory === category.id
                   ? "bg-[var(--selected-bg)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/20"
                   : "theme-text-tertiary hover:theme-text-secondary hover:bg-[var(--hover-bg)] border border-transparent"
@@ -2912,7 +2914,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   {category.description}
                 </span>
               </div>
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -2928,10 +2930,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       {/* Right Panel - Settings Content */}
       <div className="flex-1 flex flex-col min-w-0 theme-bg-base">
         {/* Top Bar with Save Controls */}
-        <div
-          className="h-14 border-b border-[var(--border-default)] flex items-center px-6 justify-between backdrop-blur flex-shrink-0"
-          style={{ backgroundColor: "var(--bg-base)", opacity: 0.95 }}
-        >
+        <div className="h-14 border-b border-[var(--border-default)] flex items-center px-6 justify-between backdrop-blur flex-shrink-0 bg-[var(--bg-base)]/95">
           <div className="flex items-center gap-3">
             {hasChanges && (
               <div className="flex items-center gap-2 text-[10px] text-[var(--status-warning)]">
@@ -2943,25 +2942,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           <div className="flex items-center gap-3">
             {hasChanges && (
-              <button
+              <Button
                 onClick={handleReset}
-                className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+                variant="ghost"
+                size="sm"
+                className="text-[10px] font-bold"
               >
                 Discard
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               onClick={handleSave}
               disabled={
                 saving ||
                 !hasChanges ||
                 Object.keys(validationErrors).length > 0
               }
-              className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
-                hasChanges && Object.keys(validationErrors).length === 0
-                  ? "bg-[var(--accent-secondary)] text-white hover:bg-[var(--accent-primary)]"
-                  : "theme-bg-surface theme-text-muted cursor-not-allowed"
-              }`}
+              size="sm"
+              className="text-[10px] font-bold uppercase"
             >
               {saving ? (
                 <>
@@ -2971,7 +2969,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               ) : (
                 "Save Changes"
               )}
-            </button>
+            </Button>
           </div>
         </div>
 

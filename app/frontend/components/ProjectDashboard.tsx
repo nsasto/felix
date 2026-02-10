@@ -8,6 +8,12 @@ import {
   AgentConfiguration,
 } from "../services/felixApi";
 import { IconKanban, IconFileText, IconTerminal, IconPulse } from "./Icons";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 interface ProjectDashboardProps {
   projectId: string;
@@ -170,33 +176,32 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   }, [requirements]);
 
   const statusSegments = [
-    { key: "draft", label: "Draft", color: "bg-slate-600/60" },
-    { key: "planned", label: "Planned", color: "bg-slate-500/80" },
-    { key: "in_progress", label: "In Progress", color: "bg-brand-500" },
-    { key: "blocked", label: "Blocked", color: "bg-amber-500" },
-    { key: "done", label: "Done", color: "bg-emerald-500" },
-    { key: "other", label: "Other", color: "bg-fuchsia-500/60" },
+    { key: "draft", label: "Draft", color: "bg-[var(--border-muted)]" },
+    { key: "planned", label: "Planned", color: "bg-[var(--brand-500)]/40" },
+    {
+      key: "in_progress",
+      label: "In Progress",
+      color: "bg-[var(--brand-500)]",
+    },
+    { key: "blocked", label: "Blocked", color: "bg-[var(--warning-500)]" },
+    { key: "done", label: "Done", color: "bg-[var(--brand-500)]/80" },
+    { key: "other", label: "Other", color: "bg-[var(--destructive-500)]/40" },
   ];
-
-  const getSegmentWidth = (value: number) => {
-    if (!totalRequirements) return "0%";
-    return `${Math.max(2, Math.round((value / totalRequirements) * 100))}%`;
-  };
 
   const agentStatusColor = (status: DashboardAgent["status"]) => {
     switch (status) {
       case "active":
-        return "bg-emerald-500";
+        return "bg-[var(--brand-500)]";
       case "stale":
-        return "bg-amber-500";
+        return "bg-[var(--warning-500)]";
       case "stopped":
-        return "bg-red-500";
+        return "bg-[var(--destructive-500)]";
       case "inactive":
-        return "bg-slate-500";
+        return "bg-[var(--text-muted)]";
       case "not-started":
-        return "bg-slate-700";
+        return "bg-[var(--border-muted)]";
       default:
-        return "bg-slate-600";
+        return "bg-[var(--text-muted)]";
     }
   };
 
@@ -291,152 +296,93 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   };
 
   return (
-    <div
-      className="flex-1 overflow-y-auto custom-scrollbar"
-      style={{
-        backgroundColor: "var(--bg-base)",
-      }}
-    >
+    <div className="flex-1 overflow-y-auto custom-scrollbar theme-bg-base">
       <div className="w-full px-6 py-6 space-y-8">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1
-                className="text-2xl font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
+              <h1 className="text-2xl font-semibold theme-text-secondary">
                 {project.name || project.path.split(/[\\/]/).pop()}
               </h1>
-              <span
-                className="text-[10px] font-bold uppercase tracking-[0.2em] px-2 py-1 rounded-full border"
-                style={{
-                  borderColor: "var(--border-muted)",
-                  color: "var(--text-muted)",
-                }}
-              >
+              <Badge className="text-[10px] uppercase tracking-[0.2em]">
                 {project.status || "active"}
-              </span>
+              </Badge>
             </div>
-            <p
-              className="text-xs font-mono mt-1"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <p className="text-xs font-mono mt-1 theme-text-muted">
               {project.path}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <Button
               onClick={() => onNavigate("kanban")}
-              className="px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] border flex items-center gap-2 transition-colors"
-              style={{
-                borderColor: "var(--border-default)",
-                backgroundColor: "var(--bg-surface)",
-                color: "var(--text-secondary)",
-              }}
+              variant="secondary"
+              size="sm"
+              className="uppercase tracking-[0.2em] text-[10px]"
             >
               <IconKanban className="w-3.5 h-3.5" />
               Requirements
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => onNavigate("assets")}
-              className="px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] border flex items-center gap-2 transition-colors"
-              style={{
-                borderColor: "var(--border-default)",
-                backgroundColor: "var(--bg-surface)",
-                color: "var(--text-secondary)",
-              }}
+              variant="secondary"
+              size="sm"
+              className="uppercase tracking-[0.2em] text-[10px]"
             >
               <IconFileText className="w-3.5 h-3.5" />
               Specs
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => onNavigate("orchestration")}
-              className="px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] border flex items-center gap-2 transition-colors"
-              style={{
-                borderColor: "var(--border-default)",
-                backgroundColor: "var(--bg-surface)",
-                color: "var(--text-secondary)",
-              }}
+              variant="secondary"
+              size="sm"
+              className="uppercase tracking-[0.2em] text-[10px]"
             >
               <IconTerminal className="w-3.5 h-3.5" />
               Orchestration
-            </button>
+            </Button>
           </div>
         </div>
 
         {error && (
-          <div
-            className="px-4 py-3 rounded-xl border text-xs"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            {error}
-          </div>
+          <Alert className="border-[var(--border-default)] bg-[var(--bg-surface-100)]">
+            <AlertDescription className="text-xs theme-text-secondary">
+              {error}
+            </AlertDescription>
+          </Alert>
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div
-            className="xl:col-span-2 rounded-2xl border p-6"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
+          <Card className="xl:col-span-2 rounded-2xl p-6">
             <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
               <div>
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.2em]"
-                  style={{ color: "var(--text-muted)" }}
-                >
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] theme-text-muted">
                   Workflow Saturation
                 </span>
-                <p
-                  className="text-xl font-semibold mt-2"
-                  style={{ color: "var(--text-primary)" }}
-                >
+                <p className="text-xl font-semibold mt-2 theme-text-secondary">
                   {totalRequirements || "No"} active requirements
                 </p>
               </div>
               <div className="text-right">
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.2em]"
-                  style={{ color: "var(--text-muted)" }}
-                >
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] theme-text-muted">
                   Completion
                 </span>
-                <div
-                  className="text-xl font-semibold"
-                  style={{ color: "var(--text-primary)" }}
-                >
+                <div className="text-xl font-semibold theme-text-secondary">
                   {completionRate}%
                 </div>
               </div>
             </div>
-            <div
-              className="flex w-full h-3 rounded-full overflow-hidden"
-              style={{ backgroundColor: "var(--bg-base)" }}
+            <progress
+              className="w-full h-3 overflow-hidden rounded-full bg-[var(--bg-base)] [&::-webkit-progress-bar]:bg-[var(--bg-base)] [&::-webkit-progress-value]:bg-[var(--brand-500)] [&::-moz-progress-bar]:bg-[var(--brand-500)]"
+              value={completionRate}
+              max={100}
             >
-              {statusSegments.map((segment) => (
-                <div
-                  key={segment.key}
-                  className={`${segment.color} h-full`}
-                  style={{
-                    width: getSegmentWidth(
-                      statusCounts[segment.key as keyof typeof statusCounts],
-                    ),
-                  }}
-                />
-              ))}
-            </div>
+              {completionRate}%
+            </progress>
             <div className="flex flex-wrap justify-between gap-2 mt-4 text-[10px] font-mono">
               {statusSegments.map((segment) => (
                 <div
                   key={segment.key}
-                  className="flex items-center gap-2"
-                  style={{ color: "var(--text-muted)" }}
+                  className="flex items-center gap-2 theme-text-muted"
                 >
                   <span className={`w-2 h-2 rounded-full ${segment.color}`} />
                   {segment.label} (
@@ -444,149 +390,101 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div
-            className="rounded-2xl border p-6 flex flex-col justify-between"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
+          <Card className="rounded-2xl p-6 flex flex-col justify-between">
             <div>
-              <span
-                className="text-[10px] font-bold uppercase tracking-[0.2em]"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] theme-text-muted">
                 Context Coverage
               </span>
               <div className="mt-6 space-y-3">
                 <div className="flex items-center justify-between text-xs">
-                  <span style={{ color: "var(--text-secondary)" }}>
+                  <span className="theme-text-secondary">
                     Specs, Plan, Requirements
                   </span>
-                  <span
-                    className="font-mono"
-                    style={{ color: "var(--text-primary)" }}
-                  >
+                  <span className="font-mono theme-text-secondary">
                     {coverageScore}%
                   </span>
                 </div>
-                <div
-                  className="h-2 rounded-full overflow-hidden"
-                  style={{ backgroundColor: "var(--bg-base)" }}
+                <progress
+                  className="w-full h-2 overflow-hidden rounded-full bg-[var(--bg-base)] [&::-webkit-progress-bar]:bg-[var(--bg-base)] [&::-webkit-progress-value]:bg-[var(--brand-500)] [&::-moz-progress-bar]:bg-[var(--brand-500)]"
+                  value={coverageScore}
+                  max={100}
                 >
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${coverageScore}%`,
-                      backgroundColor: "var(--accent-primary)",
-                    }}
-                  />
-                </div>
+                  {coverageScore}%
+                </progress>
               </div>
             </div>
-            <div
-              className="pt-6 border-t"
-              style={{ borderColor: "var(--border-muted)" }}
-            >
+            <div className="pt-6 border-t border-[var(--border-muted)]">
               <div className="flex items-center justify-between text-xs">
-                <span style={{ color: "var(--text-muted)" }}>Specs</span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span className="theme-text-muted">Specs</span>
+                <span className="theme-text-secondary">
                   {project.spec_count} files
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs mt-2">
-                <span style={{ color: "var(--text-muted)" }}>Plan</span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span className="theme-text-muted">Plan</span>
+                <span className="theme-text-secondary">
                   {project.has_plan ? "Available" : "Missing"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs mt-2">
-                <span style={{ color: "var(--text-muted)" }}>Requirements</span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span className="theme-text-muted">Requirements</span>
+                <span className="theme-text-secondary">
                   {project.has_requirements ? "Mapped" : "Empty"}
                 </span>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div
-            className="rounded-2xl border p-6"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
+          <Card className="rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <span
-                className="text-[10px] font-bold uppercase tracking-[0.2em]"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] theme-text-muted">
                 Project Pulse
               </span>
-              <IconPulse
-                className="w-4 h-4"
-                style={{ color: "var(--text-muted)" }}
-              />
+              <IconPulse className="w-4 h-4 theme-text-muted" />
             </div>
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between">
-                <span style={{ color: "var(--text-muted)" }}>Last run</span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span className="theme-text-muted">Last run</span>
+                <span className="theme-text-secondary">
                   {recentRuns[0]
                     ? formatDateTime(recentRuns[0].started_at)
                     : "--"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span style={{ color: "var(--text-muted)" }}>Runs tracked</span>
-                <span style={{ color: "var(--text-secondary)" }}>
-                  {runs.length}
-                </span>
+                <span className="theme-text-muted">Runs tracked</span>
+                <span className="theme-text-secondary">{runs.length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span style={{ color: "var(--text-muted)" }}>
-                  Active agents
-                </span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span className="theme-text-muted">Active agents</span>
+                <span className="theme-text-secondary">
                   {agentMetrics.active}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span style={{ color: "var(--text-muted)" }}>Stale agents</span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span className="theme-text-muted">Stale agents</span>
+                <span className="theme-text-secondary">
                   {agentMetrics.stale}
                 </span>
               </div>
             </div>
-          </div>
+          </Card>
 
-          <div
-            className="rounded-2xl border p-6"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
+          <Card className="rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <span
-                className="text-[10px] font-bold uppercase tracking-[0.2em]"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] theme-text-muted">
                 Recent Runs
               </span>
-              <span
-                className="text-[10px] font-bold"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              <span className="text-[10px] font-bold theme-text-secondary">
                 {loading ? "Syncing" : `${runs.length} total`}
               </span>
             </div>
             {recentRuns.length === 0 && !loading && (
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              <div className="text-xs theme-text-muted">
                 No run history yet.
               </div>
             )}
@@ -597,57 +495,40 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                   className="flex items-center justify-between text-xs"
                 >
                   <div className="flex flex-col">
-                    <span style={{ color: "var(--text-secondary)" }}>
+                    <span className="theme-text-secondary">
                       {run.requirement_id || "General"}
                     </span>
-                    <span
-                      className="text-[10px] font-mono"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <span className="text-[10px] font-mono theme-text-muted">
                       {formatDateTime(run.started_at)}
                     </span>
                   </div>
                   <span
-                    className="text-[10px] font-bold uppercase"
-                    style={{
-                      color:
-                        run.status === "completed"
-                          ? "var(--accent-primary)"
-                          : run.status === "failed"
-                            ? "#f97316"
-                            : "var(--text-muted)",
-                    }}
+                    className={`text-[10px] font-bold uppercase ${
+                      run.status === "completed"
+                        ? "text-[var(--brand-500)]"
+                        : run.status === "failed"
+                          ? "text-[var(--destructive-500)]"
+                          : "theme-text-muted"
+                    }`}
                   >
                     {run.status}
                   </span>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div
-            className="rounded-2xl border p-6"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
+          <Card className="rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <span
-                className="text-[10px] font-bold uppercase tracking-[0.2em]"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] theme-text-muted">
                 Requirements Queue
               </span>
-              <span
-                className="text-[10px] font-bold"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              <span className="text-[10px] font-bold theme-text-secondary">
                 {loading ? "--" : `${totalRequirements} total`}
               </span>
             </div>
             {requirementsPreview.length === 0 && !loading && (
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              <div className="text-xs theme-text-muted">
                 No requirements found.
               </div>
             )}
@@ -655,51 +536,32 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               {requirementsPreview.map((req) => (
                 <div key={req.id} className="flex items-center justify-between">
                   <div>
-                    <div
-                      className="text-xs"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
+                    <div className="text-xs theme-text-secondary">
                       {req.title}
                     </div>
-                    <div
-                      className="text-[10px] font-mono"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <div className="text-[10px] font-mono theme-text-muted">
                       {req.id}
                     </div>
                   </div>
-                  <span
-                    className="text-[9px] font-bold uppercase px-2 py-1 rounded-full"
-                    style={{
-                      backgroundColor: "var(--bg-base)",
-                      color: "var(--text-muted)",
-                      border: "1px solid var(--border-muted)",
-                    }}
-                  >
+                  <Badge className="text-[9px] uppercase px-2 py-1">
                     {req.status.replace(/_/g, " ")}
-                  </span>
+                  </Badge>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
 
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <span
-              className="text-[10px] font-bold uppercase tracking-[0.2em]"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] theme-text-muted">
               Agents
             </span>
             <div className="flex items-center gap-3 text-[10px] font-bold">
-              <span style={{ color: "var(--text-secondary)" }}>
+              <span className="theme-text-secondary">
                 {agentMetrics.total} nodes
               </span>
-              <span
-                className="text-[9px] font-mono uppercase"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <span className="text-[9px] font-mono uppercase theme-text-muted">
                 saved + running
               </span>
               <div className="flex items-center gap-1">
@@ -714,64 +576,29 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             </div>
           </div>
 
-          <div
-            className="flex flex-wrap items-center justify-between gap-4 border-y py-3"
-            style={{ borderColor: "var(--border-muted)" }}
-          >
+          <div className="flex flex-wrap items-center justify-between gap-4 border-y border-[var(--border-muted)] py-3">
             <div className="relative flex-1 min-w-[220px] max-w-sm">
-              <input
+              <Input
                 value={agentQuery}
                 onChange={(event) => setAgentQuery(event.target.value)}
-                className="w-full rounded-lg py-2 pl-3 pr-3 text-xs outline-none"
-                style={{
-                  backgroundColor: "var(--bg-base)",
-                  border: "1px solid var(--border-muted)",
-                  color: "var(--text-secondary)",
-                }}
+                className="h-8 text-xs"
                 placeholder="Filter swarm nodes..."
               />
             </div>
-            <div
-              className="flex border rounded-lg p-0.5"
-              style={{
-                backgroundColor: "var(--bg-elevated)",
-                borderColor: "var(--border-default)",
+            <ToggleGroup
+              type="single"
+              value={agentDensity}
+              onValueChange={(value) => {
+                if (value) setAgentDensity(value as "grid" | "compact");
               }}
             >
-              {(["grid", "compact"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setAgentDensity(mode)}
-                  className="px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] rounded-md transition-all"
-                  style={{
-                    backgroundColor:
-                      agentDensity === mode
-                        ? "var(--bg-surface)"
-                        : "transparent",
-                    color:
-                      agentDensity === mode
-                        ? "var(--accent-primary)"
-                        : "var(--text-muted)",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (agentDensity !== mode) {
-                      event.currentTarget.style.color = "var(--text-secondary)";
-                    }
-                  }}
-                  onMouseLeave={(event) => {
-                    if (agentDensity !== mode) {
-                      event.currentTarget.style.color = "var(--text-muted)";
-                    }
-                  }}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
+              <ToggleGroupItem value="grid">grid</ToggleGroupItem>
+              <ToggleGroupItem value="compact">compact</ToggleGroupItem>
+            </ToggleGroup>
           </div>
 
           {filteredAgents.length === 0 && !loading && (
-            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <div className="text-xs theme-text-muted">
               No agents match this filter.
             </div>
           )}
@@ -784,15 +611,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             }`}
           >
             {filteredAgents.map((agent) => (
-              <div
+              <Card
                 key={`${agent.source}-${agent.id}`}
-                className={`rounded-xl border ${
-                  agentDensity === "compact" ? "p-3" : "p-4"
-                }`}
-                style={{
-                  borderColor: "var(--border-muted)",
-                  backgroundColor: "var(--bg-surface)",
-                }}
+                className={`${agentDensity === "compact" ? "p-3" : "p-4"}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -800,63 +621,45 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                       className={`w-2 h-2 rounded-full ${agentStatusColor(agent.status)}`}
                     />
                     <span
-                      className={`font-semibold truncate ${
+                      className={`font-semibold truncate theme-text-secondary ${
                         agentDensity === "compact" ? "text-[11px]" : "text-sm"
                       }`}
-                      style={{ color: "var(--text-secondary)" }}
                     >
                       {agent.name}
                     </span>
                   </div>
-                  <span
-                    className="text-[9px] font-mono uppercase"
-                    style={{ color: "var(--text-muted)" }}
-                  >
+                  <span className="text-[9px] font-mono uppercase theme-text-muted">
                     #{agent.id}
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <span
-                    className={
+                    className={`theme-text-muted ${
                       agentDensity === "compact" ? "text-[9px]" : "text-xs"
-                    }
-                    style={{ color: "var(--text-muted)" }}
+                    }`}
                   >
                     {formatStage(agent)}
                   </span>
-                  <span
-                    className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full"
-                    style={{
-                      backgroundColor: "var(--bg-base)",
-                      color:
-                        agent.status === "active"
-                          ? "var(--accent-primary)"
-                          : "var(--text-muted)",
-                      border: "1px solid var(--border-muted)",
-                    }}
+                  <Badge
+                    className="text-[9px] uppercase px-2 py-0.5"
+                    variant={agent.status === "active" ? "success" : "default"}
                   >
                     {formatAvailability(agent.status)}
-                  </span>
+                  </Badge>
                 </div>
-                <div
-                  className="mt-2 flex items-center justify-between text-[9px] font-mono"
-                  style={{ color: "var(--text-faint)" }}
-                >
+                <div className="mt-2 flex items-center justify-between text-[9px] font-mono theme-text-muted">
                   <span className="truncate">
                     {agent.hostname || agent.executable || "--"}
                   </span>
                   <span>{agent.currentRunId || "--"}</span>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </div>
 
         {loading && (
-          <div
-            className="text-xs font-mono uppercase tracking-[0.2em]"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <div className="text-xs font-mono uppercase tracking-[0.2em] theme-text-muted">
             Loading project telemetry...
           </div>
         )}

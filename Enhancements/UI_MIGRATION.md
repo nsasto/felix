@@ -278,6 +278,12 @@ CSS variable aliases ensure gradual migration without breaking changes:
   - **app/frontend/components/SpecEditWarningModal.tsx**
 - Cleaned remaining SpecsEditor inline styles (content area)
   - **app/frontend/components/SpecsEditor.tsx**
+- Added shadcn Select primitive
+  - **app/frontend/components/ui/select.tsx**
+- Migrated SettingsScreen to shadcn primitives (Button, Input, Select, Alert, Switch)
+  - **app/frontend/components/SettingsScreen.tsx**
+- Migrated ProjectDashboard to shadcn primitives (Button, Input, Badge, Card, ToggleGroup, Alert)
+  - **app/frontend/components/ProjectDashboard.tsx**
 
 #### 2.1 Navigation Sidebar
 
