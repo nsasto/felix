@@ -1147,8 +1147,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                       onMouseLeave={(e) => {
                         e.currentTarget.style.color = "var(--text-muted)";
                         if (!isOpen) {
-                          e.currentTarget.style.backgroundColor =
-                            "transparent";
+                          e.currentTarget.style.backgroundColor = "transparent";
                         }
                       }}
                     >
