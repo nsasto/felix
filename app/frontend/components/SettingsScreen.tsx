@@ -2963,7 +2963,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
       {/* Right Panel - Settings Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 theme-bg-base">
         {/* Top Bar with Save Controls */}
         <div
           className="h-14 border-b border-[var(--border-default)] flex items-center px-6 justify-between backdrop-blur flex-shrink-0"
@@ -3055,7 +3055,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         )}
 
         {/* Settings Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 theme-bg-base">
           <div className="max-w-2xl">{renderActiveSettings()}</div>
         </div>
       </div>

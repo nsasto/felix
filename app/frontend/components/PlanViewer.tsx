@@ -559,7 +559,14 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           {/* Copy button */}
           <button
             onClick={copyToClipboard}
-            className="text-[10px] font-bold text-slate-500 hover:text-brand-400 transition-colors uppercase tracking-widest flex items-center gap-2"
+            className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = "var(--accent-primary)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--text-muted)")
+            }
           >
             <svg
               className="w-3 h-3"
