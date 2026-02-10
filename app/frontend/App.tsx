@@ -19,6 +19,7 @@ import {
 import FelixLogo from "../../img/felix_logo_small.png";
 import FelixLogoHover from "../../img/felix_logo_hammer_small.png";
 import ProjectSelector from "./components/ProjectSelector";
+import ProjectDashboard from "./components/ProjectDashboard";
 import RequirementsKanban from "./components/RequirementsKanban";
 import AgentControls from "./components/AgentControls";
 import RunArtifactViewer from "./components/RunArtifactViewer";
@@ -287,8 +288,8 @@ const App: React.FC = () => {
         if (projectDetails && !hasUserInteracted.current) {
           setSelectedProjectId(savedProjectId);
           setSelectedProject(projectDetails);
-          // Switch to kanban view after auto-loading
-          setUiState("kanban");
+          // Keep projects view and show the dashboard
+          setUiState("projects");
         }
       } catch (error) {
         // Project no longer exists or API error - clear the saved ID
@@ -308,6 +309,16 @@ const App: React.FC = () => {
     // Save the selected project ID to localStorage for auto-load on next visit
     saveLastProjectId(projectId);
     // Stay on projects page to show dashboard
+  };
+
+  const clearSelectedProject = () => {
+    setSelectedProjectId(null);
+    setSelectedProject(null);
+  };
+
+  const handleReturnToProjects = () => {
+    clearSelectedProject();
+    setUiState("projects");
   };
 
   // Assets state for markdown editor
@@ -931,6 +942,16 @@ export const executeTask = (taskId: string) => {
 
   // Render the projects view
   const renderProjects = () => {
+    if (selectedProjectId && selectedProject) {
+      return (
+        <ProjectDashboard
+          projectId={selectedProjectId}
+          project={selectedProject}
+          onNavigate={setUiState}
+        />
+      );
+    }
+
     return (
       <div
         className="flex-1 flex flex-col overflow-hidden"
@@ -1102,7 +1123,7 @@ export const executeTask = (taskId: string) => {
             {selectedProject && (
               <>
                 <button
-                  onClick={() => setUiState("projects")}
+                  onClick={handleReturnToProjects}
                   className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer"
                   style={{ color: "var(--text-secondary)" }}
                 >
