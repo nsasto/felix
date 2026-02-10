@@ -477,8 +477,8 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               ref={editorRef}
               value={planContent}
               onChange={(e) => setPlanContent(e.target.value)}
-              className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
-              style={{ backgroundColor: "var(--bg-deepest)" }}
+              className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
+              style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}
               placeholder="# Implementation Plan..."
             />
             <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">

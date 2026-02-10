@@ -1050,7 +1050,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       </div>
 
       {/* Editor Pane */}
-      <div className="flex-1 flex flex-col min-w-0 theme-bg-deep/20">
+      <div className="flex-1 flex flex-col min-w-0" style={{ backgroundColor: "var(--bg-base)" }}>
         {/* Toolbar */}
         <div className="h-12 border-b theme-border flex items-center px-4 justify-between theme-bg-base/95 backdrop-blur z-20 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -1309,7 +1309,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Content Area */}
         {!selectedFilename ? (
           // No spec selected
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 theme-bg-deepest/20">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8" style={{ backgroundColor: "var(--bg-base)" }}>
             <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
               <IconFileText className="w-8 h-8 theme-text-faint" />
             </div>
@@ -1322,7 +1322,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
         ) : contentLoading ? (
           // Loading content
-          <div className="flex-1 flex items-center justify-center theme-bg-deepest/20">
+          <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: "var(--bg-base)" }}>
             <div className="flex items-center gap-3 theme-text-muted">
               <div className="w-5 h-5 border-2 theme-border border-t-brand-500 rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading spec...</span>
@@ -1330,7 +1330,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
         ) : contentError ? (
           // Error loading content
-          <div className="flex-1 flex flex-col items-center justify-center p-8 theme-bg-deepest/20">
+          <div className="flex-1 flex flex-col items-center justify-center p-8" style={{ backgroundColor: "var(--bg-base)" }}>
             <div className="bg-red-900/20 border border-red-500/20 rounded-xl px-6 py-4 max-w-md">
               <h3 className="text-sm font-bold text-red-400 mb-2">
                 Failed to Load Spec
@@ -1352,8 +1352,8 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   ref={editorRef}
                   value={specContent}
                   onChange={(e) => setSpecContent(e.target.value)}
-                  className="w-full h-full p-12 theme-bg-deepest theme-text-secondary font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
-                  style={{ backgroundColor: "var(--bg-deepest)" }}
+                  className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
+                  style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}
                   placeholder="# Spec content..."
                 />
                 {viewMode === "edit" && (

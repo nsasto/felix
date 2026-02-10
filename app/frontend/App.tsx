@@ -200,7 +200,7 @@ const App: React.FC = () => {
   };
   const activeViewMeta = viewMetadata[activeSidebarView];
   const rootStyle: React.CSSProperties = {
-    backgroundColor: "var(--bg-deepest)",
+    backgroundColor: "var(--bg-base)",
     color: "var(--text-secondary)",
   };
   const projectHeaderLabel = selectedProject
@@ -383,7 +383,7 @@ const App: React.FC = () => {
     return (
       <div
         className="flex-1 flex gap-6 p-8 overflow-x-auto custom-scrollbar"
-        style={{ backgroundColor: "var(--bg-deepest)" }}
+        style={{ backgroundColor: "var(--bg-base)" }}
       >
         {columns.map((col) => (
           <div
@@ -845,7 +845,7 @@ export const executeTask = (taskId: string) => {
                   }
                   className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
                   style={{
-                    backgroundColor: "var(--bg-deepest)",
+                    backgroundColor: "var(--bg-base)",
                     color: "var(--text-secondary)",
                   }}
                   placeholder="# Orchestrate your document content here..."
@@ -1230,7 +1230,7 @@ export const executeTask = (taskId: string) => {
             ) : (
               <div
                 className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-deepest)" }}
+                style={{ backgroundColor: "var(--bg-base)" }}
               >
                 <span
                   className="text-sm"
@@ -1252,7 +1252,7 @@ export const executeTask = (taskId: string) => {
             ) : (
               <div
                 className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-deepest)" }}
+                style={{ backgroundColor: "var(--bg-base)" }}
               >
                 <span
                   className="text-sm"
@@ -1279,7 +1279,7 @@ export const executeTask = (taskId: string) => {
             ) : (
               <div
                 className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-deepest)" }}
+                style={{ backgroundColor: "var(--bg-base)" }}
               >
                 <span
                   className="text-sm"
@@ -1304,7 +1304,7 @@ export const executeTask = (taskId: string) => {
             ) : (
               <div
                 className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-deepest)" }}
+                style={{ backgroundColor: "var(--bg-base)" }}
               >
                 <span
                   className="text-sm"
@@ -1329,7 +1329,7 @@ export const executeTask = (taskId: string) => {
             ) : (
               <div
                 className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-deepest)" }}
+                style={{ backgroundColor: "var(--bg-base)" }}
               >
                 <span
                   className="text-sm"
@@ -1353,7 +1353,7 @@ export const executeTask = (taskId: string) => {
           ) : (
             <div
               className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-deepest)" }}
+              style={{ backgroundColor: "var(--bg-base)" }}
             >
               <span className="text-sm" style={{ color: "var(--text-muted)" }}>
                 Unknown view state
