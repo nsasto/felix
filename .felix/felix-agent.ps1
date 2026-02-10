@@ -427,11 +427,12 @@ try {
         # Spec builder flow - different path entirely
         . "$PSScriptRoot/core/spec-builder.ps1"
     
-        Emit-Log -Level "debug" -Message "Calling Invoke-SpecBuilder with RequirementId=$RequirementId, QuickMode=$($QuickMode.IsPresent)" -Component "init"
+        Emit-Log -Level "debug" -Message "Calling Invoke-SpecBuilder with RequirementId=$RequirementId, QuickMode=$($QuickMode.IsPresent), VerboseMode=$($VerboseMode.IsPresent)" -Component "init"
         $result = Invoke-SpecBuilder `
             -RequirementId $RequirementId `
             -InitialPrompt $InitialPrompt `
             -QuickMode:$QuickMode `
+            -VerboseMode:$VerboseMode `
             -Config $config `
             -AgentConfig $agentConfig `
             -Paths $paths
