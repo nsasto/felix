@@ -4,6 +4,7 @@ User router for Felix Backend.
 Provides endpoints for retrieving current user information.
 """
 
+import json
 from typing import Any, Dict
 from fastapi import APIRouter, Depends
 from databases import Database
@@ -44,10 +45,18 @@ async def get_user_profile(
             "role": user.get("role", "member"),
         }
 
-    # Extract email from org metadata or generate from user_id
-    email = (
-        org["metadata"].get("email") if org["metadata"] else f"{user_id}@example.com"
-    )
+    # Extract email from org metadata
+    # The metadata might be a string (JSON) or already parsed as dict
+    metadata = org["metadata"]
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    elif metadata is None:
+        metadata = {}
+
+    email = metadata.get("email", f"{user_id}@example.com")
 
     return {
         "user_id": user_id,

@@ -833,6 +833,8 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   style={{ color: "var(--text-muted)" }}
                 >
                   Enter the absolute path to your Felix project directory
+                  <br />
+                  Tip: Shift+Right-click folder in Explorer → "Copy as path"
                 </p>
               </div>
 

@@ -1007,6 +1007,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <p className="mt-1.5 text-[10px] theme-text-muted">
                   Full path to the project directory (must contain specs/ and
                   felix/ directories)
+                  <br />
+                  Tip: Shift+Right-click folder in Explorer → "Copy as path"
                 </p>
               </div>
               <div>
