@@ -1,6 +1,16 @@
-import React from 'react';
+import React from "react";
+import { Alert, AlertDescription } from "./ui/alert";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { Button } from "./ui/button";
 
-export type WarningAction = 'continue' | 'reset_plan' | 'cancel';
+export type WarningAction = "continue" | "reset_plan" | "cancel";
 
 interface SpecEditWarningModalProps {
   /** The requirement ID being edited */
@@ -16,8 +26,20 @@ interface SpecEditWarningModalProps {
 }
 
 // Warning icon
-const IconAlertTriangle = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+const IconAlertTriangle = ({
+  className = "w-5 h-5",
+}: {
+  className?: string;
+}) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
     <line x1="12" y1="9" x2="12" y2="13" />
     <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -26,7 +48,15 @@ const IconAlertTriangle = ({ className = "w-5 h-5" }: { className?: string }) =>
 
 // Close icon
 const IconX = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     <line x1="18" y1="6" x2="6" y2="18" />
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
@@ -34,7 +64,15 @@ const IconX = ({ className = "w-4 h-4" }: { className?: string }) => (
 
 // Pause/Stop icon
 const IconPause = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     <rect x="6" y="4" width="4" height="16" rx="1" />
     <rect x="14" y="4" width="4" height="16" rx="1" />
   </svg>
@@ -42,7 +80,15 @@ const IconPause = ({ className = "w-4 h-4" }: { className?: string }) => (
 
 // Edit icon
 const IconEdit = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
   </svg>
 );
@@ -54,86 +100,116 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
   isLoading = false,
   onAction,
 }) => {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[480px] overflow-hidden">
-        {/* Modal header */}
-        <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4 bg-amber-500/5">
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onAction("cancel");
+      }}
+    >
+      <AlertDialogContent className="max-w-[480px]">
+        <AlertDialogHeader className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3 bg-[var(--warning-500)]/5">
           <div className="flex items-center gap-2">
-            <IconAlertTriangle className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-bold text-amber-300">
+            <IconAlertTriangle className="w-4 h-4 text-[var(--warning-500)]" />
+            <AlertDialogTitle className="text-xs font-bold text-[var(--warning-500)]">
               Active Work in Progress
-            </span>
+            </AlertDialogTitle>
           </div>
-          <button
-            onClick={() => onAction('cancel')}
-            disabled={isLoading}
-            className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300 disabled:opacity-50"
-          >
-            <IconX className="w-4 h-4" />
-          </button>
-        </div>
+          <AlertDialogCancel asChild>
+            <Button
+              onClick={() => onAction("cancel")}
+              disabled={isLoading}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+            >
+              <IconX className="w-4 h-4" />
+            </Button>
+          </AlertDialogCancel>
+        </AlertDialogHeader>
 
-        {/* Modal body */}
         <div className="p-5 space-y-4">
-          {/* Warning message */}
           <div className="space-y-3">
-            <p className="text-sm text-slate-300">
-              You are about to edit <span className="font-mono text-brand-400">{requirementId}</span>:
+            <p className="text-sm theme-text-secondary">
+              You are about to edit{" "}
+              <span className="font-mono text-[var(--brand-500)]">
+                {requirementId}
+              </span>
+              :
             </p>
-            <p className="text-sm font-medium text-slate-200 bg-slate-800/50 px-3 py-2 rounded-lg">
+            <p className="text-sm font-medium theme-text-secondary bg-[var(--bg-surface-100)] px-3 py-2 rounded-lg">
               "{requirementTitle}"
             </p>
           </div>
 
-          {/* Impact explanation */}
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-2">
-            <p className="text-xs text-amber-300/90 leading-relaxed">
-              <strong>This requirement is currently in progress.</strong> The Felix agent may be 
-              actively working on it. Editing the spec while work is in progress could cause:
-            </p>
-            <ul className="text-xs text-amber-300/70 list-disc pl-5 space-y-1">
-              <li>Drift between the spec and the current implementation plan</li>
+          <Alert className="border-[var(--warning-500)]/30 bg-[var(--warning-500)]/10 text-[var(--warning-500)]">
+            <AlertDescription className="text-[var(--warning-500)]/90 leading-relaxed">
+              <strong>This requirement is currently in progress.</strong> The
+              Felix agent may be actively working on it. Editing the spec while
+              work is in progress could cause:
+            </AlertDescription>
+            <ul className="mt-2 text-xs text-[var(--warning-500)]/70 list-disc pl-5 space-y-1">
+              <li>
+                Drift between the spec and the current implementation plan
+              </li>
               <li>Wasted agent iterations on outdated acceptance criteria</li>
-              <li>Confusion about which version of the spec is authoritative</li>
+              <li>
+                Confusion about which version of the spec is authoritative
+              </li>
             </ul>
-          </div>
+          </Alert>
 
-          {/* Options explanation */}
-          <div className="text-xs text-slate-500 space-y-2">
-            <p><strong className="text-slate-400">Choose an option:</strong></p>
+          <div className="text-xs theme-text-muted space-y-2">
+            <p>
+              <strong className="theme-text-secondary">
+                Choose an option:
+              </strong>
+            </p>
             <ul className="space-y-1.5">
               <li className="flex items-start gap-2">
-                <span className="text-brand-400 mt-0.5">•</span>
-                <span><strong className="text-slate-300">Continue Editing</strong> – Proceed knowing work is in progress (use caution)</span>
+                <span className="text-[var(--brand-500)] mt-0.5">•</span>
+                <span>
+                  <strong className="theme-text-secondary">
+                    Continue Editing
+                  </strong>{" "}
+                  – Proceed knowing work is in progress (use caution)
+                </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-amber-400 mt-0.5">•</span>
-                <span><strong className="text-slate-300">Reset Plan</strong> – Mark as "planned", clear the plan file, then edit</span>
+                <span className="text-[var(--warning-500)] mt-0.5">•</span>
+                <span>
+                  <strong className="theme-text-secondary">Reset Plan</strong> –
+                  Mark as "planned", clear the plan file, then edit
+                </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-slate-500 mt-0.5">•</span>
-                <span><strong className="text-slate-300">Cancel</strong> – Don't edit right now</span>
+                <span className="theme-text-muted mt-0.5">•</span>
+                <span>
+                  <strong className="theme-text-secondary">Cancel</strong> –
+                  Don't edit right now
+                </span>
               </li>
             </ul>
           </div>
         </div>
 
-        {/* Modal footer */}
-        <div className="h-16 border-t theme-border flex items-center justify-end gap-3 px-4 theme-bg-deep/50">
-          <button
-            onClick={() => onAction('cancel')}
+        <AlertDialogFooter className="flex items-center justify-end gap-3 border-t border-[var(--border-default)] px-4 py-3 bg-[var(--bg-surface-75)]">
+          <AlertDialogCancel asChild>
+            <Button
+              onClick={() => onAction("cancel")}
+              disabled={isLoading}
+              variant="ghost"
+              size="sm"
+            >
+              Cancel
+            </Button>
+          </AlertDialogCancel>
+          <Button
+            onClick={() => onAction("reset_plan")}
             disabled={isLoading}
-            className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onAction('reset_plan')}
-            disabled={isLoading}
-            className="px-4 py-2 bg-amber-600/80 text-white text-xs font-bold rounded-xl hover:bg-amber-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            variant="secondary"
+            size="sm"
+            className="uppercase text-[var(--warning-500)] border-[var(--warning-500)]/30 hover:bg-[var(--warning-500)]/10"
           >
             {isLoading ? (
               <>
@@ -146,18 +222,19 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
                 Reset Plan
               </>
             )}
-          </button>
-          <button
-            onClick={() => onAction('continue')}
+          </Button>
+          <Button
+            onClick={() => onAction("continue")}
             disabled={isLoading}
-            className="px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            size="sm"
+            className="uppercase"
           >
             <IconEdit className="w-3 h-3" />
             Continue Editing
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 };
 

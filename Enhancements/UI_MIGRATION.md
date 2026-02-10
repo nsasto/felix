@@ -251,6 +251,34 @@ CSS variable aliases ensure gradual migration without breaking changes:
 
 - "Prefer shadcn/ui components and existing tokens. Avoid custom UI or direct Tailwind color classes."
 
+#### 2.0.2 Migration Progress Log
+
+**Feb 10, 2026**
+
+- Added shadcn UI primitives: Button, Input, Badge, Card, Dialog, AlertDialog, ToggleGroup, Table, Alert
+  - **app/frontend/components/ui/**
+  - **app/frontend/lib/utils.ts**
+- Started ProjectSelector migration to shadcn primitives
+  - **app/frontend/components/ProjectSelector.tsx**
+- Installed Radix dependencies for dialogs/toggles
+  - **app/frontend/package.json** + **app/frontend/package-lock.json**
+- Added shadcn Switch and migrated Copilot toggles
+  - **app/frontend/components/ui/switch.tsx**
+  - **app/frontend/components/SettingsScreen.tsx**
+- Migrated PlanViewer controls to shadcn primitives (Button, ToggleGroup, Badge, Textarea)
+  - **app/frontend/components/PlanViewer.tsx**
+  - **app/frontend/components/ui/textarea.tsx**
+- Migrated SpecsEditor toolbar + editor to shadcn primitives (Button, ToggleGroup, Badge, Textarea)
+  - **app/frontend/components/SpecsEditor.tsx**
+- Migrated SpecsEditor modals to shadcn Dialog/AlertDialog
+  - **app/frontend/components/SpecsEditor.tsx**
+- Migrated SpecsEditor sidebar list to shadcn primitives (Button, Input, Badge, Alert)
+  - **app/frontend/components/SpecsEditor.tsx**
+- Migrated SpecEditWarningModal to shadcn AlertDialog
+  - **app/frontend/components/SpecEditWarningModal.tsx**
+- Cleaned remaining SpecsEditor inline styles (content area)
+  - **app/frontend/components/SpecsEditor.tsx**
+
 #### 2.1 Navigation Sidebar
 
 **Target Component:** `App.tsx` sidebar (lines 1215-1415)

@@ -11,6 +11,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.6",
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-switch": "^1.1.2",
+    "@radix-ui/react-toggle-group": "^1.1.2",
     "@google/genai": "^1.38.0",
     "ansi-to-react": "^6.2.6",
     "class-variance-authority": "^0.7.0",

@@ -12,6 +12,7 @@ import {
   clearCopilotApiKey,
 } from "../services/felixApi";
 import { IconFelix } from "./Icons";
+import { Switch } from "./ui/switch";
 import { useTheme, ThemeValue } from "../hooks/ThemeProvider";
 
 interface SettingsScreenProps {
@@ -2691,28 +2692,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     {source.description}
                   </p>
                 </div>
-                <button
-                  onClick={() =>
-                    handleCopilotContextChange(
-                      source.key,
-                      !(copilotConfig.context_sources as any)[source.key],
-                    )
+                <Switch
+                  checked={(copilotConfig.context_sources as any)[source.key]}
+                  onCheckedChange={(checked) =>
+                    handleCopilotContextChange(source.key, checked)
                   }
                   disabled={!isEnabled}
-                  className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${
-                    (copilotConfig.context_sources as any)[source.key]
-                      ? "bg-[var(--accent-secondary)]"
-                      : "theme-bg-surface"
-                  } ${!isEnabled ? "cursor-not-allowed" : ""}`}
-                >
-                  <div
-                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                      (copilotConfig.context_sources as any)[source.key]
-                        ? "left-5"
-                        : "left-0.5"
-                    }`}
-                  />
-                </button>
+                />
               </div>
             ))}
           </div>
@@ -2756,28 +2742,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     {feature.description}
                   </p>
                 </div>
-                <button
-                  onClick={() =>
-                    handleCopilotFeatureChange(
-                      feature.key,
-                      !(copilotConfig.features as any)[feature.key],
-                    )
+                <Switch
+                  checked={(copilotConfig.features as any)[feature.key]}
+                  onCheckedChange={(checked) =>
+                    handleCopilotFeatureChange(feature.key, checked)
                   }
                   disabled={!isEnabled}
-                  className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${
-                    (copilotConfig.features as any)[feature.key]
-                      ? "bg-[var(--accent-secondary)]"
-                      : "theme-bg-surface"
-                  } ${!isEnabled ? "cursor-not-allowed" : ""}`}
-                >
-                  <div
-                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                      (copilotConfig.features as any)[feature.key]
-                        ? "left-5"
-                        : "left-0.5"
-                    }`}
-                  />
-                </button>
+                />
               </div>
             ))}
           </div>

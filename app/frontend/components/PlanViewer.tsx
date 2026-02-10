@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { felixApi } from "../services/felixApi";
 import { marked } from "marked";
 import { IconFileText } from "./Icons";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 interface PlanViewerProps {
   projectId: string;
@@ -196,19 +200,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
         <div className="flex items-center gap-4">
           {/* Back button */}
           {onBack && (
-            <button
-              onClick={onBack}
-              className="p-2 rounded-lg transition-all"
-              style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                e.currentTarget.style.color = "var(--text-secondary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
-            >
+            <Button variant="ghost" size="icon" onClick={onBack}>
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -222,62 +214,20 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                   d="M15 19l-7-7 7-7"
                 />
               </svg>
-            </button>
+            </Button>
           )}
 
           {/* View mode toggle */}
-          <div
-            className="flex border rounded-lg p-0.5"
-            style={{
-              backgroundColor: "var(--bg-elevated)",
-              borderColor: "var(--border-default)",
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(value) => {
+              if (value) setViewMode(value as ViewMode);
             }}
           >
-            <button
-              onClick={() => setViewMode("view")}
-              className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-              style={{
-                backgroundColor:
-                  viewMode === "view" ? "var(--bg-surface)" : "transparent",
-                color:
-                  viewMode === "view"
-                    ? "var(--accent-primary)"
-                    : "var(--text-muted)",
-              }}
-              onMouseEnter={(e) => {
-                if (viewMode !== "view")
-                  e.currentTarget.style.color = "var(--text-secondary)";
-              }}
-              onMouseLeave={(e) => {
-                if (viewMode !== "view")
-                  e.currentTarget.style.color = "var(--text-muted)";
-              }}
-            >
-              VIEW
-            </button>
-            <button
-              onClick={() => setViewMode("edit")}
-              className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-              style={{
-                backgroundColor:
-                  viewMode === "edit" ? "var(--bg-surface)" : "transparent",
-                color:
-                  viewMode === "edit"
-                    ? "var(--accent-primary)"
-                    : "var(--text-muted)",
-              }}
-              onMouseEnter={(e) => {
-                if (viewMode !== "edit")
-                  e.currentTarget.style.color = "var(--text-secondary)";
-              }}
-              onMouseLeave={(e) => {
-                if (viewMode !== "edit")
-                  e.currentTarget.style.color = "var(--text-muted)";
-              }}
-            >
-              EDIT
-            </button>
-          </div>
+            <ToggleGroupItem value="view">VIEW</ToggleGroupItem>
+            <ToggleGroupItem value="edit">EDIT</ToggleGroupItem>
+          </ToggleGroup>
 
           {/* Formatting buttons (only in edit mode) */}
           {viewMode === "edit" && (
@@ -285,66 +235,38 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               className="flex items-center gap-0.5 border-l pl-4"
               style={{ borderColor: "var(--border-default)" }}
             >
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("# ")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="H1"
               >
                 <span className="font-bold text-xs">H1</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("## ")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="H2"
               >
                 <span className="font-bold text-xs">H2</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("### ")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="H3"
               >
                 <span className="font-bold text-xs">H3</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("- [ ] ")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="Task Checkbox"
               >
                 <svg
@@ -368,19 +290,12 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                     strokeWidth="2"
                   />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("- [x] ")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="Completed Task"
               >
                 <svg
@@ -406,19 +321,12 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                     strokeLinejoin="round"
                   />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("- ")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="List"
               >
                 <svg
@@ -434,35 +342,21 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                     strokeLinejoin="round"
                   />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("**", "**")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="Bold"
               >
                 <span className="font-bold text-xs uppercase">B</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => insertFormatting("`", "`")}
-                className="p-1.5 rounded-md transition-all"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                  e.currentTarget.style.color = "var(--accent-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="Code"
               >
                 <svg
@@ -478,7 +372,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                     strokeLinejoin="round"
                   />
                 </svg>
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -488,33 +382,15 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           {viewMode === "edit" && (
             <>
               {hasChanges && (
-                <button
-                  onClick={handleDiscard}
-                  className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
-                >
+                <Button variant="ghost" size="sm" onClick={handleDiscard}>
                   Discard
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 onClick={handleSave}
                 disabled={!hasChanges || saving}
-                className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2"
-                style={{
-                  backgroundColor: hasChanges
-                    ? "var(--accent-primary)"
-                    : "var(--bg-surface)",
-                  color: hasChanges ? "white" : "var(--text-muted)",
-                  cursor: hasChanges ? "pointer" : "not-allowed",
-                }}
+                size="sm"
+                className="uppercase"
               >
                 {saving ? (
                   <>
@@ -539,35 +415,23 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                     Save
                   </>
                 )}
-              </button>
+              </Button>
             </>
           )}
 
           {/* Save message */}
           {saveMessage && (
-            <span
-              className={`text-[10px] font-medium ${
-                saveMessage.type === "success"
-                  ? "text-emerald-400"
-                  : "text-red-400"
-              }`}
+            <Badge
+              variant={
+                saveMessage.type === "success" ? "success" : "destructive"
+              }
             >
               {saveMessage.text}
-            </span>
+            </Badge>
           )}
 
           {/* Copy button */}
-          <button
-            onClick={copyToClipboard}
-            className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.color = "var(--accent-primary)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.color = "var(--text-muted)")
-            }
-          >
+          <Button variant="ghost" size="sm" onClick={copyToClipboard}>
             <svg
               className="w-3 h-3"
               fill="none"
@@ -582,9 +446,9 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               />
             </svg>
             Copy
-          </button>
+          </Button>
 
-          <div className="h-4 w-px bg-slate-800"></div>
+          <div className="h-4 w-px bg-[var(--border-default)]"></div>
 
           {/* File indicator */}
           <div className="flex items-center gap-2">
@@ -594,7 +458,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                 title="Unsaved changes"
               />
             )}
-            <span className="text-[10px] font-mono text-slate-500 uppercase">
+            <span className="text-[10px] font-mono theme-text-muted uppercase">
               README.md
             </span>
           </div>
@@ -606,15 +470,11 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
         {viewMode === "edit" ? (
           // Edit mode - textarea
           <div className="h-full flex flex-col">
-            <textarea
+            <Textarea
               ref={editorRef}
               value={planContent}
               onChange={(e) => setPlanContent(e.target.value)}
-              className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
-              style={{
-                backgroundColor: "var(--bg-elevated)",
-                color: "var(--text-secondary)",
-              }}
+              className="w-full h-full p-12 font-mono text-sm leading-relaxed resize-none custom-scrollbar selection:bg-brand-500/30 border-0 rounded-none bg-[var(--bg-elevated)] text-[var(--text-secondary)] focus-visible:ring-0 focus-visible:ring-offset-0"
               placeholder="# Implementation Plan..."
             />
             <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">

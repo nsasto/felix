@@ -13,6 +13,29 @@ import {
 } from "../services/felixApi";
 import { marked } from "marked";
 import { IconChevronDown, IconFileText, IconPlus } from "./Icons";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 import SpecEditWarningModal, { WarningAction } from "./SpecEditWarningModal";
 import { useRequirementStatus } from "../hooks/useRequirementStatus";
 import CopilotChat from "./CopilotChat";
@@ -853,39 +876,19 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     }
   };
 
-  const getStatusBadgeStyle = (status: string | undefined) => {
+  const getStatusBadgeClass = (status?: string) => {
     switch (status?.toLowerCase()) {
       case "in_progress":
-        return {
-          backgroundColor: "rgba(234, 179, 8, 0.15)",
-          color: "#eab308",
-          border: "1px solid rgba(234, 179, 8, 0.3)",
-        };
+        return "border-[var(--warning-500)]/30 bg-[var(--warning-500)]/10 text-[var(--warning-500)]";
       case "complete":
       case "done":
-        return {
-          backgroundColor: "rgba(34, 197, 94, 0.15)",
-          color: "#22c55e",
-          border: "1px solid rgba(34, 197, 94, 0.3)",
-        };
+        return "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]";
       case "blocked":
-        return {
-          backgroundColor: "rgba(239, 68, 68, 0.15)",
-          color: "#ef4444",
-          border: "1px solid rgba(239, 68, 68, 0.3)",
-        };
+        return "border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]";
       case "planned":
-        return {
-          backgroundColor: "rgba(59, 130, 246, 0.15)",
-          color: "#3b82f6",
-          border: "1px solid rgba(59, 130, 246, 0.3)",
-        };
+        return "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]";
       default:
-        return {
-          backgroundColor: "rgba(100, 116, 139, 0.15)",
-          color: "#64748b",
-          border: "1px solid rgba(100, 116, 139, 0.3)",
-        };
+        return "border-[var(--border-muted)] bg-[var(--bg-surface-100)] text-[var(--text-muted)]";
     }
   };
 
@@ -933,35 +936,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     const isAgentActive = req?.status === "in_progress";
 
     return (
-      <button
+      <Button
         key={spec.filename}
         onClick={() => handleSelectSpec(spec.filename)}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border group ${
+        variant="ghost"
+        size="sm"
+        className={`w-full h-auto justify-start gap-3 px-3 py-2.5 rounded-xl text-xs border transition-colors ${
           selectedFilename === spec.filename
-            ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10"
-            : "border-transparent"
+            ? "bg-[var(--brand-500)]/10 text-[var(--brand-500)] border-[var(--brand-500)]/20"
+            : "border-transparent text-[var(--text-muted)] hover:bg-[var(--bg-surface-100)] hover:text-[var(--text-secondary)]"
         }`}
-        style={{
-          color:
-            selectedFilename === spec.filename
-              ? "var(--accent-primary)"
-              : "var(--text-muted)",
-          ...(selectedFilename !== spec.filename && {
-            backgroundColor: "transparent",
-          }),
-        }}
-        onMouseEnter={(e) => {
-          if (selectedFilename !== spec.filename) {
-            e.currentTarget.style.color = "var(--text-secondary)";
-            e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (selectedFilename !== spec.filename) {
-            e.currentTarget.style.color = "var(--text-muted)";
-            e.currentTarget.style.backgroundColor = "transparent";
-          }
-        }}
       >
         <div className="relative flex-shrink-0">
           <IconFileText className="w-4 h-4" />
@@ -989,8 +973,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             </span>
             {req && (
               <span
-                className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex-shrink-0"
-                style={getStatusBadgeStyle(req.status)}
+                className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex-shrink-0 border ${getStatusBadgeClass(
+                  req.status,
+                )}`}
                 title={`Status: ${req.status}`}
               >
                 {req.status === "in_progress"
@@ -1001,7 +986,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
           <span className="text-[9px] opacity-40 font-mono">{id}</span>
         </div>
-      </button>
+      </Button>
     );
   };
 
@@ -1009,63 +994,35 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Specs List Sidebar */}
       <div className="w-80 border-r theme-border flex flex-col theme-bg-deep/40 flex-shrink-0">
-        <div
-          className="h-12 border-b flex items-center px-4 justify-between"
-          style={{ borderColor: "var(--border-default)" }}
-        >
-          <span
-            className="text-[10px] font-bold uppercase tracking-widest"
-            style={{ color: "var(--text-muted)" }}
-          >
+        <div className="h-12 border-b border-[var(--border-default)] flex items-center px-4 justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-widest theme-text-muted">
             Specifications
           </span>
-          <span
-            className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-            style={{
-              color: "var(--text-muted)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
+          <Badge className="text-[10px] font-mono px-1.5 py-0.5">
             {specs.length}
-          </span>
+          </Badge>
         </div>
 
         {/* Search Bar - S-0015: Spec Screen Enhancements */}
         <div className="px-3 pt-3 pb-2 space-y-1.5">
           <div className="relative">
-            <input
+            <Input
               type="text"
               placeholder="Search specs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-lg outline-none transition-all"
-              style={{
-                backgroundColor: "var(--bg-elevated)",
-                border: "1px solid var(--border-muted)",
-                color: "var(--text-secondary)",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent-primary)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--border-muted)";
-              }}
+              className="h-8 text-xs pr-8"
             />
             {searchQuery && (
-              <button
+              <Button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded transition-colors"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
                 title="Clear search"
               >
                 <IconX className="w-3.5 h-3.5" />
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -1073,10 +1030,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Search Results Count - S-0015 */}
         {!specsLoading && !specsError && searchQuery && (
           <div className="px-3 pb-1">
-            <span
-              className="text-[9px] font-mono"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <span className="text-[9px] font-mono theme-text-muted">
               {filteredSpecs.length} / {specs.length} specs
             </span>
           </div>
@@ -1086,34 +1040,34 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         <div className="px-3 pb-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
           {specsLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div
-                className="text-xs animate-pulse"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <div className="text-xs animate-pulse theme-text-muted">
                 Loading specs...
               </div>
             </div>
           ) : specsError ? (
-            <div className="text-xs text-red-400 p-3 bg-red-900/20 rounded-lg">
-              {specsError}
-            </div>
+            <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+              <AlertDescription className="text-[var(--destructive-500)]">
+                {specsError}
+              </AlertDescription>
+            </Alert>
           ) : specs.length === 0 ? (
-            <div className="text-xs text-slate-600 text-center py-8">
+            <div className="text-xs theme-text-muted text-center py-8">
               No specs found
             </div>
           ) : filteredSpecs.length === 0 ? (
             // No specs match search - S-0015
             <div className="text-center py-8">
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              <div className="text-xs theme-text-muted">
                 No specs match your search
               </div>
-              <button
+              <Button
                 onClick={() => setSearchQuery("")}
-                className="mt-2 text-[10px] font-medium transition-colors"
-                style={{ color: "var(--accent-primary)" }}
+                variant="ghost"
+                size="sm"
+                className="mt-2 text-[10px] font-medium text-[var(--accent-primary)]"
               >
                 Clear search
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -1127,49 +1081,29 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
                 return (
                   <div key={section.key} className="space-y-1">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => toggleSpecSection(section.key)}
-                      className="w-full flex items-center justify-between px-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
-                      style={{
-                        color: "var(--text-muted)",
-                        backgroundColor: isOpen
-                          ? "var(--bg-surface)"
-                          : "transparent",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--text-secondary)";
-                        if (!isOpen) {
-                          e.currentTarget.style.backgroundColor =
-                            "var(--bg-surface)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "var(--text-muted)";
-                        if (!isOpen) {
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }
-                      }}
+                      variant="ghost"
+                      size="sm"
+                      className={`w-full justify-between px-2 py-2 text-[10px] font-bold uppercase tracking-wider ${
+                        isOpen
+                          ? "bg-[var(--bg-surface-100)] text-[var(--text-secondary)]"
+                          : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-100)] hover:text-[var(--text-secondary)]"
+                      }`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{section.label}</span>
-                        <span
-                          className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                          style={{
-                            color: "var(--text-muted)",
-                            backgroundColor: "var(--bg-elevated)",
-                          }}
-                        >
+                        <Badge className="text-[9px] font-mono px-1.5 py-0.5">
                           {sectionSpecs.length}
-                        </span>
+                        </Badge>
                       </div>
                       <IconChevronDown
-                        className={`w-3 h-3 transition-transform ${
+                        className={`w-3 h-3 transition-transform text-[var(--text-muted)] ${
                           isOpen ? "rotate-180" : ""
                         }`}
-                        style={{ color: "var(--text-muted)" }}
                       />
-                    </button>
+                    </Button>
                     {isOpen && (
                       <div className="space-y-1">
                         {sectionSpecs.map(renderSpecRow)}
@@ -1183,25 +1117,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         </div>
 
         {/* Fixed New Spec Button - Always visible at bottom */}
-        <div
-          className="p-3 border-t"
-          style={{ borderColor: "var(--border-default)" }}
-        >
-          <button
+        <div className="p-3 border-t border-[var(--border-default)]">
+          <Button
             onClick={handleOpenNewSpec}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
-            style={{ backgroundColor: "var(--accent-primary)", color: "white" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = "0.9";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = "1";
-            }}
+            size="sm"
+            className="w-full"
             title="Create a new spec"
           >
             <IconPlus className="w-4 h-4" />
             <span>New Spec</span>
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1214,167 +1139,64 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         <div className="h-12 border-b theme-border flex items-center px-4 justify-between theme-bg-base/95 backdrop-blur z-20 flex-shrink-0">
           <div className="flex items-center gap-4">
             {/* View mode toggle */}
-            <div
-              className="flex border rounded-lg p-0.5"
-              style={{
-                backgroundColor: "var(--bg-elevated)",
-                borderColor: "var(--border-default)",
+            <ToggleGroup
+              type="single"
+              value={viewMode}
+              onValueChange={(value) => {
+                if (value) setViewMode(value as ViewMode);
               }}
             >
-              <button
-                onClick={() => setViewMode("edit")}
-                className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-                style={{
-                  backgroundColor:
-                    viewMode === "edit" ? "var(--bg-surface)" : "transparent",
-                  color:
-                    viewMode === "edit"
-                      ? "var(--accent-primary)"
-                      : "var(--text-muted)",
-                }}
-                onMouseEnter={(e) => {
-                  if (viewMode !== "edit")
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-                onMouseLeave={(e) => {
-                  if (viewMode !== "edit")
-                    e.currentTarget.style.color = "var(--text-muted)";
-                }}
-              >
-                SOURCE
-              </button>
-              <button
-                onClick={() => setViewMode("split")}
-                className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-                style={{
-                  backgroundColor:
-                    viewMode === "split" ? "var(--bg-surface)" : "transparent",
-                  color:
-                    viewMode === "split"
-                      ? "var(--accent-primary)"
-                      : "var(--text-muted)",
-                }}
-                onMouseEnter={(e) => {
-                  if (viewMode !== "split")
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-                onMouseLeave={(e) => {
-                  if (viewMode !== "split")
-                    e.currentTarget.style.color = "var(--text-muted)";
-                }}
-              >
-                SPLIT
-              </button>
-              <button
-                onClick={() => setViewMode("preview")}
-                className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-                style={{
-                  backgroundColor:
-                    viewMode === "preview"
-                      ? "var(--bg-surface)"
-                      : "transparent",
-                  color:
-                    viewMode === "preview"
-                      ? "var(--accent-primary)"
-                      : "var(--text-muted)",
-                }}
-                onMouseEnter={(e) => {
-                  if (viewMode !== "preview")
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-                onMouseLeave={(e) => {
-                  if (viewMode !== "preview")
-                    e.currentTarget.style.color = "var(--text-muted)";
-                }}
-              >
-                PREVIEW
-              </button>
-            </div>
+              <ToggleGroupItem value="edit">SOURCE</ToggleGroupItem>
+              <ToggleGroupItem value="split">SPLIT</ToggleGroupItem>
+              <ToggleGroupItem value="preview">PREVIEW</ToggleGroupItem>
+            </ToggleGroup>
 
             {/* Formatting buttons (only in edit/split mode) */}
             {(viewMode === "edit" || viewMode === "split") && (
-              <div
-                className="flex items-center gap-0.5 border-l pl-4"
-                style={{ borderColor: "var(--border-default)" }}
-              >
-                <button
+              <div className="flex items-center gap-0.5 border-l border-[var(--border-default)] pl-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => insertFormatting("# ")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--accent-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                   title="H1"
                 >
                   <span className="font-bold text-xs">H1</span>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => insertFormatting("## ")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--accent-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                   title="H2"
                 >
                   <span className="font-bold text-xs">H2</span>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => insertFormatting("**", "**")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--accent-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                   title="Bold"
                 >
                   <span className="font-bold text-xs uppercase">B</span>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => insertFormatting("*", "*")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--accent-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                   title="Italic"
                 >
                   <span className="italic text-xs font-serif font-bold uppercase">
                     I
                   </span>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => insertFormatting("- ")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--accent-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                   title="List"
                 >
                   <svg
@@ -1390,19 +1212,12 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                       strokeLinejoin="round"
                     />
                   </svg>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => insertFormatting("`", "`")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--accent-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                   title="Code"
                 >
                   <svg
@@ -1418,19 +1233,12 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                       strokeLinejoin="round"
                     />
                   </svg>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => insertFormatting("- [ ] ")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
-                    e.currentTarget.style.color = "var(--accent-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                   title="Checkbox"
                 >
                   <svg
@@ -1454,24 +1262,18 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                       strokeWidth="2"
                     />
                   </svg>
-                </button>
+                </Button>
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-4">
             {/* Save button */}
-            <button
+            <Button
               onClick={handleSave}
               disabled={!hasChanges || saving}
-              className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2"
-              style={{
-                backgroundColor: hasChanges
-                  ? "var(--accent-primary)"
-                  : "var(--bg-surface)",
-                color: hasChanges ? "white" : "var(--text-muted)",
-                cursor: hasChanges ? "pointer" : "not-allowed",
-              }}
+              size="sm"
+              className="uppercase"
             >
               {saving ? (
                 <>
@@ -1496,19 +1298,17 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   Save
                 </>
               )}
-            </button>
+            </Button>
 
             {/* Save message */}
             {saveMessage && (
-              <span
-                className={`text-[10px] font-medium ${
-                  saveMessage.type === "success"
-                    ? "text-emerald-400"
-                    : "text-red-400"
-                }`}
+              <Badge
+                variant={
+                  saveMessage.type === "success" ? "success" : "destructive"
+                }
               >
                 {saveMessage.text}
-              </span>
+              </Badge>
             )}
 
             {/* Reset Plan button - S-0006: Manual Reset Plan Controls */}
@@ -1516,10 +1316,12 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               (selectedSpecStatus?.status === "planned" ||
                 selectedSpecStatus?.status === "in_progress") && (
                 <>
-                  <div className="h-4 w-px bg-slate-800"></div>
-                  <button
+                  <div className="h-4 w-px bg-[var(--border-default)]"></div>
+                  <Button
                     onClick={handleResetPlanClick}
-                    className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30 hover:border-amber-500/50"
+                    variant="secondary"
+                    size="sm"
+                    className="uppercase text-[var(--warning-500)] border-[var(--warning-500)]/30 hover:bg-[var(--warning-500)]/10"
                     title="Delete the current plan for this requirement"
                   >
                     <svg
@@ -1536,22 +1338,12 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                       />
                     </svg>
                     Reset Plan
-                  </button>
+                  </Button>
                 </>
               )}
 
             {/* Copy button */}
-            <button
-              onClick={copyToClipboard}
-              className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2"
-              style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = "var(--accent-primary)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = "var(--text-muted)")
-              }
-            >
+            <Button variant="ghost" size="sm" onClick={copyToClipboard}>
               <svg
                 className="w-3 h-3"
                 fill="none"
@@ -1566,19 +1358,19 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 />
               </svg>
               Copy
-            </button>
+            </Button>
 
-            <div className="h-4 w-px bg-slate-800"></div>
+            <div className="h-4 w-px bg-[var(--border-default)]"></div>
 
             {/* Filename display */}
             <div className="flex items-center gap-2">
               {hasChanges && (
                 <div
-                  className="w-1.5 h-1.5 rounded-full bg-amber-500"
+                  className="w-1.5 h-1.5 rounded-full bg-[var(--warning-500)]"
                   title="Unsaved changes"
                 />
               )}
-              <span className="text-[10px] font-mono text-slate-500 uppercase">
+              <span className="text-[10px] font-mono theme-text-muted uppercase">
                 {selectedFilename || "No spec selected"}
               </span>
             </div>
@@ -1588,10 +1380,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Content Area */}
         {!selectedFilename ? (
           // No spec selected
-          <div
-            className="flex-1 flex flex-col items-center justify-center text-center p-8"
-            style={{ backgroundColor: "var(--bg-base)" }}
-          >
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 theme-bg-base">
             <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
               <IconFileText className="w-8 h-8 theme-text-faint" />
             </div>
@@ -1604,10 +1393,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
         ) : contentLoading ? (
           // Loading content
-          <div
-            className="flex-1 flex items-center justify-center"
-            style={{ backgroundColor: "var(--bg-base)" }}
-          >
+          <div className="flex-1 flex items-center justify-center theme-bg-base">
             <div className="flex items-center gap-3 theme-text-muted">
               <div className="w-5 h-5 border-2 theme-border border-t-brand-500 rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading spec...</span>
@@ -1615,40 +1401,35 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
         ) : contentError ? (
           // Error loading content
-          <div
-            className="flex-1 flex flex-col items-center justify-center p-8"
-            style={{ backgroundColor: "var(--bg-base)" }}
-          >
-            <div className="bg-red-900/20 border border-red-500/20 rounded-xl px-6 py-4 max-w-md">
-              <h3 className="text-sm font-bold text-red-400 mb-2">
-                Failed to Load Spec
-              </h3>
-              <p className="text-xs text-red-300/70">{contentError}</p>
-            </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-8 theme-bg-base">
+            <Alert className="max-w-md border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+              <AlertDescription className="text-[var(--destructive-500)]">
+                <strong className="block text-sm">Failed to Load Spec</strong>
+                <span className="text-xs opacity-80">{contentError}</span>
+              </AlertDescription>
+            </Alert>
           </div>
         ) : (
           // Editor and preview
           <div
             className={`flex-1 flex overflow-hidden ${
-              viewMode === "split" ? "divide-x divide-slate-800/40" : ""
+              viewMode === "split"
+                ? "divide-x divide-[var(--border-muted)]"
+                : ""
             }`}
           >
             {/* Editor pane */}
             {(viewMode === "edit" || viewMode === "split") && (
               <div className="flex-1 flex flex-col min-w-0 relative h-full">
-                <textarea
+                <Textarea
                   ref={editorRef}
                   value={specContent}
                   onChange={(e) => setSpecContent(e.target.value)}
-                  className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
-                  style={{
-                    backgroundColor: "var(--bg-elevated)",
-                    color: "var(--text-secondary)",
-                  }}
+                  className="w-full h-full p-12 font-mono text-sm leading-relaxed resize-none custom-scrollbar selection:bg-brand-500/30 border-0 rounded-none bg-[var(--bg-elevated)] text-[var(--text-secondary)] focus-visible:ring-0 focus-visible:ring-offset-0"
                   placeholder="# Spec content..."
                 />
                 {viewMode === "edit" && (
-                  <div className="absolute top-4 right-4 text-[9px] font-mono text-slate-700 uppercase tracking-[0.2em] bg-slate-900/30 px-3 py-1 rounded-full border border-slate-800/50 backdrop-blur">
+                  <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">
                     Source Editor
                   </div>
                 )}
@@ -1661,7 +1442,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 <div className="flex-1 p-12 overflow-y-auto custom-scrollbar markdown-preview font-sans max-w-4xl mx-auto w-full">
                   <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
                   {!parsedHtml && (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                    <div className="flex flex-col items-center justify-center h-full theme-text-faint gap-4">
                       <IconFileText className="w-12 h-12 opacity-10" />
                       <span className="text-xs font-mono uppercase tracking-widest opacity-20">
                         No content to preview
@@ -1670,7 +1451,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   )}
                 </div>
                 {viewMode === "preview" && (
-                  <div className="absolute top-4 right-4 text-[9px] font-mono text-slate-700 uppercase tracking-[0.2em] bg-slate-900/30 px-3 py-1 rounded-full border border-slate-800/50 backdrop-blur">
+                  <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">
                     Live Preview
                   </div>
                 )}
@@ -1681,169 +1462,178 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       </div>
 
       {/* New Spec Modal */}
-      {isNewSpecOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[480px] overflow-hidden">
-            {/* Modal header */}
-            <div className="h-12 border-b theme-border flex items-center justify-between px-4">
-              <div className="flex items-center gap-2">
-                <IconPlus
-                  className="w-4 h-4"
-                  style={{ color: "var(--accent-primary)" }}
-                />
-                <span className="text-xs font-bold theme-text-secondary">
-                  Create New Spec
-                </span>
-              </div>
-              <button
-                onClick={() => setIsNewSpecOpen(false)}
-                className="p-1.5 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
-                style={{ backgroundColor: "transparent" }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = "var(--hover-bg)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = "transparent")
-                }
-              >
+      <Dialog open={isNewSpecOpen} onOpenChange={setIsNewSpecOpen}>
+        <DialogContent className="max-w-[480px]">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <IconPlus className="w-4 h-4 text-[var(--accent-primary)]" />
+              <DialogTitle>Create New Spec</DialogTitle>
+            </div>
+            <DialogClose asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
                 <IconX className="w-4 h-4" />
-              </button>
+              </Button>
+            </DialogClose>
+          </DialogHeader>
+
+          <div className="p-4 space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
+                Spec ID *
+              </label>
+              <Input
+                type="text"
+                value={newSpecId}
+                onChange={(e) => setNewSpecId(e.target.value.toUpperCase())}
+                placeholder="S-0006"
+                className="font-mono"
+              />
+              <p className="mt-1.5 text-[9px] theme-text-muted">
+                Format: S-XXXX (auto-incremented from existing specs)
+              </p>
             </div>
 
-            {/* Modal body */}
-            <div className="p-4 space-y-4">
-              {/* Spec ID */}
-              <div>
-                <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
-                  Spec ID *
-                </label>
-                <input
-                  type="text"
-                  value={newSpecId}
-                  onChange={(e) => setNewSpecId(e.target.value.toUpperCase())}
-                  placeholder="S-0006"
-                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-all outline-none font-mono"
-                />
-                <p className="mt-1.5 text-[9px] text-slate-600">
-                  Format: S-XXXX (auto-incremented from existing specs)
-                </p>
-              </div>
+            <div>
+              <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
+                Title *
+              </label>
+              <Input
+                type="text"
+                value={newSpecTitle}
+                onChange={(e) => setNewSpecTitle(e.target.value)}
+                placeholder="My New Feature"
+              />
+              <p className="mt-1.5 text-[9px] theme-text-muted">
+                Filename will be:{" "}
+                {newSpecId && newSpecTitle
+                  ? `${newSpecId}-${newSpecTitle
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]+/g, "-")
+                      .replace(/^-|-$/g, "")}.md`
+                  : "S-XXXX-your-title.md"}
+              </p>
+            </div>
 
-              {/* Spec Title */}
-              <div>
-                <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  value={newSpecTitle}
-                  onChange={(e) => setNewSpecTitle(e.target.value)}
-                  placeholder="My New Feature"
-                  className="w-full theme-bg-elevated border theme-border-muted rounded-xl px-4 py-2.5 text-sm theme-text-secondary focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-all outline-none"
-                />
-                <p className="mt-1.5 text-[9px] text-slate-600">
-                  Filename will be:{" "}
-                  {newSpecId && newSpecTitle
-                    ? `${newSpecId}-${newSpecTitle
-                        .toLowerCase()
-                        .replace(/[^a-z0-9]+/g, "-")
-                        .replace(/^-|-$/g, "")}.md`
-                    : "S-XXXX-your-title.md"}
-                </p>
-              </div>
-
-              {/* Template Selection */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Template
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(Object.keys(SPEC_TEMPLATES) as TemplateType[]).map(
-                    (templateKey) => {
-                      const template = SPEC_TEMPLATES[templateKey];
-                      return (
-                        <button
-                          key={templateKey}
-                          onClick={() => setNewSpecTemplate(templateKey)}
-                          className={`p-3 rounded-xl border text-left transition-all ${
-                            newSpecTemplate === templateKey
-                              ? "bg-brand-600/10 border-brand-500/30 text-brand-400"
-                              : "theme-bg-elevated theme-border-muted theme-text-tertiary hover:theme-border"
-                          }`}
-                        >
+            <div>
+              <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
+                Template
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(Object.keys(SPEC_TEMPLATES) as TemplateType[]).map(
+                  (templateKey) => {
+                    const template = SPEC_TEMPLATES[templateKey];
+                    const isSelected = newSpecTemplate === templateKey;
+                    return (
+                      <Button
+                        key={templateKey}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setNewSpecTemplate(templateKey)}
+                        className={`h-auto items-start text-left px-3 py-3 ${
+                          isSelected
+                            ? "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+                            : "text-[var(--text-secondary)]"
+                        }`}
+                      >
+                        <div>
                           <div className="text-xs font-medium mb-1">
                             {template.name}
                           </div>
                           <div className="text-[9px] opacity-60">
                             {template.description}
                           </div>
-                        </button>
-                      );
-                    },
-                  )}
-                </div>
-              </div>
-
-              {/* Error display */}
-              {createError && (
-                <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
-                  {createError}
-                </div>
-              )}
-            </div>
-
-            {/* Modal footer */}
-            <div className="h-14 border-t border-slate-800/60 flex items-center justify-end gap-3 px-4">
-              <button
-                onClick={() => setIsNewSpecOpen(false)}
-                className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateSpec}
-                disabled={
-                  !newSpecId.trim() || !newSpecTitle.trim() || isCreating
-                }
-                className="px-4 py-2 text-xs font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                style={{
-                  backgroundColor: "var(--accent-primary)",
-                  color: "white",
-                }}
-                onMouseEnter={(e) => {
-                  if (!e.currentTarget.disabled)
-                    e.currentTarget.style.opacity = "0.9";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = "1";
-                }}
-              >
-                {isCreating ? (
-                  <>
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <IconPlus className="w-3 h-3" />
-                    Create Spec
-                  </>
+                        </div>
+                      </Button>
+                    );
+                  },
                 )}
-              </button>
+              </div>
             </div>
+
+            {createError && (
+              <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+                <AlertDescription className="text-[var(--destructive-500)]">
+                  {createError}
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsNewSpecOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateSpec}
+              disabled={!newSpecId.trim() || !newSpecTitle.trim() || isCreating}
+              size="sm"
+              className="uppercase"
+            >
+              {isCreating ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <IconPlus className="w-3 h-3" />
+                  Create Spec
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset Plan Confirmation Modal (S-0006: Manual Reset Plan Controls) */}
-      {isResetPlanModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="theme-bg-base border theme-border rounded-2xl shadow-2xl w-[400px] overflow-hidden">
-            {/* Modal header */}
-            <div className="h-12 border-b border-slate-800/60 flex items-center justify-between px-4">
-              <div className="flex items-center gap-2">
+      <AlertDialog
+        open={isResetPlanModalOpen}
+        onOpenChange={(open) => {
+          if (!open) handleResetPlanCancel();
+        }}
+      >
+        <AlertDialogContent className="max-w-[400px]">
+          <AlertDialogHeader className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <svg
+                className="w-4 h-4 text-[var(--warning-500)]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <AlertDialogTitle className="text-xs font-bold">
+                Reset Plan
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogCancel asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={isResettingPlan}
+              >
+                <IconX className="w-4 h-4" />
+              </Button>
+            </AlertDialogCancel>
+          </AlertDialogHeader>
+
+          <div className="p-5">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-[var(--warning-500)]/10 text-[var(--warning-500)]">
                 <svg
-                  className="w-4 h-4 text-amber-400"
+                  className="w-5 h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1852,28 +1642,100 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                   />
                 </svg>
-                <span className="text-xs font-bold text-slate-300">
-                  Reset Plan
-                </span>
               </div>
-              <button
-                onClick={handleResetPlanCancel}
-                disabled={isResettingPlan}
-                className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300 disabled:opacity-50"
-              >
-                <IconX className="w-4 h-4" />
-              </button>
+              <div>
+                <h3 className="text-sm font-bold theme-text-secondary mb-1">
+                  Delete plan for {selectedRequirementId}?
+                </h3>
+                <AlertDialogDescription className="text-xs leading-relaxed">
+                  This will permanently delete the implementation plan for this
+                  requirement. The agent will need to regenerate the plan on the
+                  next run.
+                </AlertDialogDescription>
+              </div>
             </div>
 
-            {/* Modal body */}
-            <div className="p-5">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+            {selectedSpecStatus?.plan_modified_at && (
+              <div className="rounded-lg border border-[var(--border-muted)] bg-[var(--bg-surface-100)] p-3 mb-4">
+                <div className="text-[10px] theme-text-muted uppercase tracking-wider mb-1">
+                  Current Plan
+                </div>
+                <div className="text-xs theme-text-muted">
+                  Generated:{" "}
+                  {new Date(
+                    selectedSpecStatus.plan_modified_at,
+                  ).toLocaleString()}
+                </div>
+              </div>
+            )}
+
+            {resetPlanMessage && (
+              <Alert
+                className={`mb-4 ${
+                  resetPlanMessage.type === "success"
+                    ? "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+                    : "border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]"
+                }`}
+              >
+                <AlertDescription
+                  className={
+                    resetPlanMessage.type === "success"
+                      ? "text-[var(--brand-500)]"
+                      : "text-[var(--destructive-500)]"
+                  }
+                >
+                  {resetPlanMessage.text}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <AlertDialogFooter className="flex items-center justify-end gap-3 border-t border-[var(--border-default)] px-4 py-3">
+            <AlertDialogCancel asChild>
+              <Button variant="ghost" size="sm" disabled={isResettingPlan}>
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <Button
+              onClick={handleResetPlanConfirm}
+              disabled={isResettingPlan || resetPlanMessage?.type === "success"}
+              size="sm"
+              variant={
+                resetPlanMessage?.type === "success"
+                  ? "secondary"
+                  : "destructive"
+              }
+              className="uppercase"
+            >
+              {isResettingPlan ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Deleting...
+                </>
+              ) : resetPlanMessage?.type === "success" ? (
+                <>
                   <svg
-                    className="w-5 h-5 text-amber-400"
+                    className="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="3"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Done
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-3 h-3"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1885,109 +1747,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                     />
                   </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-200 mb-1">
-                    Delete plan for {selectedRequirementId}?
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    This will permanently delete the implementation plan for
-                    this requirement. The agent will need to regenerate the plan
-                    on the next run.
-                  </p>
-                </div>
-              </div>
-
-              {/* Show current plan info if available */}
-              {selectedSpecStatus?.plan_modified_at && (
-                <div className="bg-slate-800/40 rounded-lg p-3 mb-4">
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                    Current Plan
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    Generated:{" "}
-                    {new Date(
-                      selectedSpecStatus.plan_modified_at,
-                    ).toLocaleString()}
-                  </div>
-                </div>
+                  Delete Plan
+                </>
               )}
-
-              {/* Feedback message */}
-              {resetPlanMessage && (
-                <div
-                  className={`p-2 rounded-lg text-xs mb-4 ${
-                    resetPlanMessage.type === "success"
-                      ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
-                      : "bg-red-500/10 border border-red-500/20 text-red-400"
-                  }`}
-                >
-                  {resetPlanMessage.text}
-                </div>
-              )}
-            </div>
-
-            {/* Modal footer */}
-            <div className="h-14 border-t border-slate-800/60 flex items-center justify-end gap-3 px-4">
-              <button
-                onClick={handleResetPlanCancel}
-                disabled={isResettingPlan}
-                className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleResetPlanConfirm}
-                disabled={
-                  isResettingPlan || resetPlanMessage?.type === "success"
-                }
-                className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isResettingPlan ? (
-                  <>
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Deleting...
-                  </>
-                ) : resetPlanMessage?.type === "success" ? (
-                  <>
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="3"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    Done
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                    Delete Plan
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Warning modal for editing in_progress requirements (S-0006) */}
       <SpecEditWarningModal

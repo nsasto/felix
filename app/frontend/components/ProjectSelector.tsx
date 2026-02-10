@@ -6,6 +6,38 @@
 import React, { useState, useEffect } from "react";
 import { felixApi, Project, ProjectDetails } from "../services/felixApi";
 import { IconPlus, IconFelix } from "./Icons";
+import { cn } from "../lib/utils";
+import { Alert, AlertDescription } from "./ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardContent } from "./ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 type ViewMode = "cards" | "table";
 
@@ -13,17 +45,17 @@ type ViewMode = "cards" | "table";
 const getStatusColor = (status: string | null): string => {
   switch (status?.toLowerCase()) {
     case "running":
-      return "bg-brand-500 animate-pulse";
+      return "bg-[var(--brand-500)] animate-pulse";
     case "complete":
     case "done":
-      return "bg-emerald-500";
+      return "bg-[var(--brand-500)]";
     case "blocked":
     case "error":
-      return "bg-red-500";
+      return "bg-[var(--destructive-500)]";
     case "planned":
-      return "bg-amber-500";
+      return "bg-[var(--warning-500)]";
     default:
-      return "bg-slate-600";
+      return "bg-[var(--text-muted)]";
   }
 };
 
@@ -337,13 +369,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           >
             Projects
           </h1>
-          <button
-            onClick={() => setIsRegisterOpen(true)}
-            className="px-3 py-1.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-500 transition-all flex items-center gap-2"
-          >
+          <Button onClick={() => setIsRegisterOpen(true)} size="sm">
             <IconPlus className="w-4 h-4" />
             New project
-          </button>
+          </Button>
         </div>
 
         {/* Search and view controls */}
@@ -354,94 +383,47 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
               style={{ color: "var(--text-muted)" }}
             />
-            <input
-              type="text"
+            <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for a project"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg outline-none transition-all"
-              style={{
-                backgroundColor: "var(--bg-base)",
-                border: "1px solid var(--border-muted)",
-                color: "var(--text-secondary)",
-              }}
+              className="pl-9"
             />
           </div>
 
           {/* Filter button (placeholder) */}
-          <button
-            className="p-2 rounded-lg transition-all border"
-            style={{
-              borderColor: "var(--border-muted)",
-              color: "var(--text-muted)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-secondary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            title="Filter"
-          >
+          <Button variant="ghost" size="icon" title="Filter">
             <IconFilter className="w-4 h-4" />
-          </button>
+          </Button>
 
           {/* View mode toggles */}
-          <div
-            className="flex items-center border rounded-lg"
-            style={{ borderColor: "var(--border-muted)" }}
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(value) => {
+              if (value) setViewMode(value as ViewMode);
+            }}
           >
-            <button
-              onClick={() => setViewMode("cards")}
-              className="p-2 transition-all"
-              style={{
-                backgroundColor:
-                  viewMode === "cards" ? "var(--bg-elevated)" : "transparent",
-                color:
-                  viewMode === "cards"
-                    ? "var(--text-primary)"
-                    : "var(--text-muted)",
-              }}
-              title="Card view"
-            >
+            <ToggleGroupItem value="cards" title="Card view">
               <IconGrid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("table")}
-              className="p-2 transition-all"
-              style={{
-                backgroundColor:
-                  viewMode === "table" ? "var(--bg-elevated)" : "transparent",
-                color:
-                  viewMode === "table"
-                    ? "var(--text-primary)"
-                    : "var(--text-muted)",
-              }}
-              title="Table view"
-            >
+            </ToggleGroupItem>
+            <ToggleGroupItem value="table" title="Table view">
               <IconList className="w-4 h-4" />
-            </button>
-          </div>
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
       </div>
 
       {/* Error display */}
       {error && (
-        <div
-          className="mx-6 mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm flex items-center justify-between"
-          style={{ color: "var(--status-error)" }}
-        >
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-2 opacity-80 hover:opacity-100 p-1"
-            style={{ color: "var(--status-error)" }}
-          >
+        <Alert className="mx-6 mt-3 flex items-center justify-between border-[var(--destructive-500)]/20 bg-[var(--destructive-500)]/10">
+          <AlertDescription className="text-[var(--destructive-500)]">
+            {error}
+          </AlertDescription>
+          <Button variant="ghost" size="icon" onClick={() => setError(null)}>
             <IconX className="w-4 h-4" />
-          </button>
-        </div>
+          </Button>
+        </Alert>
       )}
 
       {/* Project list */}
@@ -483,19 +465,17 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               const isSelected = selectedProjectId === project.id;
 
               return (
-                <div
+                <Card
                   key={project.id}
-                  className="relative group cursor-pointer rounded-xl border transition-all hover:shadow-md"
-                  style={{
-                    backgroundColor: "var(--bg-elevated)",
-                    borderColor: isSelected
-                      ? "var(--accent-primary)"
-                      : "var(--border-default)",
-                    borderWidth: isSelected ? "2px" : "1px",
-                  }}
+                  className={cn(
+                    "relative group cursor-pointer transition-all hover:shadow-md",
+                    isSelected
+                      ? "border-2 border-[var(--accent-primary)]"
+                      : "border-[var(--border-default)]",
+                  )}
                   onClick={() => handleProjectClick(project)}
                 >
-                  <div className="p-4">
+                  <CardContent className="p-4">
                     {/* Card header */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -510,23 +490,18 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                           {getProjectName(project)}
                         </h3>
                       </div>
-                      <button
+                      <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           setConfirmUnregister(project.id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 rounded-lg transition-all flex-shrink-0"
-                        style={{ color: "var(--text-muted)" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = "var(--status-error)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = "var(--text-muted)";
-                        }}
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/10"
                         title="Unregister project"
                       >
                         <IconMore className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </div>
 
                     {/* Project path */}
@@ -540,20 +515,14 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
 
                     {/* Status badge */}
                     {details?.status && (
-                      <div
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium mb-3"
-                        style={{
-                          backgroundColor: "var(--bg-base)",
-                          color: "var(--text-muted)",
-                        }}
-                      >
+                      <Badge className="gap-1.5 mb-3">
                         <div
                           className={`w-2 h-2 rounded-full ${getStatusColor(details.status)}`}
                         />
                         <span className="uppercase text-[10px] tracking-wider">
                           {details.status}
                         </span>
-                      </div>
+                      </Badge>
                     )}
 
                     {/* Status message */}
@@ -580,9 +549,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                         >
                           Project is paused
                         </span>
-                        <button
-                          className="ml-auto text-xs"
-                          style={{ color: "var(--text-muted)" }}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-auto text-[var(--text-muted)]"
                         >
                           <svg
                             className="w-4 h-4"
@@ -595,85 +565,45 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
                             <line x1="12" y1="17" x2="12.01" y2="17" />
                           </svg>
-                        </button>
+                        </Button>
                       </div>
                     )}
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
         ) : (
           /* Table View */
           <div className="px-6 py-4">
-            <table className="w-full">
-              <thead>
-                <tr
-                  className="border-b"
-                  style={{ borderColor: "var(--border-default)" }}
-                >
-                  <th
-                    className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Project
-                  </th>
-                  <th
-                    className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Status
-                  </th>
-                  <th
-                    className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Compute
-                  </th>
-                  <th
-                    className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Region
-                  </th>
-                  <th
-                    className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Created
-                  </th>
-                  <th className="w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Compute</TableHead>
+                  <TableHead>Region</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredProjects.map((project) => {
                   const details = projectDetails.get(project.id);
                   const isSelected = selectedProjectId === project.id;
 
                   return (
-                    <tr
+                    <TableRow
                       key={project.id}
-                      className="border-b group cursor-pointer transition-colors"
-                      style={{
-                        borderColor: "var(--border-default)",
-                        backgroundColor: isSelected
-                          ? "var(--selected-bg)"
-                          : "transparent",
-                      }}
+                      className={cn(
+                        "group cursor-pointer",
+                        isSelected
+                          ? "bg-[var(--bg-selection)]"
+                          : "hover:bg-[var(--hover-bg)]",
+                      )}
                       onClick={() => handleProjectClick(project)}
-                      onMouseEnter={(e) => {
-                        if (!isSelected) {
-                          e.currentTarget.style.backgroundColor =
-                            "var(--hover-bg)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSelected) {
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }
-                      }}
                     >
-                      <td className="py-3 px-3">
+                      <TableCell>
                         <div className="flex flex-col">
                           <span
                             className="font-medium text-sm"
@@ -690,41 +620,26 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                               : project.path}
                           </span>
                         </div>
-                      </td>
-                      <td className="py-3 px-3">
+                      </TableCell>
+                      <TableCell>
                         {details?.status && (
-                          <span
-                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium"
-                            style={{
-                              backgroundColor: "var(--bg-base)",
-                              color: "var(--text-muted)",
-                            }}
-                          >
+                          <Badge className="gap-1.5">
                             <div
                               className={`w-2 h-2 rounded-full ${getStatusColor(details.status)}`}
                             />
                             <span className="uppercase text-[10px] tracking-wider">
                               {details.status}
                             </span>
-                          </span>
+                          </Badge>
                         )}
-                      </td>
-                      <td
-                        className="py-3 px-3 text-sm"
-                        style={{ color: "var(--text-muted)" }}
-                      >
+                      </TableCell>
+                      <TableCell style={{ color: "var(--text-muted)" }}>
                         —
-                      </td>
-                      <td
-                        className="py-3 px-3 text-sm"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
+                      </TableCell>
+                      <TableCell style={{ color: "var(--text-secondary)" }}>
                         aws | us-east-2
-                      </td>
-                      <td
-                        className="py-3 px-3 text-sm"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
+                      </TableCell>
+                      <TableCell style={{ color: "var(--text-secondary)" }}>
                         {details
                           ? new Date().toLocaleDateString("en-US", {
                               month: "short",
@@ -734,226 +649,148 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                               minute: "2-digit",
                             })
                           : "—"}
-                      </td>
-                      <td className="py-3 px-3">
-                        <button
+                      </TableCell>
+                      <TableCell>
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             setConfirmUnregister(project.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 rounded-lg transition-all"
-                          style={{ color: "var(--text-muted)" }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.color = "var(--status-error)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.color = "var(--text-muted)";
-                          }}
+                          variant="ghost"
+                          size="icon"
+                          className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/10"
                           title="Unregister project"
                         >
                           <IconMore className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
 
       {/* Register Project Dialog */}
-      {isRegisterOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div
-            className="rounded-2xl shadow-2xl w-[420px] overflow-hidden"
-            style={{
-              backgroundColor: "var(--bg-base)",
-              border: "1px solid var(--border-default)",
-            }}
-          >
-            {/* Dialog header */}
-            <div
-              className="h-12 border-b flex items-center justify-between px-4"
-              style={{ borderColor: "var(--border-default)" }}
+      <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
+        <DialogContent className="max-w-md p-0">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <IconFolder
+                className="w-4 h-4"
+                style={{ color: "var(--accent-primary)" }}
+              />
+              <DialogTitle>Register Project</DialogTitle>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsRegisterOpen(false)}
             >
-              <div className="flex items-center gap-2">
-                <IconFolder
-                  className="w-4 h-4"
-                  style={{ color: "var(--accent-primary)" }}
-                />
-                <span
-                  className="text-xs font-bold"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  Register Project
-                </span>
-              </div>
-              <button
-                onClick={() => setIsRegisterOpen(false)}
-                className="p-1.5 rounded-lg transition-all"
+              <IconX className="w-4 h-4" />
+            </Button>
+          </DialogHeader>
+
+          <div className="p-4 space-y-4">
+            <div>
+              <label
+                className="block text-[10px] font-bold uppercase tracking-wider mb-2"
                 style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
               >
-                <IconX className="w-4 h-4" />
-              </button>
+                Project Path *
+              </label>
+              <Input
+                value={registerPath}
+                onChange={(e) => setRegisterPath(e.target.value)}
+                placeholder="C:\path\to\your\project"
+                className="h-10"
+              />
+              <p
+                className="mt-1.5 text-[9px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Enter the absolute path to your Felix project directory
+                <br />
+                Tip: Shift+Right-click folder in Explorer → "Copy as path"
+              </p>
             </div>
 
-            {/* Dialog body */}
-            <div className="p-4 space-y-4">
-              <div>
-                <label
-                  className="block text-[10px] font-bold uppercase tracking-wider mb-2"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Project Path *
-                </label>
-                <input
-                  type="text"
-                  value={registerPath}
-                  onChange={(e) => setRegisterPath(e.target.value)}
-                  placeholder="C:\path\to\your\project"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-brand-500 transition-all outline-none"
-                  style={{
-                    backgroundColor: "var(--bg-elevated)",
-                    border: "1px solid var(--border-muted)",
-                    color: "var(--text-secondary)",
-                  }}
-                />
-                <p
-                  className="mt-1.5 text-[9px]"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Enter the absolute path to your Felix project directory
-                  <br />
-                  Tip: Shift+Right-click folder in Explorer → "Copy as path"
-                </p>
-              </div>
+            <div>
+              <label
+                className="block text-[10px] font-bold uppercase tracking-wider mb-2"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Display Name (optional)
+              </label>
+              <Input
+                value={registerName}
+                onChange={(e) => setRegisterName(e.target.value)}
+                placeholder="My Project"
+                className="h-10"
+              />
+            </div>
 
-              <div>
-                <label
-                  className="block text-[10px] font-bold uppercase tracking-wider mb-2"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Display Name (optional)
-                </label>
-                <input
-                  type="text"
-                  value={registerName}
-                  onChange={(e) => setRegisterName(e.target.value)}
-                  placeholder="My Project"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-brand-500 transition-all outline-none"
-                  style={{
-                    backgroundColor: "var(--bg-elevated)",
-                    border: "1px solid var(--border-muted)",
-                    color: "var(--text-secondary)",
-                  }}
-                />
-              </div>
-
-              {error && (
-                <div
-                  className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs"
-                  style={{ color: "var(--status-error)" }}
-                >
+            {error && (
+              <Alert className="border-[var(--destructive-500)]/20 bg-[var(--destructive-500)]/10">
+                <AlertDescription className="text-[var(--destructive-500)]">
                   {error}
-                </div>
-              )}
-            </div>
-
-            {/* Dialog footer */}
-            <div
-              className="h-14 border-t flex items-center justify-end gap-3 px-4"
-              style={{ borderColor: "var(--border-default)" }}
-            >
-              <button
-                onClick={() => setIsRegisterOpen(false)}
-                className="px-4 py-2 text-xs font-medium transition-colors"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRegister}
-                disabled={!registerPath.trim() || isRegistering}
-                className="px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRegistering ? "Registering..." : "Register"}
-              </button>
-            </div>
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsRegisterOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRegister}
+              disabled={!registerPath.trim() || isRegistering}
+            >
+              {isRegistering ? "Registering..." : "Register"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm Unregister Dialog */}
-      {confirmUnregister && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div
-            className="rounded-2xl shadow-2xl w-[380px] overflow-hidden"
-            style={{
-              backgroundColor: "var(--bg-base)",
-              border: "1px solid var(--border-default)",
-            }}
-          >
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <IconTrash
-                  className="w-6 h-6"
-                  style={{ color: "var(--status-error)" }}
-                />
-              </div>
-              <h3
-                className="text-sm font-bold mb-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                Unregister Project?
-              </h3>
-              <p
-                className="text-xs mb-6"
-                style={{ color: "var(--text-muted)" }}
-              >
-                This will remove the project from Felix. Your files will not be
-                deleted.
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => setConfirmUnregister(null)}
-                  className="px-4 py-2 text-xs font-medium transition-colors"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleUnregister(confirmUnregister)}
-                  className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-500 transition-all"
-                >
-                  Unregister
-                </button>
-              </div>
+      <AlertDialog
+        open={Boolean(confirmUnregister)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmUnregister(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader className="text-center">
+            <div className="w-12 h-12 bg-[var(--destructive-500)]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <IconTrash
+                className="w-6 h-6"
+                style={{ color: "var(--destructive-500)" }}
+              />
             </div>
-          </div>
-        </div>
-      )}
+            <AlertDialogTitle>Unregister Project?</AlertDialogTitle>
+            <AlertDialogDescription className="mt-2">
+              This will remove the project from Felix. Your files will not be
+              deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex items-center justify-center gap-3">
+            <AlertDialogCancel asChild>
+              <Button variant="ghost">Cancel</Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                onClick={() => handleUnregister(confirmUnregister || "")}
+              >
+                Unregister
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
