@@ -81,6 +81,16 @@
   --pre-border: #1e293b;
   --blockquote-bg: rgba(62, 207, 142, 0.05);
   --table-header-bg: #1e293b;
+
+  /* Sidebar Tokens (Shadcn) */
+  --sidebar-background: var(--bg-200);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--bg-surface-200);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border-muted);
+  --sidebar-ring: var(--brand-500);
 }
 
 /* Light Theme */
@@ -155,6 +165,16 @@
   --pre-border: #d0d7de;
   --blockquote-bg: rgba(62, 207, 142, 0.05);
   --table-header-bg: #f6f8fa;
+
+  /* Sidebar Tokens (Shadcn) */
+  --sidebar-background: var(--bg-200);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--bg-surface-200);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border-muted);
+  --sidebar-ring: var(--brand-500);
 }
 
 /* ============================================

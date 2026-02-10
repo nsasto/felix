@@ -10,10 +10,14 @@ module.exports = {
     "./services/**/*.{ts,tsx}",
     "./utils/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
-    "./styles/**/*.{css}",
+    "./styles/**/*.css",
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
+      },
       colors: {
         brand: {
           50: "#ecfdf5",
