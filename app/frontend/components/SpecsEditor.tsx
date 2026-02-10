@@ -824,11 +824,23 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Specs List Sidebar */}
       <div className="w-80 border-r theme-border flex flex-col theme-bg-deep/40 flex-shrink-0">
-        <div className="h-12 border-b border-slate-800/60 flex items-center px-4 justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+        <div
+          className="h-12 border-b flex items-center px-4 justify-between"
+          style={{ borderColor: "var(--border-default)" }}
+        >
+          <span
+            className="text-[10px] font-bold uppercase tracking-widest"
+            style={{ color: "var(--text-muted)" }}
+          >
             Specifications
           </span>
-          <span className="text-[10px] font-mono text-slate-600 bg-slate-900 px-1.5 py-0.5 rounded">
+          <span
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+            style={{
+              color: "var(--text-muted)",
+              backgroundColor: "var(--bg-surface)",
+            }}
+          >
             {specs.length}
           </span>
         </div>
@@ -889,7 +901,10 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         <div className="px-3 pb-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
           {specsLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-xs text-slate-500 animate-pulse">
+              <div
+                className="text-xs animate-pulse"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Loading specs...
               </div>
             </div>
@@ -981,8 +996,30 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border group ${
                     selectedFilename === spec.filename
                       ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10"
-                      : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50"
+                      : "border-transparent"
                   }`}
+                  style={{
+                    color:
+                      selectedFilename === spec.filename
+                        ? "var(--accent-primary)"
+                        : "var(--text-muted)",
+                    ...(selectedFilename !== spec.filename && {
+                      backgroundColor: "transparent",
+                    }),
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedFilename !== spec.filename) {
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                      e.currentTarget.style.backgroundColor =
+                        "var(--bg-surface)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedFilename !== spec.filename) {
+                      e.currentTarget.style.color = "var(--text-muted)";
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }
+                  }}
                 >
                   <div className="relative flex-shrink-0">
                     <IconFileText className="w-4 h-4" />
@@ -1050,39 +1087,86 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       </div>
 
       {/* Editor Pane */}
-      <div className="flex-1 flex flex-col min-w-0" style={{ backgroundColor: "var(--bg-base)" }}>
+      <div
+        className="flex-1 flex flex-col min-w-0"
+        style={{ backgroundColor: "var(--bg-base)" }}
+      >
         {/* Toolbar */}
         <div className="h-12 border-b theme-border flex items-center px-4 justify-between theme-bg-base/95 backdrop-blur z-20 flex-shrink-0">
           <div className="flex items-center gap-4">
             {/* View mode toggle */}
-            <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 shadow-inner">
+            <div
+              className="flex border rounded-lg p-0.5"
+              style={{
+                backgroundColor: "var(--bg-elevated)",
+                borderColor: "var(--border-default)",
+              }}
+            >
               <button
                 onClick={() => setViewMode("edit")}
-                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                  viewMode === "edit"
-                    ? "bg-slate-800 text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-400"
-                }`}
+                className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
+                style={{
+                  backgroundColor:
+                    viewMode === "edit" ? "var(--bg-surface)" : "transparent",
+                  color:
+                    viewMode === "edit"
+                      ? "var(--accent-primary)"
+                      : "var(--text-muted)",
+                }}
+                onMouseEnter={(e) => {
+                  if (viewMode !== "edit")
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                }}
+                onMouseLeave={(e) => {
+                  if (viewMode !== "edit")
+                    e.currentTarget.style.color = "var(--text-muted)";
+                }}
               >
                 SOURCE
               </button>
               <button
                 onClick={() => setViewMode("split")}
-                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                  viewMode === "split"
-                    ? "bg-slate-800 text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-400"
-                }`}
+                className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
+                style={{
+                  backgroundColor:
+                    viewMode === "split" ? "var(--bg-surface)" : "transparent",
+                  color:
+                    viewMode === "split"
+                      ? "var(--accent-primary)"
+                      : "var(--text-muted)",
+                }}
+                onMouseEnter={(e) => {
+                  if (viewMode !== "split")
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                }}
+                onMouseLeave={(e) => {
+                  if (viewMode !== "split")
+                    e.currentTarget.style.color = "var(--text-muted)";
+                }}
               >
                 SPLIT
               </button>
               <button
                 onClick={() => setViewMode("preview")}
-                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                  viewMode === "preview"
-                    ? "bg-slate-800 text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-400"
-                }`}
+                className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
+                style={{
+                  backgroundColor:
+                    viewMode === "preview"
+                      ? "var(--bg-surface)"
+                      : "transparent",
+                  color:
+                    viewMode === "preview"
+                      ? "var(--accent-primary)"
+                      : "var(--text-muted)",
+                }}
+                onMouseEnter={(e) => {
+                  if (viewMode !== "preview")
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                }}
+                onMouseLeave={(e) => {
+                  if (viewMode !== "preview")
+                    e.currentTarget.style.color = "var(--text-muted)";
+                }}
               >
                 PREVIEW
               </button>
@@ -1090,31 +1174,70 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
             {/* Formatting buttons (only in edit/split mode) */}
             {(viewMode === "edit" || viewMode === "split") && (
-              <div className="flex items-center gap-0.5 border-l border-slate-800 pl-4">
+              <div
+                className="flex items-center gap-0.5 border-l pl-4"
+                style={{ borderColor: "var(--border-default)" }}
+              >
                 <button
                   onClick={() => insertFormatting("# ")}
-                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 rounded-md transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--accent-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                   title="H1"
                 >
                   <span className="font-bold text-xs">H1</span>
                 </button>
                 <button
                   onClick={() => insertFormatting("## ")}
-                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 rounded-md transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--accent-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                   title="H2"
                 >
                   <span className="font-bold text-xs">H2</span>
                 </button>
                 <button
                   onClick={() => insertFormatting("**", "**")}
-                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 rounded-md transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--accent-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                   title="Bold"
                 >
                   <span className="font-bold text-xs uppercase">B</span>
                 </button>
                 <button
                   onClick={() => insertFormatting("*", "*")}
-                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 rounded-md transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--accent-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                   title="Italic"
                 >
                   <span className="italic text-xs font-serif font-bold uppercase">
@@ -1123,7 +1246,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </button>
                 <button
                   onClick={() => insertFormatting("- ")}
-                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 rounded-md transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--accent-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                   title="List"
                 >
                   <svg
@@ -1142,7 +1274,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </button>
                 <button
                   onClick={() => insertFormatting("`", "`")}
-                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 rounded-md transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--accent-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                   title="Code"
                 >
                   <svg
@@ -1161,7 +1302,16 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </button>
                 <button
                   onClick={() => insertFormatting("- [ ] ")}
-                  className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                  className="p-1.5 rounded-md transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--accent-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                   title="Checkbox"
                 >
                   <svg
@@ -1195,11 +1345,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             <button
               onClick={handleSave}
               disabled={!hasChanges || saving}
-              className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 ${
-                hasChanges
-                  ? "bg-brand-600 text-white hover:bg-brand-500"
-                  : "bg-slate-800 text-slate-500 cursor-not-allowed"
-              }`}
+              className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2"
+              style={{
+                backgroundColor: hasChanges
+                  ? "var(--accent-primary)"
+                  : "var(--bg-surface)",
+                color: hasChanges ? "white" : "var(--text-muted)",
+                cursor: hasChanges ? "pointer" : "not-allowed",
+              }}
             >
               {saving ? (
                 <>
@@ -1309,7 +1462,10 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Content Area */}
         {!selectedFilename ? (
           // No spec selected
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8" style={{ backgroundColor: "var(--bg-base)" }}>
+          <div
+            className="flex-1 flex flex-col items-center justify-center text-center p-8"
+            style={{ backgroundColor: "var(--bg-base)" }}
+          >
             <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
               <IconFileText className="w-8 h-8 theme-text-faint" />
             </div>
@@ -1322,7 +1478,10 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
         ) : contentLoading ? (
           // Loading content
-          <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: "var(--bg-base)" }}>
+          <div
+            className="flex-1 flex items-center justify-center"
+            style={{ backgroundColor: "var(--bg-base)" }}
+          >
             <div className="flex items-center gap-3 theme-text-muted">
               <div className="w-5 h-5 border-2 theme-border border-t-brand-500 rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading spec...</span>
@@ -1330,7 +1489,10 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
           </div>
         ) : contentError ? (
           // Error loading content
-          <div className="flex-1 flex flex-col items-center justify-center p-8" style={{ backgroundColor: "var(--bg-base)" }}>
+          <div
+            className="flex-1 flex flex-col items-center justify-center p-8"
+            style={{ backgroundColor: "var(--bg-base)" }}
+          >
             <div className="bg-red-900/20 border border-red-500/20 rounded-xl px-6 py-4 max-w-md">
               <h3 className="text-sm font-bold text-red-400 mb-2">
                 Failed to Load Spec
@@ -1353,7 +1515,10 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   value={specContent}
                   onChange={(e) => setSpecContent(e.target.value)}
                   className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
-                  style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+                  style={{
+                    backgroundColor: "var(--bg-elevated)",
+                    color: "var(--text-secondary)",
+                  }}
                   placeholder="# Spec content..."
                 />
                 {viewMode === "edit" && (

@@ -198,7 +198,16 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           {onBack && (
             <button
               onClick={onBack}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+              className="p-2 rounded-lg transition-all"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
             >
               <svg
                 className="w-4 h-4"
@@ -217,24 +226,54 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
           )}
 
           {/* View mode toggle */}
-          <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 shadow-inner">
+          <div
+            className="flex border rounded-lg p-0.5"
+            style={{
+              backgroundColor: "var(--bg-elevated)",
+              borderColor: "var(--border-default)",
+            }}
+          >
             <button
               onClick={() => setViewMode("view")}
-              className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                viewMode === "view"
-                  ? "bg-slate-800 text-brand-400 shadow-sm"
-                  : "text-slate-500 hover:text-slate-400"
-              }`}
+              className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
+              style={{
+                backgroundColor:
+                  viewMode === "view" ? "var(--bg-surface)" : "transparent",
+                color:
+                  viewMode === "view"
+                    ? "var(--accent-primary)"
+                    : "var(--text-muted)",
+              }}
+              onMouseEnter={(e) => {
+                if (viewMode !== "view")
+                  e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+              onMouseLeave={(e) => {
+                if (viewMode !== "view")
+                  e.currentTarget.style.color = "var(--text-muted)";
+              }}
             >
               VIEW
             </button>
             <button
               onClick={() => setViewMode("edit")}
-              className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                viewMode === "edit"
-                  ? "bg-slate-800 text-brand-400 shadow-sm"
-                  : "text-slate-500 hover:text-slate-400"
-              }`}
+              className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
+              style={{
+                backgroundColor:
+                  viewMode === "edit" ? "var(--bg-surface)" : "transparent",
+                color:
+                  viewMode === "edit"
+                    ? "var(--accent-primary)"
+                    : "var(--text-muted)",
+              }}
+              onMouseEnter={(e) => {
+                if (viewMode !== "edit")
+                  e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+              onMouseLeave={(e) => {
+                if (viewMode !== "edit")
+                  e.currentTarget.style.color = "var(--text-muted)";
+              }}
             >
               EDIT
             </button>
@@ -242,31 +281,70 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
 
           {/* Formatting buttons (only in edit mode) */}
           {viewMode === "edit" && (
-            <div className="flex items-center gap-0.5 border-l border-slate-800 pl-4">
+            <div
+              className="flex items-center gap-0.5 border-l pl-4"
+              style={{ borderColor: "var(--border-default)" }}
+            >
               <button
                 onClick={() => insertFormatting("# ")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="H1"
               >
                 <span className="font-bold text-xs">H1</span>
               </button>
               <button
                 onClick={() => insertFormatting("## ")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="H2"
               >
                 <span className="font-bold text-xs">H2</span>
               </button>
               <button
                 onClick={() => insertFormatting("### ")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="H3"
               >
                 <span className="font-bold text-xs">H3</span>
               </button>
               <button
                 onClick={() => insertFormatting("- [ ] ")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="Task Checkbox"
               >
                 <svg
@@ -293,7 +371,16 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               </button>
               <button
                 onClick={() => insertFormatting("- [x] ")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="Completed Task"
               >
                 <svg
@@ -322,7 +409,16 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               </button>
               <button
                 onClick={() => insertFormatting("- ")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="List"
               >
                 <svg
@@ -341,14 +437,32 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               </button>
               <button
                 onClick={() => insertFormatting("**", "**")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="Bold"
               >
                 <span className="font-bold text-xs uppercase">B</span>
               </button>
               <button
                 onClick={() => insertFormatting("`", "`")}
-                className="p-1.5 text-slate-500 hover:text-brand-400 hover:bg-slate-800 rounded-md transition-all"
+                className="p-1.5 rounded-md transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                  e.currentTarget.style.color = "var(--accent-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
                 title="Code"
               >
                 <svg
@@ -376,7 +490,16 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               {hasChanges && (
                 <button
                   onClick={handleDiscard}
-                  className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+                  className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
                 >
                   Discard
                 </button>
@@ -384,11 +507,14 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               <button
                 onClick={handleSave}
                 disabled={!hasChanges || saving}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2 ${
-                  hasChanges
-                    ? "bg-brand-600 text-white hover:bg-brand-500"
-                    : "bg-slate-800 text-slate-500 cursor-not-allowed"
-                }`}
+                className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-2"
+                style={{
+                  backgroundColor: hasChanges
+                    ? "var(--accent-primary)"
+                    : "var(--bg-surface)",
+                  color: hasChanges ? "white" : "var(--text-muted)",
+                  cursor: hasChanges ? "pointer" : "not-allowed",
+                }}
               >
                 {saving ? (
                   <>
@@ -478,7 +604,10 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               value={planContent}
               onChange={(e) => setPlanContent(e.target.value)}
               className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
-              style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-elevated)",
+                color: "var(--text-secondary)",
+              }}
               placeholder="# Implementation Plan..."
             />
             <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">

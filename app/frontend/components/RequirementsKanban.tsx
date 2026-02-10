@@ -515,7 +515,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: "var(--bg-base)" }}>
+    <div
+      className="flex-1 flex flex-col overflow-hidden"
+      style={{ backgroundColor: "var(--bg-base)" }}
+    >
       {/* Sticky Drop Zones - Always show all columns including Done */}
       <StickyDropZones
         visibleColumns={COLUMNS}

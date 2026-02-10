@@ -207,7 +207,11 @@ const App: React.FC = () => {
     ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
     : "No project selected";
   const { theme, setTheme } = useTheme();
-  const themeOptions: Array<{ label: string; value: ThemeValue; isVariant?: boolean }> = [
+  const themeOptions: Array<{
+    label: string;
+    value: ThemeValue;
+    isVariant?: boolean;
+  }> = [
     { label: "Dark", value: "dark" },
     { label: "Light", value: "light" },
     { label: "Classic Dark", value: "dark", isVariant: true },
@@ -954,10 +958,10 @@ export const executeTask = (taskId: string) => {
   }, [isUserMenuOpen, isOrgMenuOpen]);
 
   return (
-        <div
-          className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30"
-          style={rootStyle}
-        >
+    <div
+      className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30"
+      style={rootStyle}
+    >
       <header
         className="h-16 flex items-center px-6 justify-between gap-6"
         style={{
@@ -980,7 +984,10 @@ export const executeTask = (taskId: string) => {
               className="w-full h-full object-cover"
             />
           </div>
-          <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+          <span
+            className="text-sm font-semibold"
+            style={{ color: "var(--text-secondary)" }}
+          >
             /
           </span>
           <div className="org-menu-group" ref={orgMenuRef}>
@@ -1013,7 +1020,10 @@ export const executeTask = (taskId: string) => {
               </button>
               <span
                 className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
-                style={{ borderColor: "var(--border-muted)", color: "var(--text-muted)" }}
+                style={{
+                  borderColor: "var(--border-muted)",
+                  color: "var(--text-muted)",
+                }}
               >
                 FREE
               </span>
@@ -1032,7 +1042,9 @@ export const executeTask = (taskId: string) => {
                 <div className="org-menu-list">
                   {orgOptions
                     .filter((option) =>
-                      option.label.toLowerCase().includes(orgSearch.toLowerCase()),
+                      option.label
+                        .toLowerCase()
+                        .includes(orgSearch.toLowerCase()),
                     )
                     .map((option) => {
                       const isSelected = option.label === selectedOrg;
@@ -1048,7 +1060,9 @@ export const executeTask = (taskId: string) => {
                           }}
                         >
                           <span>{option.label}</span>
-                          {isSelected && <IconCheckCircle className="w-4 h-4" />}
+                          {isSelected && (
+                            <IconCheckCircle className="w-4 h-4" />
+                          )}
                           {option.type === "action" && !isSelected && (
                             <IconPlus className="w-4 h-4" />
                           )}
@@ -1059,14 +1073,20 @@ export const executeTask = (taskId: string) => {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
+          <div
+            className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]"
+            style={{ color: "var(--text-muted)" }}
+          >
             <span>/</span>
             <div className="flex items-center gap-2">
               <span
                 className="w-2 h-2 rounded-full shadow"
                 style={{ backgroundColor: activeViewMeta.color }}
               />
-              <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+              <span
+                className="text-sm font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 {activeViewMeta.label}
               </span>
             </div>
@@ -1179,9 +1199,7 @@ export const executeTask = (taskId: string) => {
                         setUserMenuOpen(false);
                       }}
                     >
-                      {showDot && (
-                        <span className="user-menu-item-dot" />
-                      )}
+                      {showDot && <span className="user-menu-item-dot" />}
                       {option.label}
                     </button>
                   );
@@ -1375,17 +1393,17 @@ export const executeTask = (taskId: string) => {
       </div>
 
       {/* Persistent OS Status Bar */}
-        <footer
-          className="footer-bar h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
-          style={{
-            borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-base)",
-            color: "var(--text-muted)",
-            zIndex: "var(--z-fixed)",
-            left: "var(--sidebar-offset, 240px)",
-            width: "calc(100% - var(--sidebar-offset, 240px))",
-          }}
-        >
+      <footer
+        className="footer-bar h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
+        style={{
+          borderColor: "var(--border-default)",
+          backgroundColor: "var(--bg-base)",
+          color: "var(--text-muted)",
+          zIndex: "var(--z-fixed)",
+          left: "var(--sidebar-offset, 240px)",
+          width: "calc(100% - var(--sidebar-offset, 240px))",
+        }}
+      >
         <div className="flex items-center gap-6">
           <div
             className="flex items-center gap-2 group cursor-default"
