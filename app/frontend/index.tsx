@@ -1,10 +1,10 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import { ThemeProvider, getStoredTheme } from "./hooks/ThemeProvider";
+import "./styles/app.css";
 
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import { ThemeProvider, getStoredTheme } from './hooks/ThemeProvider';
-
-const rootElement = document.getElementById('root');
+const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
@@ -18,5 +18,5 @@ root.render(
     <ThemeProvider defaultTheme={storedTheme}>
       <App />
     </ThemeProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
