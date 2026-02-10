@@ -120,6 +120,40 @@ else {
     Write-Host "   npm not found" -ForegroundColor Red
 }
 
+# Check PostgreSQL
+Write-Host "  Checking PostgreSQL..." -ForegroundColor Cyan
+try {
+    $psqlPath = Get-Command psql -ErrorAction Stop | Select-Object -ExpandProperty Source
+    $psqlVersion = & $psqlPath --version 2>&1
+    Write-Host "   $psqlVersion" -ForegroundColor Green
+    
+    # Check if server is running
+    $testConnection = & $psqlPath -U postgres -c "SELECT 1;" 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "   PostgreSQL server is running" -ForegroundColor Green
+        
+        # Check if felix database exists
+        $dbCheck = & $psqlPath -U postgres -lqt 2>&1 | Select-String -Pattern "^\s*felix\s"
+        if ($dbCheck) {
+            Write-Host "   Database 'felix' exists" -ForegroundColor Green
+        }
+        else {
+            Write-Host "   Database 'felix' not found" -ForegroundColor Yellow
+            Write-Host "   Run: .\scripts\setup-db.ps1" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "   PostgreSQL server not running" -ForegroundColor Yellow
+        $pgBin = Split-Path $psqlPath
+        $pgData = Join-Path (Split-Path $pgBin) "data"
+        Write-Host "   Start with: pg_ctl -D '$pgData' start" -ForegroundColor Yellow
+    }
+}
+catch {
+    Write-Host "   PostgreSQL not found" -ForegroundColor Yellow
+    Write-Host "   Install from: https://www.postgresql.org/download/windows/" -ForegroundColor Gray
+}
+
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host "  Setup Complete!" -ForegroundColor Green
