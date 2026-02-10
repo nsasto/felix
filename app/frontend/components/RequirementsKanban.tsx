@@ -12,6 +12,18 @@ import {
   getIncompleteDependencies,
   formatIncompleteDependenciesTooltip,
 } from "../utils/dependencies";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
+import { Switch } from "./ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { cn } from "../lib/utils";
 
 // Requirement status columns matching the felix/requirements.json schema
 type RequirementStatus =
@@ -25,80 +37,61 @@ type RequirementStatus =
 interface Column {
   status: RequirementStatus;
   label: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
+  variant:
+    | "default"
+    | "secondary"
+    | "destructive"
+    | "outline"
+    | "success"
+    | "warning";
 }
 
 const COLUMNS: Column[] = [
   {
     status: "draft",
     label: "Draft",
-    color: "bg-slate-500",
-    bgColor: "bg-slate-500/10",
-    borderColor: "border-slate-500/20",
+    variant: "secondary",
   },
   {
     status: "planned",
     label: "Planned",
-    color: "bg-blue-500",
-    bgColor: "bg-blue-500/10",
-    borderColor: "border-blue-500/20",
+    variant: "default", // Using default/brand for Planned
   },
   {
     status: "in_progress",
     label: "In Progress",
-    color: "bg-amber-500",
-    bgColor: "bg-amber-500/10",
-    borderColor: "border-amber-500/20",
+    variant: "warning",
   },
   {
     status: "complete",
     label: "Complete",
-    color: "bg-emerald-500",
-    bgColor: "bg-emerald-500/10",
-    borderColor: "border-emerald-500/20",
+    variant: "success",
   },
   {
     status: "blocked",
     label: "Blocked",
-    color: "bg-red-500",
-    bgColor: "bg-red-500/10",
-    borderColor: "border-red-500/20",
+    variant: "destructive",
   },
   {
     status: "done",
     label: "Done",
-    color: "bg-purple-500",
-    bgColor: "bg-purple-500/10",
-    borderColor: "border-purple-500/20",
+    variant: "outline", // Distinct from Complete
   },
 ];
 
-const PRIORITY_STYLES: Record<
-  string,
-  { bg: string; text: string; border: string }
-> = {
-  critical: {
-    bg: "bg-red-500/10",
-    text: "text-red-400",
-    border: "border-red-500/20",
-  },
-  high: {
-    bg: "bg-amber-500/10",
-    text: "text-amber-400",
-    border: "border-amber-500/20",
-  },
-  medium: {
-    bg: "bg-blue-500/10",
-    text: "text-blue-400",
-    border: "border-blue-500/20",
-  },
-  low: {
-    bg: "bg-slate-500/10",
-    text: "text-slate-400",
-    border: "border-slate-500/20",
-  },
+const getPriorityVariant = (priority: string) => {
+  switch (priority) {
+    case "critical":
+      return "destructive";
+    case "high":
+      return "warning";
+    case "medium":
+      return "default"; // Brand/Blue equivalent
+    case "low":
+      return "secondary";
+    default:
+      return "outline";
+  }
 };
 
 // Sticky Drop Zones Component
@@ -123,9 +116,79 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
 }) => {
   if (!draggedItem) return null;
 
+  const getDropZoneStyles = (variant: string, isDropTarget: boolean) => {
+    // Base styles
+    let styles = "border-2 ";
+
+    if (isDropTarget) {
+      // Active drop target styles
+      switch (variant) {
+        case "default":
+          return (
+            styles +
+            "border-[var(--brand-500)]/70 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+          );
+        case "secondary":
+          return (
+            styles +
+            "border-[var(--border-strong)] bg-[var(--bg-surface-200)] text-[var(--text)]"
+          );
+        case "destructive":
+          return (
+            styles +
+            "border-[var(--destructive-500)]/70 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]"
+          );
+        case "warning":
+          return (
+            styles +
+            "border-[var(--warning-500)]/70 bg-[var(--warning-500)]/10 text-[var(--warning-500)]"
+          );
+        case "success":
+          return (
+            styles +
+            "border-[var(--brand-500)]/70 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+          );
+        default:
+          return (
+            styles +
+            "border-[var(--brand-500)]/70 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+          );
+      }
+    } else {
+      // Inactive styles
+      switch (variant) {
+        case "default":
+          return (
+            styles + "border-[var(--brand-500)]/20 bg-[var(--brand-500)]/5"
+          );
+        case "secondary":
+          return (
+            styles + "border-[var(--border-muted)] bg-[var(--bg-surface-100)]"
+          );
+        case "destructive":
+          return (
+            styles +
+            "border-[var(--destructive-500)]/20 bg-[var(--destructive-500)]/5"
+          );
+        case "warning":
+          return (
+            styles + "border-[var(--warning-500)]/20 bg-[var(--warning-500)]/5"
+          );
+        case "success":
+          return (
+            styles + "border-[var(--brand-500)]/20 bg-[var(--brand-500)]/5"
+          );
+        default:
+          return (
+            styles + "border-[var(--border-muted)] bg-[var(--bg-surface-100)]"
+          );
+      }
+    }
+  };
+
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 theme-bg-base/95 backdrop-blur-sm border-b theme-border transition-all duration-300 ease-out"
+      className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-base)]/95 backdrop-blur-sm border-b border-[var(--border-muted)] transition-all duration-300 ease-out"
       style={{
         transform: draggedItem ? "translateY(0)" : "translateY(-100%)",
         opacity: draggedItem ? 1 : 0,
@@ -144,19 +207,18 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
             return (
               <div
                 key={`sticky-${column.status}`}
-                className={`
-                  flex-shrink-0 w-80 h-16 rounded-xl border-2 
-                  flex items-center justify-center
-                  transition-all duration-200 ease-in-out
-                  ${column.bgColor} ${column.borderColor}
-                  ${isDropTarget ? "border-brand-500/70 bg-brand-500/10 scale-105 shadow-lg" : ""}
-                  ${isCurrentColumn ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-brand-500/50"}
-                  touch-manipulation min-h-[44px]
-                `}
+                className={cn(
+                  "flex-shrink-0 w-80 h-16 rounded-xl flex items-center justify-center transition-all duration-200 ease-in-out touch-manipulation min-h-[44px]",
+                  getDropZoneStyles(column.variant, isDropTarget),
+                  isDropTarget ? "scale-105 shadow-lg" : "",
+                  isCurrentColumn
+                    ? "opacity-50 cursor-not-allowed"
+                    : "cursor-pointer hover:border-opacity-50",
+                )}
                 style={{
                   boxShadow: isDropTarget
-                    ? "0 8px 32px rgba(var(--brand-500), 0.3)"
-                    : "var(--shadow-md)",
+                    ? "0 8px 32px rgba(0, 0, 0, 0.2)"
+                    : "none",
                 }}
                 onDragOver={(e) =>
                   !isCurrentColumn && onDragOver(e, column.status)
@@ -165,14 +227,14 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
                 onDrop={(e) => !isCurrentColumn && onDrop(e, column.status)}
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className={`w-3 h-3 rounded-full ${column.color} ${column.status === "in_progress" ? "animate-pulse" : ""}`}
-                  />
+                  <Badge
+                    variant={column.variant}
+                    className="pointer-events-none"
+                  >
+                    {column.label}
+                  </Badge>
                   <div className="text-center">
-                    <h3 className="text-sm font-bold uppercase tracking-widest theme-text-secondary">
-                      {column.label}
-                    </h3>
-                    <p className="text-xs theme-text-tertiary">
+                    <p className="text-xs text-[var(--text-muted)]">
                       {isDropTarget
                         ? "Drop here"
                         : isCurrentColumn
@@ -484,10 +546,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center theme-bg-deepest">
+      <div className="flex-1 flex items-center justify-center bg-[var(--bg-base)]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-          <span className="text-xs font-mono theme-text-muted uppercase tracking-widest">
+          <div className="w-8 h-8 border-2 border-[var(--brand-500)]/30 border-t-[var(--brand-500)] rounded-full animate-spin" />
+          <span className="text-xs font-mono text-[var(--text-muted)] uppercase tracking-widest">
             Loading requirements...
           </span>
         </div>
@@ -497,28 +559,26 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center theme-bg-deepest">
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-6 py-4 text-center max-w-md">
-          <span className="text-xs font-bold text-red-400 uppercase">
+      <div className="flex-1 flex items-center justify-center bg-[var(--bg-base)]">
+        <div className="bg-[var(--destructive-500)]/10 border border-[var(--destructive-500)]/20 rounded-xl px-6 py-4 text-center max-w-md">
+          <span className="text-xs font-bold text-[var(--destructive-400)] uppercase">
             Error Loading Requirements
           </span>
-          <p className="text-sm text-red-300 mt-2">{error}</p>
-          <button
+          <p className="text-sm text-[var(--destructive-300)] mt-2">{error}</p>
+          <Button
+            variant="ghost"
             onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 text-xs font-bold text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors"
+            className="mt-4 text-xs font-bold text-[var(--destructive-400)] hover:text-[var(--destructive-300)] hover:bg-[var(--destructive-500)]/10"
           >
             Retry
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="flex-1 flex flex-col overflow-hidden"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
+    <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-base)]">
       {/* Sticky Drop Zones - Always show all columns including Done */}
       <StickyDropZones
         visibleColumns={COLUMNS}
@@ -531,96 +591,103 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
       />
 
       {/* Filter bar */}
-      <div
-        className="h-12 border-b theme-border flex items-center px-6 gap-4 theme-bg-base/50 flex-shrink-0"
-        style={{
-          backgroundColor:
-            "color-mix(in srgb, var(--bg-base) 50%, transparent)",
-        }}
-      >
-        <span className="text-[10px] font-bold theme-text-muted uppercase tracking-widest">
+      <div className="h-12 border-b border-[var(--border-muted)] flex items-center px-6 gap-4 bg-[var(--bg-surface-100)]/50 flex-shrink-0 backdrop-blur-sm">
+        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
           Filters:
         </span>
 
         {/* Priority filter */}
-        <select
-          value={priorityFilter || ""}
-          onChange={(e) => setPriorityFilter(e.target.value || null)}
-          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-brand-500/50 cursor-pointer"
+        <Select
+          value={priorityFilter || "all"}
+          onValueChange={(val) => setPriorityFilter(val === "all" ? null : val)}
         >
-          <option value="">All Priorities</option>
-          {allPriorities.map((priority) => (
-            <option key={priority} value={priority}>
-              {priority.charAt(0).toUpperCase() + priority.slice(1)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-[130px] h-7 text-xs bg-[var(--bg-surface-100)] border-[var(--border-muted)]">
+            <SelectValue placeholder="All Priorities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Priorities</SelectItem>
+            {allPriorities.map((priority) => (
+              <SelectItem key={priority} value={priority}>
+                {priority.charAt(0).toUpperCase() + priority.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {/* Label filter */}
-        <select
-          value={labelFilter || ""}
-          onChange={(e) => setLabelFilter(e.target.value || null)}
-          className="theme-bg-elevated border theme-border rounded-lg px-3 py-1.5 text-xs theme-text-secondary outline-none focus:border-brand-500/50 cursor-pointer"
+        <Select
+          value={labelFilter || "all"}
+          onValueChange={(val) => setLabelFilter(val === "all" ? null : val)}
         >
-          <option value="">All Labels</option>
-          {allLabels.map((label) => (
-            <option key={label} value={label}>
-              {label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-[130px] h-7 text-xs bg-[var(--bg-surface-100)] border-[var(--border-muted)]">
+            <SelectValue placeholder="All Labels" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Labels</SelectItem>
+            {allLabels.map((label) => (
+              <SelectItem key={label} value={label}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {/* Clear filters button */}
         {(priorityFilter || labelFilter) && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               setPriorityFilter(null);
               setLabelFilter(null);
             }}
-            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+            className="h-7 px-2 text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text)]"
           >
             Clear
-          </button>
+          </Button>
         )}
 
         {/* Show Done toggle */}
-        <label className="flex items-center gap-2 cursor-pointer ml-4">
-          <input
-            type="checkbox"
+        <div className="flex items-center gap-2 ml-4">
+          <Switch
             checked={showDone}
-            onChange={(e) => setShowDone(e.target.checked)}
-            className="w-3.5 h-3.5 rounded border theme-border bg-transparent checked:bg-purple-500 checked:border-purple-500 cursor-pointer accent-purple-500"
+            onCheckedChange={setShowDone}
+            className="data-[state=checked]:bg-[var(--brand-500)]"
           />
           <span
-            className="text-[10px] font-bold theme-text-muted uppercase tracking-widest"
+            className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest cursor-pointer"
+            onClick={() => setShowDone(!showDone)}
             title="Done = reviewed and accepted, ready for production"
           >
             Show Done
           </span>
-        </label>
+        </div>
 
         {/* Compact View toggle */}
-        <label className="flex items-center gap-2 cursor-pointer ml-2">
-          <input
-            type="checkbox"
+        <div className="flex items-center gap-2 ml-2">
+          <Switch
             checked={isCompactView}
-            onChange={(e) => setIsCompactView(e.target.checked)}
-            className="w-3.5 h-3.5 rounded border theme-border bg-transparent checked:bg-brand-500 checked:border-brand-500 cursor-pointer accent-brand-500"
+            onCheckedChange={setIsCompactView}
+            className="data-[state=checked]:bg-[var(--brand-500)]"
           />
           <span
-            className="text-[10px] font-bold theme-text-muted uppercase tracking-widest flex items-center gap-1"
+            className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest cursor-pointer"
+            onClick={() => setIsCompactView(!isCompactView)}
             title="Compact view shows smaller cards with less information"
           >
             Compact View
           </span>
-        </label>
+        </div>
 
         <div className="flex-1" />
 
         {/* Requirements count */}
-        <span className="text-[10px] font-mono theme-text-tertiary">
+        <Badge
+          variant="outline"
+          className="font-mono text-[var(--text-lighter)]"
+        >
           {filteredRequirements.length} / {requirements.length} requirements
-        </span>
+        </Badge>
       </div>
 
       {/* Kanban columns */}
@@ -643,38 +710,26 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
               {/* Column header */}
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${column.color} ${column.status === "in_progress" ? "animate-pulse" : ""}`}
-                  />
-                  <h3 className="text-xs font-bold uppercase tracking-widest theme-text-tertiary">
-                    {column.label}
-                  </h3>
+                  <Badge variant={column.variant}>{column.label}</Badge>
                 </div>
-                <span className="text-[10px] font-mono theme-text-tertiary theme-bg-elevated px-1.5 py-0.5 rounded">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-surface-200)] border-[var(--border-muted)] px-1.5 py-0.5 rounded"
+                >
                   {columnRequirements.length}
-                </span>
+                </Badge>
               </div>
 
               {/* Cards container */}
               <div
-                className={`flex-1 space-y-3 min-h-[200px] rounded-xl transition-colors ${
+                className={cn(
+                  "flex-1 space-y-3 min-h-[200px] rounded-xl transition-colors",
                   isDropTarget
-                    ? "theme-bg-surface border-2 border-dashed border-brand-500/30"
-                    : ""
-                }`}
-                style={
-                  isDropTarget
-                    ? {
-                        backgroundColor:
-                          "color-mix(in srgb, var(--bg-surface) 30%, transparent)",
-                      }
-                    : undefined
-                }
+                    ? "bg-[var(--bg-surface-200)] border-2 border-dashed border-[var(--brand-500)]/30"
+                    : "",
+                )}
               >
                 {columnRequirements.map((requirement) => {
-                  const priorityStyle =
-                    PRIORITY_STYLES[requirement.priority] ||
-                    PRIORITY_STYLES.medium;
                   const incompleteDeps = getIncompleteDepsList(requirement);
                   const hasBlockedDeps = incompleteDeps.length > 0;
                   const isDragging = draggedItem?.id === requirement.id;
@@ -686,7 +741,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                     : "";
 
                   return (
-                    <div
+                    <Card
                       key={requirement.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, requirement)}
@@ -695,45 +750,52 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         setSelectedRequirement(requirement);
                         onSelectRequirement?.(requirement);
                       }}
-                      className={`
-                        kanban-card theme-bg-base border theme-border rounded-xl 
-                        hover:border-brand-600/40 cursor-grab group 
-                        ${isCompactView ? "kanban-card-compact p-3" : "p-4"}
-                        ${isDragging ? "opacity-50 scale-95" : ""}
-                        ${hasBlockedDeps && requirement.status !== "blocked" ? "border-l-2 border-l-amber-500/50" : ""}
-                      `}
-                      style={{ boxShadow: "var(--shadow-lg)" }}
+                      className={cn(
+                        "rounded-xl border cursor-grab group transition-all duration-200 bg-[var(--bg-surface-100)] border-[var(--border-muted)]",
+                        "hover:border-[var(--brand-600)]/40 hover:shadow-md",
+                        isCompactView ? "p-3" : "p-4",
+                        isDragging ? "opacity-50 scale-95" : "shadow-sm",
+                        hasBlockedDeps && requirement.status !== "blocked"
+                          ? "border-l-2 border-l-[var(--warning-500)]/50"
+                          : "",
+                      )}
                     >
                       {/* Header row: ID + Priority + In-Progress Indicator */}
                       <div
                         className={`flex justify-between items-start ${isCompactView ? "mb-1" : "mb-2"}`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/20">
+                          <span className="text-[10px] font-mono font-bold text-[var(--brand-400)] bg-[var(--brand-500)]/10 px-2 py-0.5 rounded border border-[var(--brand-500)]/20">
                             {requirement.id}
                           </span>
                           {/* In-progress indicator for actively worked on requirements */}
                           {requirement.status === "in_progress" && (
                             <div
-                              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 ${isCompactView ? "scale-90" : ""}`}
+                              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-[var(--warning-500)]/10 border border-[var(--warning-500)]/20 ${isCompactView ? "scale-90" : ""}`}
                             >
-                              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-lg shadow-amber-500/50" />
-                              <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wide">
+                              <div className="w-1.5 h-1.5 rounded-full bg-[var(--warning-500)] animate-pulse shadow-lg shadow-[var(--warning-500)]/50" />
+                              <span className="text-[8px] font-bold text-[var(--warning-400)] uppercase tracking-wide">
                                 Active
                               </span>
                             </div>
                           )}
                         </div>
-                        <span
-                          className={`font-bold px-1.5 py-0.5 rounded uppercase ${priorityStyle.bg} ${priorityStyle.text} border ${priorityStyle.border} ${isCompactView ? "text-[8px] scale-90" : "text-[9px]"}`}
+                        <Badge
+                          variant={getPriorityVariant(requirement.priority)}
+                          className={cn(
+                            "font-bold uppercase",
+                            isCompactView
+                              ? "text-[8px] px-1.5 py-0 scale-90 origin-right"
+                              : "text-[9px] px-1.5 py-0.5",
+                          )}
                         >
                           {requirement.priority}
-                        </span>
+                        </Badge>
                       </div>
 
                       {/* Title */}
                       <h4
-                        className={`font-semibold theme-text-primary group-hover:text-brand-400 ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}
+                        className={`font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand-400)] transition-colors ${isCompactView ? "text-[13px] mb-1 line-clamp-1" : "text-sm mb-2 line-clamp-2"}`}
                       >
                         {requirement.title}
                       </h4>
@@ -742,7 +804,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                       {/* In compact mode: icon + count only; in normal mode: full text */}
                       {hasBlockedDeps && requirement.status !== "blocked" && (
                         <div
-                          className={`flex items-center gap-1.5 text-amber-400 cursor-help ${isCompactView ? "mb-0 text-[8px]" : "mb-2 text-[9px]"}`}
+                          className={`flex items-center gap-1.5 text-[var(--warning-400)] cursor-help ${isCompactView ? "mb-0 text-[8px]" : "mb-2 text-[9px]"}`}
                           title={depsTooltip}
                         >
                           <svg
@@ -779,7 +841,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                           {requirement.labels.map((label) => (
                             <span
                               key={label}
-                              className="text-[9px] font-mono theme-text-tertiary border theme-border-muted px-1.5 py-0.5 rounded hover:theme-text-secondary transition-colors"
+                              className="text-[9px] font-mono text-[var(--text-muted)] border border-[var(--border-muted)] px-1.5 py-0.5 rounded hover:text-[var(--text-primary)] transition-colors"
                             >
                               #{label}
                             </span>
@@ -794,9 +856,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         >
                           {/* Drift warning indicator - spec modified after plan */}
                           {planTimestampInfo.specModifiedAfterPlan ? (
-                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/30">
+                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-[var(--warning-500)]/10 border border-[var(--warning-500)]/30">
                               <svg
-                                className="w-3 h-3 text-orange-400"
+                                className="w-3 h-3 text-[var(--warning-400)]"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -808,14 +870,14 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                                   d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                                 />
                               </svg>
-                              <span className="text-orange-400 font-mono">
+                              <span className="text-[var(--warning-400)] font-mono">
                                 Spec changed • Plan stale
                               </span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-[var(--brand-500)]/5 border border-[var(--brand-500)]/10">
                               <svg
-                                className="w-3 h-3 text-blue-400"
+                                className="w-3 h-3 text-[var(--brand-400)]"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -827,7 +889,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                 />
                               </svg>
-                              <span className="text-blue-400 font-mono">
+                              <span className="text-[var(--brand-400)] font-mono">
                                 Plan:{" "}
                                 {planTimestampInfo.planTime || "Available"}
                               </span>
@@ -838,37 +900,42 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
                       {/* Footer: Updated date + view spec link - Animated hide/show */}
                       <div
-                        className={`kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t theme-border-muted ${isCompactView ? "" : ""}`}
+                        className={`kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t border-[var(--border-muted)] ${isCompactView ? "" : ""}`}
                       >
-                        <span className="text-[9px] font-mono theme-text-tertiary">
+                        <span className="text-[9px] font-mono text-[var(--text-muted)]">
                           Updated: {requirement.updated_at}
                         </span>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedRequirement(requirement);
                             onSelectRequirement?.(requirement);
                           }}
-                          className="text-[9px] font-bold theme-text-muted hover:text-brand-400 transition-colors flex items-center gap-1"
+                          className="h-auto p-0 text-[var(--text-muted)] hover:text-[var(--brand-400)] hover:bg-transparent font-bold text-[9px] flex items-center gap-1"
                         >
-                          <IconFileText className="w-3 h-3" />
+                          <IconWrapper size={12}>
+                            <IconFileText />
+                          </IconWrapper>
                           View Spec
-                        </button>
+                        </Button>
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
 
                 {/* Empty state for column */}
                 {columnRequirements.length === 0 && (
                   <div
-                    className={`
-                    flex flex-col items-center justify-center py-8 text-center
-                    border border-dashed rounded-xl
-                    ${isDropTarget ? "border-brand-500/50 bg-brand-500/5" : "theme-border-muted"}
-                  `}
+                    className={cn(
+                      "flex flex-col items-center justify-center py-8 text-center border border-dashed rounded-xl transition-colors",
+                      isDropTarget
+                        ? "border-[var(--brand-500)]/50 bg-[var(--brand-500)]/5"
+                        : "border-[var(--border-muted)]",
+                    )}
                   >
-                    <span className="text-[10px] font-mono theme-text-tertiary uppercase">
+                    <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
                       {isDropTarget ? "Drop here" : "No requirements"}
                     </span>
                   </div>

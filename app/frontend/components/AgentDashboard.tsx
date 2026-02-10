@@ -32,8 +32,19 @@ import {
 import { marked } from "marked";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
-import RunCard from "./RunCard";
+import { cn } from "../lib/utils";
 import WorkflowVisualization from "./WorkflowVisualization";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "./ui/dialog";
 
 // --- Constants ---
 const POLLING_INTERVAL_MS = 3000; // 3-second polling interval
@@ -50,72 +61,26 @@ interface SelectedAgent {
   agent: MergedAgent;
 }
 
-// --- Status Icon Component ---
-
-const StatusIcon: React.FC<{ status: string }> = ({ status }) => {
-  switch (status) {
-    case "active":
-      return <span title="Active">🟢</span>;
-    case "stale":
-      return <span title="Stale">🟡</span>;
-    case "inactive":
-      return <span title="Inactive">⚪</span>;
-    case "stopped":
-      return <span title="Stopped">🔴</span>;
-    case "not-started":
-      return <span title="Not Started">⚫</span>;
-    default:
-      return <span title="Unknown">⚪</span>;
-  }
-};
+// --- Status Icon Component Removed (Integrated into Badge/Dot) ---
 
 // --- Run Status Badge Component ---
 
 const RunStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const styles = {
-    running: {
-      bg: "bg-brand-500/10",
-      text: "text-brand-400",
-      border: "border-brand-500/20",
-      icon: "🔄",
-    },
-    completed: {
-      bg: "bg-emerald-500/10",
-      text: "text-emerald-400",
-      border: "border-emerald-500/20",
-      icon: "✅",
-    },
-    failed: {
-      bg: "bg-red-500/10",
-      text: "text-red-400",
-      border: "border-red-500/20",
-      icon: "❌",
-    },
-    blocked: {
-      bg: "bg-amber-500/10",
-      text: "text-amber-400",
-      border: "border-amber-500/20",
-      icon: "⚠️",
-    },
-    stopped: {
-      bg: "bg-slate-500/10",
-      text: "text-slate-400",
-      border: "border-slate-500/20",
-      icon: "⏹️",
-    },
+    running: { variant: "success" as const, icon: "🔄" },
+    completed: { variant: "success" as const, icon: "✅" },
+    failed: { variant: "destructive" as const, icon: "❌" },
+    blocked: { variant: "warning" as const, icon: "⚠️" },
+    stopped: { variant: "default" as const, icon: "⏹️" },
   };
 
   const style = styles[status as keyof typeof styles] || styles.stopped;
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border ${style.bg} ${style.border}`}
-    >
+    <Badge variant={style.variant} className="gap-1 px-2 py-0.5">
       <span className="text-xs">{style.icon}</span>
-      <span className={`text-[9px] font-bold uppercase ${style.text}`}>
-        {status}
-      </span>
-    </span>
+      <span className="text-[9px] font-bold uppercase">{status}</span>
+    </Badge>
   );
 };
 
@@ -142,28 +107,6 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
 }) => {
   const [showStartDropdown, setShowStartDropdown] = useState(false);
   const [showStopDropdown, setShowStopDropdown] = useState(false);
-  const startDropdownRef = useRef<HTMLDivElement>(null);
-  const stopDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdowns on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        startDropdownRef.current &&
-        !startDropdownRef.current.contains(e.target as Node)
-      ) {
-        setShowStartDropdown(false);
-      }
-      if (
-        stopDropdownRef.current &&
-        !stopDropdownRef.current.contains(e.target as Node)
-      ) {
-        setShowStopDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Calculate uptime
   const getUptime = () => {
@@ -195,13 +138,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
   const canStopAgent = selectedAgent && isAgentActive;
 
   return (
-    <div
-      className="h-14 border-b flex items-center justify-between px-6"
-      style={{
-        backgroundColor: "var(--bg-base)",
-        borderColor: "var(--border-default)",
-      }}
-    >
+    <div className="h-14 border-b flex items-center justify-between px-6 bg-[var(--bg-base)] border-[var(--border-default)]">
       {/* Left section - Agent info */}
       <div className="flex items-center gap-6">
         {selectedAgent ? (
@@ -209,41 +146,24 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isAgentActive ? "bg-brand-500/20" : ""
+                  isAgentActive ? "bg-brand-500/20" : "bg-[var(--bg-surface)]"
                 }`}
-                style={{
-                  backgroundColor: isAgentActive
-                    ? undefined
-                    : "var(--bg-surface)",
-                }}
               >
                 <IconFelix
-                  className={`w-5 h-5 ${isAgentActive ? "text-brand-400 animate-pulse" : ""}`}
-                  style={{
-                    color: isAgentActive ? undefined : "var(--text-muted)",
-                  }}
+                  className={`w-5 h-5 ${isAgentActive ? "text-brand-400 animate-pulse" : "theme-text-muted"}`}
                 />
               </div>
               <div>
-                <h3
-                  className="text-sm font-bold"
-                  style={{ color: "var(--text-secondary)" }}
-                >
+                <h3 className="text-sm font-bold theme-text-secondary">
                   {selectedAgent.name}
                 </h3>
-                <p
-                  className="text-[10px] font-mono"
-                  style={{ color: "var(--text-muted)" }}
-                >
+                <p className="text-[10px] font-mono theme-text-muted">
                   {selectedAgent.agent.hostname ||
                     selectedAgent.agent.executable}
                 </p>
               </div>
             </div>
-            <div
-              className="flex items-center gap-4 text-[10px] font-mono"
-              style={{ color: "var(--text-faint)" }}
-            >
+            <div className="flex items-center gap-4 text-[10px] font-mono theme-text-faint">
               {selectedAgent.agent.pid && (
                 <span>PID: {selectedAgent.agent.pid}</span>
               )}
@@ -257,26 +177,14 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
           </>
         ) : (
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: "var(--bg-surface)" }}
-            >
-              <IconFelix
-                className="w-5 h-5"
-                style={{ color: "var(--text-muted)" }}
-              />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--bg-surface)]">
+              <IconFelix className="w-5 h-5 theme-text-muted" />
             </div>
             <div>
-              <h3
-                className="text-sm font-bold"
-                style={{ color: "var(--text-tertiary)" }}
-              >
+              <h3 className="text-sm font-bold theme-text-tertiary">
                 No Agent Selected
               </h3>
-              <p
-                className="text-[10px] font-mono"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <p className="text-[10px] font-mono theme-text-muted">
                 Select an agent from the list
               </p>
             </div>
@@ -284,17 +192,11 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
         )}
         {/* Live Polling Indicator - Restored in S-0042 */}
         <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
-          style={{ borderColor: "var(--border-default)" }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-default)]"
           title="Auto-refresh every 3 seconds"
         >
-          <div
-            className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
-          />
-          <span
-            className="text-[10px] font-bold uppercase"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[10px] font-bold uppercase theme-text-muted">
             Live
           </span>
         </div>
@@ -313,16 +215,17 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
         )}
 
         {/* Start button with dropdown */}
-        <div className="relative" ref={startDropdownRef}>
-          <button
-            onClick={() => setShowStartDropdown(!showStartDropdown)}
+        <div className="relative">
+          <Button
+            onClick={() => setShowStartDropdown(true)}
             disabled={!canStartAgent || actionInProgress !== null}
-            className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm hover:shadow-md"
+            size="sm"
+            className="gap-2"
           >
             {actionInProgress === "start" ? (
               <>
                 <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Starting...
+                Starting
               </>
             ) : (
               <>
@@ -330,74 +233,76 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                 Start
               </>
             )}
-          </button>
-          {showStartDropdown && availableRequirements.length > 0 && (
-            <div
-              className="absolute right-0 top-full mt-2 w-64 rounded-xl border shadow-xl z-50 overflow-hidden"
-              style={{
-                backgroundColor: "var(--bg-elevated)",
-                borderColor: "var(--border-default)",
-              }}
-            >
-              <div
-                className="px-3 py-2 border-b"
-                style={{ borderColor: "var(--border-default)" }}
-              >
-                <span
-                  className="text-[10px] font-bold uppercase"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Select Requirement
-                </span>
-              </div>
-              <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                {availableRequirements.map((req) => (
-                  <button
-                    key={req.id}
-                    onClick={() => {
-                      onStart(req.id);
-                      setShowStartDropdown(false);
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-brand-500/10 transition-colors flex items-center justify-between"
-                  >
-                    <div>
-                      <span className="text-xs font-mono text-brand-400">
-                        {req.id}
-                      </span>
-                      <p
-                        className="text-[10px] truncate"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {req.title}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                        req.status === "blocked"
-                          ? "bg-red-500/10 text-red-400"
-                          : "bg-blue-500/10 text-blue-400"
-                      }`}
+          </Button>
+
+          <Dialog open={showStartDropdown} onOpenChange={setShowStartDropdown}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Select Requirement</DialogTitle>
+                <DialogDescription>
+                  Choose a requirement to start the agent with.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 py-2">
+                {availableRequirements.length === 0 ? (
+                  <div className="text-center py-4 text-xs theme-text-muted">
+                    No available requirements.
+                  </div>
+                ) : (
+                  availableRequirements.map((req) => (
+                    <button
+                      key={req.id}
+                      onClick={() => {
+                        onStart(req.id);
+                        setShowStartDropdown(false);
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-[var(--brand-500)]/10 transition-colors flex items-center justify-between rounded-md border border-transparent hover:border-[var(--brand-500)]/20"
                     >
-                      {req.status}
-                    </span>
-                  </button>
-                ))}
+                      <div>
+                        <span className="text-xs font-mono text-[var(--brand-400)]">
+                          {req.id}
+                        </span>
+                        <p className="text-[10px] truncate theme-text-muted">
+                          {req.title}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          req.status === "blocked" ? "destructive" : "secondary"
+                        }
+                        className="text-[9px] px-1.5 py-0.5"
+                      >
+                        {req.status}
+                      </Badge>
+                    </button>
+                  ))
+                )}
               </div>
-            </div>
-          )}
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowStartDropdown(false)}
+                >
+                  Cancel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Stop button with dropdown */}
-        <div className="relative" ref={stopDropdownRef}>
-          <button
-            onClick={() => setShowStopDropdown(!showStopDropdown)}
+        <div className="relative">
+          <Button
+            onClick={() => setShowStopDropdown(true)}
             disabled={!canStopAgent || actionInProgress !== null}
-            className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30 border border-red-500/30 hover:border-red-500/50 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            variant="destructive"
+            size="sm"
+            className="bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20 border border-[var(--destructive-500)]/20 gap-2"
           >
             {actionInProgress === "stop" ? (
               <>
-                <div className="w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                Stopping...
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Stopping
               </>
             ) : (
               <>
@@ -405,87 +310,87 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                 Stop
               </>
             )}
-          </button>
-          {showStopDropdown && (
-            <div
-              className="absolute right-0 top-full mt-2 w-52 rounded-lg border shadow-xl z-50 overflow-hidden"
-              style={{
-                backgroundColor: "var(--bg-elevated)",
-                borderColor: "var(--border-default)",
-              }}
-            >
-              <button
-                onClick={() => {
-                  onStop("graceful");
-                  setShowStopDropdown(false);
-                }}
-                className="w-full px-4 py-3 text-left text-xs hover:bg-amber-500/10 transition-all duration-150 flex items-center gap-3"
-              >
-                <div className="w-7 h-7 rounded-md bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                  <IconPause className="w-3.5 h-3.5 text-amber-400" />
-                </div>
-                <div>
-                  <span className="font-bold text-amber-400">
-                    Graceful Stop
-                  </span>
-                  <p
-                    className="text-[9px]"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Wait for current task
-                  </p>
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  onStop("force");
-                  setShowStopDropdown(false);
-                }}
-                className="w-full px-4 py-3 text-left text-xs hover:bg-red-500/10 transition-all duration-150 flex items-center gap-3 border-t"
-                style={{ borderColor: "var(--border-default)" }}
-              >
-                <div className="w-7 h-7 rounded-md bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                  <IconZap className="w-3.5 h-3.5 text-red-400" />
-                </div>
-                <div>
-                  <span className="font-bold text-red-400">Force Kill</span>
-                  <p
-                    className="text-[9px]"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Terminate immediately
-                  </p>
-                </div>
-              </button>
-            </div>
-          )}
+          </Button>
+
+          <Dialog open={showStopDropdown} onOpenChange={setShowStopDropdown}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Stop Agent</DialogTitle>
+                <DialogDescription>
+                  Select how you want to stop the agent.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 py-2">
+                <button
+                  onClick={() => {
+                    onStop("graceful");
+                    setShowStopDropdown(false);
+                  }}
+                  className="w-full px-4 py-3 text-left text-xs hover:bg-[var(--warning-500)]/10 transition-all duration-150 flex items-center gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--warning-500)]/30"
+                >
+                  <div className="w-7 h-7 rounded-md bg-[var(--warning-500)]/10 flex items-center justify-center flex-shrink-0">
+                    <IconPause className="w-3.5 h-3.5 text-[var(--warning-500)]" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-[var(--warning-500)]">
+                      Graceful Stop
+                    </span>
+                    <p className="text-[9px] theme-text-muted">
+                      Wait for current task
+                    </p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    onStop("force");
+                    setShowStopDropdown(false);
+                  }}
+                  className="w-full px-4 py-3 text-left text-xs hover:bg-[var(--destructive-500)]/10 transition-all duration-150 flex items-center gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--destructive-500)]/30"
+                >
+                  <div className="w-7 h-7 rounded-md bg-[var(--destructive-500)]/10 flex items-center justify-center flex-shrink-0">
+                    <IconZap className="w-3.5 h-3.5 text-[var(--destructive-500)]" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-[var(--destructive-500)]">
+                      Force Kill
+                    </span>
+                    <p className="text-[9px] theme-text-muted">
+                      Terminate immediately
+                    </p>
+                  </div>
+                </button>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowStopDropdown(false)}
+                >
+                  Cancel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Settings button */}
-        <button
+        <Button
           onClick={onSettings}
-          className="p-2 rounded-lg border transition-all duration-150 hover:border-brand-500/30 hover:bg-brand-500/5"
-          style={{
-            borderColor: "var(--border-default)",
-            color: "var(--text-muted)",
-          }}
+          variant="outline"
+          size="icon"
           title="Settings"
         >
-          <IconSettings className="w-4 h-4" />
-        </button>
+          <IconSettings className="w-4 h-4 theme-text-muted" />
+        </Button>
 
         {/* Refresh button */}
-        <button
+        <Button
           onClick={onRefresh}
-          className="p-2 rounded-lg border transition-all duration-150 hover:border-brand-500/30 hover:bg-brand-500/5"
-          style={{
-            borderColor: "var(--border-default)",
-            color: "var(--text-muted)",
-          }}
+          variant="outline"
+          size="icon"
           title="Refresh"
         >
-          <IconRefresh className="w-4 h-4" />
-        </button>
+          <IconRefresh className="w-4 h-4 theme-text-muted" />
+        </Button>
       </div>
     </div>
   );
@@ -534,40 +439,46 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
     const isSelected = selectedAgent?.id === agent.id;
     const relativeTime = formatRelativeTime(agent.last_heartbeat);
 
+    const statusColor =
+      {
+        active: "bg-[var(--brand-500)] shadow-[0_0_8px_-2px_var(--brand-500)]",
+        stale: "bg-[var(--warning-500)]",
+        stopped: "bg-[var(--destructive-500)]",
+        "not-started": "bg-[var(--border-muted)]",
+        inactive: "bg-[var(--text-muted)]",
+      }[agent.status] || "bg-[var(--text-muted)]";
+
     return (
-      <button
+      <Card
         key={agent.id}
         onClick={() => onSelectAgent({ id: agent.id, agent })}
-        className={`w-full p-3 rounded-xl text-left transition-all border ${
+        className={cn(
+          "w-full p-3 rounded-xl text-left transition-all cursor-pointer border",
           isSelected
-            ? "border-brand-500/50 bg-brand-500/10"
-            : "hover:border-brand-500/20"
-        }`}
-        style={{
-          backgroundColor: isSelected ? undefined : "var(--bg-base)",
-          borderColor: isSelected ? undefined : "var(--border-default)",
-        }}
+            ? "border-[var(--brand-500)]/50 bg-[var(--brand-500)]/5"
+            : "bg-[var(--bg-base)] border-[var(--border-default)] hover:border-[var(--brand-500)]/20 hover:bg-[var(--bg-surface)]",
+        )}
       >
         <div className="flex items-start gap-3">
-          <StatusIcon status={agent.status} />
+          <div
+            className={cn(
+              "w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 transition-colors",
+              statusColor,
+            )}
+            title={agent.status}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span
-                className="font-bold text-sm truncate"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              <span className="font-bold text-sm truncate theme-text-secondary">
                 {agent.name}
               </span>
               {agent.current_run_id && (
-                <span className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                <span className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-[var(--brand-500)]/10 text-[var(--brand-400)] border border-[var(--brand-500)]/20">
                   {agent.current_run_id}
                 </span>
               )}
             </div>
-            <div
-              className="flex items-center gap-2 text-[10px]"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <div className="flex items-center gap-2 text-[10px] theme-text-muted">
               {agent.status === "not-started" ? (
                 // For not-started agents, show executable + args preview
                 <span className="truncate font-mono">
@@ -589,53 +500,30 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
             </div>
             {/* Status text for not-started agents */}
             {agent.status === "not-started" && (
-              <p
-                className="text-[9px] mt-1"
-                style={{ color: "var(--text-faint)" }}
-              >
-                Ready to start
-              </p>
+              <p className="text-[9px] mt-1 theme-text-faint">Ready to start</p>
             )}
             {/* Last active timestamp for stopped agents */}
             {agent.status === "stopped" && agent.stopped_at && (
-              <p
-                className="text-[9px] mt-1"
-                style={{ color: "var(--text-faint)" }}
-              >
+              <p className="text-[9px] mt-1 theme-text-faint">
                 Stopped {formatRelativeTime(agent.stopped_at)}
               </p>
             )}
           </div>
         </div>
-      </button>
+      </Card>
     );
   };
 
   if (loading) {
     return (
-      <div
-        className="h-full flex flex-col"
-        style={{ backgroundColor: "var(--bg-deep)" }}
-      >
-        <div
-          className="p-4 border-b"
-          style={{ borderColor: "var(--border-default)" }}
-        >
-          <h2
-            className="text-xs font-bold uppercase tracking-wider"
-            style={{ color: "var(--text-tertiary)" }}
-          >
+      <div className="h-full flex flex-col bg-[var(--bg-200)]">
+        <div className="p-4 border-b border-[var(--border-default)]">
+          <h2 className="text-xs font-bold uppercase tracking-wider theme-text-tertiary">
             Agents
           </h2>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <div
-            className="w-6 h-6 border-2 rounded-full animate-spin"
-            style={{
-              borderColor: "var(--border-muted)",
-              borderTopColor: "var(--text-muted)",
-            }}
-          />
+          <div className="w-6 h-6 border-2 rounded-full animate-spin border-[var(--border-muted)] border-t-[var(--text-muted)]" />
         </div>
       </div>
     );
@@ -643,18 +531,9 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
 
   if (agents.length === 0) {
     return (
-      <div
-        className="h-full flex flex-col"
-        style={{ backgroundColor: "var(--bg-deep)" }}
-      >
-        <div
-          className="p-4 border-b"
-          style={{ borderColor: "var(--border-default)" }}
-        >
-          <h2
-            className="text-xs font-bold uppercase tracking-wider"
-            style={{ color: "var(--text-tertiary)" }}
-          >
+      <div className="h-full flex flex-col bg-[var(--bg-200)]">
+        <div className="p-4 border-b border-[var(--border)]">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
             Agents
           </h2>
         </div>
@@ -683,18 +562,9 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
   }
 
   return (
-    <div
-      className="h-full flex flex-col"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
-      <div
-        className="px-6 py-4 border-b"
-        style={{ borderColor: "var(--border-default)" }}
-      >
-        <h2
-          className="text-xs font-bold uppercase tracking-wider"
-          style={{ color: "var(--text-tertiary)" }}
-        >
+    <div className="h-full flex flex-col bg-[var(--bg-base)]">
+      <div className="px-6 py-4 border-b border-[var(--border)]">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
           Agents
         </h2>
       </div>
@@ -703,14 +573,8 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
         {availableAgents.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2 px-1">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: "#6b7280" }}
-              />
-              <span
-                className="text-[10px] font-bold uppercase"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <div className="w-2 h-2 rounded-full bg-slate-500" />
+              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
                 Available ({availableAgents.length})
               </span>
             </div>
@@ -725,10 +589,7 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-2 px-1">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span
-                className="text-[10px] font-bold uppercase"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
                 Active ({activeAgents.length})
               </span>
             </div>
@@ -740,14 +601,8 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
         {inactiveAgents.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2 px-1">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: "var(--text-faint)" }}
-              />
-              <span
-                className="text-[10px] font-bold uppercase"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <div className="w-2 h-2 rounded-full bg-[var(--text-lighter)]" />
+              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
                 Inactive ({inactiveAgents.length})
               </span>
             </div>
@@ -966,23 +821,12 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 
   // Main layout - always render structure with conditional content
   return (
-    <div
-      className="h-full flex flex-col overflow-hidden"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
+    <div className="h-full flex flex-col overflow-hidden bg-[var(--bg-base)]">
       {/* Console Header - Fixed */}
-      <div
-        className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0"
-        style={{
-          borderColor: "var(--border-default)",
-        }}
-      >
+      <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0 border-[var(--border)]">
         <div className="flex items-center gap-3">
           <IconTerminal className="w-4 h-4 text-brand-400" />
-          <span
-            className="text-xs font-bold"
-            style={{ color: "var(--text-secondary)" }}
-          >
+          <span className="text-xs font-bold text-[var(--text-light)]">
             {selectedAgent?.name || "Live Console"}
           </span>
           {selectedAgent?.agent?.current_run_id && (
@@ -994,13 +838,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           )}
           {selectedAgent && !isAgentActive && (
-            <span
-              className="text-[10px] px-2 py-0.5 rounded"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                color: "var(--text-muted)",
-              }}
-            >
+            <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--bg-surface-100)] text-[var(--text-muted)]">
               {selectedAgent.agent.status}
             </span>
           )}
@@ -1008,18 +846,19 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setScrollLocked(!scrollLocked)}
-            className={`p-1.5 rounded transition-colors ${
-              scrollLocked ? "bg-brand-500/10 text-brand-400" : ""
-            }`}
-            style={{ color: scrollLocked ? undefined : "var(--text-muted)" }}
+            className={cn(
+              "p-1.5 rounded transition-colors",
+              scrollLocked
+                ? "bg-brand-500/10 text-brand-400"
+                : "text-[var(--text-muted)]",
+            )}
             title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
           >
             <IconLock className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleClear}
-            className="p-1.5 rounded transition-colors"
-            style={{ color: "var(--text-muted)" }}
+            className="p-1.5 rounded transition-colors text-[var(--text-muted)]"
             title="Clear console"
           >
             <IconTrash className="w-3.5 h-3.5" />
@@ -1030,20 +869,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       {/* Console output */}
       <div
         ref={consoleRef}
-        className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console min-h-0"
-        style={{
-          backgroundColor: "var(--bg-base)",
-          color: "var(--text-secondary)",
-        }}
+        className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 font-mono text-xs leading-relaxed ansi-console min-h-0 bg-[var(--bg-base)] text-[var(--text-light)]"
       >
         {/* No agent selected state */}
         {!selectedAgent && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <IconTerminal
-              className="w-12 h-12 mb-3"
-              style={{ color: "var(--text-faint)" }}
-            />
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <IconTerminal className="w-12 h-12 mb-3 text-[var(--text-lighter)]" />
+            <p className="text-xs text-[var(--text-muted)]">
               Select an agent to view console output
             </p>
           </div>
@@ -1052,19 +884,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         {/* Agent idle/stopped state */}
         {selectedAgent && idleMessage && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
-              style={{ backgroundColor: "var(--bg-surface)" }}
-            >
-              <IconFelix
-                className="w-6 h-6"
-                style={{ color: "var(--text-faint)" }}
-              />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 bg-[var(--bg-surface-100)]">
+              <IconFelix className="w-6 h-6 text-[var(--text-lighter)]" />
             </div>
-            <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs mb-1 text-[var(--text-muted)]">
               {idleMessage.primary}
             </p>
-            <p className="text-[10px]" style={{ color: "var(--text-faint)" }}>
+            <p className="text-[10px] text-[var(--text-lighter)]">
               {idleMessage.secondary}
             </p>
           </div>
@@ -1086,10 +912,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 
         {/* Active agent - waiting for output */}
         {selectedAgent && !idleMessage && !consoleOutput && (
-          <div
-            className="flex items-center gap-2"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <div className="flex items-center gap-2 text-[var(--text-muted)]">
             <div className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
             <span>Waiting for output...</span>
           </div>
@@ -1097,46 +920,22 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       </div>
 
       {/* Workflow Footer - Fixed at bottom */}
-      <div
-        className="flex-shrink-0 border-t-2"
-        style={{
-          borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-base)",
-        }}
-      >
+      <div className="flex-shrink-0 border-t-2 border-[var(--border)] bg-[var(--bg-base)]">
         {/* Workflow Header */}
-        <div
-          className="px-4 py-1.5 border-b flex items-center gap-2 flex-shrink-0"
-          style={{ borderColor: "var(--border-default)" }}
-        >
-          <IconWorkflow
-            className="w-4 h-4"
-            style={{ color: "var(--text-muted)" }}
-          />
-          <span
-            className="text-xs font-bold uppercase tracking-wider"
-            style={{ color: "var(--text-tertiary)" }}
-          >
+        <div className="px-4 py-1.5 border-b flex items-center gap-2 flex-shrink-0 border-[var(--border)]">
+          <IconWorkflow className="w-4 h-4 text-[var(--text-muted)]" />
+          <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
             Agent Workflow
           </span>
         </div>
 
         {/* Workflow Visualization */}
-        <div
-          className="overflow-x-auto overflow-y-hidden custom-scrollbar"
-          style={{ height: "120px" }}
-        >
+        <div className="overflow-x-auto overflow-y-hidden custom-scrollbar h-[120px]">
           {/* No agent selected */}
           {!selectedAgent && (
             <div className="h-full flex flex-col items-center justify-center opacity-20">
-              <IconCpu
-                className="w-8 h-8 mb-2"
-                style={{ color: "var(--text-faint)" }}
-              />
-              <p
-                className="text-[10px] uppercase tracking-widest"
-                style={{ color: "var(--text-faint)" }}
-              >
+              <IconCpu className="w-8 h-8 mb-2 text-[var(--text-lighter)]" />
+              <p className="text-[10px] uppercase tracking-widest text-[var(--text-lighter)]">
                 Select an agent
               </p>
             </div>
@@ -1210,26 +1009,21 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
   };
 
   return (
-    <div
-      className="h-full flex flex-col"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
+    <div className="h-full flex flex-col bg-[var(--bg-base)]">
       {/* Header */}
-      <div
-        className="px-6 py-4 border-b"
-        style={{ borderColor: "var(--border-default)" }}
-      >
+      <div className="px-6 py-4 border-b border-[var(--border)]">
         <div className="flex items-center justify-between mb-3">
-          <h2
-            className="text-xs font-bold uppercase tracking-wider"
-            style={{ color: "var(--text-tertiary)" }}
-          >
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
             Run History
           </h2>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-1 rounded transition-colors ${showFilters ? "bg-brand-500/10 text-brand-400" : ""}`}
-            style={{ color: showFilters ? undefined : "var(--text-muted)" }}
+            className={cn(
+              "p-1 rounded transition-colors",
+              showFilters
+                ? "bg-brand-500/10 text-brand-400"
+                : "text-[var(--text-muted)]",
+            )}
           >
             <svg
               className="w-4 h-4"
@@ -1254,16 +1048,10 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
             placeholder="Search runs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 pl-8 rounded-lg text-xs border outline-none focus:border-brand-500/50"
-            style={{
-              backgroundColor: "var(--bg-base)",
-              borderColor: "var(--border-default)",
-              color: "var(--text-secondary)",
-            }}
+            className="w-full px-3 py-2 pl-8 rounded-lg text-xs border outline-none focus:border-brand-500/50 bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-light)]"
           />
           <svg
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
-            style={{ color: "var(--text-muted)" }}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1279,17 +1067,8 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
 
         {/* Filters */}
         {showFilters && (
-          <div
-            className="mt-3 p-3 rounded-lg border"
-            style={{
-              backgroundColor: "var(--bg-base)",
-              borderColor: "var(--border-default)",
-            }}
-          >
-            <span
-              className="text-[10px] font-bold uppercase"
-              style={{ color: "var(--text-muted)" }}
-            >
+          <div className="mt-3 p-3 rounded-lg border bg-[var(--bg-base)] border-[var(--border)]">
+            <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
               Status
             </span>
             <div className="flex flex-wrap gap-2 mt-2">
@@ -1304,19 +1083,12 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
                           : [...prev, status],
                       );
                     }}
-                    className={`px-2 py-1 text-[10px] rounded-lg border transition-colors ${
+                    className={cn(
+                      "px-2 py-1 text-[10px] rounded-lg border transition-colors",
                       statusFilter.includes(status)
                         ? "bg-brand-500/10 border-brand-500/30 text-brand-400"
-                        : ""
-                    }`}
-                    style={{
-                      borderColor: statusFilter.includes(status)
-                        ? undefined
-                        : "var(--border-default)",
-                      color: statusFilter.includes(status)
-                        ? undefined
-                        : "var(--text-muted)",
-                    }}
+                        : "border-[var(--border)] text-[var(--text-muted)]",
+                    )}
                   >
                     {status}
                   </button>
@@ -1332,8 +1104,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
         {!selectedAgentId ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <svg
-              className="w-8 h-8 mb-2"
-              style={{ color: "var(--text-faint)" }}
+              className="w-8 h-8 mb-2 text-[var(--text-lighter)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1345,28 +1116,18 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <p
-              className="text-[10px] font-mono uppercase tracking-widest"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
               Select an agent
             </p>
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-8">
-            <div
-              className="w-6 h-6 border-2 rounded-full animate-spin"
-              style={{
-                borderColor: "var(--border-muted)",
-                borderTopColor: "var(--text-muted)",
-              }}
-            />
+            <div className="w-6 h-6 border-2 rounded-full animate-spin border-[var(--border-muted)] border-t-[var(--text-muted)]" />
           </div>
         ) : filteredRuns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <svg
-              className="w-8 h-8 mb-2"
-              style={{ color: "var(--text-faint)" }}
+              className="w-8 h-8 mb-2 text-[var(--text-lighter)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1378,10 +1139,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <p
-              className="text-[10px] font-mono uppercase"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <p className="text-[10px] font-mono uppercase text-[var(--text-muted)]">
               {searchQuery || statusFilter.length > 0
                 ? "No matching runs"
                 : "No runs yet"}
@@ -1421,54 +1179,46 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
     }
   };
 
-  // Status colors
-  const getStatusStyle = (status: string) => {
+  const getStatusVariant = (status: string) => {
     switch (status) {
-      case "running":
-        return { bg: "bg-brand-500/10", text: "text-brand-400", border: "border-brand-500/20", icon: "🔄" };
       case "completed":
-        return { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20", icon: "✅" };
+        return "success";
+      case "running":
+        return "warning";
       case "failed":
-        return { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20", icon: "❌" };
+        return "destructive";
       case "cancelled":
-        return { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20", icon: "⚠️" };
-      case "pending":
-        return { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/20", icon: "⏳" };
+        return "secondary";
       default:
-        return { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/20", icon: "⏹️" };
+        return "outline";
     }
   };
-
-  const style = getStatusStyle(run.status);
 
   return (
     <button
       onClick={() => onClick(run.id)}
-      className="w-full p-3 rounded-xl text-left transition-all border hover:border-brand-500/30"
-      style={{
-        backgroundColor: "var(--bg-base)",
-        borderColor: "var(--border-default)",
-      }}
+      className="w-full p-3 rounded-xl text-left transition-all border border-[var(--border-muted)] hover:border-[var(--brand-500)]/30 bg-[var(--bg-surface-100)] hover:bg-[var(--bg-surface-200)] group"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-mono text-brand-400 truncate" style={{ maxWidth: "60%" }}>
+        <span
+          className="text-xs font-mono text-[var(--brand-400)] truncate group-hover:text-[var(--brand-300)] transition-colors"
+          style={{ maxWidth: "60%" }}
+        >
           {run.id.substring(0, 8)}...
         </span>
-        <span
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border ${style.bg} ${style.border}`}
+        <Badge
+          variant={getStatusVariant(run.status)}
+          className="px-2 py-0.5 text-[10px] uppercase"
         >
-          <span className="text-xs">{style.icon}</span>
-          <span className={`text-[9px] font-bold uppercase ${style.text}`}>
-            {run.status}
-          </span>
-        </span>
+          {run.status}
+        </Badge>
       </div>
-      <div className="flex items-center justify-between text-[10px]" style={{ color: "var(--text-muted)" }}>
+      <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] group-hover:text-[var(--text-light)]">
         <span>{run.agent_name || "Unknown Agent"}</span>
         {run.started_at && <span>{formatRelativeTime(run.started_at)}</span>}
       </div>
       {run.requirement_id && (
-        <div className="mt-1 text-[10px]" style={{ color: "var(--text-faint)" }}>
+        <div className="mt-1 text-[10px] text-[var(--text-lighter)]">
           Req: {run.requirement_id}
         </div>
       )}
@@ -1512,13 +1262,9 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
 
       {/* Slide-out panel */}
       <div
-        className={`fixed right-0 top-0 bottom-8 w-[60vw] min-w-[500px] max-w-[800px] z-50 flex flex-col border-l shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed right-0 top-0 bottom-8 w-[60vw] min-w-[500px] max-w-[800px] z-50 flex flex-col border-l shadow-2xl transition-transform duration-300 ease-out bg-[var(--bg-base)] border-[var(--border)] ${
           runId ? "translate-x-0" : "translate-x-full"
         }`}
-        style={{
-          backgroundColor: "var(--bg-base)",
-          borderColor: "var(--border-default)",
-        }}
       >
         {runId && (
           <RunArtifactViewer
@@ -1690,7 +1436,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     try {
       const heartbeatTime = new Date(agent.heartbeat_at).getTime();
       const now = Date.now();
-      return (now - heartbeatTime) < HEARTBEAT_TIMEOUT_MS;
+      return now - heartbeatTime < HEARTBEAT_TIMEOUT_MS;
     } catch {
       return false;
     }
@@ -1749,10 +1495,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   };
 
   return (
-    <div
-      className="h-full flex flex-col"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
+    <div className="h-full flex flex-col bg-[var(--bg-base)]">
       {/* Error banner */}
       {error && (
         <div className="px-6 py-2 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between">
@@ -1795,10 +1538,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       {/* Three-Column Layout */}
       <div className="flex-1 flex min-h-0">
         {/* Agent List Panel - Left Sidebar */}
-        <div
-          className="w-80 flex-shrink-0 border-r overflow-hidden"
-          style={{ borderColor: "var(--border-default)" }}
-        >
+        <div className="w-80 flex-shrink-0 border-r overflow-hidden border-[var(--border)]">
           <AgentListPanel
             agents={agents}
             selectedAgent={selectedAgent}
@@ -1810,12 +1550,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         {/* Middle and Right Panels - Split View */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Live Console Panel - Takes more space */}
-          <div
-            className="flex-1 flex flex-col border-r overflow-hidden"
-            style={{
-              borderColor: "var(--border-default)",
-            }}
-          >
+          <div className="flex-1 flex flex-col border-r overflow-hidden border-[var(--border)]">
             <LiveConsolePanel
               selectedAgent={selectedAgent}
               projectId={projectId}

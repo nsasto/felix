@@ -33,6 +33,11 @@ import CopilotChat from "./components/CopilotChat";
 import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "./components/ui/sidebar";
 
 // localStorage key for remembering the last selected project
 const LAST_PROJECT_KEY = "felix-last-project-id";
@@ -133,7 +138,6 @@ type ExtendedUIState =
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [uiState, setUiState] = useState<ExtendedUIState>("projects"); // Start with projects view
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("expanded");
 
   // Project management state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -1000,414 +1004,445 @@ export const executeTask = (taskId: string) => {
   }, [isUserMenuOpen, isOrgMenuOpen]);
 
   return (
-    <div
-      className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30"
-      style={rootStyle}
+    <SidebarProvider
+      style={
+        {
+          ...rootStyle,
+          "--sidebar-width": "240px",
+          "--sidebar-width-icon": "72px",
+        } as React.CSSProperties
+      }
     >
-      <header
-        className="h-16 flex items-center px-6 justify-between gap-6"
-        style={{
-          borderBottom: "1px solid var(--border-default)",
-          backgroundColor: "var(--bg-base)",
-          backdropFilter: "blur(12px)",
-          position: "relative",
-          zIndex: "var(--z-fixed)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm transition-transform duration-150"
-            onMouseEnter={() => setLogoHovered(true)}
-            onMouseLeave={() => setLogoHovered(false)}
-          >
-            <img
-              src={isLogoHovered ? FelixLogoHover : FelixLogo}
-              alt="Felix logo"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <span
-            className="text-sm font-semibold"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            /
-          </span>
-          <div className="org-menu-group" ref={orgMenuRef}>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
-                style={{
-                  color: "var(--text-secondary)",
-                  backgroundColor: "transparent",
-                  border: "none",
-                }}
-                onClick={() => setOrgMenuOpen((prev) => !prev)}
-                aria-haspopup="true"
-                aria-expanded={isOrgMenuOpen}
-              >
-                <IconOrganization
-                  className="w-4 h-4"
-                  style={{ color: "var(--text-muted)" }}
+      <Sidebar
+        activeView={activeSidebarView}
+        onChangeView={(view) => setUiState(view)}
+        backendStatus={backendStatus}
+        projectName={
+          selectedProject
+            ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
+            : null
+        }
+      />
+
+      <SidebarInset className="flex flex-col h-screen overflow-hidden bg-transparent">
+        <header
+          className="h-16 flex items-center px-6 justify-between gap-6 shrink-0"
+          style={{
+            borderBottom: "1px solid var(--border-default)",
+            backgroundColor: "var(--bg-base)",
+            backdropFilter: "blur(12px)",
+            position: "relative",
+            zIndex: "var(--z-fixed)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <SidebarTrigger className="-ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" />
+            <div className="h-4 w-[1px] bg-[var(--border-default)]" />
+
+            <div
+              className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm transition-transform duration-150"
+              onMouseEnter={() => setLogoHovered(true)}
+              onMouseLeave={() => setLogoHovered(false)}
+            >
+              <img
+                src={isLogoHovered ? FelixLogoHover : FelixLogo}
+                alt="Felix logo"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <span
+              className="text-sm font-semibold"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              /
+            </span>
+            <div className="org-menu-group" ref={orgMenuRef}>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
+                  style={{
+                    color: "var(--text-secondary)",
+                    backgroundColor: "transparent",
+                    border: "none",
+                  }}
+                  onClick={() => setOrgMenuOpen((prev) => !prev)}
+                  aria-haspopup="true"
+                  aria-expanded={isOrgMenuOpen}
+                >
+                  <IconOrganization
+                    className="w-4 h-4"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <span>{selectedOrg}</span>
+                </button>
+                <button
+                  type="button"
+                  className="org-menu-trigger"
+                  onClick={() => setOrgMenuOpen((prev) => !prev)}
+                  aria-label="Organization menu"
+                >
+                  <IconChevronDown className="w-4 h-4" />
+                </button>
+                <span
+                  className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
+                  style={{
+                    borderColor: "var(--border-muted)",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  FREE
+                </span>
+              </div>
+              {isOrgMenuOpen && (
+                <div className="org-menu-panel">
+                  <div className="org-menu-search">
+                    <IconSearch className="w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="Find organization..."
+                      value={orgSearch}
+                      onChange={(event) => setOrgSearch(event.target.value)}
+                    />
+                  </div>
+                  <div className="org-menu-list">
+                    {orgOptions
+                      .filter((option) =>
+                        option.label
+                          .toLowerCase()
+                          .includes(orgSearch.toLowerCase()),
+                      )
+                      .map((option) => {
+                        const isSelected = option.label === selectedOrg;
+                        return (
+                          <button
+                            key={option.id}
+                            className={`org-menu-item ${isSelected ? "selected" : ""}`}
+                            onClick={() => {
+                              if (option.type === "org") {
+                                setSelectedOrg(option.label);
+                              }
+                              setOrgMenuOpen(false);
+                            }}
+                          >
+                            <span>{option.label}</span>
+                            {isSelected && (
+                              <IconCheckCircle className="w-4 h-4" />
+                            )}
+                            {option.type === "action" && !isSelected && (
+                              <IconPlus className="w-4 h-4" />
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div
+              className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <span>/</span>
+              {selectedProject && (
+                <>
+                  <button
+                    onClick={handleReturnToProjects}
+                    className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {selectedProject.name ||
+                      selectedProject.path.split(/[\\/]/).pop()}
+                  </button>
+                  <span>/</span>
+                </>
+              )}
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full shadow"
+                  style={{ backgroundColor: activeViewMeta.color }}
                 />
-                <span>{selectedOrg}</span>
-              </button>
-              <button
-                type="button"
-                className="org-menu-trigger"
-                onClick={() => setOrgMenuOpen((prev) => !prev)}
-                aria-label="Organization menu"
-              >
-                <IconChevronDown className="w-4 h-4" />
-              </button>
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {activeViewMeta.label}
+                </span>
+              </div>
               <span
-                className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
+                className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
                 style={{
                   borderColor: "var(--border-muted)",
                   color: "var(--text-muted)",
                 }}
               >
-                FREE
+                {activeViewMeta.tag}
               </span>
             </div>
-            {isOrgMenuOpen && (
-              <div className="org-menu-panel">
-                <div className="org-menu-search">
-                  <IconSearch className="w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Find organization..."
-                    value={orgSearch}
-                    onChange={(event) => setOrgSearch(event.target.value)}
-                  />
-                </div>
-                <div className="org-menu-list">
-                  {orgOptions
-                    .filter((option) =>
-                      option.label
-                        .toLowerCase()
-                        .includes(orgSearch.toLowerCase()),
-                    )
-                    .map((option) => {
-                      const isSelected = option.label === selectedOrg;
-                      return (
-                        <button
-                          key={option.id}
-                          className={`org-menu-item ${isSelected ? "selected" : ""}`}
-                          onClick={() => {
-                            if (option.type === "org") {
-                              setSelectedOrg(option.label);
-                            }
-                            setOrgMenuOpen(false);
-                          }}
-                        >
-                          <span>{option.label}</span>
-                          {isSelected && (
-                            <IconCheckCircle className="w-4 h-4" />
-                          )}
-                          {option.type === "action" && !isSelected && (
-                            <IconPlus className="w-4 h-4" />
-                          )}
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
           </div>
-          <div
-            className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <span>/</span>
-            {selectedProject && (
-              <>
-                <button
-                  onClick={handleReturnToProjects}
-                  className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {selectedProject.name ||
-                    selectedProject.path.split(/[\\/]/).pop()}
-                </button>
-                <span>/</span>
-              </>
-            )}
-            <div className="flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-full shadow"
-                style={{ backgroundColor: activeViewMeta.color }}
-              />
-              <span
-                className="text-sm font-semibold"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {activeViewMeta.label}
-              </span>
-            </div>
-            <span
-              className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
-              style={{
-                borderColor: "var(--border-muted)",
-                color: "var(--text-muted)",
-              }}
-            >
-              {activeViewMeta.tag}
-            </span>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3 justify-end flex-1">
-          <button
-            className="text-[11px] font-semibold px-4 py-1 border rounded-full flex items-center gap-2"
-            style={{
-              borderColor: "var(--border-muted)",
-              color: "var(--text-secondary)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
-            <IconPlus className="w-3 h-3" />
-            Connect
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            className="text-xs font-semibold uppercase tracking-[0.3em]"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Feedback
-          </button>
-          <div
-            className="flex items-center gap-3 px-3 py-2 border rounded-full"
-            style={{
-              borderColor: "var(--border-muted)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
-            <IconSearch
-              className="w-4 h-4"
-              style={{ color: "var(--text-muted)" }}
-            />
-            <input
-              type="text"
-              placeholder="Search... ⌘K"
-              className="flex-1 bg-transparent outline-none text-sm"
-              style={{ color: "var(--text-secondary)" }}
-            />
-          </div>
-          <button
-            className="w-9 h-9 rounded-full border flex items-center justify-center"
-            style={{
-              borderColor: "var(--border-muted)",
-              color: "var(--text-muted)",
-              backgroundColor: "transparent",
-            }}
-            aria-label="Help"
-          >
-            <IconHelpCircle className="w-4 h-4" />
-          </button>
-          <div className="relative" ref={userMenuRef}>
+          <div className="flex items-center gap-3 justify-end flex-1">
             <button
-              className="w-11 h-11 rounded-full border shadow-inner flex items-center justify-center text-[10px] font-bold"
+              className="text-[11px] font-semibold px-4 py-1 border rounded-full flex items-center gap-2"
               style={{
                 borderColor: "var(--border-muted)",
-                color: "var(--text-muted)",
+                color: "var(--text-secondary)",
                 backgroundColor: "var(--bg-surface)",
               }}
-              onClick={() => setUserMenuOpen((prev) => !prev)}
-              aria-haspopup="true"
-              aria-expanded={isUserMenuOpen}
-              title="User menu"
             >
-              {userProfile?.user_id
-                ? userProfile.user_id
-                    .split(/[^a-zA-Z0-9]/)
-                    .filter((part) => part.length > 0)
-                    .map((part) => part[0].toUpperCase())
-                    .slice(0, 2)
-                    .join("")
-                : "?"}
+              <IconPlus className="w-3 h-3" />
+              Connect
             </button>
-            {isUserMenuOpen && (
-              <div className="user-menu-panel">
-                <div className="user-menu-header">
-                  <p className="text-sm font-bold">
-                    {userProfile?.user_id || "Loading..."}
-                  </p>
-                  <p className="text-[10px] opacity-60">
-                    {userProfile?.email || ""}
-                  </p>
-                </div>
-                <hr />
-                <button
-                  className="user-menu-item"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Account preferences
-                </button>
-                <button
-                  className="user-menu-item"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Feature previews
-                </button>
-                <div className="user-menu-divider" />
-                <p className="user-menu-divider-label">Theme</p>
-                {themeOptions.map((option) => {
-                  const showDot = option.value === theme && !option.isVariant;
-                  return (
-                    <button
-                      key={option.label}
-                      className={`user-menu-item ${showDot ? "selected" : ""}`}
-                      onClick={() => {
-                        setTheme(option.value);
-                        setUserMenuOpen(false);
-                      }}
-                    >
-                      {showDot && <span className="user-menu-item-dot" />}
-                      {option.label}
-                    </button>
-                  );
-                })}
-                <div className="user-menu-divider" />
-                <button
-                  className="user-menu-item"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Log out
-                </button>
-              </div>
-            )}
           </div>
-        </div>
-      </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          activeView={activeSidebarView}
-          onChangeView={(view) => setUiState(view)}
-          backendStatus={backendStatus}
-          projectName={
-            selectedProject
-              ? selectedProject.name ||
-                selectedProject.path.split(/[\\/]/).pop()
-              : null
-          }
-          onModeChange={setSidebarMode}
-        />
-        {/* Main View Container */}
-        <div className="main-view flex-1 flex flex-col relative min-w-0 mb-8">
-          {uiState === "projects" ? (
-            renderProjects()
-          ) : uiState === "kanban" ? (
-            selectedProjectId ? (
-              <RequirementsKanban
-                projectId={selectedProjectId}
-                onSelectRequirement={(req) => {
-                  // Open run artifact viewer if this requirement has a last run
-                  if (req.last_run_id) {
-                    setSelectedRunId(req.last_run_id);
-                  }
+          <div className="flex items-center gap-3">
+            <button
+              className="text-xs font-semibold uppercase tracking-[0.3em]"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Feedback
+            </button>
+            <div
+              className="flex items-center gap-3 px-3 py-2 border rounded-full"
+              style={{
+                borderColor: "var(--border-muted)",
+                backgroundColor: "var(--bg-surface)",
+              }}
+            >
+              <IconSearch
+                className="w-4 h-4"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <input
+                type="text"
+                placeholder="Search... ⌘K"
+                className="flex-1 bg-transparent outline-none text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              />
+            </div>
+            <button
+              className="w-9 h-9 rounded-full border flex items-center justify-center"
+              style={{
+                borderColor: "var(--border-muted)",
+                color: "var(--text-muted)",
+                backgroundColor: "transparent",
+              }}
+              aria-label="Help"
+            >
+              <IconHelpCircle className="w-4 h-4" />
+            </button>
+            <div className="relative" ref={userMenuRef}>
+              <button
+                className="w-11 h-11 rounded-full border shadow-inner flex items-center justify-center text-[10px] font-bold"
+                style={{
+                  borderColor: "var(--border-muted)",
+                  color: "var(--text-muted)",
+                  backgroundColor: "var(--bg-surface)",
                 }}
-              />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
+                onClick={() => setUserMenuOpen((prev) => !prev)}
+                aria-haspopup="true"
+                aria-expanded={isUserMenuOpen}
+                title="User menu"
               >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
+                {userProfile?.user_id
+                  ? userProfile.user_id
+                      .split(/[^a-zA-Z0-9]/)
+                      .filter((part) => part.length > 0)
+                      .map((part) => part[0].toUpperCase())
+                      .slice(0, 2)
+                      .join("")
+                  : "?"}
+              </button>
+              {isUserMenuOpen && (
+                <div className="user-menu-panel">
+                  <div className="user-menu-header">
+                    <p className="text-sm font-bold">
+                      {userProfile?.user_id || "Loading..."}
+                    </p>
+                    <p className="text-[10px] opacity-60">
+                      {userProfile?.email || ""}
+                    </p>
+                  </div>
+                  <hr />
+                  <button
+                    className="user-menu-item"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Account preferences
+                  </button>
+                  <button
+                    className="user-menu-item"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Feature previews
+                  </button>
+                  <div className="user-menu-divider" />
+                  <p className="user-menu-divider-label">Theme</p>
+                  {themeOptions.map((option) => {
+                    const showDot = option.value === theme && !option.isVariant;
+                    return (
+                      <button
+                        key={option.label}
+                        className={`user-menu-item ${showDot ? "selected" : ""}`}
+                        onClick={() => {
+                          setTheme(option.value);
+                          setUserMenuOpen(false);
+                        }}
+                      >
+                        {showDot && <span className="user-menu-item-dot" />}
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                  <div className="user-menu-divider" />
+                  <button
+                    className="user-menu-item"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <div className="flex flex-1 overflow-hidden relative">
+          <div className="main-view flex-1 flex flex-col relative min-w-0">
+            {uiState === "projects" ? (
+              renderProjects()
+            ) : uiState === "kanban" ? (
+              selectedProjectId ? (
+                <RequirementsKanban
+                  projectId={selectedProjectId}
+                  onSelectRequirement={(req) => {
+                    // Open run artifact viewer if this requirement has a last run
+                    if (req.last_run_id) {
+                      setSelectedRunId(req.last_run_id);
+                    }
+                  }}
+                />
+              ) : (
+                <div
+                  className="flex-1 flex flex-col items-center justify-center text-center"
+                  style={{ backgroundColor: "var(--bg-base)" }}
                 >
-                  Select a project to view requirements
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Select a project to view requirements
+                  </span>
+                  <button
+                    onClick={() => setUiState("projects")}
+                    className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                  >
+                    Go to Projects
+                  </button>
+                </div>
+              )
+            ) : uiState === "orchestration" ? (
+              selectedProjectId ? (
+                <AgentDashboard projectId={selectedProjectId} />
+              ) : (
+                <div
+                  className="flex-1 flex flex-col items-center justify-center text-center"
+                  style={{ backgroundColor: "var(--bg-base)" }}
                 >
-                  Go to Projects
-                </button>
-              </div>
-            )
-          ) : uiState === "orchestration" ? (
-            selectedProjectId ? (
-              <AgentDashboard projectId={selectedProjectId} />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Select a project to view agent dashboard
+                  </span>
+                  <button
+                    onClick={() => setUiState("projects")}
+                    className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                  >
+                    Go to Projects
+                  </button>
+                </div>
+              )
+            ) : uiState === "assets" ? (
+              selectedProjectId ? (
+                <SpecsEditor
+                  projectId={selectedProjectId}
+                  onSelectSpec={(filename) => {
+                    console.log("Selected spec:", filename);
+                  }}
+                />
+              ) : (
+                <div
+                  className="flex-1 flex flex-col items-center justify-center text-center"
+                  style={{ backgroundColor: "var(--bg-base)" }}
                 >
-                  Select a project to view agent dashboard
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Select a project to view specs
+                  </span>
+                  <button
+                    onClick={() => setUiState("projects")}
+                    className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                  >
+                    Go to Projects
+                  </button>
+                </div>
+              )
+            ) : uiState === "config" ? (
+              selectedProjectId ? (
+                <ConfigPanel
+                  projectId={selectedProjectId}
+                  onClose={() => setUiState("projects")}
+                />
+              ) : (
+                <div
+                  className="flex-1 flex flex-col items-center justify-center text-center"
+                  style={{ backgroundColor: "var(--bg-base)" }}
                 >
-                  Go to Projects
-                </button>
-              </div>
-            )
-          ) : uiState === "assets" ? (
-            selectedProjectId ? (
-              <SpecsEditor
-                projectId={selectedProjectId}
-                onSelectSpec={(filename) => {
-                  console.log("Selected spec:", filename);
-                }}
-              />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Select a project to view configuration
+                  </span>
+                  <button
+                    onClick={() => setUiState("projects")}
+                    className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                  >
+                    Go to Projects
+                  </button>
+                </div>
+              )
+            ) : uiState === "plan" ? (
+              selectedProjectId ? (
+                <PlanViewer
+                  projectId={selectedProjectId}
+                  onBack={() => setUiState("projects")}
+                />
+              ) : (
+                <div
+                  className="flex-1 flex flex-col items-center justify-center text-center"
+                  style={{ backgroundColor: "var(--bg-base)" }}
                 >
-                  Select a project to view specs
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-                >
-                  Go to Projects
-                </button>
-              </div>
-            )
-          ) : uiState === "config" ? (
-            selectedProjectId ? (
-              <ConfigPanel
-                projectId={selectedProjectId}
-                onClose={() => setUiState("projects")}
-              />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Select a project to view configuration
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-                >
-                  Go to Projects
-                </button>
-              </div>
-            )
-          ) : uiState === "plan" ? (
-            selectedProjectId ? (
-              <PlanViewer
-                projectId={selectedProjectId}
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Select a project to view README
+                  </span>
+                  <button
+                    onClick={() => setUiState("projects")}
+                    className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                  >
+                    Go to Projects
+                  </button>
+                </div>
+              )
+            ) : uiState === "settings" ? (
+              <SettingsScreen
+                projectId={selectedProjectId ?? undefined}
                 onBack={() => setUiState("projects")}
               />
             ) : (
@@ -1419,7 +1454,7 @@ export const executeTask = (taskId: string) => {
                   className="text-sm"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  Select a project to view README
+                  Unknown view state
                 </span>
                 <button
                   onClick={() => setUiState("projects")}
@@ -1428,100 +1463,77 @@ export const executeTask = (taskId: string) => {
                   Go to Projects
                 </button>
               </div>
-            )
-          ) : uiState === "settings" ? (
-            <SettingsScreen
-              projectId={selectedProjectId ?? undefined}
-              onBack={() => setUiState("projects")}
-            />
-          ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-base)" }}
-            >
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Unknown view state
-              </span>
-              <button
-                onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-              >
-                Go to Projects
-              </button>
-            </div>
+            )}
+          </div>
+
+          {/* Copilot Chat - Always rendered when in specs view */}
+          {uiState === "assets" && selectedProjectId && (
+            <CopilotChat projectId={selectedProjectId} />
           )}
         </div>
 
-        {/* Copilot Chat - Always rendered when in specs view */}
-        {uiState === "assets" && selectedProjectId && (
-          <CopilotChat projectId={selectedProjectId} />
-        )}
-      </div>
-
-      {/* Persistent OS Status Bar */}
-      <footer
-        className="footer-bar h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
-        style={{
-          borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-base)",
-          color: "var(--text-muted)",
-          zIndex: "var(--z-fixed)",
-          left: "var(--sidebar-offset, 240px)",
-          width: "calc(100% - var(--sidebar-offset, 240px))",
-        }}
-      >
-        <div className="flex items-center gap-6">
-          <div
-            className="flex items-center gap-2 group cursor-default"
-            style={{ color: "var(--accent-primary)" }}
-          >
-            <IconTerminal className="w-3.5 h-3.5 group-hover:animate-pulse" />
-            <span className="font-bold uppercase tracking-[0.2em] text-[9px]">
-              Felix Kernel: 3.1-STABLE
+        {/* Persistent OS Status Bar */}
+        <footer
+          className="footer-bar h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono select-none flex-shrink-0 backdrop-blur-xl mt-auto sticky bottom-0 z-10"
+          style={{
+            borderColor: "var(--border-default)",
+            backgroundColor: "var(--bg-base)",
+            color: "var(--text-muted)",
+          }}
+        >
+          <div className="flex items-center gap-6">
+            <div
+              className="flex items-center gap-2 group cursor-default"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              <IconTerminal className="w-3.5 h-3.5 group-hover:animate-pulse" />
+              <span className="font-bold uppercase tracking-[0.2em] text-[9px]">
+                Felix Kernel: 3.1-STABLE
+              </span>
+            </div>
+            <div
+              className="h-4 w-[1px] opacity-50"
+              style={{ backgroundColor: "var(--border-default)" }}
+            ></div>
+            <span
+              className="opacity-60 uppercase tracking-tighter"
+              style={{ color: "var(--text-faint)" }}
+            >
+              ID: FLX-ORCH-8821
+            </span>
+            <span
+              className="opacity-60 uppercase"
+              style={{ color: "var(--text-faint)" }}
+            >
+              Load: 0.42 / 1.00
             </span>
           </div>
-          <div
-            className="h-4 w-[1px] opacity-50"
-            style={{ backgroundColor: "var(--border-default)" }}
-          ></div>
-          <span
-            className="opacity-60 uppercase tracking-tighter"
-            style={{ color: "var(--text-faint)" }}
-          >
-            ID: FLX-ORCH-8821
-          </span>
-          <span
-            className="opacity-60 uppercase"
-            style={{ color: "var(--text-faint)" }}
-          >
-            Load: 0.42 / 1.00
-          </span>
-        </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 transition-colors cursor-pointer">
-            <span className="uppercase text-[9px]">Latency</span>
-            <span className="text-emerald-500 font-bold">18ms</span>
-          </div>
-          <div
-            className="h-4 w-[1px] opacity-50"
-            style={{ backgroundColor: "var(--border-default)" }}
-          ></div>
-          <div className="flex items-center gap-2 group cursor-pointer">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/20 group-hover:scale-125 transition-transform"></div>
-            <span className="uppercase tracking-[0.1em] transition-colors">
-              Workspace Encrypted
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 transition-colors cursor-pointer">
+              <span className="uppercase text-[9px]">Latency</span>
+              <span className="text-emerald-500 font-bold">18ms</span>
+            </div>
+            <div
+              className="h-4 w-[1px] opacity-50"
+              style={{ backgroundColor: "var(--border-default)" }}
+            ></div>
+            <div className="flex items-center gap-2 group cursor-pointer">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/20 group-hover:scale-125 transition-transform"></div>
+              <span className="uppercase tracking-[0.1em] transition-colors">
+                Workspace Encrypted
+              </span>
+            </div>
+            <div
+              className="h-4 w-[1px] opacity-50"
+              style={{ backgroundColor: "var(--border-default)" }}
+            ></div>
+            <span className="cursor-pointer transition-colors uppercase tracking-widest font-bold">
+              UTF-8
             </span>
           </div>
-          <div
-            className="h-4 w-[1px] opacity-50"
-            style={{ backgroundColor: "var(--border-default)" }}
-          ></div>
-          <span className="cursor-pointer transition-colors uppercase tracking-widest font-bold">
-            UTF-8
-          </span>
-        </div>
-      </footer>
-    </div>
+        </footer>
+      </SidebarInset>
+    </SidebarProvider>
   );
 };
 

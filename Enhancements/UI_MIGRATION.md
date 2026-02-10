@@ -155,7 +155,19 @@ CSS variable aliases ensure gradual migration without breaking changes:
 
 ---
 
-### Phase 2: Component Redesign (🔄 Next)
+### Phase 2: Component Redesign (🔄 In Progress)
+
+- **ProjectSelector.tsx**:
+  - Migrated to shadcn primitives: `Button`, `Input`, `Badge`, `Card`, `ToggleGroup`, `Alert`, `Table`, `Dialog`, `AlertDialog`.
+  - Replaced inline styles with semantic tokens.
+
+- **AgentDashboard.tsx**:
+  - Replaced native `style={{ ... }}` objects with Tailwind utility classes using semantic tokens (e.g., `bg-[var(--bg-base)]`, `text-[var(--text-muted)]`).
+  - Migrated Toolbar controls to shadcn `Button` and `Dialog`.
+  - Migrated Status Badges to shadcn `Badge`.
+  - Migrated Agent Cards to shadcn `Card`.
+  - Refactored `LiveConsolePanel` and `RunHistoryPanel` to use consistent token-based styling.
+  - Removed unused `RunCard` legacy component reference.
 
 #### 2.0 shadcn/ui Migration Principles (Approved)
 
@@ -258,8 +270,6 @@ CSS variable aliases ensure gradual migration without breaking changes:
 - Added shadcn UI primitives: Button, Input, Badge, Card, Dialog, AlertDialog, ToggleGroup, Table, Alert
   - **app/frontend/components/ui/**
   - **app/frontend/lib/utils.ts**
-- Started ProjectSelector migration to shadcn primitives
-  - **app/frontend/components/ProjectSelector.tsx**
 - Installed Radix dependencies for dialogs/toggles
   - **app/frontend/package.json** + **app/frontend/package-lock.json**
 - Added shadcn Switch and migrated Copilot toggles
@@ -284,6 +294,8 @@ CSS variable aliases ensure gradual migration without breaking changes:
   - **app/frontend/components/SettingsScreen.tsx**
 - Migrated ProjectDashboard to shadcn primitives (Button, Input, Badge, Card, ToggleGroup, Alert)
   - **app/frontend/components/ProjectDashboard.tsx**
+- Migrated ProjectSelector to shadcn primitives (Button, Input, Badge, Card, ToggleGroup, Alert, Table, Dialog, AlertDialog)
+  - **app/frontend/components/ProjectSelector.tsx**
 
 #### 2.1 Navigation Sidebar
 

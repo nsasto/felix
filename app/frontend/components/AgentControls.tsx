@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import { felixApi, AgentStatus, RunHistoryEntry } from "../services/felixApi";
 import { IconFelix, IconCpu } from "./Icons";
 import RunCard from "./RunCard";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { cn } from "../lib/utils";
 
 interface AgentControlsProps {
   projectId: string;
@@ -171,8 +174,8 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         };
       default:
         return {
-          bg: "theme-bg-surface border",
-          text: "theme-text-muted",
+          bg: "bg-[var(--bg-surface-200)] border-[var(--border-default)] border",
+          text: "text-[var(--text-muted)]",
           dot: "bg-gray-500",
         };
     }
@@ -181,17 +184,15 @@ const AgentControls: React.FC<AgentControlsProps> = ({
   if (loading) {
     return (
       <div
-        className={`flex items-center gap-3 ${compact ? "" : "p-4 theme-bg-elevated border rounded-2xl"}`}
-        style={{ borderColor: "var(--border-default)" }}
+        className={cn(
+          "flex items-center gap-3",
+          compact
+            ? ""
+            : "p-4 bg-[var(--bg-surface-100)] border border-[var(--border-default)] rounded-2xl",
+        )}
       >
-        <div
-          className="w-4 h-4 border-2 rounded-full animate-spin"
-          style={{
-            borderColor: "var(--border-muted)",
-            borderTopColor: "var(--text-muted)",
-          }}
-        />
-        <span className="text-[10px] font-mono theme-text-muted uppercase">
+        <div className="w-4 h-4 border-2 border-[var(--border-muted)] border-t-[var(--text-muted)] rounded-full animate-spin" />
+        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
           Checking agent...
         </span>
       </div>
@@ -201,8 +202,11 @@ const AgentControls: React.FC<AgentControlsProps> = ({
   if (error && !status) {
     return (
       <div
-        className={`${compact ? "" : "p-4 theme-bg-elevated border rounded-2xl"}`}
-        style={{ borderColor: "var(--border-default)" }}
+        className={cn(
+          compact
+            ? ""
+            : "p-4 bg-[var(--bg-surface-100)] border border-[var(--border-default)] rounded-2xl",
+        )}
       >
         <div className="flex items-center gap-2 text-red-400">
           <svg
@@ -220,12 +224,14 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           </svg>
           <span className="text-xs">{error}</span>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={fetchStatus}
-          className="mt-2 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+          className="mt-2 text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-light)] h-auto p-0"
         >
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
@@ -239,13 +245,18 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         {/* Status indicator */}
         <div className="flex items-center gap-2">
           <div
-            className={`w-2 h-2 rounded-full ${isRunning ? "bg-brand-500 animate-pulse" : ""}`}
-            style={{
-              backgroundColor: isRunning ? undefined : "var(--text-faint)",
-            }}
+            className={cn(
+              "w-2 h-2 rounded-full",
+              isRunning
+                ? "bg-brand-500 animate-pulse"
+                : "bg-[var(--text-lighter)]",
+            )}
           />
           <span
-            className={`text-[10px] font-bold uppercase ${isRunning ? "text-brand-400" : "theme-text-muted"}`}
+            className={cn(
+              "text-[10px] font-bold uppercase",
+              isRunning ? "text-brand-400" : "text-[var(--text-muted)]",
+            )}
           >
             {isRunning ? "Running" : "Idle"}
           </span>
@@ -253,21 +264,25 @@ const AgentControls: React.FC<AgentControlsProps> = ({
 
         {/* Action button */}
         {isRunning ? (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleStopAgent}
             disabled={actionInProgress === "stop"}
-            className="px-3 py-1.5 text-[10px] font-bold text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50"
+            className="h-7 px-3 text-[10px] font-bold text-red-400 border border-red-500/20 hover:bg-red-500/10"
           >
             {actionInProgress === "stop" ? "Stopping..." : "Stop"}
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleStartAgent}
             disabled={actionInProgress === "start"}
-            className="px-3 py-1.5 text-[10px] font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors disabled:opacity-50"
+            className="h-7 px-3 text-[10px] font-bold text-brand-400 border border-brand-500/20 hover:bg-brand-500/10"
           >
             {actionInProgress === "start" ? "Starting..." : "Start"}
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -275,27 +290,27 @@ const AgentControls: React.FC<AgentControlsProps> = ({
 
   // Full mode - detailed card with status and controls
   return (
-    <div
-      className="theme-bg-elevated border rounded-2xl overflow-hidden"
-      style={{ borderColor: "var(--border-default)" }}
-    >
+    <div className="bg-[var(--bg-surface-100)] border border-[var(--border-default)] rounded-2xl overflow-hidden">
       {/* Header */}
-      <div
-        className="px-6 py-4 border-b flex items-center justify-between"
-        style={{ borderColor: "var(--border-default)" }}
-      >
+      <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isRunning ? "bg-brand-500/20" : "theme-bg-surface"
-            }`}
+            className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center",
+              isRunning ? "bg-brand-500/20" : "bg-[var(--bg-surface-200)]",
+            )}
           >
             <IconFelix
-              className={`w-5 h-5 ${isRunning ? "text-brand-400 animate-pulse" : "theme-text-muted"}`}
+              className={cn(
+                "w-5 h-5",
+                isRunning
+                  ? "text-brand-400 animate-pulse"
+                  : "text-[var(--text-muted)]",
+              )}
             />
           </div>
           <div>
-            <h3 className="text-sm font-bold theme-text-secondary">
+            <h3 className="text-sm font-bold text-[var(--text-light)]">
               Felix Agent
             </h3>
             <p className="text-[10px] font-mono theme-text-faint uppercase">
@@ -335,40 +350,34 @@ const AgentControls: React.FC<AgentControlsProps> = ({
 
       {/* Body - Status details when running */}
       {isRunning && status && (
-        <div
-          className="px-6 py-4 border-b"
-          style={{
-            backgroundColor: "var(--bg-base)",
-            borderColor: "var(--border-default)",
-          }}
-        >
+        <div className="px-6 py-4 border-b bg-[var(--bg-base)] border-[var(--border-default)]">
           <div className="grid grid-cols-2 gap-4">
             {status.pid && (
               <div>
-                <span className="text-[9px] font-mono theme-text-faint uppercase">
+                <span className="text-[9px] font-mono text-[var(--text-lighter)] uppercase">
                   Process ID
                 </span>
-                <p className="text-sm font-mono theme-text-secondary">
+                <p className="text-sm font-mono text-[var(--text-light)]">
                   {status.pid}
                 </p>
               </div>
             )}
             {status.started_at && (
               <div>
-                <span className="text-[9px] font-mono theme-text-faint uppercase">
+                <span className="text-[9px] font-mono text-[var(--text-lighter)] uppercase">
                   Started
                 </span>
-                <p className="text-sm font-mono theme-text-secondary">
+                <p className="text-sm font-mono text-[var(--text-light)]">
                   {formatTimestamp(status.started_at)}
                 </p>
               </div>
             )}
             {status.current_run_id && (
               <div className="col-span-2">
-                <span className="text-[9px] font-mono theme-text-faint uppercase">
+                <span className="text-[9px] font-mono text-[var(--text-lighter)] uppercase">
                   Run ID
                 </span>
-                <p className="text-xs font-mono theme-text-tertiary truncate">
+                <p className="text-xs font-mono text-[var(--text-lighter)] truncate">
                   {status.current_run_id}
                 </p>
               </div>
@@ -400,28 +409,28 @@ const AgentControls: React.FC<AgentControlsProps> = ({
       )}
 
       {/* Footer - Actions */}
-      <div
-        className="px-6 py-4 flex items-center justify-between border-b"
-        style={{ borderColor: "var(--border-default)" }}
-      >
-        <div className="flex flex-col gap-1">
-          <button
+      <div className="px-6 py-4 flex items-center justify-between border-b border-[var(--border-default)]">
+        <div className="flex flex-col gap-1 items-start">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={fetchStatus}
-            className="text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors flex items-center gap-1.5"
+            className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-light)] flex items-center gap-1.5 h-auto py-1 px-2 -ml-2"
           >
             <IconCpu className="w-3 h-3" />
             Refresh Status
-          </button>
-          <span className="text-[8px] font-mono theme-text-faint">
+          </Button>
+          <span className="text-[8px] font-mono text-[var(--text-lighter)]">
             Status may be outdated
           </span>
         </div>
 
         {isRunning ? (
-          <button
+          <Button
             onClick={handleStopAgent}
             disabled={actionInProgress === "stop"}
-            className="px-4 py-2 text-xs font-bold text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            variant="outline"
+            className="text-xs font-bold text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-400 flex items-center gap-2"
           >
             {actionInProgress === "stop" ? (
               <>
@@ -452,12 +461,12 @@ const AgentControls: React.FC<AgentControlsProps> = ({
                 Stop Agent
               </>
             )}
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             onClick={handleStartAgent}
             disabled={actionInProgress === "start"}
-            className="px-4 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-brand-900/30"
+            className="text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 flex items-center gap-2 shadow-lg shadow-brand-900/30"
           >
             {actionInProgress === "start" ? (
               <>
@@ -470,7 +479,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
                 Start Agent
               </>
             )}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -487,7 +496,10 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         >
           <div className="flex items-center gap-2">
             <svg
-              className={`w-4 h-4 theme-text-muted transition-transform duration-200 ${showHistory ? "rotate-90" : ""}`}
+              className={cn(
+                "w-4 h-4 text-[var(--text-muted)] transition-transform duration-200",
+                showHistory ? "rotate-90" : "",
+              )}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -499,23 +511,17 @@ const AgentControls: React.FC<AgentControlsProps> = ({
                 d="M9 5l7 7-7 7"
               />
             </svg>
-            <span className="text-xs font-bold theme-text-tertiary uppercase tracking-wider group-hover:theme-text-secondary transition-colors">
+            <span className="text-xs font-bold text-[var(--text-lighter)] uppercase tracking-wider group-hover:text-[var(--text-light)] transition-colors">
               Run History
             </span>
             {runs.length > 0 && (
-              <span className="text-[9px] font-mono theme-text-faint theme-bg-surface px-1.5 py-0.5 rounded">
+              <span className="text-[9px] font-mono text-[var(--text-lighter)] bg-[var(--bg-surface-200)] px-1.5 py-0.5 rounded">
                 {runs.length}
               </span>
             )}
           </div>
           {runsLoading && (
-            <div
-              className="w-3 h-3 border-2 rounded-full animate-spin"
-              style={{
-                borderColor: "var(--border-muted)",
-                borderTopColor: "var(--text-muted)",
-              }}
-            />
+            <div className="w-3 h-3 border-2 border-[var(--border-muted)] border-t-[var(--text-muted)] rounded-full animate-spin" />
           )}
         </button>
 
@@ -523,7 +529,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         {showHistory && (
           <div className="mt-4 space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
             {runs.length === 0 ? (
-              <div className="text-center py-6 theme-text-faint">
+              <div className="text-center py-6 text-[var(--text-lighter)]">
                 <svg
                   className="w-8 h-8 mx-auto mb-2 opacity-50"
                   fill="none"

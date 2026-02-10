@@ -353,22 +353,11 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   });
 
   return (
-    <div
-      className="flex flex-col h-full"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
+    <div className="flex flex-col h-full bg-[var(--bg-base)]">
       {/* Header */}
-      <div
-        className="border-b"
-        style={{ borderColor: "var(--border-default)" }}
-      >
+      <div className="border-b border-[var(--border-default)]">
         <div className="h-14 flex items-center px-6 justify-between">
-          <h1
-            className="text-lg font-semibold"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Projects
-          </h1>
+          <h1 className="text-lg font-semibold theme-text-primary">Projects</h1>
           <Button onClick={() => setIsRegisterOpen(true)} size="sm">
             <IconPlus className="w-4 h-4" />
             New project
@@ -379,10 +368,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         <div className="px-6 py-3 flex items-center gap-3">
           {/* Search */}
           <div className="flex-1 relative">
-            <IconSearch
-              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--text-muted)" }}
-            />
+            <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -429,18 +415,12 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       {/* Project list */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {isLoading ? (
-          <div
-            className="flex items-center justify-center py-16 text-sm"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <div className="flex items-center justify-center py-16 text-sm theme-text-muted">
             <IconFelix className="w-5 h-5 animate-spin mr-2" />
             Loading projects...
           </div>
         ) : filteredProjects.length === 0 ? (
-          <div
-            className="flex flex-col items-center justify-center py-16 text-center px-6"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <div className="flex flex-col items-center justify-center py-16 text-center px-6 theme-text-muted">
             {searchQuery ? (
               <>
                 <IconSearch className="w-12 h-12 mb-4 opacity-50" />
@@ -470,7 +450,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   className={cn(
                     "relative group cursor-pointer transition-all hover:shadow-md",
                     isSelected
-                      ? "border-2 border-[var(--accent-primary)]"
+                      ? "border-2 border-[var(--brand-500)]"
                       : "border-[var(--border-default)]",
                   )}
                   onClick={() => handleProjectClick(project)}
@@ -479,14 +459,8 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                     {/* Card header */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <IconFolder
-                          className="w-5 h-5 flex-shrink-0"
-                          style={{ color: "var(--text-muted)" }}
-                        />
-                        <h3
-                          className="font-semibold text-sm truncate"
-                          style={{ color: "var(--text-primary)" }}
-                        >
+                        <IconFolder className="w-5 h-5 flex-shrink-0 theme-text-muted" />
+                        <h3 className="font-semibold text-sm truncate theme-text-primary">
                           {getProjectName(project)}
                         </h3>
                       </div>
@@ -505,10 +479,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                     </div>
 
                     {/* Project path */}
-                    <p
-                      className="text-xs mb-3 truncate font-mono"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <p className="text-xs mb-3 truncate font-mono theme-text-muted">
                       {project.path.split("\\").pop() ||
                         project.path.split("/").pop()}
                     </p>
@@ -527,13 +498,9 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
 
                     {/* Status message */}
                     {details?.status === "paused" && (
-                      <div
-                        className="flex items-center gap-2 p-2 rounded-lg mb-3"
-                        style={{ backgroundColor: "var(--bg-base)" }}
-                      >
+                      <div className="flex items-center gap-2 p-2 rounded-lg mb-3 bg-[var(--bg-base)]">
                         <svg
-                          className="w-4 h-4 flex-shrink-0"
-                          style={{ color: "var(--text-muted)" }}
+                          className="w-4 h-4 flex-shrink-0 theme-text-muted"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -543,10 +510,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                           <line x1="12" y1="8" x2="12" y2="12" />
                           <line x1="12" y1="16" x2="12.01" y2="16" />
                         </svg>
-                        <span
-                          className="text-xs"
-                          style={{ color: "var(--text-muted)" }}
-                        >
+                        <span className="text-xs theme-text-muted">
                           Project is paused
                         </span>
                         <Button
@@ -605,16 +569,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                     >
                       <TableCell>
                         <div className="flex flex-col">
-                          <span
-                            className="font-medium text-sm"
-                            style={{ color: "var(--text-primary)" }}
-                          >
+                          <span className="font-medium text-sm theme-text-primary">
                             {getProjectName(project)}
                           </span>
-                          <span
-                            className="text-xs font-mono"
-                            style={{ color: "var(--text-muted)" }}
-                          >
+                          <span className="text-xs font-mono theme-text-muted">
                             {project.path.length > 40
                               ? "..." + project.path.slice(-37)
                               : project.path}
@@ -633,13 +591,11 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell style={{ color: "var(--text-muted)" }}>
-                        —
-                      </TableCell>
-                      <TableCell style={{ color: "var(--text-secondary)" }}>
+                      <TableCell className="theme-text-muted">—</TableCell>
+                      <TableCell className="theme-text-secondary">
                         aws | us-east-2
                       </TableCell>
-                      <TableCell style={{ color: "var(--text-secondary)" }}>
+                      <TableCell className="theme-text-secondary">
                         {details
                           ? new Date().toLocaleDateString("en-US", {
                               month: "short",
@@ -678,10 +634,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         <DialogContent className="max-w-md p-0">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <IconFolder
-                className="w-4 h-4"
-                style={{ color: "var(--accent-primary)" }}
-              />
+              <IconFolder className="w-4 h-4 text-[var(--brand-500)]" />
               <DialogTitle>Register Project</DialogTitle>
             </div>
             <Button
@@ -695,10 +648,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
 
           <div className="p-4 space-y-4">
             <div>
-              <label
-                className="block text-[10px] font-bold uppercase tracking-wider mb-2"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <label className="block text-[10px] font-bold uppercase tracking-wider mb-2 theme-text-muted">
                 Project Path *
               </label>
               <Input
@@ -707,10 +657,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                 placeholder="C:\path\to\your\project"
                 className="h-10"
               />
-              <p
-                className="mt-1.5 text-[9px]"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <p className="mt-1.5 text-[9px] theme-text-muted">
                 Enter the absolute path to your Felix project directory
                 <br />
                 Tip: Shift+Right-click folder in Explorer → "Copy as path"
@@ -718,10 +665,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             </div>
 
             <div>
-              <label
-                className="block text-[10px] font-bold uppercase tracking-wider mb-2"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <label className="block text-[10px] font-bold uppercase tracking-wider mb-2 theme-text-muted">
                 Display Name (optional)
               </label>
               <Input
@@ -765,10 +709,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         <AlertDialogContent>
           <AlertDialogHeader className="text-center">
             <div className="w-12 h-12 bg-[var(--destructive-500)]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <IconTrash
-                className="w-6 h-6"
-                style={{ color: "var(--destructive-500)" }}
-              />
+              <IconTrash className="w-6 h-6 text-[var(--destructive-500)]" />
             </div>
             <AlertDialogTitle>Unregister Project?</AlertDialogTitle>
             <AlertDialogDescription className="mt-2">

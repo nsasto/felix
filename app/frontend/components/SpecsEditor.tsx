@@ -991,11 +991,11 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   };
 
   return (
-    <div className="flex-1 flex theme-bg-base overflow-hidden">
+    <div className="flex-1 flex bg-[var(--bg-base)] overflow-hidden">
       {/* Specs List Sidebar */}
-      <div className="w-80 border-r theme-border flex flex-col theme-bg-deep/40 flex-shrink-0">
+      <div className="w-80 border-r border-[var(--border-default)] flex flex-col bg-[var(--bg-deep)]/40 flex-shrink-0">
         <div className="h-12 border-b border-[var(--border-default)] flex items-center px-4 justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-widest theme-text-muted">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
             Specifications
           </span>
           <Badge className="text-[10px] font-mono px-1.5 py-0.5">
@@ -1030,7 +1030,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Search Results Count - S-0015 */}
         {!specsLoading && !specsError && searchQuery && (
           <div className="px-3 pb-1">
-            <span className="text-[9px] font-mono theme-text-muted">
+            <span className="text-[9px] font-mono text-[var(--text-muted)]">
               {filteredSpecs.length} / {specs.length} specs
             </span>
           </div>
@@ -1040,7 +1040,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         <div className="px-3 pb-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
           {specsLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-xs animate-pulse theme-text-muted">
+              <div className="text-xs animate-pulse text-[var(--text-muted)]">
                 Loading specs...
               </div>
             </div>
@@ -1051,13 +1051,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               </AlertDescription>
             </Alert>
           ) : specs.length === 0 ? (
-            <div className="text-xs theme-text-muted text-center py-8">
+            <div className="text-xs text-[var(--text-muted)] text-center py-8">
               No specs found
             </div>
           ) : filteredSpecs.length === 0 ? (
             // No specs match search - S-0015
             <div className="text-center py-8">
-              <div className="text-xs theme-text-muted">
+              <div className="text-xs text-[var(--text-muted)]">
                 No specs match your search
               </div>
               <Button
@@ -1131,12 +1131,9 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       </div>
 
       {/* Editor Pane */}
-      <div
-        className="flex-1 flex flex-col min-w-0"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
+      <div className="flex-1 flex flex-col min-w-0 bg-[var(--bg-base)]">
         {/* Toolbar */}
-        <div className="h-12 border-b theme-border flex items-center px-4 justify-between theme-bg-base/95 backdrop-blur z-20 flex-shrink-0">
+        <div className="h-12 border-b border-[var(--border-default)] flex items-center px-4 justify-between bg-[var(--bg-base)]/95 backdrop-blur z-20 flex-shrink-0">
           <div className="flex items-center gap-4">
             {/* View mode toggle */}
             <ToggleGroup
@@ -1370,7 +1367,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   title="Unsaved changes"
                 />
               )}
-              <span className="text-[10px] font-mono theme-text-muted uppercase">
+              <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
                 {selectedFilename || "No spec selected"}
               </span>
             </div>
@@ -1380,28 +1377,28 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
         {/* Content Area */}
         {!selectedFilename ? (
           // No spec selected
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 theme-bg-base">
-            <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
-              <IconFileText className="w-8 h-8 theme-text-faint" />
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[var(--bg-base)]">
+            <div className="w-16 h-16 bg-[var(--bg-surface-200)] rounded-2xl flex items-center justify-center mb-4">
+              <IconFileText className="w-8 h-8 text-[var(--text-lighter)]" />
             </div>
-            <h3 className="text-sm font-bold theme-text-tertiary mb-2">
+            <h3 className="text-sm font-bold text-[var(--text-lighter)] mb-2">
               No Spec Selected
             </h3>
-            <p className="text-xs theme-text-muted max-w-sm">
+            <p className="text-xs text-[var(--text-muted)] max-w-sm">
               Select a specification from the list to view and edit its content.
             </p>
           </div>
         ) : contentLoading ? (
           // Loading content
-          <div className="flex-1 flex items-center justify-center theme-bg-base">
-            <div className="flex items-center gap-3 theme-text-muted">
-              <div className="w-5 h-5 border-2 theme-border border-t-brand-500 rounded-full animate-spin" />
+          <div className="flex-1 flex items-center justify-center bg-[var(--bg-base)]">
+            <div className="flex items-center gap-3 text-[var(--text-muted)]">
+              <div className="w-5 h-5 border-2 border-[var(--border-default)] border-t-brand-500 rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading spec...</span>
             </div>
           </div>
         ) : contentError ? (
           // Error loading content
-          <div className="flex-1 flex flex-col items-center justify-center p-8 theme-bg-base">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[var(--bg-base)]">
             <Alert className="max-w-md border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
               <AlertDescription className="text-[var(--destructive-500)]">
                 <strong className="block text-sm">Failed to Load Spec</strong>
@@ -1425,11 +1422,11 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   ref={editorRef}
                   value={specContent}
                   onChange={(e) => setSpecContent(e.target.value)}
-                  className="w-full h-full p-12 font-mono text-sm leading-relaxed resize-none custom-scrollbar selection:bg-brand-500/30 border-0 rounded-none bg-[var(--bg-elevated)] text-[var(--text-secondary)] focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="w-full h-full p-12 font-mono text-sm leading-relaxed resize-none custom-scrollbar selection:bg-brand-500/30 border-0 rounded-none bg-[var(--bg-surface-100)] text-[var(--text-light)] focus-visible:ring-0 focus-visible:ring-offset-0"
                   placeholder="# Spec content..."
                 />
                 {viewMode === "edit" && (
-                  <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">
+                  <div className="absolute top-4 right-4 text-[9px] font-mono text-[var(--text-lighter)] uppercase tracking-[0.2em] bg-[var(--bg-alternative)]/30 px-3 py-1 rounded-full border border-[var(--border-secondary)] backdrop-blur">
                     Source Editor
                   </div>
                 )}
@@ -1438,11 +1435,11 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
             {/* Preview pane */}
             {(viewMode === "preview" || viewMode === "split") && (
-              <div className="flex-1 flex flex-col min-w-0 h-full theme-bg-base/10 relative">
+              <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg-base)]/10 relative">
                 <div className="flex-1 p-12 overflow-y-auto custom-scrollbar markdown-preview font-sans max-w-4xl mx-auto w-full">
                   <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
                   {!parsedHtml && (
-                    <div className="flex flex-col items-center justify-center h-full theme-text-faint gap-4">
+                    <div className="flex flex-col items-center justify-center h-full text-[var(--text-lighter)] gap-4">
                       <IconFileText className="w-12 h-12 opacity-10" />
                       <span className="text-xs font-mono uppercase tracking-widest opacity-20">
                         No content to preview
@@ -1451,7 +1448,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                   )}
                 </div>
                 {viewMode === "preview" && (
-                  <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">
+                  <div className="absolute top-4 right-4 text-[9px] font-mono text-[var(--text-lighter)] uppercase tracking-[0.2em] bg-[var(--bg-alternative)]/30 px-3 py-1 rounded-full border border-[var(--border-secondary)] backdrop-blur">
                     Live Preview
                   </div>
                 )}
@@ -1478,7 +1475,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
           <div className="p-4 space-y-4">
             <div>
-              <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
+              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
                 Spec ID *
               </label>
               <Input
@@ -1488,13 +1485,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 placeholder="S-0006"
                 className="font-mono"
               />
-              <p className="mt-1.5 text-[9px] theme-text-muted">
+              <p className="mt-1.5 text-[9px] text-[var(--text-muted)]">
                 Format: S-XXXX (auto-incremented from existing specs)
               </p>
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
+              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
                 Title *
               </label>
               <Input
@@ -1503,7 +1500,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 onChange={(e) => setNewSpecTitle(e.target.value)}
                 placeholder="My New Feature"
               />
-              <p className="mt-1.5 text-[9px] theme-text-muted">
+              <p className="mt-1.5 text-[9px] text-[var(--text-muted)]">
                 Filename will be:{" "}
                 {newSpecId && newSpecTitle
                   ? `${newSpecId}-${newSpecTitle
@@ -1515,7 +1512,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold theme-text-muted uppercase tracking-wider mb-2">
+              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
                 Template
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -1647,7 +1644,7 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-bold theme-text-secondary mb-1">
+                <h3 className="text-sm font-bold text-[var(--text-light)] mb-1">
                   Delete plan for {selectedRequirementId}?
                 </h3>
                 <AlertDialogDescription className="text-xs leading-relaxed">
@@ -1660,10 +1657,10 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
             {selectedSpecStatus?.plan_modified_at && (
               <div className="rounded-lg border border-[var(--border-muted)] bg-[var(--bg-surface-100)] p-3 mb-4">
-                <div className="text-[10px] theme-text-muted uppercase tracking-wider mb-1">
+                <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mb-1">
                   Current Plan
                 </div>
-                <div className="text-xs theme-text-muted">
+                <div className="text-xs text-[var(--text-muted)]">
                   Generated:{" "}
                   {new Date(
                     selectedSpecStatus.plan_modified_at,

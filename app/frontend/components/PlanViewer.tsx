@@ -162,9 +162,9 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   // Render loading state
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center theme-bg-base">
-        <div className="flex items-center gap-3 theme-text-muted">
-          <div className="w-5 h-5 border-2 theme-border border-t-brand-500 rounded-full animate-spin" />
+      <div className="flex-1 flex items-center justify-center bg-[var(--bg-base)]">
+        <div className="flex items-center gap-3 text-[var(--text-muted)]">
+          <div className="w-5 h-5 border-2 border-[var(--border-muted)] border-t-[var(--brand-500)] rounded-full animate-spin" />
           <span className="text-xs font-mono">
             Loading implementation plan...
           </span>
@@ -176,16 +176,16 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   // Render error state
   if (error) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 theme-bg-base">
-        <div className="theme-bg-surface border theme-border-muted rounded-xl px-6 py-4 max-w-md text-center">
-          <div className="w-12 h-12 theme-bg-elevated rounded-xl flex items-center justify-center mx-auto mb-4">
-            <IconFileText className="w-6 h-6 theme-text-muted" />
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[var(--bg-base)]">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-muted)] rounded-xl px-6 py-4 max-w-md text-center">
+          <div className="w-12 h-12 bg-[var(--bg-surface-200)] rounded-xl flex items-center justify-center mx-auto mb-4">
+            <IconFileText className="w-6 h-6 text-[var(--text-muted)]" />
           </div>
-          <h3 className="text-sm font-bold theme-text-secondary mb-2">
+          <h3 className="text-sm font-bold text-[var(--text-secondary)] mb-2">
             No Readme
           </h3>
-          <p className="text-xs theme-text-muted mb-4">{error}</p>
-          <p className="text-[10px] theme-text-muted">
+          <p className="text-xs text-[var(--text-muted)] mb-4">{error}</p>
+          <p className="text-[10px] text-[var(--text-muted)]">
             README.md file not found in the project root.
           </p>
         </div>
@@ -194,9 +194,9 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[var(--bg-base)] overflow-hidden">
       {/* Toolbar */}
-      <div className="h-12 border-b theme-border flex items-center px-4 justify-between theme-bg-base/95 backdrop-blur z-20 flex-shrink-0">
+      <div className="h-12 border-b border-[var(--border-muted)] flex items-center px-4 justify-between bg-[var(--bg-base)]/95 backdrop-blur z-20 flex-shrink-0">
         <div className="flex items-center gap-4">
           {/* Back button */}
           {onBack && (
@@ -448,7 +448,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
             Copy
           </Button>
 
-          <div className="h-4 w-px bg-[var(--border-default)]"></div>
+          <div className="h-4 w-px bg-[var(--border-muted)]"></div>
 
           {/* File indicator */}
           <div className="flex items-center gap-2">
@@ -458,7 +458,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
                 title="Unsaved changes"
               />
             )}
-            <span className="text-[10px] font-mono theme-text-muted uppercase">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
               README.md
             </span>
           </div>
@@ -477,7 +477,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
               className="w-full h-full p-12 font-mono text-sm leading-relaxed resize-none custom-scrollbar selection:bg-brand-500/30 border-0 rounded-none bg-[var(--bg-elevated)] text-[var(--text-secondary)] focus-visible:ring-0 focus-visible:ring-offset-0"
               placeholder="# Implementation Plan..."
             />
-            <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">
+            <div className="absolute top-4 right-4 text-[9px] font-mono text-[var(--text-muted)] uppercase tracking-[0.2em] bg-[var(--bg-surface-200)]/30 px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur opacity-50">
               Source Editor
             </div>
           </div>
@@ -487,15 +487,15 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
             <div className="p-12 max-w-4xl mx-auto markdown-preview font-sans">
               <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
               {!parsedHtml && (
-                <div className="flex flex-col items-center justify-center h-full theme-text-faint gap-4">
-                  <IconFileText className="w-12 h-12 opacity-10" />
-                  <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] gap-4 opacity-50">
+                  <IconFileText className="w-12 h-12 opacity-20" />
+                  <span className="text-xs font-mono uppercase tracking-widest opacity-40">
                     No plan content
                   </span>
                 </div>
               )}
             </div>
-            <div className="absolute top-4 right-4 text-[9px] font-mono theme-text-faint uppercase tracking-[0.2em] theme-bg-deep/30 px-3 py-1 rounded-full border theme-border-subtle backdrop-blur">
+            <div className="absolute top-4 right-4 text-[9px] font-mono text-[var(--text-muted)] uppercase tracking-[0.2em] bg-[var(--bg-surface-200)]/30 px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur opacity-50">
               Live Preview
             </div>
           </div>
