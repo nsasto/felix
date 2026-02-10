@@ -12,7 +12,7 @@ import {
   RequirementStatusResponse,
 } from "../services/felixApi";
 import { marked } from "marked";
-import { IconFileText, IconPlus } from "./Icons";
+import { IconChevronDown, IconFileText, IconPlus } from "./Icons";
 import SpecEditWarningModal, { WarningAction } from "./SpecEditWarningModal";
 import { useRequirementStatus } from "../hooks/useRequirementStatus";
 import CopilotChat from "./CopilotChat";
@@ -239,6 +239,13 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   const [specs, setSpecs] = useState<SpecFile[]>([]);
   const [specsLoading, setSpecsLoading] = useState(true);
   const [specsError, setSpecsError] = useState<string | null>(null);
+  const [specSectionOpen, setSpecSectionOpen] = useState({
+    draft: true,
+    planned: false,
+    in_progress: false,
+    blocked: false,
+    done: false,
+  });
 
   // Requirements state (for S-0015: Spec Screen Enhancements - search filtering)
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -820,6 +827,184 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     return { id: "", title: filename };
   };
 
+  type SpecStatusKey = "draft" | "planned" | "in_progress" | "blocked" | "done";
+
+  const statusSections: { key: SpecStatusKey; label: string }[] = [
+    { key: "draft", label: "Draft" },
+    { key: "planned", label: "Planned" },
+    { key: "in_progress", label: "In Progress" },
+    { key: "blocked", label: "Blocked" },
+    { key: "done", label: "Done" },
+  ];
+
+  const getSpecStatusKey = (status?: string): SpecStatusKey => {
+    switch (status?.toLowerCase()) {
+      case "planned":
+        return "planned";
+      case "in_progress":
+        return "in_progress";
+      case "blocked":
+        return "blocked";
+      case "complete":
+      case "done":
+        return "done";
+      default:
+        return "draft";
+    }
+  };
+
+  const getStatusBadgeStyle = (status: string | undefined) => {
+    switch (status?.toLowerCase()) {
+      case "in_progress":
+        return {
+          backgroundColor: "rgba(234, 179, 8, 0.15)",
+          color: "#eab308",
+          border: "1px solid rgba(234, 179, 8, 0.3)",
+        };
+      case "complete":
+      case "done":
+        return {
+          backgroundColor: "rgba(34, 197, 94, 0.15)",
+          color: "#22c55e",
+          border: "1px solid rgba(34, 197, 94, 0.3)",
+        };
+      case "blocked":
+        return {
+          backgroundColor: "rgba(239, 68, 68, 0.15)",
+          color: "#ef4444",
+          border: "1px solid rgba(239, 68, 68, 0.3)",
+        };
+      case "planned":
+        return {
+          backgroundColor: "rgba(59, 130, 246, 0.15)",
+          color: "#3b82f6",
+          border: "1px solid rgba(59, 130, 246, 0.3)",
+        };
+      default:
+        return {
+          backgroundColor: "rgba(100, 116, 139, 0.15)",
+          color: "#64748b",
+          border: "1px solid rgba(100, 116, 139, 0.3)",
+        };
+    }
+  };
+
+  const groupedSpecs = useMemo(() => {
+    const groups: Record<SpecStatusKey, SpecFile[]> = {
+      draft: [],
+      planned: [],
+      in_progress: [],
+      blocked: [],
+      done: [],
+    };
+
+    filteredSpecs.forEach((spec) => {
+      const { id } = parseSpecFilename(spec.filename);
+      const req = requirements.find(
+        (r) => r.spec_path.includes(spec.filename) || r.id === id,
+      );
+      const statusKey = getSpecStatusKey(req?.status);
+      groups[statusKey].push(spec);
+    });
+
+    return groups;
+  }, [filteredSpecs, requirements]);
+
+  const toggleSpecSection = (key: SpecStatusKey) => {
+    setSpecSectionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const renderSpecRow = (spec: SpecFile) => {
+    const { id, title } = parseSpecFilename(spec.filename);
+    const req = requirements.find(
+      (r) => r.spec_path.includes(spec.filename) || r.id === id,
+    );
+
+    const reqStatus = req ? requirementStatuses.get(req.id) : null;
+    const hasDrift =
+      reqStatus &&
+      reqStatus.has_plan &&
+      reqStatus.spec_modified_at &&
+      reqStatus.plan_modified_at
+        ? new Date(reqStatus.spec_modified_at) >
+          new Date(reqStatus.plan_modified_at)
+        : false;
+
+    const isAgentActive = req?.status === "in_progress";
+
+    return (
+      <button
+        key={spec.filename}
+        onClick={() => handleSelectSpec(spec.filename)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border group ${
+          selectedFilename === spec.filename
+            ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10"
+            : "border-transparent"
+        }`}
+        style={{
+          color:
+            selectedFilename === spec.filename
+              ? "var(--accent-primary)"
+              : "var(--text-muted)",
+          ...(selectedFilename !== spec.filename && {
+            backgroundColor: "transparent",
+          }),
+        }}
+        onMouseEnter={(e) => {
+          if (selectedFilename !== spec.filename) {
+            e.currentTarget.style.color = "var(--text-secondary)";
+            e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (selectedFilename !== spec.filename) {
+            e.currentTarget.style.color = "var(--text-muted)";
+            e.currentTarget.style.backgroundColor = "transparent";
+          }
+        }}
+      >
+        <div className="relative flex-shrink-0">
+          <IconFileText className="w-4 h-4" />
+          {hasDrift && !isAgentActive && (
+            <span
+              className="absolute -top-1 -right-1 text-[8px]"
+              title="Spec modified after plan generated"
+            >
+              ⚠️
+            </span>
+          )}
+          {isAgentActive && (
+            <span
+              className="absolute -top-1 -right-1 text-[8px] animate-pulse"
+              title="Agent is currently running on this requirement"
+            >
+              🤖
+            </span>
+          )}
+        </div>
+        <div className="flex flex-col items-start min-w-0 flex-1">
+          <div className="flex items-center gap-2 w-full">
+            <span className="truncate font-medium text-left flex-1">
+              {title}
+            </span>
+            {req && (
+              <span
+                className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex-shrink-0"
+                style={getStatusBadgeStyle(req.status)}
+                title={`Status: ${req.status}`}
+              >
+                {req.status === "in_progress"
+                  ? "IN PROG"
+                  : req.status.slice(0, 4).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <span className="text-[9px] opacity-40 font-mono">{id}</span>
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div className="flex-1 flex theme-bg-base overflow-hidden">
       {/* Specs List Sidebar */}
@@ -931,142 +1116,70 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
               </button>
             </div>
           ) : (
-            filteredSpecs.map((spec) => {
-              const { id, title } = parseSpecFilename(spec.filename);
-              // Find matching requirement for status badge (S-0015: Safety Indicators)
-              const req = requirements.find(
-                (r) => r.spec_path.includes(spec.filename) || r.id === id,
-              );
-
-              // Get status badge color based on requirement status
-              const getStatusBadgeStyle = (status: string | undefined) => {
-                switch (status?.toLowerCase()) {
-                  case "in_progress":
-                    return {
-                      backgroundColor: "rgba(234, 179, 8, 0.15)",
-                      color: "#eab308",
-                      border: "1px solid rgba(234, 179, 8, 0.3)",
-                    };
-                  case "complete":
-                  case "done":
-                    return {
-                      backgroundColor: "rgba(34, 197, 94, 0.15)",
-                      color: "#22c55e",
-                      border: "1px solid rgba(34, 197, 94, 0.3)",
-                    };
-                  case "blocked":
-                    return {
-                      backgroundColor: "rgba(239, 68, 68, 0.15)",
-                      color: "#ef4444",
-                      border: "1px solid rgba(239, 68, 68, 0.3)",
-                    };
-                  case "planned":
-                    return {
-                      backgroundColor: "rgba(59, 130, 246, 0.15)",
-                      color: "#3b82f6",
-                      border: "1px solid rgba(59, 130, 246, 0.3)",
-                    };
-                  default:
-                    return {
-                      backgroundColor: "rgba(100, 116, 139, 0.15)",
-                      color: "#64748b",
-                      border: "1px solid rgba(100, 116, 139, 0.3)",
-                    };
+            <div className="space-y-2">
+              {statusSections.map((section) => {
+                const sectionSpecs = groupedSpecs[section.key];
+                if (sectionSpecs.length === 0 && section.key !== "draft") {
+                  return null;
                 }
-              };
 
-              // Check for drift - spec modified after plan generated (S-0015: Drift Detection)
-              const reqStatus = req ? requirementStatuses.get(req.id) : null;
-              const hasDrift =
-                reqStatus &&
-                reqStatus.has_plan &&
-                reqStatus.spec_modified_at &&
-                reqStatus.plan_modified_at
-                  ? new Date(reqStatus.spec_modified_at) >
-                    new Date(reqStatus.plan_modified_at)
-                  : false;
+                const isOpen = specSectionOpen[section.key];
 
-              // Check if agent is actively running on this requirement (S-0015: Active Agent Indicator)
-              const isAgentActive = req?.status === "in_progress";
-
-              return (
-                <button
-                  key={spec.filename}
-                  onClick={() => handleSelectSpec(spec.filename)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border group ${
-                    selectedFilename === spec.filename
-                      ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10"
-                      : "border-transparent"
-                  }`}
-                  style={{
-                    color:
-                      selectedFilename === spec.filename
-                        ? "var(--accent-primary)"
-                        : "var(--text-muted)",
-                    ...(selectedFilename !== spec.filename && {
-                      backgroundColor: "transparent",
-                    }),
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedFilename !== spec.filename) {
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                      e.currentTarget.style.backgroundColor =
-                        "var(--bg-surface)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selectedFilename !== spec.filename) {
-                      e.currentTarget.style.color = "var(--text-muted)";
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }
-                  }}
-                >
-                  <div className="relative flex-shrink-0">
-                    <IconFileText className="w-4 h-4" />
-                    {/* Drift Indicator - S-0015 */}
-                    {hasDrift && !isAgentActive && (
-                      <span
-                        className="absolute -top-1 -right-1 text-[8px]"
-                        title="Spec modified after plan generated"
-                      >
-                        ⚠️
-                      </span>
-                    )}
-                    {/* Active Agent Indicator - S-0015 */}
-                    {isAgentActive && (
-                      <span
-                        className="absolute -top-1 -right-1 text-[8px] animate-pulse"
-                        title="Agent is currently running on this requirement"
-                      >
-                        🤖
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-start min-w-0 flex-1">
-                    <div className="flex items-center gap-2 w-full">
-                      <span className="truncate font-medium text-left flex-1">
-                        {title}
-                      </span>
-                      {/* Status Badge - S-0015 */}
-                      {req && (
+                return (
+                  <div key={section.key} className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSpecSection(section.key)}
+                      className="w-full flex items-center justify-between px-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                      style={{
+                        color: "var(--text-muted)",
+                        backgroundColor: isOpen
+                          ? "var(--bg-surface)"
+                          : "transparent",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "var(--text-secondary)";
+                        if (!isOpen) {
+                          e.currentTarget.style.backgroundColor =
+                            "var(--bg-surface)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "var(--text-muted)";
+                        if (!isOpen) {
+                          e.currentTarget.style.backgroundColor =
+                            "transparent";
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{section.label}</span>
                         <span
-                          className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex-shrink-0"
-                          style={getStatusBadgeStyle(req.status)}
-                          title={`Status: ${req.status}`}
+                          className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                          style={{
+                            color: "var(--text-muted)",
+                            backgroundColor: "var(--bg-elevated)",
+                          }}
                         >
-                          {req.status === "in_progress"
-                            ? "IN PROG"
-                            : req.status.slice(0, 4).toUpperCase()}
+                          {sectionSpecs.length}
                         </span>
-                      )}
-                    </div>
-                    <span className="text-[9px] opacity-40 font-mono">
-                      {id}
-                    </span>
+                      </div>
+                      <IconChevronDown
+                        className={`w-3 h-3 transition-transform ${
+                          isOpen ? "rotate-180" : ""
+                        }`}
+                        style={{ color: "var(--text-muted)" }}
+                      />
+                    </button>
+                    {isOpen && (
+                      <div className="space-y-1">
+                        {sectionSpecs.map(renderSpecRow)}
+                      </div>
+                    )}
                   </div>
-                </button>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
 
