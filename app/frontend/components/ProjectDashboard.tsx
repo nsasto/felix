@@ -5,6 +5,7 @@ import {
   Requirement,
   RunHistoryEntry,
   AgentEntry,
+  AgentConfiguration,
 } from "../services/felixApi";
 import { IconKanban, IconFileText, IconTerminal, IconPulse } from "./Icons";
 
@@ -13,6 +14,17 @@ interface ProjectDashboardProps {
   project: ProjectDetails;
   onNavigate: (view: string) => void;
 }
+
+type DashboardAgent = {
+  id: number;
+  name: string;
+  status: AgentEntry["status"];
+  hostname?: string | null;
+  executable?: string | null;
+  currentRunId?: string | null;
+  workflowStage?: string | null;
+  source: "registry" | "config";
+};
 
 const formatDateTime = (value: string | null) => {
   if (!value) return "--";
@@ -33,7 +45,8 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
 }) => {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [runs, setRuns] = useState<RunHistoryEntry[]>([]);
-  const [agents, setAgents] = useState<AgentEntry[]>([]);
+  const [registryAgents, setRegistryAgents] = useState<AgentEntry[]>([]);
+  const [configAgents, setConfigAgents] = useState<AgentConfiguration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agentQuery, setAgentQuery] = useState("");
@@ -50,11 +63,13 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         felixApi.getRequirements(projectId),
         felixApi.listRuns(projectId),
         felixApi.getAgents(),
+        felixApi.getAgentConfigurations(),
       ]);
 
       if (!isMounted) return;
 
-      const [requirementsResult, runsResult, agentsResult] = results;
+      const [requirementsResult, runsResult, agentsResult, configsResult] =
+        results;
       if (requirementsResult.status === "fulfilled") {
         setRequirements(requirementsResult.value.requirements || []);
       }
@@ -63,14 +78,17 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
       }
       if (agentsResult.status === "fulfilled") {
         const list = Object.values(agentsResult.value.agents || {});
-        list.sort((a, b) => a.agent_name.localeCompare(b.agent_name));
-        setAgents(list);
+        setRegistryAgents(list);
+      }
+      if (configsResult.status === "fulfilled") {
+        setConfigAgents(configsResult.value.agents || []);
       }
 
       if (
         requirementsResult.status === "rejected" &&
         runsResult.status === "rejected" &&
-        agentsResult.status === "rejected"
+        agentsResult.status === "rejected" &&
+        configsResult.status === "rejected"
       ) {
         setError("Unable to load dashboard telemetry.");
       }
@@ -165,7 +183,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     return `${Math.max(2, Math.round((value / totalRequirements) * 100))}%`;
   };
 
-  const agentStatusColor = (status: AgentEntry["status"]) => {
+  const agentStatusColor = (status: DashboardAgent["status"]) => {
     switch (status) {
       case "active":
         return "bg-emerald-500";
@@ -182,19 +200,50 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     }
   };
 
-  const formatStage = (agent: AgentEntry) => {
-    if (agent.current_workflow_stage) {
-      return agent.current_workflow_stage.replace(/_/g, " ");
+  const formatStage = (agent: DashboardAgent) => {
+    if (agent.workflowStage) {
+      return agent.workflowStage.replace(/_/g, " ");
     }
-    if (agent.current_run_id) {
-      return `Run ${agent.current_run_id}`;
+    if (agent.currentRunId) {
+      return `Run ${agent.currentRunId}`;
     }
     return agent.status === "active" ? "Active" : "Idle";
   };
 
+  const combinedAgents = useMemo<DashboardAgent[]>(() => {
+    const registry = registryAgents.map((agent) => ({
+      id: agent.agent_id,
+      name: agent.agent_name,
+      status: agent.status,
+      hostname: agent.hostname,
+      executable: null,
+      currentRunId: agent.current_run_id,
+      workflowStage: agent.current_workflow_stage ?? null,
+      source: "registry" as const,
+    }));
+
+    const registryIds = new Set(registryAgents.map((agent) => agent.agent_id));
+    const configs = configAgents
+      .filter((agent) => !registryIds.has(agent.id))
+      .map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        status: "not-started" as const,
+        hostname: null,
+        executable: agent.executable,
+        currentRunId: null,
+        workflowStage: null,
+        source: "config" as const,
+      }));
+
+    return [...registry, ...configs].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [registryAgents, configAgents]);
+
   const agentMetrics = useMemo(() => {
     const metrics = {
-      total: agents.length,
+      total: combinedAgents.length,
       active: 0,
       stale: 0,
       stopped: 0,
@@ -202,7 +251,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
       notStarted: 0,
     };
 
-    agents.forEach((agent) => {
+    combinedAgents.forEach((agent) => {
       switch (agent.status) {
         case "active":
           metrics.active += 1;
@@ -225,17 +274,21 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
     });
 
     return metrics;
-  }, [agents]);
+  }, [combinedAgents]);
 
   const filteredAgents = useMemo(() => {
     const query = agentQuery.trim().toLowerCase();
-    if (!query) return agents;
-    return agents.filter((agent) =>
-      [agent.agent_name, agent.hostname, agent.executable]
+    if (!query) return combinedAgents;
+    return combinedAgents.filter((agent) =>
+      [agent.name, agent.hostname ?? "", agent.executable ?? ""]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(query)),
     );
-  }, [agents, agentQuery]);
+  }, [combinedAgents, agentQuery]);
+
+  const formatAvailability = (status: DashboardAgent["status"]) => {
+    return status === "active" ? "Running" : "Unavailable";
+  };
 
   return (
     <div
@@ -641,14 +694,20 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             </span>
             <div className="flex items-center gap-3 text-[10px] font-bold">
               <span style={{ color: "var(--text-secondary)" }}>
-                {agents.length} nodes
+                {agentMetrics.total} nodes
+              </span>
+              <span
+                className="text-[9px] font-mono uppercase"
+                style={{ color: "var(--text-muted)" }}
+              >
+                saved + running
               </span>
               <div className="flex items-center gap-1">
-                {agents.map((agent) => (
+                {combinedAgents.map((agent) => (
                   <span
-                    key={agent.agent_id}
+                    key={`${agent.source}-${agent.id}`}
                     className={`w-2 h-2 rounded-sm ${agentStatusColor(agent.status)}`}
-                    title={agent.agent_name}
+                    title={agent.name}
                   />
                 ))}
               </div>
@@ -726,7 +785,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           >
             {filteredAgents.map((agent) => (
               <div
-                key={agent.agent_id}
+                key={`${agent.source}-${agent.id}`}
                 className={`rounded-xl border ${
                   agentDensity === "compact" ? "p-3" : "p-4"
                 }`}
@@ -746,32 +805,47 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                       }`}
                       style={{ color: "var(--text-secondary)" }}
                     >
-                      {agent.agent_name}
+                      {agent.name}
                     </span>
                   </div>
                   <span
                     className="text-[9px] font-mono uppercase"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    #{agent.agent_id}
+                    #{agent.id}
                   </span>
                 </div>
-                <div
-                  className={`mt-2 ${
-                    agentDensity === "compact" ? "text-[9px]" : "text-xs"
-                  }`}
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {formatStage(agent)}
+                <div className="mt-2 flex items-center justify-between">
+                  <span
+                    className={
+                      agentDensity === "compact" ? "text-[9px]" : "text-xs"
+                    }
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {formatStage(agent)}
+                  </span>
+                  <span
+                    className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: "var(--bg-base)",
+                      color:
+                        agent.status === "active"
+                          ? "var(--accent-primary)"
+                          : "var(--text-muted)",
+                      border: "1px solid var(--border-muted)",
+                    }}
+                  >
+                    {formatAvailability(agent.status)}
+                  </span>
                 </div>
                 <div
                   className="mt-2 flex items-center justify-between text-[9px] font-mono"
                   style={{ color: "var(--text-faint)" }}
                 >
                   <span className="truncate">
-                    {agent.hostname || agent.executable}
+                    {agent.hostname || agent.executable || "--"}
                   </span>
-                  <span>{agent.current_run_id || "--"}</span>
+                  <span>{agent.currentRunId || "--"}</span>
                 </div>
               </div>
             ))}
