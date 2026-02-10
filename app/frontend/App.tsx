@@ -307,10 +307,7 @@ const App: React.FC = () => {
     setSelectedProject(details);
     // Save the selected project ID to localStorage for auto-load on next visit
     saveLastProjectId(projectId);
-    // Switch to kanban view after selecting a project
-    if (uiState === "projects") {
-      setUiState("kanban");
-    }
+    // Stay on projects page to show dashboard
   };
 
   // Assets state for markdown editor
@@ -1102,6 +1099,19 @@ export const executeTask = (taskId: string) => {
             style={{ color: "var(--text-muted)" }}
           >
             <span>/</span>
+            {selectedProject && (
+              <>
+                <button
+                  onClick={() => setUiState("projects")}
+                  className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {selectedProject.name ||
+                    selectedProject.path.split(/[\\/]/).pop()}
+                </button>
+                <span>/</span>
+              </>
+            )}
             <div className="flex items-center gap-2">
               <span
                 className="w-2 h-2 rounded-full shadow"
