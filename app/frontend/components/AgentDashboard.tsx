@@ -28,6 +28,11 @@ import {
   Lock as IconLock,
   Trash2 as IconTrash,
   Workflow as IconWorkflow,
+  Loader2 as IconLoader,
+  CheckCircle as IconCheckCircle,
+  XCircle as IconXCircle,
+  AlertTriangle as IconAlertTriangle,
+  StopCircle as IconStopCircle,
 } from "lucide-react";
 import { marked } from "marked";
 import Ansi from "ansi-to-react";
@@ -86,19 +91,26 @@ const getStatusColor = (status: string): string => {
 // --- Run Status Badge Component ---
 
 const RunStatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  const styles = {
-    running: { variant: "success" as const, icon: "🔄" },
-    completed: { variant: "success" as const, icon: "✅" },
-    failed: { variant: "destructive" as const, icon: "❌" },
-    blocked: { variant: "warning" as const, icon: "⚠️" },
-    stopped: { variant: "default" as const, icon: "⏹️" },
+  const styles: Record<
+    string,
+    {
+      variant: "success" | "destructive" | "warning" | "default";
+      Icon: React.ComponentType<{ className?: string }>;
+    }
+  > = {
+    running: { variant: "success" as const, Icon: IconLoader },
+    completed: { variant: "success" as const, Icon: IconCheckCircle },
+    failed: { variant: "destructive" as const, Icon: IconXCircle },
+    blocked: { variant: "warning" as const, Icon: IconAlertTriangle },
+    stopped: { variant: "default" as const, Icon: IconStopCircle },
   };
 
-  const style = styles[status as keyof typeof styles] || styles.stopped;
+  const style = styles[status] || styles.stopped;
+  const Icon = style.Icon;
 
   return (
     <Badge variant={style.variant} className="gap-1 px-2 py-0.5">
-      <span className="text-xs">{style.icon}</span>
+      <Icon className={cn("w-3 h-3", status === "running" && "animate-spin")} />
       <span className="text-[9px] font-bold uppercase">{status}</span>
     </Badge>
   );
@@ -288,7 +300,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                       </div>
                       <Badge
                         variant={
-                          req.status === "blocked" ? "destructive" : "secondary"
+                          req.status === "blocked" ? "destructive" : "default"
                         }
                         className="text-[9px] px-1.5 py-0.5"
                         style={{
@@ -1204,7 +1216,9 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
     }
   };
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (
+    status: string,
+  ): "success" | "warning" | "destructive" | "default" => {
     switch (status) {
       case "completed":
         return "success";
@@ -1213,9 +1227,9 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
       case "failed":
         return "destructive";
       case "cancelled":
-        return "secondary";
+        return "default";
       default:
-        return "outline";
+        return "default";
     }
   };
 

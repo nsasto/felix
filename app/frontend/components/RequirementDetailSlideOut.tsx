@@ -10,6 +10,15 @@ import {
   isDependencyComplete,
   DependencyInfo,
 } from "../utils/dependencies";
+import {
+  X as IconX,
+  FileText as IconFileText,
+  History as IconHistory,
+  CheckCircle as IconCheckCircle,
+  AlertTriangle as IconAlertTriangle,
+  Inbox as IconInbox,
+  Clock as IconClock,
+} from "lucide-react";
 
 const getStatusVariant = (status: string) => {
   switch (status.toLowerCase()) {
@@ -70,12 +79,12 @@ type TopLevelTabId = "overview" | "history";
 interface TopLevelTabInfo {
   id: TopLevelTabId;
   label: string;
-  icon: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
 }
 
 const TOP_LEVEL_TABS: TopLevelTabInfo[] = [
-  { id: "overview", label: "Overview", icon: "📋" },
-  { id: "history", label: "Run History", icon: "🕐" },
+  { id: "overview", label: "Overview", icon: IconFileText },
+  { id: "history", label: "Run History", icon: IconHistory },
 ];
 
 interface RequirementDetailSlideOutProps {
@@ -110,7 +119,25 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   const [allRequirements, setAllRequirements] = useState<Requirement[]>([]);
 
   const slideOutRef = useRef<HTMLDivElement>(null);
-  const isOpen = requirement !== null;
+  const [isOpen, setIsOpen] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
+
+  // Handle open/close animation timing
+  useEffect(() => {
+    if (requirement !== null) {
+      // Mount the component first
+      setShouldRender(true);
+      // Then trigger the animation after a brief delay
+      const timer = setTimeout(() => setIsOpen(true), 10);
+      return () => clearTimeout(timer);
+    } else {
+      // Trigger close animation first
+      setIsOpen(false);
+      // Then unmount after animation completes
+      const timer = setTimeout(() => setShouldRender(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [requirement]);
 
   // Fetch all requirements for dependency lookup
   useEffect(() => {
@@ -397,7 +424,17 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
                       title={`${dep.id}: ${dep.title}`}
                     >
                       {/* Status icon */}
-                      <span className="text-sm">{isComplete ? "✓" : "⚠️"}</span>
+                      {isComplete ? (
+                        <IconCheckCircle
+                          size={16}
+                          className="text-[var(--status-complete)] flex-shrink-0"
+                        />
+                      ) : (
+                        <IconAlertTriangle
+                          size={16}
+                          className="text-[var(--status-in-progress)] flex-shrink-0"
+                        />
+                      )}
 
                       {/* Requirement info */}
                       <div className="flex-1 min-w-0">
@@ -465,8 +502,8 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             />
           ) : (
             <div className="text-center py-12 text-[var(--text-muted)]">
-              <span className="text-2xl">📄</span>
-              <p className="mt-2 text-xs">No specification available</p>
+              <IconFileText size={32} className="mx-auto mb-2 opacity-50" />
+              <p className="text-xs">No specification available</p>
             </div>
           )}
         </div>
@@ -499,7 +536,10 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               </div>
             ) : runHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                <span className="text-2xl mb-2">🕐</span>
+                <IconClock
+                  size={32}
+                  className="mb-2 opacity-50 text-[var(--text-muted)]"
+                />
                 <h4 className="text-sm font-bold text-[var(--text-muted)] mb-1">
                   No Runs
                 </h4>
@@ -527,7 +567,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           {!selectedRunId ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
               <div className="w-16 h-16 bg-[var(--bg-surface-200)] rounded-2xl flex items-center justify-center mb-4">
-                <span className="text-2xl">📭</span>
+                <IconInbox size={32} className="text-[var(--text-muted)]" />
               </div>
               <h3 className="text-sm font-bold text-[var(--text-muted)] mb-2">
                 Select a Run
@@ -556,12 +596,15 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
     }
   };
 
+  // Don't render anything if not mounted
+  if (!shouldRender) return null;
+
   return (
     <>
       {/* Backdrop */}
       <div
         className={cn(
-          "fixed inset-0 bg-[var(--bg-overlay)] z-40 transition-opacity duration-300",
+          "fixed inset-0 bg-[var(--bg-overlay)] z-40 transition-opacity duration-300 ease-in-out",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
         onClick={onClose}
@@ -574,12 +617,12 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         tabIndex={-1}
         className={cn(
           "fixed top-0 right-0 h-full z-50",
-          "bg-[var(--bg-base)] border-l border-[var(--border-muted)]",
+          "bg-[var(--bg-base)] border-l border-[var(--border-muted)] shadow-2xl",
           "flex flex-col",
-          "transition-transform duration-300 ease-out",
+          "transition-all duration-300 ease-out",
           "outline-none",
           "w-[60vw] max-w-[800px] min-w-[500px]",
-          isOpen ? "translate-x-0" : "translate-x-full",
+          isOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
           /* Responsive: Full-screen on small devices */
           "max-[768px]:w-full max-[768px]:max-w-none max-[768px]:min-w-0",
         )}
@@ -606,41 +649,32 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-light)] hover:bg-[var(--bg-surface-200)] transition-colors"
             aria-label="Close"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <IconX size={20} />
           </button>
         </div>
 
         {/* Tab Navigation */}
         <div className="h-12 border-b border-[var(--border-muted)] flex items-center px-4 gap-1 flex-shrink-0 bg-[var(--bg-surface-100)] overflow-x-auto">
-          {TOP_LEVEL_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 whitespace-nowrap",
-                activeTab === tab.id
-                  ? "bg-[var(--bg-surface-200)] text-[var(--brand-400)] shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-light)]",
-              )}
-              aria-selected={activeTab === tab.id}
-              role="tab"
-            >
-              <span>{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+          {TOP_LEVEL_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap",
+                  activeTab === tab.id
+                    ? "bg-[var(--brand-500)]/10 text-[var(--brand-400)] border border-[var(--brand-500)]/20"
+                    : "text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-surface-200)]",
+                )}
+                aria-selected={activeTab === tab.id}
+                role="tab"
+              >
+                <Icon size={14} />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content Area */}

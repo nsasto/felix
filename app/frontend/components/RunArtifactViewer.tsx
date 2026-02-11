@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { felixApi, RunArtifactContent } from "../services/felixApi";
 import { marked } from "marked";
-import { Bot as IconFelix, FileText as IconFileText } from "lucide-react";
+import {
+  Bot as IconFelix,
+  FileText as IconFileText,
+  ClipboardList as IconClipboardList,
+  Scroll as IconScroll,
+  Edit as IconEdit,
+} from "lucide-react";
 
 interface RunArtifactViewerProps {
   projectId: string;
@@ -135,11 +141,15 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
     };
   }, [content, activeTab]);
 
-  const tabs: { id: ArtifactTab; label: string; icon: string }[] = [
-    { id: "report", label: "Report", icon: "📋" },
-    { id: "log", label: "Output Log", icon: "📜" },
-    { id: "plan", label: "Plan Snapshot", icon: "📝" },
-    { id: "spec", label: "Specification", icon: "📄" },
+  const tabs: {
+    id: ArtifactTab;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
+    { id: "report", label: "Report", icon: IconClipboardList },
+    { id: "log", label: "Output Log", icon: IconScroll },
+    { id: "plan", label: "Plan Snapshot", icon: IconEdit },
+    { id: "spec", label: "Specification", icon: IconFileText },
   ];
 
   return (
@@ -178,20 +188,23 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
 
           {/* Tab selector */}
           <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all flex items-center gap-2 ${
-                  activeTab === tab.id
-                    ? "bg-slate-800 text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-400"
-                }`}
-              >
-                <span>{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all flex items-center gap-2 ${
+                    activeTab === tab.id
+                      ? "bg-slate-800 text-brand-400 shadow-sm"
+                      : "text-slate-500 hover:text-slate-400"
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -199,23 +212,26 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
       {/* Embedded tab bar - only show if onClose is NOT provided */}
       {!onClose && (
         <div className="h-10 border-b theme-border flex items-center px-3 gap-1 flex-shrink-0 theme-bg-deep">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                px-3 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1.5
-                ${
-                  activeTab === tab.id
-                    ? "bg-slate-800 text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-400"
-                }
-              `}
-            >
-              <span>{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  px-3 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1.5
+                  ${
+                    activeTab === tab.id
+                      ? "bg-slate-800 text-brand-400 shadow-sm"
+                      : "text-slate-500 hover:text-slate-400"
+                  }
+                `}
+              >
+                <Icon className="w-3 h-3" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
