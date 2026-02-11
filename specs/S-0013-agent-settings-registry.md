@@ -200,3 +200,4 @@ def check_agent_status(agent: AgentEntry) -> str:
 - [x] Stale agents marked inactive: Manual verification - stop agent, wait 15s, check status changes
 
 
+

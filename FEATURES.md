@@ -83,7 +83,7 @@ Felix is a production-ready system for autonomous software delivery at scale, tu
 **`felix list`**
 
 - List all requirements with advanced filtering
-- Filter by: status, priority, labels, incomplete dependencies
+- Filter by: status, priority, tags, incomplete dependencies
 - Show dependency tree (`--tree`)
 - Rich formatting with color-coded status
 - Export as JSON for programmatic access
@@ -238,7 +238,7 @@ Felix is a production-ready system for autonomous software delivery at scale, tu
 
 **Advanced Filtering**
 
-- Filter by status, priority, labels
+- Filter by status, priority, tags
 - Show/hide requirements with incomplete dependencies
 - Search by ID or title
 - Collapsible columns for focus

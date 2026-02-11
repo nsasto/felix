@@ -443,3 +443,4 @@ If logging causes issues:
 - Exception handler prevents sensitive data leaks
 - Uptime metric helps identify restart frequency
 - WebSocket connection count tracks active agents
+

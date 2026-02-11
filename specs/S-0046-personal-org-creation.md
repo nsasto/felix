@@ -234,3 +234,4 @@ If trigger causes issues:
 - Slug uniqueness is guaranteed by email/UUID combination
 - Owner role grants full permissions via RLS policies (S-0044)
 - After this spec, every user automatically has a workspace upon signup
+

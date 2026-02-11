@@ -30,10 +30,10 @@ import {
   SyncableField,
   parseTitle,
   parsePriority,
-  parseLabels,
+  parseTags,
   replaceTitle,
   replacePriority,
-  replaceLabels,
+  replaceTags,
 } from "../utils/specParser";
 
 interface SpecEditorPageProps {
@@ -52,6 +52,7 @@ interface SpecEditorPageProps {
   onContentChange: (content: string) => void;
   onResetPlan: () => void;
   onInsertGeneratedSpec: (content: string) => void;
+  onRequirementUpdate: (id: string, field: string, value: any) => void;
 }
 
 export default function SpecEditorPage({
@@ -70,6 +71,7 @@ export default function SpecEditorPage({
   onContentChange,
   onResetPlan,
   onInsertGeneratedSpec,
+  onRequirementUpdate,
 }: SpecEditorPageProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<"copilot" | "metadata">(
@@ -169,12 +171,12 @@ export default function SpecEditorPage({
         changes.push({ field: "priority", value: markdownPriority });
       }
 
-      const markdownLabels = parseLabels(specContent);
-      const labelsMatch =
-        JSON.stringify(markdownLabels.sort()) ===
-        JSON.stringify((requirement.labels || []).sort());
-      if (!labelsMatch) {
-        changes.push({ field: "labels", value: markdownLabels });
+      const markdownTags = parseTags(specContent);
+      const tagsMatch =
+        JSON.stringify(markdownTags.sort()) ===
+        JSON.stringify((requirement.tags || []).sort());
+      if (!tagsMatch) {
+        changes.push({ field: "tags", value: markdownTags });
       }
 
       const markdownDeps = parseSpecDependencies(specContent);
@@ -193,6 +195,11 @@ export default function SpecEditorPage({
           try {
             await felixApi.updateRequirementMetadata(
               projectId,
+              requirement.id,
+              change.field,
+              change.value,
+            );
+            onRequirementUpdate(
               requirement.id,
               change.field,
               change.value,
@@ -282,6 +289,7 @@ export default function SpecEditorPage({
         field,
         value,
       );
+      onRequirementUpdate(requirement.id, field, value);
 
       // Immediately sync to markdown
       let updatedMarkdown = specContent;
@@ -292,8 +300,8 @@ export default function SpecEditorPage({
         case "priority":
           updatedMarkdown = replacePriority(specContent, value);
           break;
-        case "labels":
-          updatedMarkdown = replaceLabels(specContent, value);
+        case "tags":
+          updatedMarkdown = replaceTags(specContent, value);
           break;
         case "depends_on":
           updatedMarkdown = replaceDependenciesSection(specContent, value);
@@ -305,7 +313,6 @@ export default function SpecEditorPage({
       }
 
       console.log(`Updated and synced ${field} successfully`);
-      // Note: The requirement will be updated via Supabase realtime subscription
     } catch (error) {
       console.error("Failed to update metadata:", error);
       alert("Failed to update metadata. Please try again.");
@@ -340,8 +347,8 @@ export default function SpecEditorPage({
         case "priority":
           value = parsePriority(specContent);
           break;
-        case "labels":
-          value = parseLabels(specContent);
+        case "tags":
+          value = parseTags(specContent);
           break;
         case "depends_on":
           value = parseSpecDependencies(specContent);
@@ -360,8 +367,8 @@ export default function SpecEditorPage({
         case "priority":
           updatedMarkdown = replacePriority(specContent, value as string);
           break;
-        case "labels":
-          updatedMarkdown = replaceLabels(specContent, value as string[]);
+        case "tags":
+          updatedMarkdown = replaceTags(specContent, value as string[]);
           break;
         case "depends_on":
           updatedMarkdown = replaceDependenciesSection(

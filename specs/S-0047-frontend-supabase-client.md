@@ -359,3 +359,4 @@ If Supabase client causes issues:
 - Realtime events are instant (sub-500ms latency typical)
 - Personal organization is auto-created on signup (S-0046 trigger)
 - Phase 3 (S-0048) will use these hooks to replace polling in dashboard
+

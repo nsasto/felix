@@ -2,7 +2,7 @@
 
 1. **Header Metadata**
    - Start each spec with `# S-NNNN: <Title>` where `S-NNNN` is incremented sequentially.
-   - Follow immediately with `## Narrative` describing stakeholder goals or motivations.
+   - Follow immediately with `## Description` describing stakeholder goals or motivations.
 
 2. **Acceptance & Validation Criteria**
    - Include `## Acceptance Criteria` with Markdown checkboxes detailing expected behavior.
@@ -37,9 +37,17 @@ These rules ensure all specs share a consistent structure for planning, validati
 ```markdown
 # S-0042: User Authentication System
 
-## Narrative
+**Priority:** Low  
+**Tags** UI, Auth
+
+## Description
 
 As a platform operator, I need users to authenticate securely so that we can protect sensitive data and provide personalized experiences while maintaining compliance with security standards.
+
+## Dependencies
+
+- S-0002 (Backend API Server) - requires FastAPI server running
+- S-0015 (Database Schema) - requires users table structure
 
 ## Acceptance Criteria
 
@@ -73,16 +81,9 @@ As a platform operator, I need users to authenticate securely so that we can pro
 
 **Don't assume not implemented:** Check existing auth middleware and user models before implementing. May have partial implementation from earlier work.
 
-## Dependencies
-
-- S-0002 (Backend API Server) - requires FastAPI server running
-- S-0015 (Database Schema) - requires users table structure
-
 ## Non-Goals
 
 - OAuth/social login (separate requirement)
 - Two-factor authentication (future enhancement)
 - Password reset via email (separate requirement)
 ```
-
-

@@ -354,3 +354,4 @@ If issues arise:
 - Type hints improve IDE autocomplete and catch errors early
 - Error handling prevents cryptic database errors from bubbling up
 - Writers are stateless - safe to create new instance per request
+

@@ -394,9 +394,10 @@ The user provided a simple flowchart with connected boxes. The workflow visualiz
 - [ ] Manual verification: Start agent, observe workflow highlighting moving through stages in real-time
 - [ ] Manual verification: Resize divider between console and workflow, both sections resize properly
 - [ ] Manual verification: Hover over stage nodes, tooltips show full stage descriptions
-- [ ] Manual verification: Edit ..felix/workflow.json stage names, refresh dashboard, see updated labels
+- [ ] Manual verification: Edit ..felix/workflow.json stage names, refresh dashboard, see updated Tags
 - [ ] Manual verification: Stop agent, workflow stages return to inactive state
 - [ ] Backend serves workflow config: `curl http://localhost:8080/api/workflow-config?project_id=<path>` returns JSON
 - [ ] Backend includes workflow stage in agent status: `curl http://localhost:8080/api/agents` includes current_workflow_stage field
+
 
 

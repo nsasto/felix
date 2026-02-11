@@ -396,3 +396,4 @@ If organization context causes issues:
 - Organization metadata.personal flag identifies personal orgs
 - Dropdown closes after selection for better UX
 - Active org highlighted in dropdown
+

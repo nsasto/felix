@@ -347,3 +347,4 @@ If RLS breaks functionality:
 - Policies use USING for row filtering and WITH CHECK for insert/update validation
 - Personal organizations (Phase 2, S-0046) auto-grant owner role to creator
 - Total policies: ~4 per table × 8 tables = ~32 policies
+

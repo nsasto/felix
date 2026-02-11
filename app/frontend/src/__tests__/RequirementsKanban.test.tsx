@@ -34,7 +34,7 @@ const mockRequirements: Requirement[] = [
     spec_path: 'specs/S-0001.md',
     status: 'planned',
     priority: 'high',
-    labels: ['frontend', 'ui'],
+    tags: ['frontend', 'ui'],
     depends_on: [],
     updated_at: '2026-01-15',
   },
@@ -44,7 +44,7 @@ const mockRequirements: Requirement[] = [
     spec_path: 'specs/S-0002.md',
     status: 'in_progress',
     priority: 'medium',
-    labels: ['backend'],
+    tags: ['backend'],
     depends_on: ['S-0001'],
     updated_at: '2026-01-20',
   },
@@ -54,7 +54,7 @@ const mockRequirements: Requirement[] = [
     spec_path: 'specs/S-0003.md',
     status: 'complete',
     priority: 'low',
-    labels: [],
+    tags: [],
     depends_on: [],
     updated_at: '2026-01-25',
   },
@@ -282,7 +282,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       expect(screen.getByText('Active')).toBeInTheDocument();
     });
 
-    it('hides labels section in compact mode (via CSS)', async () => {
+    it('hides tags section in compact mode (via CSS)', async () => {
       localStorage.setItem(COMPACT_VIEW_STORAGE_KEY, 'true');
 
       renderWithTheme(<RequirementsKanban projectId={mockProjectId} />);
@@ -291,7 +291,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
         expect(screen.getByText('S-0001')).toBeInTheDocument();
       });
 
-      // Labels are still in DOM but hidden via CSS (opacity: 0, max-height: 0)
+      // tags are still in DOM but hidden via CSS (opacity: 0, max-height: 0)
       // The hideable sections have class kanban-card-section-hideable
       const hideableSections = document.querySelectorAll('.kanban-card-section-hideable');
       expect(hideableSections.length).toBeGreaterThan(0);
@@ -328,7 +328,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
           spec_path: 'specs/S-0001.md',
           status: 'planned',  // Not complete, so S-0002 has incomplete dependency
           priority: 'high',
-          labels: [],
+          tags: [],
           depends_on: [],
           updated_at: '2026-01-15',
         },
@@ -338,7 +338,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
           spec_path: 'specs/S-0002.md',
           status: 'planned',
           priority: 'medium',
-          labels: [],
+          tags: [],
           depends_on: ['S-0001'],  // Depends on incomplete S-0001
           updated_at: '2026-01-20',
         },
@@ -370,7 +370,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
           spec_path: 'specs/S-0001.md',
           status: 'planned',
           priority: 'high',
-          labels: [],
+          tags: [],
           depends_on: [],
           updated_at: '2026-01-15',
         },
@@ -380,7 +380,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
           spec_path: 'specs/S-0002.md',
           status: 'planned',
           priority: 'medium',
-          labels: [],
+          tags: [],
           depends_on: ['S-0001'],
           updated_at: '2026-01-20',
         },
@@ -512,7 +512,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       spec_path: 'specs/S-0001.md',
       status: 'planned',
       priority: 'high',
-      labels: ['frontend'],
+      tags: ['frontend'],
       depends_on: [],
       updated_at: '2026-01-15',
     },
@@ -522,7 +522,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       spec_path: 'specs/S-0002.md',
       status: 'done',
       priority: 'medium',
-      labels: [],
+      tags: [],
       depends_on: [],
       updated_at: '2026-01-20',
     },
@@ -578,7 +578,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       });
 
       // The StickyDropZones should appear and contain a Done dropzone
-      // Look for the sticky container with all column labels including Done
+      // Look for the sticky container with all column tags including Done
       await waitFor(() => {
         // The sticky zones should show Done column label regardless of showDone state
         const stickyDoneLabels = screen.getAllByText('Done');
@@ -598,7 +598,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
       expect(showDoneCheckbox).not.toBeChecked();
 
-      // Main kanban should NOT have Done column header (there are column headers with text matching labels)
+      // Main kanban should NOT have Done column header (there are column headers with text matching tags)
       // The kanban columns have headers with uppercase text like "DRAFT", "PLANNED", "DONE"
       const kanbanContainer = document.querySelector('.overflow-x-auto');
       expect(kanbanContainer).toBeInTheDocument();
@@ -660,12 +660,12 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
 
       // StickyDropZones should appear with all 6 columns: Draft, Planned, In Progress, Complete, Blocked, Done
       await waitFor(() => {
-        // Check for presence of all column labels in sticky zones
+        // Check for presence of all column tags in sticky zones
         // The fixed sticky container should show all columns
         const fixedContainer = document.querySelector('.fixed');
         expect(fixedContainer).toBeInTheDocument();
 
-        // All expected column labels should be present
+        // All expected column tags should be present
         expect(screen.getByText('Draft', { selector: '.fixed h3' })).toBeInTheDocument();
         expect(screen.getByText('Planned', { selector: '.fixed h3' })).toBeInTheDocument();
         expect(screen.getByText('In Progress', { selector: '.fixed h3' })).toBeInTheDocument();
@@ -676,4 +676,5 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
     });
   });
 });
+
 

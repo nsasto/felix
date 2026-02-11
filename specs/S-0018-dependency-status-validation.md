@@ -441,3 +441,4 @@ const incompleteDeps = useMemo(
 - [ ] Create requirement with all dependencies done, verify no warning indicator appears
 - [ ] Mark complete dependency back to planned, verify warning reappears on dependent
 - [ ] Requirement with no dependencies never shows warning indicator
+

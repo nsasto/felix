@@ -9,7 +9,7 @@ Currently, the spec list has no search functionality, the "New Spec" button scro
 This enhancement brings three improvements:
 
 1. **Fixed "New Spec" button** at the bottom of the spec list (always visible like the refresh button on projects screen)
-2. **Search bar** to filter specs by ID, title, labels, or status
+2. **Search bar** to filter specs by ID, title, Tags, or status
 3. **S-0006 Safety Indicators** showing in-progress status, spec/plan drift, and manual reset controls
 
 ## Acceptance Criteria
@@ -30,7 +30,7 @@ This enhancement brings three improvements:
 - [ ] Search filters specs by requirement ID (e.g., "S-0015")
 - [ ] Search filters specs by title (case-insensitive partial match)
 - [ ] Search filters specs by status (planned, in_progress, complete, etc.)
-- [ ] Search filters specs by labels (if requirement has matching label)
+- [ ] Search filters specs by Tags (if requirement has matching label)
 - [ ] Search updates results in real-time as user types
 - [ ] Search shows count of filtered results: "3 / 15 specs"
 - [ ] Empty search shows all specs (default state)
@@ -87,7 +87,7 @@ const filteredSpecs = useMemo(() => {
 
   const query = searchQuery.toLowerCase();
   return specs.filter((spec) => {
-    // Match on requirement ID, title, status, labels
+    // Match on requirement ID, title, status, Tags
     const req = requirements.find((r) => r.spec_path.includes(spec.filename));
     if (!req) return false;
 
@@ -95,7 +95,7 @@ const filteredSpecs = useMemo(() => {
       req.id.toLowerCase().includes(query) ||
       req.title.toLowerCase().includes(query) ||
       req.status.toLowerCase().includes(query) ||
-      req.labels.some((l) => l.toLowerCase().includes(query))
+      req.Tags.some((l) => l.toLowerCase().includes(query))
     );
   });
 }, [specs, searchQuery, requirements]);
@@ -318,5 +318,6 @@ All new UI elements should match existing Felix design system:
 - [ ] Active agent indicator: Start agent on requirement, verify 🤖 pulse animation appears
 - [ ] No results state: Search for nonexistent term, verify "No specs match your search" message
 - [ ] Button styling: Verify "New Spec" button matches projects screen "Refresh" button style
+
 
 

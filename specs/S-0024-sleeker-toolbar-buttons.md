@@ -53,3 +53,4 @@ None
 - [ ] Start and Stop functionality remains unchanged
 - [ ] Dropdown menus open/close properly with clean styling
 - [ ] No regressions in agent control functionality
+

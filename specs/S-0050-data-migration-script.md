@@ -420,3 +420,4 @@ pg_dump -U postgres -d felix > backup_before_migration_$(date +%Y%m%d).sql
 - Total migration time: ~1-5 minutes for typical dataset (< 1000 runs)
 
 
+

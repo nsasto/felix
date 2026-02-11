@@ -43,7 +43,7 @@ export interface Requirement {
   spec_path: string;
   status: string;
   priority: string;
-  labels: string[];
+  tags: string[];
   depends_on: string[];
   updated_at: string;
   last_run_id?: string;

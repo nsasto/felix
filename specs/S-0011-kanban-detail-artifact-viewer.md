@@ -31,7 +31,7 @@ As a developer reviewing requirement work history, I need a unified view that sh
 
 - [x] Tab labeled "Overview" with 📋 icon
 - [x] Single scrollable column containing two sections:
-  - **Metadata section** (top): status badge, priority badge, last updated timestamp, labels as tags, dependency list with clickable requirement IDs
+  - **Metadata section** (top): status badge, priority badge, last updated timestamp, Tags as tags, dependency list with clickable requirement IDs
   - **Specification section** (below): Full markdown-rendered spec from specs/ directory
 - [x] Metadata section uses existing RequirementDetailSlideOut styling
 - [x] Specification renders with same markdown styling as RunArtifactViewer spec tab
@@ -106,7 +106,7 @@ RequirementDetailSlideOut
 ├── TabBar (Overview, Run History)
 └── TabContent
     ├── OverviewTab
-    │   ├── MetadataSection (status, priority, labels, deps)
+    │   ├── MetadataSection (status, priority, Tags, deps)
     │   └── SpecificationSection (rendered markdown)
     └── RunHistoryTab
         ├── MasterList (run list, ~40% width)
@@ -159,3 +159,4 @@ RequirementDetailSlideOut
 - [x] Frontend renders 2 top-level tabs: Manual verification - open slide-out, verify Overview and Run History tabs
 - [x] Master-detail layout works: Manual verification - click runs in list, verify artifacts load in detail panel
 - [x] Overview tab shows spec and metadata: Manual verification - check both sections render correctly
+

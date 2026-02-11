@@ -412,3 +412,4 @@ If real-time updates fail:
 - Production build can remove console.log statements
 - RLS policies ensure users only see their org's data
 - Personal org pattern (S-0046) ensures every user has a project
+

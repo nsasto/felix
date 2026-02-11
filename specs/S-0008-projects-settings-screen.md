@@ -36,7 +36,7 @@ As a Felix user managing multiple projects, I need a projects management screen 
 ### Project Configuration
 
 - [ ] Click "Configure" opens project-specific settings panel
-- [ ] Settings panel shows: project name (editable), default status, labels
+- [ ] Settings panel shows: project name (editable), default status, Tags
 - [ ] Save button persists changes to project metadata
 - [ ] Cancel button discards changes
 - [ ] Validation prevents duplicate project names
@@ -105,5 +105,6 @@ As a Felix user managing multiple projects, I need a projects management screen 
 - [ ] Project configuration saves: Edit project name, save, verify persisted
 - [ ] Search filters projects: Type in search box, verify list filters correctly
 - [ ] Open project switches workspace: Click Open, verify project loads in main view
+
 
 

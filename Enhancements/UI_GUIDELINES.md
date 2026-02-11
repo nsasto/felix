@@ -12,7 +12,7 @@ All UI components must use shadcn/ui primitives from `app/frontend/components/ui
 
 - **Button** - All buttons, links, icon buttons
 - **Input** - Text inputs, search fields
-- **Badge** - Status indicators, tags, labels
+- **Badge** - Status indicators, tags
 - **Card** - Panels, containers, grouped content
 - **Dialog / AlertDialog** - Modals, confirmations
 - **Select / Switch / Textarea** - Form controls

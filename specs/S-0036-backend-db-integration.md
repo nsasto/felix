@@ -262,3 +262,4 @@ If issues arise:
 - Use `Depends(get_db)` on all endpoints that need database access
 - asyncpg is chosen for performance, databases library provides nice async interface
 - SQLAlchemy 2.0 is installed but not yet used (raw SQL for simplicity in Phase 0)
+

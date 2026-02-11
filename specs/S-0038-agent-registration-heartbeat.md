@@ -301,3 +301,4 @@ If issues arise:
 - Console streaming WebSocket endpoint remains in agents.py (preserved from S-0031)
 - These endpoints replace file-based agent tracking (agents.json)
 - Frontend will call these endpoints in Phase 1 (S-0042)
+

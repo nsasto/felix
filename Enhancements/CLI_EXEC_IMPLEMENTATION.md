@@ -371,7 +371,7 @@ function Invoke-Validate {
       "spec_path": "specs/S-NNNN-slug.md",
       "status": "planned|in_progress|done|complete|blocked",
       "priority": "low|medium|high|critical",
-      "labels": ["tag1", "tag2"],
+      "tags": ["tag1", "tag2"],
       "depends_on": ["S-NNNN"],
       "updated_at": "YYYY-MM-DD",
       "created_at": "YYYY-MM-DD",
@@ -384,7 +384,7 @@ function Invoke-Validate {
 **Properties:**
 
 - `spec_path`: Forward slashes, relative path from repo root
-- `labels`, `depends_on`: Always arrays (even if empty or single item)
+- `tags`, `depends_on`: Always arrays (even if empty or single item)
 - `updated_at`: ISO date format (YYYY-MM-DD)
 - `created_at`: Optional, preserved if exists
 - `commit_on_complete`: Optional, defaults to false

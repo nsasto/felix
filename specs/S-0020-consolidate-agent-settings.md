@@ -220,3 +220,4 @@ def delete_agent(agent_id: int):
 - [x] Orphaned reference handled: Manual verification - manually edit config.json with invalid agent_id, verify fallback to ID 0 with warning
 
 
+

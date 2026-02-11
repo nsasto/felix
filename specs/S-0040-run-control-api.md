@@ -289,3 +289,4 @@ If issues arise:
 - Agent is responsible for updating run status via control WebSocket
 - Frontend will poll these endpoints in S-0042 (Phase 1)
 - Phase 3 will replace polling with Supabase Realtime subscriptions
+

@@ -86,3 +86,4 @@ As a Felix user monitoring local agents, I need the Live Polling badge indicator
 - [ ] Browser DevTools Network tab shows no automatic requests in manual mode
 - [ ] Browser DevTools Console shows no errors during heartbeat polling
 - [ ] Backend logs show successful liveness checks when GET /api/agents is called
+

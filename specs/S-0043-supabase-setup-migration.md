@@ -193,3 +193,4 @@ If issues arise:
 - Service key has admin privileges - never expose in frontend
 - Anon key is safe for frontend - has limited privileges (will be restricted by RLS in S-0044)
 - This is the transition point: local development → cloud-backed development
+

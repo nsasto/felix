@@ -441,7 +441,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               className={`flex-1 resize-none border-0 rounded-none font-mono text-xs leading-relaxed p-6 focus-visible:ring-0 focus-visible:ring-offset-0 custom-scrollbar ${editorClassName}`}
               style={{
                 minHeight: "100%",
-                backgroundColor: "var(--bg-deepest)",
+                backgroundColor: "var(--bg-base)",
                 color: "var(--text-primary)",
               }}
             />

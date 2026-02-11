@@ -215,3 +215,4 @@ Setup: `.\scripts\setup-db.ps1`
 - `.felix/agents.json` - Agent definitions registry
 - `app/backend/.env` - Backend environment variables
 - `app/frontend/.env` - Frontend environment variables (Vite)
+

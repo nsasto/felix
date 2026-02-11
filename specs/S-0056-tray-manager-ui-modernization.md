@@ -324,3 +324,4 @@ This redesign addresses these issues by creating a professional, user-friendly i
 1. Should we add agent grouping/filtering by project in future iterations?
 2. Should notification settings be per-agent or global only?
 3. Should we support custom color themes beyond Dark/Light in the future?
+

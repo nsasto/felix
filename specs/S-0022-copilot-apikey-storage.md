@@ -127,3 +127,4 @@ X-Copilot-API-Key: sk-proj-...
 - [ ] Backend falls back to env var when header is missing (local dev)
 - [ ] .env file is in .gitignore
 - [ ] Tests verify header validation logic
+

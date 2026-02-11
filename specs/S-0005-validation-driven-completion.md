@@ -28,7 +28,7 @@ Implement validation as the gatekeeper for requirement completion:
 
 - [ ] `scripts/validate-requirement.py` exists and can be invoked with requirement ID
 - [ ] Script reads acceptance criteria from spec file (markdown checklist under "## Validation Criteria" or "## Acceptance Criteria")
-- [ ] Script executes validation commands based on requirement labels (backend → pytest, frontend → npm test)
+- [ ] Script executes validation commands based on requirement Tags (backend → pytest, frontend → npm test)
 - [ ] Script returns exit code 0 on success, 1 on failure
 - [ ] felix-agent.ps1 calls validation after all plan tasks complete
 - [ ] felix-agent.ps1 auto-updates requirements.json status to "complete" on validation pass
@@ -82,6 +82,7 @@ Specs should use markdown checklist format. Use "## Validation Criteria" for tes
 
 None - this is foundational infrastructure needed by all requirements.
 
-## Labels
+## Tags
 
 `foundation`, `validation`, `agent`
+

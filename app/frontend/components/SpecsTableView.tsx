@@ -81,7 +81,7 @@ export default function SpecsTableView({
         (req) =>
           req.id.toLowerCase().includes(query) ||
           req.title.toLowerCase().includes(query) ||
-          req.labels.some((label) => label.toLowerCase().includes(query)),
+          req.tags.some((tag) => tag.toLowerCase().includes(query)),
       );
     }
 
@@ -235,7 +235,7 @@ export default function SpecsTableView({
               <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
               <Input
                 type="text"
-                placeholder="Search specs by ID, title, or labels..."
+                placeholder="Search specs by ID, title, or tags..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -379,19 +379,19 @@ export default function SpecsTableView({
                             </span>
                           )}
                         </div>
-                        {req.labels.length > 0 && (
+                        {req.tags.length > 0 && (
                           <div className="flex gap-1 mt-1">
-                            {req.labels.slice(0, 3).map((label) => (
+                            {req.tags.slice(0, 3).map((tag) => (
                               <span
-                                key={label}
+                                key={tag}
                                 className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
                               >
-                                {label}
+                                {tag}
                               </span>
                             ))}
-                            {req.labels.length > 3 && (
+                            {req.tags.length > 3 && (
                               <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
-                                +{req.labels.length - 3}
+                                +{req.tags.length - 3}
                               </span>
                             )}
                           </div>

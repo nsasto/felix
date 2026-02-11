@@ -74,8 +74,8 @@ export function SpecMetadataPanel({
   onOverviewChange,
   onDismissWarning,
 }: SpecMetadataPanelProps) {
-  const [newLabel, setNewLabel] = useState("");
-  const [isAddingLabel, setIsAddingLabel] = useState(false);
+  const [newTag, setNewTag] = useState("");
+  const [isAddingTag, setIsAddingTag] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
   const [editedTitle, setEditedTitle] = useState(requirement?.title || "");
 
@@ -103,27 +103,27 @@ export function SpecMetadataPanel({
     }
   };
 
-  const handleAddLabel = async () => {
-    if (!newLabel.trim()) return;
+  const handleAddTag = async () => {
+    if (!newTag.trim()) return;
 
-    setUpdating("labels");
+    setUpdating("tags");
     try {
-      const updatedLabels = [...(requirement.labels || []), newLabel.trim()];
-      await onMetadataUpdate("labels", updatedLabels);
-      setNewLabel("");
-      setIsAddingLabel(false);
+      const updatedTags = [...(requirement.tags || []), newTag.trim()];
+      await onMetadataUpdate("tags", updatedTags);
+      setNewTag("");
+      setIsAddingTag(false);
     } finally {
       setUpdating(null);
     }
   };
 
-  const handleRemoveLabel = async (labelToRemove: string) => {
-    setUpdating("labels");
+  const handleRemoveTag = async (tagToRemove: string) => {
+    setUpdating("tags");
     try {
-      const updatedLabels = (requirement.labels || []).filter(
-        (l) => l !== labelToRemove,
+      const updatedTags = (requirement.tags || []).filter(
+        (tag) => tag !== tagToRemove,
       );
-      await onMetadataUpdate("labels", updatedLabels);
+      await onMetadataUpdate("tags", updatedTags);
     } finally {
       setUpdating(null);
     }
@@ -325,41 +325,41 @@ export function SpecMetadataPanel({
           />
         </div>
 
-        {/* Labels */}
+        {/* Tags */}
         <div className="space-y-2">
           <label className="text-xs text-[var(--text-muted)] block mb-1">
-            Labels
+            Tags
           </label>
           <div className="flex flex-wrap gap-2">
-            {(requirement.labels || []).map((label) => (
+            {(requirement.tags || []).map((tag) => (
               <Badge
-                key={label}
+                key={tag}
                 variant="secondary"
                 className="flex items-center gap-1"
               >
                 <IconTag className="w-3 h-3" />
-                {label}
+                {tag}
                 <button
-                  onClick={() => handleRemoveLabel(label)}
-                  disabled={updating === "labels"}
+                  onClick={() => handleRemoveTag(tag)}
+                  disabled={updating === "tags"}
                   className="ml-1 hover:text-[var(--destructive-500)]"
                 >
                   <IconX className="w-3 h-3" />
                 </button>
               </Badge>
             ))}
-            {isAddingLabel ? (
+            {isAddingTag ? (
               <div className="flex gap-1 items-center">
                 <Input
                   type="text"
-                  placeholder="Label name"
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
+                  placeholder="Tag name"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddLabel();
+                    if (e.key === "Enter") handleAddTag();
                     if (e.key === "Escape") {
-                      setIsAddingLabel(false);
-                      setNewLabel("");
+                      setIsAddingTag(false);
+                      setNewTag("");
                     }
                   }}
                   className="w-32 h-7 text-xs"
@@ -368,8 +368,8 @@ export function SpecMetadataPanel({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={handleAddLabel}
-                  disabled={!newLabel.trim() || updating === "labels"}
+                  onClick={handleAddTag}
+                  disabled={!newTag.trim() || updating === "tags"}
                   className="h-7 w-7 p-0"
                 >
                   <IconCheck className="w-4 h-4" />
@@ -378,8 +378,8 @@ export function SpecMetadataPanel({
                   size="sm"
                   variant="ghost"
                   onClick={() => {
-                    setIsAddingLabel(false);
-                    setNewLabel("");
+                    setIsAddingTag(false);
+                    setNewTag("");
                   }}
                   className="h-7 w-7 p-0"
                 >
@@ -390,12 +390,12 @@ export function SpecMetadataPanel({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setIsAddingLabel(true)}
-                disabled={updating === "labels"}
+                onClick={() => setIsAddingTag(true)}
+                disabled={updating === "tags"}
                 className="h-7"
               >
                 <IconPlus className="w-3 h-3 mr-1" />
-                Add Label
+                Add Tag
               </Button>
             )}
           </div>

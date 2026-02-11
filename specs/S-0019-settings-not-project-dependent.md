@@ -77,3 +77,4 @@ Make the Settings screen fully independent of project context:
 - [x] Settings independent of project state: Manual verification - switch between projects, verify Settings screen shows same global configuration
 
 
+

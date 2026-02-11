@@ -179,3 +179,4 @@ As a Windows user of Felix, I need to configure and manage multiple remote Felix
 - Server endpoint connection can be validated before use
 - Settings migration preserves existing configurations
 - No breaking changes to existing tray manager functionality
+

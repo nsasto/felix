@@ -738,13 +738,13 @@ function Invoke-List {
     $priorityFilter = $null
     $blockedByIncompleteDeps = $false
     $withDeps = $false
-    $labelFilter = $null
+    $tagFilter = $null
     
     for ($i = 0; $i -lt $Args.Count; $i++) {
         switch ($Args[$i]) {
             "--status" { $statusFilter = $Args[$i + 1]; $i++ }
             "--priority" { $priorityFilter = $Args[$i + 1]; $i++ }
-            "--labels" { $labelFilter = $Args[$i + 1]; $i++ }
+            "--tags" { $tagFilter = $Args[$i + 1]; $i++ }
             "--blocked-by" { 
                 if ($Args[$i + 1] -eq "incomplete-deps") {
                     $blockedByIncompleteDeps = $true
@@ -781,11 +781,11 @@ function Invoke-List {
         $filtered = $filtered | Where-Object { $_.priority -eq $priorityFilter }
     }
     
-    if ($labelFilter) {
-        $labels = $labelFilter -split ','
+    if ($tagFilter) {
+        $tags = $tagFilter -split ','
         $filtered = $filtered | Where-Object { 
-            $reqLabels = $_.labels
-            ($labels | Where-Object { $reqLabels -contains $_ }).Count -gt 0
+            $reqTags = $_.tags
+            ($tags | Where-Object { $reqTags -contains $_ }).Count -gt 0
         }
     }
     
@@ -819,7 +819,7 @@ function Invoke-List {
         $filters = @()
         if ($statusFilter) { $filters += "status=$statusFilter" }
         if ($priorityFilter) { $filters += "priority=$priorityFilter" }
-        if ($labelFilter) { $filters += "labels=$labelFilter" }
+        if ($tagFilter) { $filters += "tags=$tagFilter" }
         if ($blockedByIncompleteDeps) { $filters += "blocked-by=incomplete-deps" }
         
         if ($filters.Count -gt 0) {
@@ -1331,7 +1331,7 @@ function Invoke-SpecFix {
             spec_path          = $req.spec_path
             status             = $req.status
             priority           = $req.priority
-            labels             = Ensure-Array $req.labels
+            tags               = Ensure-Array $req.tags
             depends_on         = Ensure-Array $req.depends_on
             updated_at         = $req.updated_at
             commit_on_complete = if ($null -ne $req.commit_on_complete) { $req.commit_on_complete } else { $false }
@@ -1450,7 +1450,7 @@ function Invoke-SpecFix {
                         spec_path          = "specs/$fileName"
                         status             = "planned"
                         priority           = "medium"
-                        labels             = @()
+                        tags               = @()
                         depends_on         = @()
                         updated_at         = Get-Date -Format "yyyy-MM-dd"
                         commit_on_complete = $false
@@ -1521,7 +1521,7 @@ function Invoke-SpecFix {
                     spec_path  = $origReq.spec_path
                     status     = $origReq.status
                     priority   = $origReq.priority
-                    labels     = if ($origReq.labels) { @($origReq.labels) } else { @() }
+                    tags       = if ($origReq.tags) { @($origReq.tags) } else { @() }
                     depends_on = if ($origReq.depends_on) { @($origReq.depends_on) } else { @() }
                     updated_at = $origReq.updated_at
                 }
@@ -1564,7 +1564,7 @@ function Invoke-SpecFix {
                     spec_path  = "specs/$($specFile.Name)"
                     status     = $origReq.status
                     priority   = $origReq.priority
-                    labels     = Ensure-Array $origReq.labels
+                    tags       = Ensure-Array $origReq.tags
                     depends_on = Ensure-Array $origReq.depends_on
                     updated_at = if ($origReq.title -ne $title -or $origReq.spec_path -ne "specs/$($specFile.Name)") { Get-Date -Format "yyyy-MM-dd" } else { $origReq.updated_at }
                 }
@@ -1594,7 +1594,7 @@ function Invoke-SpecFix {
                     spec_path          = "specs/$($specFile.Name)"
                     status             = "planned"
                     priority           = "medium"
-                    labels             = @()
+                    tags               = @()
                     depends_on         = @()
                     updated_at         = Get-Date -Format "yyyy-MM-dd"
                     commit_on_complete = $false
@@ -1617,7 +1617,7 @@ function Invoke-SpecFix {
         
         # 2. Single-item arrays collapsed to strings - we need to fix specific fields
         #    Match patterns like "depends_on": "S-0005" and wrap in array
-        $json = $json -creplace '("(?:depends_on|labels)":\s*)"([^"]+)"', '$1["$2"]'
+        $json = $json -creplace '("(?:depends_on|tags)":\s*)"([^"]+)"', '$1["$2"]'
         
         Set-Content -Path $requirementsFile -Value $json -Encoding UTF8
         Write-Host ""

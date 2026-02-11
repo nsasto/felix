@@ -25,7 +25,7 @@ Users can edit either the markdown or the metadata UI, and changes are automatic
 | ---------------- | ------------------------- | ------------------------ | ------------------------------- |
 | **Title**        | `# S-XXXX: Title`         | `requirement.title`      | `# S-0042: Frontend API Client` |
 | **Priority**     | `**Priority:** High`      | `requirement.priority`   | Low, Medium, High, Critical     |
-| **Labels**       | `## Labels` section       | `requirement.labels`     | `["backend", "api"]`            |
+| **Tags**       | `## Tags` section or `**Tags**` line | `requirement.tags`     | `["backend", "api"]`            |
 | **Dependencies** | `## Dependencies` section | `requirement.depends_on` | `["S-0001", "S-0002"]`          |
 
 ### Excluded from Sync
@@ -47,7 +47,7 @@ handleMetadataUpdate(field, value)
 1. Set lastSyncSource = 'metadata'
 2. Update database via API
 3. Immediately update markdown content
-   - replaceTitle() / replacePriority() / replaceLabels() / replaceDependenciesSection()
+   - replaceTitle() / replacePriority() / replaceTags() / replaceDependenciesSection()
 4. No conflict warning shown
 ```
 
@@ -141,7 +141,7 @@ parseSpecDependencies(markdown: string): string[]
 ```typescript
 replaceTitle(markdown: string, title: string): string
 replacePriority(markdown: string, priority: string): string
-replaceLabels(markdown: string, labels: string[]): string
+replaceTags(markdown: string, tags: string[]): string
 replaceDependenciesSection(markdown: string, deps: string[]): string
 ```
 
@@ -158,7 +158,7 @@ Returns array of issues, one per mismatched field:
 
 ```typescript
 interface ValidationIssue {
-  field: SyncableField; // 'title' | 'priority' | 'labels' | 'depends_on'
+  field: SyncableField; // 'title' | 'priority' | 'tags' | 'depends_on'
   type: "mismatch";
   message: string; // e.g., "Priority mismatch"
   markdownValue: any; // Parsed from markdown
@@ -242,10 +242,10 @@ const syncField = async (
 - If missing, defaults to "medium"
 - Auto-added after title if not present
 
-### Labels
+### Tags
 
 ```markdown
-## Labels
+## Tags
 
 - backend
 - api
@@ -255,12 +255,18 @@ const syncField = async (
 Alternative (empty):
 
 ```markdown
-## Labels
+## Tags
 
 None
 ```
 
-- Bullet list (`- item`) under `## Labels` heading
+Inline alternative (single line):
+
+```markdown
+**Tags** backend, api
+```
+
+- Bullet list (`- item`) under `## Tags` heading
 - Empty section shows "None"
 - Auto-created after Dependencies section if missing
 
@@ -318,18 +324,18 @@ None
 
 ### Missing Sections
 
-**Scenario:** Old spec file missing `## Labels` section
+**Scenario:** Old spec file missing `## Tags` section
 
 1. Parser returns empty array: `parseLabels() → []`
-2. User adds label in UI: `labels = ["backend"]`
-3. `replaceLabels()` adds section:
+2. User adds tag in UI: `tags = ["backend"]`
+3. `replaceTags()` adds section:
 
    ```markdown
    ## Dependencies
 
    - S-0001
 
-   ## Labels
+   ## Tags
 
    - backend
    ```
@@ -361,10 +367,10 @@ describe("parseTitle", () => {
   });
 });
 
-describe("replaceLabels", () => {
-  it("adds Labels section if missing", () => {
-    const result = replaceLabels(originalMd, ["api", "backend"]);
-    expect(result).toContain("## Labels\n\n- api\n- backend");
+describe("replaceTags", () => {
+  it("adds Tags section if missing", () => {
+    const result = replaceTags(originalMd, ["api", "backend"]);
+    expect(result).toContain("## Tags\n\n- api\n- backend");
   });
 });
 ```
@@ -478,3 +484,4 @@ The bidirectional sync system provides seamless integration between markdown fil
 - ✅ **Performant** - Debounced parsing, optimistic updates
 
 Users can work in either markdown or UI, whichever fits their workflow, and the system keeps everything synchronized automatically.
+

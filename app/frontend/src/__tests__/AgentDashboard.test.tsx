@@ -84,7 +84,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
   // Mock requirements
   const mockRequirements = {
     requirements: [
-      { id: 'S-0001', title: 'Test Requirement', status: 'planned', priority: 'high', labels: [], depends_on: [], spec_path: '', updated_at: '' },
+      { id: 'S-0001', title: 'Test Requirement', status: 'planned', priority: 'high', tags: [], depends_on: [], spec_path: '', updated_at: '' },
     ],
   };
 

@@ -129,3 +129,4 @@ If issues arise:
 - The distinction between "file-watching WebSocket" (delete) and "console-streaming WebSocket" (preserve) is critical
 - After this spec, the frontend will lose real-time state updates temporarily (acceptable - Phase 1 restores them)
 - Console streaming for live logs continues to work
+

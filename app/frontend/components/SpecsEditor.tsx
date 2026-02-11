@@ -326,6 +326,15 @@ export default function SpecsEditor({
     setSpecContent(content);
   };
 
+  const handleRequirementUpdate = useCallback(
+    (id: string, field: string, value: any) => {
+      setRequirements((prev) =>
+        prev.map((req) => (req.id === id ? { ...req, [field]: value } : req)),
+      );
+    },
+    [],
+  );
+
   if (viewMode === "table") {
     return (
       <>
@@ -363,6 +372,7 @@ export default function SpecsEditor({
         onContentChange={setSpecContent}
         onResetPlan={handleResetPlan}
         onInsertGeneratedSpec={handleInsertGeneratedSpec}
+        onRequirementUpdate={handleRequirementUpdate}
       />
     );
   }

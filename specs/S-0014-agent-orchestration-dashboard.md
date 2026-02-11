@@ -240,3 +240,4 @@ import Ansi from 'ansi-to-react';
 - [x] Run detail slide-out: Manual verification - click run, verify slide-out opens with tabs
 - [x] Resizable panels: Manual verification - drag panel borders, verify resize works
 - [x] Stop agent: Manual verification - click Stop > Graceful, verify agent stops after task
+

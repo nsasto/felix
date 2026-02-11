@@ -150,10 +150,10 @@ function Find-SpecFile {
     return $null
 }
 
-function Get-RequirementLabels {
+function Get-RequirementTags {
     <#
     .SYNOPSIS
-    Gets labels for a requirement from requirements.json
+    Gets Tags for a requirement from requirements.json
     #>
     param(
         [string]$ProjectRoot,
@@ -168,8 +168,8 @@ function Get-RequirementLabels {
     $reqData = Load-JsonFile $reqPath
     $requirement = $reqData.requirements | Where-Object { $_.id -eq $RequirementId }
     
-    if ($requirement -and $requirement.labels) {
-        return $requirement.labels
+    if ($requirement -and $requirement.tags) {
+        return $requirement.tags
     }
     
     return @()
@@ -547,19 +547,19 @@ function Test-ExpectedOutcome {
     return ($Result.ExitCode -eq 0)
 }
 
-function Get-LabelBasedCommands {
+function Get-TagBasedCommands {
     <#
     .SYNOPSIS
-    Maps requirement labels to test commands
+    Maps requirement tags to test commands
     #>
     param(
-        [array]$Labels,
+        [array]$Tags,
         [string]$ProjectRoot
     )
     
     $commands = @()
     
-    if ($Labels -contains "backend") {
+    if ($Tags -contains "backend") {
         $backendPath = Join-Path $ProjectRoot "app/backend"
         if (Test-Path $backendPath) {
             # Check if pytest is available
@@ -574,7 +574,7 @@ function Get-LabelBasedCommands {
         }
     }
     
-    if ($Labels -contains "frontend") {
+    if ($Tags -contains "frontend") {
         $frontendPath = Join-Path $ProjectRoot "app/frontend"
         if (Test-Path $frontendPath) {
             # Check if package.json has a test script
@@ -641,9 +641,9 @@ function Invoke-RequirementValidation {
         Write-Host "Found $($criteria.Count) acceptance criteria"
         Write-Host ""
         
-        # Get labels
-        $labels = Get-RequirementLabels -ProjectRoot $projectRoot -RequirementId $RequirementId
-        Write-Host "Requirement labels: $($labels -join ', ')"
+        # Get Tags
+        $Tags = Get-RequirementTags -ProjectRoot $projectRoot -RequirementId $RequirementId
+        Write-Host "Requirement Tags: $($Tags -join ', ')"
         Write-Host ""
         
         # Validate each criterion
@@ -693,15 +693,15 @@ function Invoke-RequirementValidation {
             }
         }
         
-        # Run label-based commands
-        $labelCommands = Get-LabelBasedCommands -Labels $labels -ProjectRoot $projectRoot
+        # Run tag-based commands
+        $tagCommands = Get-TagBasedCommands -Tags $Tags -ProjectRoot $projectRoot
         
-        if ($labelCommands.Count -gt 0) {
+        if ($tagCommands.Count -gt 0) {
             Write-Host ""
-            Write-Host "Running label-based validation:"
+            Write-Host "Running tag-based validation:"
             Write-Host ("-" * 40)
             
-            foreach ($cmdInfo in $labelCommands) {
+            foreach ($cmdInfo in $tagCommands) {
                 Write-Host "  Running: $($cmdInfo.Name) ($($cmdInfo.Command))"
                 $result = Invoke-ValidationCommand -Command $cmdInfo.Command -WorkingDir $cmdInfo.WorkingDir
                 
@@ -777,4 +777,5 @@ if ($RequirementId -notmatch '^S-\d{4}$') {
 $exitCode = Invoke-RequirementValidation -RequirementId $RequirementId
 
 exit $exitCode
+
 

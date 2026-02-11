@@ -412,7 +412,7 @@ Agent preset definitions (stored in `~/.felix/agents.json`):
 
 ### requirements.json
 
-Requirement tracking with status, dependencies, priority, labels.
+Requirement tracking with status, dependencies, priority, tags.
 
 **Status values:**
 

@@ -28,7 +28,7 @@ export interface NewSpecData {
   id: string;
   title: string;
   priority: string;
-  labels: string[];
+  tags: string[];
 }
 
 export function NewSpecModal({
@@ -40,9 +40,9 @@ export function NewSpecModal({
   const [specId, setSpecId] = useState("");
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("medium");
-  const [labels, setLabels] = useState<string[]>([]);
-  const [newLabel, setNewLabel] = useState("");
-  const [isAddingLabel, setIsAddingLabel] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState("");
+  const [isAddingTag, setIsAddingTag] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,9 +68,9 @@ export function NewSpecModal({
       setSpecId("");
       setTitle("");
       setPriority("medium");
-      setLabels([]);
-      setNewLabel("");
-      setIsAddingLabel(false);
+      setTags([]);
+      setNewTag("");
+      setIsAddingTag(false);
       setError(null);
     }
   }, [isOpen]);
@@ -93,19 +93,19 @@ export function NewSpecModal({
     return true;
   };
 
-  const handleAddLabel = () => {
-    if (!newLabel.trim()) return;
-    if (labels.includes(newLabel.trim())) {
-      setNewLabel("");
+  const handleAddTag = () => {
+    if (!newTag.trim()) return;
+    if (tags.includes(newTag.trim())) {
+      setNewTag("");
       return;
     }
-    setLabels([...labels, newLabel.trim()]);
-    setNewLabel("");
-    setIsAddingLabel(false);
+    setTags([...tags, newTag.trim()]);
+    setNewTag("");
+    setIsAddingTag(false);
   };
 
-  const handleRemoveLabel = (labelToRemove: string) => {
-    setLabels(labels.filter((l) => l !== labelToRemove));
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   const handleCreate = async () => {
@@ -124,7 +124,7 @@ export function NewSpecModal({
         id: specId,
         title: `${specId}: ${title.trim()}`,
         priority,
-        labels,
+        tags,
       });
       onClose();
     } catch (err) {
@@ -211,39 +211,39 @@ export function NewSpecModal({
             </select>
           </div>
 
-          {/* Labels */}
+          {/* Tags */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[var(--text)]">
-              Labels (optional)
+              Tags (optional)
             </label>
             <div className="flex flex-wrap gap-2">
-              {labels.map((label) => (
+              {tags.map((tag) => (
                 <Badge
-                  key={label}
+                  key={tag}
                   variant="secondary"
                   className="flex items-center gap-1"
                 >
-                  {label}
+                  {tag}
                   <button
-                    onClick={() => handleRemoveLabel(label)}
+                    onClick={() => handleRemoveTag(tag)}
                     className="ml-1 hover:text-[var(--destructive-500)]"
                   >
                     <IconX className="w-3 h-3" />
                   </button>
                 </Badge>
               ))}
-              {isAddingLabel ? (
+              {isAddingTag ? (
                 <div className="flex gap-1 items-center">
                   <Input
                     type="text"
-                    placeholder="Label name"
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
+                    placeholder="Tag name"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAddLabel();
+                      if (e.key === "Enter") handleAddTag();
                       if (e.key === "Escape") {
-                        setIsAddingLabel(false);
-                        setNewLabel("");
+                        setIsAddingTag(false);
+                        setNewTag("");
                       }
                     }}
                     className="w-32 h-7 text-xs"
@@ -252,8 +252,8 @@ export function NewSpecModal({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={handleAddLabel}
-                    disabled={!newLabel.trim()}
+                    onClick={handleAddTag}
+                    disabled={!newTag.trim()}
                     className="h-7 w-7 p-0"
                   >
                     <IconPlus className="w-4 h-4" />
@@ -262,8 +262,8 @@ export function NewSpecModal({
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      setIsAddingLabel(false);
-                      setNewLabel("");
+                      setIsAddingTag(false);
+                      setNewTag("");
                     }}
                     className="h-7 w-7 p-0"
                   >
@@ -274,11 +274,11 @@ export function NewSpecModal({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setIsAddingLabel(true)}
+                  onClick={() => setIsAddingTag(true)}
                   className="h-7"
                 >
                   <IconPlus className="w-3 h-3 mr-1" />
-                  Add Label
+                  Add Tag
                 </Button>
               )}
             </div>

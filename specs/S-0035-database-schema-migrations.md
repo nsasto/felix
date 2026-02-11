@@ -288,3 +288,4 @@ pg_dump -U postgres felix > backup_felix_$(date +%Y%m%d_%H%M%S).sql
 - No RLS policies yet (Phase 2) - in Phase 0, AUTH_MODE=disabled
 - Dev org and project use fixed UUIDs for consistency across environments
 - Total schema: 8 tables, ~50 columns, 10 indexes, 7 foreign keys
+

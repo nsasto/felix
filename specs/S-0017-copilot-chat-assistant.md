@@ -586,3 +586,4 @@ class CopilotService:
 - [ ] Avatar transitions: Type in input (listening), send (thinking), receive (speaking), complete (idle)
 - [ ] Token limit: Send 15 messages, verify old messages summarized
 - [ ] Context sources: Disable LEARNINGS.md in settings, verify not included in system prompt
+

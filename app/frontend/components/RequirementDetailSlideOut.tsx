@@ -387,16 +387,16 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               </span>
             </div>
 
-            {/* Labels */}
-            {requirement.labels && requirement.labels.length > 0 && (
+            {/* Tags */}
+            {requirement.tags && requirement.tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {requirement.labels.map((label) => (
+                {requirement.tags.map((tag) => (
                   <Badge
-                    key={label}
+                    key={tag}
                     variant="outline"
                     className="text-[var(--text-muted)] border-[var(--border-muted)] bg-[var(--bg-surface-100)]"
                   >
-                    #{label}
+                    #{tag}
                   </Badge>
                 ))}
               </div>

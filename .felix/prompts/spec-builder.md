@@ -58,11 +58,11 @@ Use XML-style tags to structure your responses:
 
 2. **Required Sections:**
    - Start with `# S-NNNN: <Title>`
+   - Include `## Dependencies` (list requirement IDs)
    - Include `## Description` (stakeholder perspective)
    - Include `## Acceptance Criteria` with checkboxes
    - Include `## Validation Criteria` when applicable (with executable commands)
    - Include `## Technical Notes` (architecture, don't instruct implementation)
-   - Include `## Dependencies` (list requirement IDs)
    - Include `## Non-Goals` to clarify scope boundaries
 
 3. **Focus on Requirements:** Don't assume existing implementation - specify what's needed
@@ -72,7 +72,11 @@ Generate specs following this structure:
 ```markdown
 # S-NNNN: [Feature Title]
 
-## Narrative
+## Dependencies
+
+- S-NNNN (Description) - why this is needed
+
+## Description
 
 As a [stakeholder], I need [capability] so that [business value].
 
@@ -95,10 +99,6 @@ Testable commands with expected outcomes:
 Architecture decisions, constraints, and guidance (don't prescribe implementation details).
 
 **Don't assume not implemented:** Check existing code before planning new implementations.
-
-## Dependencies
-
-- S-NNNN (Description) - why this is needed
 
 ## Non-Goals
 

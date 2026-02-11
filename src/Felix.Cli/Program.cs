@@ -134,7 +134,7 @@ class Program
     {
         var statusOpt = new Option<string?>("--status", "Filter by status");
         var priorityOpt = new Option<string?>("--priority", "Filter by priority");
-        var labelsOpt = new Option<string?>("--labels", "Filter by labels (comma-separated)");
+        var tagsOpt = new Option<string?>("--tags", "Filter by tags (comma-separated)");
         var blockedByOpt = new Option<string?>("--blocked-by", "Filter by blocker type");
         var withDepsOpt = new Option<bool>("--with-deps", "Show dependencies inline");
         var uiOpt = new Option<bool>("--ui", "Enhanced table UI with Spectre.Console");
@@ -143,14 +143,14 @@ class Program
         {
             statusOpt,
             priorityOpt,
-            labelsOpt,
+            tagsOpt,
             blockedByOpt,
             withDepsOpt,
             uiOpt
         };
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler(async (status, priority, labels, blockedBy, withDeps, format, useUI) =>
+        cmd.SetHandler(async (status, priority, tags, blockedBy, withDeps, format, useUI) =>
         {
             if (useUI)
             {
@@ -161,13 +161,13 @@ class Program
             var args = new List<string> { "list" };
             if (status != null) args.AddRange(new[] { "--status", status });
             if (priority != null) args.AddRange(new[] { "--priority", priority });
-            if (labels != null) args.AddRange(new[] { "--labels", labels });
+            if (tags != null) args.AddRange(new[] { "--tags", tags });
             if (blockedBy != null) args.AddRange(new[] { "--blocked-by", blockedBy });
             if (withDeps) args.Add("--with-deps");
             if (format != "rich") args.AddRange(new[] { "--format", format });
 
             await ExecutePowerShell(felixPs1, args.ToArray());
-        }, statusOpt, priorityOpt, labelsOpt, blockedByOpt, withDepsOpt, formatOpt, uiOpt);
+        }, statusOpt, priorityOpt, tagsOpt, blockedByOpt, withDepsOpt, formatOpt, uiOpt);
 
         return cmd;
     }

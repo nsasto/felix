@@ -284,7 +284,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
-  const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
 
   // Compact view state - persisted to localStorage
@@ -391,13 +391,13 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
     fetchRequirements();
   }, [projectId]);
 
-  // Get all unique labels for filter dropdown
-  const allLabels = React.useMemo(() => {
-    const labels = new Set<string>();
+  // Get all unique tags for filter dropdown
+  const allTags = React.useMemo(() => {
+    const tags = new Set<string>();
     requirements.forEach((req) =>
-      req.labels?.forEach((label) => labels.add(label)),
+      req.tags?.forEach((tag) => tags.add(tag)),
     );
-    return Array.from(labels).sort();
+    return Array.from(tags).sort();
   }, [requirements]);
 
   // Get all unique priorities for filter dropdown
@@ -414,10 +414,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
   const filteredRequirements = React.useMemo(() => {
     return requirements.filter((req) => {
       if (priorityFilter && req.priority !== priorityFilter) return false;
-      if (labelFilter && !req.labels?.includes(labelFilter)) return false;
+      if (tagFilter && !req.tags?.includes(tagFilter)) return false;
       return true;
     });
-  }, [requirements, priorityFilter, labelFilter]);
+  }, [requirements, priorityFilter, tagFilter]);
 
   // Visible columns based on showDone filter
   const visibleColumns = React.useMemo(() => {
@@ -623,32 +623,32 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
           </SelectContent>
         </Select>
 
-        {/* Label filter */}
+        {/* Tag filter */}
         <Select
-          value={labelFilter || "all"}
-          onValueChange={(val) => setLabelFilter(val === "all" ? null : val)}
+          value={tagFilter || "all"}
+          onValueChange={(val) => setTagFilter(val === "all" ? null : val)}
         >
           <SelectTrigger className="w-[130px] h-7 text-xs bg-[var(--bg-surface-100)] border-[var(--border-muted)]">
-            <SelectValue placeholder="All Labels" />
+            <SelectValue placeholder="All Tags" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Labels</SelectItem>
-            {allLabels.map((label) => (
-              <SelectItem key={label} value={label}>
-                {label}
+            <SelectItem value="all">All Tags</SelectItem>
+            {allTags.map((tag) => (
+              <SelectItem key={tag} value={tag}>
+                {tag}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
         {/* Clear filters button */}
-        {(priorityFilter || labelFilter) && (
+        {(priorityFilter || tagFilter) && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setPriorityFilter(null);
-              setLabelFilter(null);
+              setTagFilter(null);
             }}
             className="h-7 px-2 text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text)]"
           >
@@ -871,17 +871,17 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Labels - Animated hide/show with compact mode transition */}
-                      {requirement.labels && requirement.labels.length > 0 && (
+                      {/* Tags - Animated hide/show with compact mode transition */}
+                      {requirement.tags && requirement.tags.length > 0 && (
                         <div
                           className={`kanban-card-section kanban-card-section-hideable flex flex-wrap gap-1.5 ${isCompactView ? "" : "mb-2"}`}
                         >
-                          {requirement.labels.map((label) => (
+                          {requirement.tags.map((tag) => (
                             <span
-                              key={label}
+                              key={tag}
                               className="text-[9px] font-mono text-[var(--text-muted)] border border-[var(--border-muted)] px-1.5 py-0.5 rounded hover:text-[var(--text-primary)] transition-colors"
                             >
-                              #{label}
+                              #{tag}
                             </span>
                           ))}
                         </div>

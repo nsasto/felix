@@ -107,7 +107,7 @@ Felix successfully migrated from its original purple-themed UI to a Supabase-ins
 **Typography:**
 
 - Sidebar sublabels: font-weight 100, 0.55rem
-- Consistent uppercase usage for labels
+- Consistent uppercase usage for tags
 - Refined hierarchy throughout
 
 ---

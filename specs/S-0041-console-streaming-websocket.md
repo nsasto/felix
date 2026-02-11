@@ -210,3 +210,4 @@ If issues arise:
 - Uses async file I/O for performance
 - Can handle multiple clients streaming same log file
 - 100ms poll interval balances responsiveness and CPU usage
+

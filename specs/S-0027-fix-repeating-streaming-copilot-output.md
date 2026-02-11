@@ -593,3 +593,4 @@ class CopilotService:
 - [ ] Concurrent tab test: Open multiple tabs, verify streaming in one tab doesn't affect others
 - [ ] Mobile browser test: Test on mobile Safari/Chrome, verify touch interactions don't cause duplicate tokens
 - [ ] Long session test: Conduct 20+ message conversation, verify token processing remains reliable throughout
+

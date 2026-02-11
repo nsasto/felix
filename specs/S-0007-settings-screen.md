@@ -94,3 +94,4 @@ As a developer using Felix, I need a centralized settings interface where I can 
 - Advanced text editor preferences (use existing ConfigPanel patterns)
 
 
+

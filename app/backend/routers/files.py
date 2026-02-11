@@ -53,7 +53,7 @@ class Requirement(BaseModel):
     spec_path: Optional[str] = None
     status: str
     priority: Optional[str] = None
-    labels: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
     depends_on: List[str] = Field(default_factory=list)
     updated_at: Optional[str] = None
     # Plan status fields (enriched at runtime)

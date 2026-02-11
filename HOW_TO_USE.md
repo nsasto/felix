@@ -371,7 +371,7 @@ felix deps --incomplete
 ```powershell
 # Filter by multiple criteria
 felix list --status planned --priority high
-felix list --labels backend,api
+felix list --tags backend,api
 felix list --blocked-by incomplete-deps
 
 # Show dependencies inline
@@ -768,7 +768,7 @@ It does **not** replace Markdown specs.
 - requirement id and title
 - path to spec file
 - status (draft, planned, in_progress, complete, blocked)
-- priority or labels
+- priority or tags
 - optional dependencies
 - timestamps
 
@@ -792,7 +792,7 @@ Those live in Markdown.
       "spec_path": "specs/auth-email-signin.md",
       "status": "planned",
       "priority": "high",
-      "labels": ["backend", "security"],
+      "tags": ["backend", "security"],
       "depends_on": [],
       "updated_at": "2026-01-24",
       "commit_on_complete": false // optional: override global commit setting
@@ -812,7 +812,7 @@ Keep this boring and stable. JSON grows painful when it tries to express nuance.
 - **spec_path** - Path to the spec file
 - **status** - Current state (see status values below)
 - **priority** - Importance level (high, medium, low, critical)
-- **labels** - Array of tags for categorization
+- **tags** - Array of tags for categorization
 - **depends_on** - Array of requirement IDs that must complete first
 - **updated_at** - Last modification date
 

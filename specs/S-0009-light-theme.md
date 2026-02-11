@@ -121,3 +121,4 @@ Light theme (new):
 - [ ] Theme transitions smoothly: Switch themes, verify smooth fade without flashing
 
 
+

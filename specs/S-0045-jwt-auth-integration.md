@@ -311,3 +311,4 @@ If JWT integration breaks functionality:
 - Anon key is safe for frontend - RLS policies enforce access control
 - Token expiration is handled by Supabase (default: 1 hour, refreshable)
 - After this spec, multi-tenant security is fully functional
+

@@ -218,8 +218,8 @@ class Program
         priorityOpt.AddCompletions("low", "medium", "high", "critical");
         cmd.AddOption(priorityOpt);
 
-        var labelsOpt = new Option<string?>("--labels", "Filter by labels (comma-separated)");
-        cmd.AddOption(labelsOpt);
+        var tagsOpt = new Option<string?>("--tags", "Filter by tags (comma-separated)");
+        cmd.AddOption(tagsOpt);
 
         var blockedByOpt = new Option<string?>("--blocked-by", "Filter by blocker type");
         blockedByOpt.AddCompletions("incomplete-deps");
@@ -231,18 +231,18 @@ class Program
         var formatOpt = new Option<string>("--format", () => "rich");
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler((status, priority, labels, blockedBy, withDeps, format) =>
+        cmd.SetHandler((status, priority, tags, blockedBy, withDeps, format) =>
         {
             var args = new List<string> { "list" };
             if (status != null) args.AddRange(new[] { "--status", status });
             if (priority != null) args.AddRange(new[] { "--priority", priority });
-            if (labels != null) args.AddRange(new[] { "--labels", labels });
+            if (tags != null) args.AddRange(new[] { "--tags", tags });
             if (blockedBy != null) args.AddRange(new[] { "--blocked-by", blockedBy });
             if (withDeps) args.Add("--with-deps");
             if (format != "rich") args.AddRange(new[] { "--format", format });
 
             return ExecutePowerShell(felixPs1, args.ToArray());
-        }, statusOpt, priorityOpt, labelsOpt, blockedByOpt, withDepsOpt, formatOpt);
+        }, statusOpt, priorityOpt, tagsOpt, blockedByOpt, withDepsOpt, formatOpt);
 
         return cmd;
     }

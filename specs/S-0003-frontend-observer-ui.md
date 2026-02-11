@@ -31,10 +31,10 @@ As a developer, I need a lightweight React UI that allows me to register project
 ### Requirements Kanban Board
 
 - [ ] Column-based view: Draft → Planned → In Progress → Done → Blocked
-- [ ] Cards show requirement ID, title, priority, labels
+- [ ] Cards show requirement ID, title, priority, Tags
 - [ ] Drag-and-drop to update status (updates ..felix/requirements.json)
 - [ ] Click card to view full spec
-- [ ] Filter by labels, priority, dependencies
+- [ ] Filter by Tags, priority, dependencies
 
 ### Agent Run Controls
 
@@ -99,5 +99,6 @@ As a developer, I need a lightweight React UI that allows me to register project
 
 - S-0002 (backend API must exist)
 - S-0001 (agent must be working to make UI useful)
+
 
 

@@ -380,3 +380,4 @@ If issues arise:
 - Agent connection status derived from heartbeat_at timestamp
 - Phase 2 will add proper authentication
 - Phase 3 will remove polling and add real-time updates
+

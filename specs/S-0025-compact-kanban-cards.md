@@ -31,7 +31,7 @@ Add a toggle switch in the kanban toolbar that allows users to switch between no
 - [ ] **Always Visible:** Requirement ID, title (truncated), priority badge
 - [ ] **Always Visible:** Active indicator for in-progress requirements
 - [ ] **Conditionally Visible:** Dependency warnings (reduced to icon + count only)
-- [ ] **Hidden in Compact:** Labels section completely removed
+- [ ] **Hidden in Compact:** Tags section completely removed
 - [ ] **Hidden in Compact:** Plan timestamp indicators removed
 - [ ] **Hidden in Compact:** "Updated" date removed
 - [ ] **Hidden in Compact:** Footer section with "View Spec" button removed
@@ -97,10 +97,11 @@ None
 - [ ] Toggle switch appears in filter bar and functions correctly
 - [ ] Compact mode reduces card height to ~80px while maintaining readability
 - [ ] Essential information (ID, title, priority, active status) remains visible
-- [ ] Non-essential elements (labels, timestamps, footer) are hidden in compact mode
+- [ ] Non-essential elements (Tags, timestamps, footer) are hidden in compact mode
 - [ ] Dependency warnings show as icon + count in compact mode
 - [ ] User preference persists across browser sessions
 - [ ] Smooth 300ms transition animation when switching modes
 - [ ] All interactive functionality (click, drag, hover) works in both modes
 - [ ] No performance regressions when switching between modes
 - [ ] Responsive behavior maintained across different screen sizes
+

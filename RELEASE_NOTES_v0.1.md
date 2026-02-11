@@ -110,7 +110,7 @@ Comprehensive requirement tracking and lifecycle management:
 - `spec_path` - Path to specification markdown
 - `status` - Current state (draft, planned, in_progress, complete, blocked, done)
 - `priority` - Urgency level
-- `labels` - Categorization tags
+- `tags` - Categorization tags
 - `depends_on` - Dependency array (IDs of prerequisite requirements)
 - `updated_at` - Last modification timestamp
 - `commit_on_complete` - Optional per-requirement commit override

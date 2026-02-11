@@ -28,7 +28,7 @@ As a developer using Felix, I need to view detailed information about a requirem
 
 - [ ] Displays the full spec file content from `specs/{requirement.spec_path}`
 - [ ] Renders markdown with proper formatting (headings, lists, code blocks, etc.)
-- [ ] Shows requirement metadata at top: status, priority, labels, dependencies
+- [ ] Shows requirement metadata at top: status, priority, Tags, dependencies
 - [ ] Status badge uses color coding (planned=blue, in_progress=yellow, complete=green, blocked=red)
 - [ ] Acceptance criteria checkboxes are read-only (not editable in slide-out)
 - [ ] "Edit Spec" button opens spec editor view (same as clicking spec in sidebar)
@@ -171,3 +171,4 @@ No database changes needed. Uses existing file system structure:
 - Real-time updates to history (refresh required)
 - Comparing multiple requirements side-by-side
 - Exporting requirement details to external formats
+

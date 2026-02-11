@@ -81,7 +81,7 @@ None
 
 ### Visual Validation
 
-- [ ] Badge appears with correct colors and labels in both modes
+- [ ] Badge appears with correct colors and Tags in both modes
 - [ ] Pulsing animation works smoothly in live mode (2s cycle)
 - [ ] No animation present in manual mode
 - [ ] Hover state displays correctly
@@ -107,3 +107,4 @@ None
 - Future enhancement: Could add keyboard shortcut (e.g., 'L' for live toggle)
 - Future enhancement: Could extend similar toggle to other auto-refreshing components (runs, requirements)
 - Animation should be non-distracting and accessible
+

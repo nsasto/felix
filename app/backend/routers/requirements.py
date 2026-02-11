@@ -23,7 +23,7 @@ class Requirement(BaseModel):
     spec_path: str
     status: str
     priority: str
-    labels: List[str]
+    tags: List[str]
     depends_on: List[str]
     updated_at: str
     commit_on_complete: bool = True
@@ -36,10 +36,10 @@ async def update_requirement_metadata(
 ):
     """
     Update a single metadata field for a requirement.
-    Allowed fields: status, priority, labels, depends_on
+    Allowed fields: status, priority, tags, depends_on, title
     """
     # Validate field
-    allowed_fields = {"status", "priority", "labels", "depends_on"}
+    allowed_fields = {"status", "priority", "tags", "depends_on", "title"}
     if update.field not in allowed_fields:
         raise HTTPException(
             status_code=400,
@@ -63,13 +63,19 @@ async def update_requirement_metadata(
                 detail=f"Invalid priority '{update.value}'. Must be one of: {', '.join(valid_priorities)}",
             )
 
-    if update.field == "labels":
+    if update.field == "tags":
         if not isinstance(update.value, list):
-            raise HTTPException(status_code=400, detail="labels must be an array")
+            raise HTTPException(status_code=400, detail="tags must be an array")
 
     if update.field == "depends_on":
         if not isinstance(update.value, list):
             raise HTTPException(status_code=400, detail="depends_on must be an array")
+
+    if update.field == "title":
+        if not isinstance(update.value, str) or not update.value.strip():
+            raise HTTPException(
+                status_code=400, detail="title must be a non-empty string"
+            )
 
     # TODO: When moving to database, this will use Supabase
     # For now, update the requirements.json file
@@ -86,14 +92,14 @@ async def update_requirement_metadata(
                 status_code=404, detail=f"Project not found: {project_id}"
             )
 
-        project_path = Path(project_details["path"])
+        project_path = Path(project_details.path)
         requirements_file = project_path / ".felix" / "requirements.json"
 
         if not requirements_file.exists():
             raise HTTPException(status_code=404, detail="requirements.json not found")
 
         # Read current requirements
-        with open(requirements_file, "r", encoding="utf-8") as f:
+        with open(requirements_file, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
 
         # Find and update the requirement

@@ -2,7 +2,7 @@
  * Utility functions for parsing spec markdown content
  */
 
-export type SyncableField = "title" | "priority" | "labels" | "depends_on";
+export type SyncableField = "title" | "priority" | "tags" | "depends_on";
 
 export interface ValidationIssue {
   field: SyncableField;
@@ -40,29 +40,41 @@ export function parsePriority(markdown: string): string {
 }
 
 /**
- * Parse labels from the ## Labels section of markdown
+ * Parse tags from the ## Tags section of markdown
  */
-export function parseLabels(markdown: string): string[] {
-  const labelsMatch = markdown.match(/^##\s+Labels\s*$/im);
-  if (!labelsMatch) return [];
+export function parseTags(markdown: string): string[] {
+  const inlineTagsMatch = markdown.match(/^\*\*Tags\*\*:?\s+(.+)$/im);
+  if (inlineTagsMatch) {
+    const raw = inlineTagsMatch[1].trim();
+    if (raw.toLowerCase() === "none") {
+      return [];
+    }
+    return raw
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+  }
 
-  const startIndex = labelsMatch.index! + labelsMatch[0].length;
+  const tagsMatch = markdown.match(/^##\s+Tags\s*$/im);
+  if (!tagsMatch) return [];
+
+  const startIndex = tagsMatch.index! + tagsMatch[0].length;
   const remainingText = markdown.slice(startIndex);
   const nextSectionMatch = remainingText.match(/^##\s+/m);
   const sectionEnd = nextSectionMatch
     ? nextSectionMatch.index!
     : remainingText.length;
-  const labelsSection = remainingText.slice(0, sectionEnd);
+  const tagsSection = remainingText.slice(0, sectionEnd);
 
   // Check if section says "None" or is effectively empty
-  const contentWithoutWhitespace = labelsSection
+  const contentWithoutWhitespace = tagsSection
     .replace(/\s/g, "")
     .toLowerCase();
   if (contentWithoutWhitespace === "none" || contentWithoutWhitespace === "") {
     return [];
   }
 
-  const bulletMatches = labelsSection.match(/^-\s+(.+)$/gm);
+  const bulletMatches = tagsSection.match(/^-\s+(.+)$/gm);
   return bulletMatches
     ? bulletMatches.map((m) => m.replace(/^-\s+/, "").trim())
     : [];
@@ -73,6 +85,15 @@ export function parseLabels(markdown: string): string[] {
  * Returns array of spec IDs found in the section
  */
 export function parseSpecDependencies(markdown: string): string[] {
+  const inlineDepsMatch = markdown.match(/^\*\*Dependencies:\*\*\s+(.+)$/im);
+  if (inlineDepsMatch) {
+    const raw = inlineDepsMatch[1].trim();
+    if (raw.toLowerCase() === "none") {
+      return [];
+    }
+    return extractSpecIds(raw);
+  }
+
   // Find the Dependencies section (case-insensitive)
   const dependenciesMatch = markdown.match(/^##\s+Dependencies\s*$/im);
 
@@ -111,7 +132,7 @@ export function validateSpecMetadata(
   requirement: {
     title: string;
     priority: string;
-    labels: string[];
+    tags: string[];
     depends_on: string[];
   },
   markdown: string,
@@ -142,21 +163,21 @@ export function validateSpecMetadata(
     });
   }
 
-  // Check labels
-  const markdownLabels = parseLabels(markdown);
-  const labelsSet1 = new Set(markdownLabels);
-  const labelsSet2 = new Set(requirement.labels || []);
-  const labelsDiffer =
-    labelsSet1.size !== labelsSet2.size ||
-    [...labelsSet1].some((l) => !labelsSet2.has(l));
+  // Check tags
+  const markdownTags = parseTags(markdown);
+  const tagsSet1 = new Set(markdownTags);
+  const tagsSet2 = new Set(requirement.tags || []);
+  const tagsDiffer =
+    tagsSet1.size !== tagsSet2.size ||
+    [...tagsSet1].some((t) => !tagsSet2.has(t));
 
-  if (labelsDiffer) {
+  if (tagsDiffer) {
     issues.push({
-      field: "labels",
+      field: "tags",
       type: "mismatch",
-      message: "Labels mismatch",
-      markdownValue: markdownLabels.sort(),
-      metadataValue: (requirement.labels || []).sort(),
+      message: "Tags mismatch",
+      markdownValue: markdownTags.sort(),
+      metadataValue: (requirement.tags || []).sort(),
     });
   }
 
@@ -195,12 +216,31 @@ export function generateDependenciesSection(specIds: string[]): string {
 }
 
 /**
+ * Generate inline dependencies metadata line.
+ */
+export function generateDependenciesLine(specIds: string[]): string {
+  if (specIds.length === 0) {
+    return "**Dependencies:** None";
+  }
+  return `**Dependencies:** ${specIds.join(", ")}`;
+}
+
+/**
  * Replace the Dependencies section in markdown with new content
  */
 export function replaceDependenciesSection(
   markdown: string,
   newSpecIds: string[],
 ): string {
+  const inlineDepsMatch = markdown.match(/^\*\*Dependencies:\*\*\s+.+$/im);
+  if (inlineDepsMatch) {
+    const trailingBreak = /\s{2}$/.test(inlineDepsMatch[0]) ? "  " : "";
+    return markdown.replace(
+      inlineDepsMatch[0],
+      `${generateDependenciesLine(newSpecIds)}${trailingBreak}`,
+    );
+  }
+
   const dependenciesMatch = markdown.match(/^##\s+Dependencies\s*$/im);
 
   if (!dependenciesMatch) {
@@ -334,30 +374,73 @@ export function replacePriority(markdown: string, priority: string): string {
     return markdown;
   }
 
-  return markdown.replace(priorityMatch[0], `**Priority:** ${capitalized}`);
+  const trailingBreak = /\s{2}$/.test(priorityMatch[0]) ? "  " : "";
+  return markdown.replace(
+    priorityMatch[0],
+    `**Priority:** ${capitalized}${trailingBreak}`,
+  );
 }
 
 /**
- * Generate markdown Labels section from label array
+ * Generate markdown Tags section from tag array
  */
-export function generateLabelsSection(labels: string[]): string {
-  if (labels.length === 0) {
-    return "## Labels\n\nNone\n";
+export function generateTagsSection(tags: string[]): string {
+  if (tags.length === 0) {
+    return "## Tags\n\nNone\n";
   }
 
-  const listItems = labels.map((label) => `- ${label}`).join("\n");
-  return `## Labels\n\n${listItems}\n`;
+  const listItems = tags.map((tag) => `- ${tag}`).join("\n");
+  return `## Tags\n\n${listItems}\n`;
 }
 
 /**
- * Replace the Labels section in markdown with new content
+ * Replace the Tags section in markdown with new content
  */
-export function replaceLabels(markdown: string, labels: string[]): string {
-  const labelsMatch = markdown.match(/^##\s+Labels\s*$/im);
-  const labelSection = generateLabelsSection(labels);
+function generateTagsLine(tags: string[], useColon: boolean): string {
+  const label = useColon ? "**Tags:**" : "**Tags**";
+  if (tags.length === 0) {
+    return `${label} None`;
+  }
+  return `${label} ${tags.join(", ")}`;
+}
 
-  if (!labelsMatch) {
-    // Add after Dependencies section or before first ## after Dependencies
+export function replaceTags(markdown: string, tags: string[]): string {
+  const inlineTagsMatch = markdown.match(/^\*\*Tags\*\*:?\s+.+$/im);
+  if (inlineTagsMatch) {
+    const trailingBreak = /\s{2}$/.test(inlineTagsMatch[0]) ? "  " : "";
+    const useColon = inlineTagsMatch[0].includes("**Tags:**");
+    return markdown.replace(
+      inlineTagsMatch[0],
+      `${generateTagsLine(tags, useColon)}${trailingBreak}`,
+    );
+  }
+
+  const tagsMatch = markdown.match(/^##\s+Tags\s*$/im);
+  const tagsSection = generateTagsSection(tags);
+
+  if (!tagsMatch) {
+    // Prefer inline tags near header metadata.
+    const priorityMatch = markdown.match(/^\*\*Priority:\*\*\s+.+$/m);
+    if (priorityMatch) {
+      const insertPos = priorityMatch.index! + priorityMatch[0].length;
+      return (
+        markdown.slice(0, insertPos) +
+        `\n${generateTagsLine(tags, false)}` +
+        markdown.slice(insertPos)
+      );
+    }
+
+    const titleMatch = markdown.match(/^#\s+S-\d{4}:.+$/m);
+    if (titleMatch) {
+      const insertPos = titleMatch.index! + titleMatch[0].length;
+      return (
+        markdown.slice(0, insertPos) +
+        `\n\n${generateTagsLine(tags, false)}` +
+        markdown.slice(insertPos)
+      );
+    }
+
+    // Fallback: add a Tags section after Dependencies or at end.
     const depsMatch = markdown.match(/^##\s+Dependencies\s*$/im);
     if (depsMatch) {
       const startIndex = depsMatch.index! + depsMatch[0].length;
@@ -368,22 +451,22 @@ export function replaceLabels(markdown: string, labels: string[]): string {
         return (
           markdown.slice(0, insertPos) +
           "\n" +
-          labelSection +
+          tagsSection +
           markdown.slice(insertPos)
         );
       }
     }
-    return markdown + "\n\n" + labelSection;
+    return markdown + "\n\n" + tagsSection;
   }
 
-  const startIndex = labelsMatch.index!;
-  const remainingText = markdown.slice(startIndex + labelsMatch[0].length);
+  const startIndex = tagsMatch.index!;
+  const remainingText = markdown.slice(startIndex + tagsMatch[0].length);
   const nextSectionMatch = remainingText.match(/^##\s+/m);
   const sectionEnd = nextSectionMatch
-    ? startIndex + labelsMatch[0].length + nextSectionMatch.index!
+    ? startIndex + tagsMatch[0].length + nextSectionMatch.index!
     : markdown.length;
 
   return (
-    markdown.slice(0, startIndex) + labelSection + markdown.slice(sectionEnd)
+    markdown.slice(0, startIndex) + tagsSection + markdown.slice(sectionEnd)
   );
 }
