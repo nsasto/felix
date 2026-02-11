@@ -59,6 +59,14 @@
   --warning-500: #d29922;           /* Base warning */
   --warning-600: #b87e1a;           /* Medium warning */
 
+  /* Requirement Status Colors */
+  --status-draft: #000000;          /* Draft status */
+  --status-planned: #4385F7;        /* Planned status */
+  --status-in-progress: #F4BC50;    /* In Progress status */
+  --status-complete: #2FB87A;       /* Complete status */
+  --status-done: #A15CF7;           /* Done status */
+  --status-blocked: #E6463E;        /* Blocked status */
+
   /* Interactive States */
   --hover-bg: rgba(31, 41, 55, 0.5);
   --active-bg: rgba(31, 41, 55, 0.8);
@@ -142,6 +150,14 @@
   --warning-400: #d4a017;
   --warning-500: #9a6700;
   --warning-600: #7d5400;
+
+  /* Requirement Status Colors */
+  --status-draft: #000000;          /* Draft status */
+  --status-planned: #4385F7;        /* Planned status */
+  --status-in-progress: #F4BC50;    /* In Progress status */
+  --status-complete: #2FB87A;       /* Complete status */
+  --status-done: #A15CF7;           /* Done status */
+  --status-blocked: #E6463E;        /* Blocked status */
 
   /* Interactive States */
   --hover-bg: rgba(208, 215, 222, 0.4);

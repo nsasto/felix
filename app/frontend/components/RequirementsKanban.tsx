@@ -94,6 +94,25 @@ const getPriorityVariant = (priority: string) => {
   }
 };
 
+const getStatusColor = (status: RequirementStatus): string => {
+  switch (status) {
+    case "draft":
+      return "var(--status-draft)";
+    case "planned":
+      return "var(--status-planned)";
+    case "in_progress":
+      return "var(--status-in-progress)";
+    case "complete":
+      return "var(--status-complete)";
+    case "done":
+      return "var(--status-done)";
+    case "blocked":
+      return "var(--status-blocked)";
+    default:
+      return "var(--text-muted)";
+  }
+};
+
 // Sticky Drop Zones Component
 interface StickyDropZonesProps {
   visibleColumns: Column[];
@@ -708,16 +727,26 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
               onDrop={(e) => handleDrop(e, column.status)}
             >
               {/* Column header */}
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant={column.variant}>{column.label}</Badge>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between px-2">
+                  <span className="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wide">
+                    {column.label}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-surface-200)] border-[var(--border-muted)] px-1.5 py-0.5 rounded"
+                  >
+                    {columnRequirements.length}
+                  </Badge>
                 </div>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-surface-200)] border-[var(--border-muted)] px-1.5 py-0.5 rounded"
-                >
-                  {columnRequirements.length}
-                </Badge>
+                {/* Solid color line */}
+                <div
+                  className="w-full rounded-full"
+                  style={{
+                    backgroundColor: getStatusColor(column.status),
+                    height: "0.15rem",
+                  }}
+                />
               </div>
 
               {/* Cards container */}

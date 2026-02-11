@@ -44,6 +44,27 @@ const getPriorityVariant = (priority: string) => {
   }
 };
 
+const getStatusColor = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case "draft":
+      return "var(--status-draft)";
+    case "planned":
+      return "var(--status-planned)";
+    case "in_progress":
+    case "running":
+      return "var(--status-in-progress)";
+    case "complete":
+    case "completed":
+      return "var(--status-complete)";
+    case "done":
+      return "var(--status-done)";
+    case "blocked":
+      return "var(--status-blocked)";
+    default:
+      return "var(--text-muted)";
+  }
+};
+
 type TopLevelTabId = "overview" | "history";
 
 interface TopLevelTabInfo {
@@ -321,7 +342,14 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           <div className="space-y-4">
             {/* Status and Priority Row */}
             <div className="flex items-center gap-3 flex-wrap">
-              <Badge variant={getStatusVariant(requirement.status)}>
+              <Badge
+                variant={getStatusVariant(requirement.status)}
+                style={{
+                  backgroundColor: getStatusColor(requirement.status),
+                  color: "#ffffff",
+                  borderColor: getStatusColor(requirement.status),
+                }}
+              >
                 {getStatusLabel(requirement.status)}
               </Badge>
               <Badge variant={getPriorityVariant(requirement.priority)}>

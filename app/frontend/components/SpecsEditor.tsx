@@ -882,15 +882,18 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
   const getStatusBadgeClass = (status?: string) => {
     switch (status?.toLowerCase()) {
-      case "in_progress":
-        return "border-[var(--warning-500)]/30 bg-[var(--warning-500)]/10 text-[var(--warning-500)]";
-      case "complete":
-      case "done":
-        return "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]";
-      case "blocked":
-        return "border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]";
+      case "draft":
+        return "border-[var(--status-draft)]/30 bg-[var(--status-draft)]/10 text-[var(--status-draft)]";
       case "planned":
-        return "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]";
+        return "border-[var(--status-planned)]/30 bg-[var(--status-planned)]/10 text-[var(--status-planned)]";
+      case "in_progress":
+        return "border-[var(--status-in-progress)]/30 bg-[var(--status-in-progress)]/10 text-[var(--status-in-progress)]";
+      case "complete":
+        return "border-[var(--status-complete)]/30 bg-[var(--status-complete)]/10 text-[var(--status-complete)]";
+      case "done":
+        return "border-[var(--status-done)]/30 bg-[var(--status-done)]/10 text-[var(--status-done)]";
+      case "blocked":
+        return "border-[var(--status-blocked)]/30 bg-[var(--status-blocked)]/10 text-[var(--status-blocked)]";
       default:
         return "border-[var(--border-muted)] bg-[var(--bg-surface-100)] text-[var(--text-muted)]";
     }

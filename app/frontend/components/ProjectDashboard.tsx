@@ -37,6 +37,25 @@ type DashboardAgent = {
   source: "registry" | "config";
 };
 
+const getStatusColor = (status: string): string => {
+  switch (status) {
+    case "draft":
+      return "var(--status-draft)";
+    case "planned":
+      return "var(--status-planned)";
+    case "in_progress":
+      return "var(--status-in-progress)";
+    case "complete":
+      return "var(--status-complete)";
+    case "done":
+      return "var(--status-done)";
+    case "blocked":
+      return "var(--status-blocked)";
+    default:
+      return "var(--text-muted)";
+  }
+};
+
 const formatDateTime = (value: string | null) => {
   if (!value) return "--";
   const date = new Date(value);
@@ -181,15 +200,15 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   }, [requirements]);
 
   const statusSegments = [
-    { key: "draft", label: "Draft", color: "bg-[var(--border-muted)]" },
-    { key: "planned", label: "Planned", color: "bg-[var(--brand-500)]/40" },
+    { key: "draft", label: "Draft", color: "bg-[var(--status-draft)]" },
+    { key: "planned", label: "Planned", color: "bg-[var(--status-planned)]" },
     {
       key: "in_progress",
       label: "In Progress",
-      color: "bg-[var(--brand-500)]",
+      color: "bg-[var(--status-in-progress)]",
     },
-    { key: "blocked", label: "Blocked", color: "bg-[var(--warning-500)]" },
-    { key: "done", label: "Done", color: "bg-[var(--brand-500)]/80" },
+    { key: "blocked", label: "Blocked", color: "bg-[var(--status-blocked)]" },
+    { key: "done", label: "Done", color: "bg-[var(--status-done)]" },
     { key: "other", label: "Other", color: "bg-[var(--destructive-500)]/40" },
   ];
 
@@ -548,7 +567,14 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                       {req.id}
                     </div>
                   </div>
-                  <Badge className="text-[9px] uppercase px-2 py-1">
+                  <Badge
+                    className="text-[9px] uppercase px-2 py-1"
+                    style={{
+                      backgroundColor: getStatusColor(req.status),
+                      color: "#ffffff",
+                      borderColor: getStatusColor(req.status),
+                    }}
+                  >
                     {req.status.replace(/_/g, " ")}
                   </Badge>
                 </div>

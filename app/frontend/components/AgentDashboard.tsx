@@ -63,6 +63,26 @@ interface SelectedAgent {
 
 // --- Status Icon Component Removed (Integrated into Badge/Dot) ---
 
+// --- Requirement Status Color Helper ---
+const getStatusColor = (status: string): string => {
+  switch (status) {
+    case "draft":
+      return "var(--status-draft)";
+    case "planned":
+      return "var(--status-planned)";
+    case "in_progress":
+      return "var(--status-in-progress)";
+    case "complete":
+      return "var(--status-complete)";
+    case "done":
+      return "var(--status-done)";
+    case "blocked":
+      return "var(--status-blocked)";
+    default:
+      return "var(--text-muted)";
+  }
+};
+
 // --- Run Status Badge Component ---
 
 const RunStatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -271,6 +291,11 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                           req.status === "blocked" ? "destructive" : "secondary"
                         }
                         className="text-[9px] px-1.5 py-0.5"
+                        style={{
+                          backgroundColor: getStatusColor(req.status),
+                          color: "#ffffff",
+                          borderColor: getStatusColor(req.status),
+                        }}
                       >
                         {req.status}
                       </Badge>
