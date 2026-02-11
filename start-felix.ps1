@@ -13,14 +13,22 @@ try {
     $pgData = Join-Path (Split-Path $pgBin) "data"
     
     # Check if PostgreSQL is running
-    $testConnection = & $psqlPath -U postgres -c "SELECT 1;" 2>&1
+    $testConnection = & $psqlPath -U postgres -c "SELECT 1;" -t 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Starting PostgreSQL server..." -ForegroundColor Yellow
         $pgCtl = Join-Path $pgBin "pg_ctl.exe"
         if (Test-Path $pgCtl) {
-            & $pgCtl -D $pgData start -l "$pgData\logfile" 2>&1 | Out-Null
-            Start-Sleep -Seconds 2
-            Write-Host "PostgreSQL started" -ForegroundColor Green
+            # Start with timeout, show output if it fails
+            $startOutput = & $pgCtl -D $pgData start -w -t 10 -l "$pgData\logfile" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "PostgreSQL started" -ForegroundColor Green
+            } else {
+                Write-Host "Warning: pg_ctl exited with code $LASTEXITCODE" -ForegroundColor Yellow
+                Write-Host "Output: $startOutput" -ForegroundColor Gray
+                Write-Host "Continuing anyway..." -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "Warning: pg_ctl not found at $pgCtl" -ForegroundColor Yellow
         }
     } else {
         Write-Host "PostgreSQL already running" -ForegroundColor Green

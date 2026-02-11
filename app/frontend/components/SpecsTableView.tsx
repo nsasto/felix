@@ -3,6 +3,7 @@ import { Requirement } from "../services/felixApi";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Card } from "./ui/card";
 import {
   Table,
   TableBody,
@@ -152,6 +153,8 @@ export default function SpecsTableView({
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "—";
     const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return "—";
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
@@ -172,9 +175,18 @@ export default function SpecsTableView({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-[var(--text-muted)]">
-          Loading specifications...
+      <div className="flex flex-col h-full bg-[var(--bg)]">
+        <div className="border-b border-[var(--border)]">
+          <div className="h-14 flex items-center px-6">
+            <h1 className="text-lg font-semibold text-[var(--text)]">
+              Specifications
+            </h1>
+          </div>
+        </div>
+        <div className="flex items-center justify-center py-16">
+          <div className="text-[var(--text-muted)]">
+            Loading specifications...
+          </div>
         </div>
       </div>
     );
@@ -182,80 +194,95 @@ export default function SpecsTableView({
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="bg-[var(--destructive-500)]/10 border border-[var(--destructive-500)]/20 rounded-lg p-4">
-          <p className="text-[var(--destructive-500)] font-medium">
-            Error loading specifications
-          </p>
-          <p className="text-[var(--text-muted)] text-sm mt-1">{error}</p>
+      <div className="flex flex-col h-full bg-[var(--bg)]">
+        <div className="border-b border-[var(--border)]">
+          <div className="h-14 flex items-center px-6">
+            <h1 className="text-lg font-semibold text-[var(--text)]">
+              Specifications
+            </h1>
+          </div>
+        </div>
+        <div className="px-6 py-6">
+          <div className="bg-[var(--destructive-500)]/10 border border-[var(--destructive-500)]/20 rounded-lg p-4">
+            <p className="text-[var(--destructive-500)] font-medium">
+              Error loading specifications
+            </p>
+            <p className="text-[var(--text-muted)] text-sm mt-1">{error}</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[var(--bg)] overflow-hidden">
-      {/* Header with search and filters */}
-      <div className="flex-shrink-0 border-b border-[var(--border)] bg-[var(--bg-surface-100)] p-4">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex-1 relative">
-            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-            <Input
-              type="text"
-              placeholder="Search specs by ID, title, or labels..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Button
-            onClick={onNewSpec}
-            className="bg-brand-500 hover:bg-brand-600 flex items-center gap-2"
-          >
+    <div className="flex flex-col h-full bg-[var(--bg)]">
+      {/* Page Title Header */}
+      <div>
+        <div className="h-14 flex items-center px-6 justify-between">
+          <h1 className="text-lg font-semibold text-[var(--text)]">
+            Specifications
+          </h1>
+          <Button onClick={onNewSpec} className="flex items-center gap-2">
             <IconPlus className="w-4 h-4" />
             New Spec
           </Button>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="planned">Planned</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="blocked">Blocked</SelectItem>
-              <SelectItem value="done">Done</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Search and filters */}
+        <div className="px-6 py-3 flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+              <Input
+                type="text"
+                placeholder="Search specs by ID, title, or labels..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
 
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Priority" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priorities</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="planned">Planned</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="blocked">Blocked</SelectItem>
+                <SelectItem value="done">Done</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <div className="text-[var(--text-muted)] text-sm ml-auto">
-            {filteredAndSortedRequirements.length} of {requirements.length}{" "}
-            specs
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="text-[var(--text-muted)] text-sm ml-auto">
+              {filteredAndSortedRequirements.length} of {requirements.length}{" "}
+              specs
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto">
+      {/* Table Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4">
         {filteredAndSortedRequirements.length === 0 ? (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex items-center justify-center py-16">
             <div className="text-center">
               <p className="text-[var(--text-muted)] mb-4">
                 {searchQuery ||
@@ -267,10 +294,7 @@ export default function SpecsTableView({
               {!searchQuery &&
                 statusFilter === "all" &&
                 priorityFilter === "all" && (
-                  <Button
-                    onClick={onNewSpec}
-                    className="bg-brand-500 hover:bg-brand-600"
-                  >
+                  <Button onClick={onNewSpec}>
                     <IconPlus className="w-4 h-4 mr-2" />
                     Create First Spec
                   </Button>
@@ -278,128 +302,132 @@ export default function SpecsTableView({
             </div>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-[var(--border)]">
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort("id")}
-                >
-                  <div className="flex items-center gap-2">
-                    ID
-                    <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                  </div>
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort("title")}
-                >
-                  <div className="flex items-center gap-2">
-                    Title
-                    <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                  </div>
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort("status")}
-                >
-                  <div className="flex items-center gap-2">
-                    Status
-                    <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                  </div>
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort("priority")}
-                >
-                  <div className="flex items-center gap-2">
-                    Priority
-                    <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                  </div>
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort("modified")}
-                >
-                  <div className="flex items-center gap-2">
-                    Last Modified
-                    <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                  </div>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAndSortedRequirements.map((req) => {
-                const driftIndicator = getDriftIndicator(req);
-                return (
-                  <TableRow
-                    key={req.id}
-                    className="cursor-pointer hover:bg-[var(--bg-surface-100)] transition-colors border-[var(--border)]"
-                    onClick={() => onSpecClick(req.spec_path)}
+          <Card className="overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-[var(--border)]">
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => handleSort("id")}
                   >
-                    <TableCell className="font-mono text-sm text-[var(--brand-400)]">
-                      {req.id}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[var(--text)]">{req.title}</span>
-                        {driftIndicator && (
-                          <span
-                            className="text-xs"
-                            title="Spec modified after plan was created"
-                          >
-                            {driftIndicator}
+                    <div className="flex items-center gap-2">
+                      ID
+                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => handleSort("title")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Title
+                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => handleSort("status")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Status
+                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => handleSort("priority")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Priority
+                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => handleSort("modified")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Last Modified
+                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                    </div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAndSortedRequirements.map((req) => {
+                  const driftIndicator = getDriftIndicator(req);
+                  return (
+                    <TableRow
+                      key={req.id}
+                      className="cursor-pointer hover:bg-[var(--bg-surface-100)] transition-colors border-[var(--border)]"
+                      onClick={() => onSpecClick(req.spec_path)}
+                    >
+                      <TableCell className="font-mono text-sm text-[var(--brand-400)]">
+                        {req.id}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[var(--text)]">
+                            {req.title}
                           </span>
-                        )}
-                      </div>
-                      {req.labels.length > 0 && (
-                        <div className="flex gap-1 mt-1">
-                          {req.labels.slice(0, 3).map((label) => (
+                          {driftIndicator && (
                             <span
-                              key={label}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
+                              className="text-xs"
+                              title="Spec modified after plan was created"
                             >
-                              {label}
-                            </span>
-                          ))}
-                          {req.labels.length > 3 && (
-                            <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
-                              +{req.labels.length - 3}
+                              {driftIndicator}
                             </span>
                           )}
                         </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          STATUS_COLORS[
-                            req.status as keyof typeof STATUS_COLORS
-                          ]
-                        }
-                      >
-                        {req.status.replace("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          PRIORITY_COLORS[
-                            req.priority as keyof typeof PRIORITY_COLORS
-                          ]
-                        }
-                      >
-                        {req.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-[var(--text-muted)] text-sm">
-                      {formatDate(req.spec_modified_at)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                        {req.labels.length > 0 && (
+                          <div className="flex gap-1 mt-1">
+                            {req.labels.slice(0, 3).map((label) => (
+                              <span
+                                key={label}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                            {req.labels.length > 3 && (
+                              <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
+                                +{req.labels.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            STATUS_COLORS[
+                              req.status as keyof typeof STATUS_COLORS
+                            ]
+                          }
+                        >
+                          {req.status.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            PRIORITY_COLORS[
+                              req.priority as keyof typeof PRIORITY_COLORS
+                            ]
+                          }
+                        >
+                          {req.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-[var(--text-muted)] text-sm">
+                        {formatDate(req.spec_modified_at)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
         )}
       </div>
     </div>
