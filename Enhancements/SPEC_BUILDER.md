@@ -132,7 +132,7 @@ app/frontend/
 ```typescript
 parseTitle(markdown: string): string
 parsePriority(markdown: string): string
-parseLabels(markdown: string): string[]
+parseTags(markdown: string): string[]
 parseSpecDependencies(markdown: string): string[]
 ```
 
@@ -290,6 +290,7 @@ None
 - Bullet list of spec IDs (S-XXXX pattern)
 - Parser extracts all S-XXXX patterns from section
 - Empty section shows "None"
+- Inline dependencies are not supported; always use the section list format
 
 ## Edge Cases
 

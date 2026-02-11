@@ -3,7 +3,9 @@
 **Phase:** 0 (Local Postgres Setup)  
 **Effort:** 6-8 hours  
 **Priority:** High  
-**Dependencies:** S-0036
+## Dependencies
+
+- S-0036
 
 ---
 

@@ -3,7 +3,9 @@
 **Phase:** 1 (Core Orchestration)  
 **Effort:** 6-8 hours  
 **Priority:** High  
-**Dependencies:** S-0041
+## Dependencies
+
+- S-0041
 
 ---
 

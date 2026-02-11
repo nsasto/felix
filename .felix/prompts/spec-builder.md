@@ -58,7 +58,7 @@ Use XML-style tags to structure your responses:
 
 2. **Required Sections:**
    - Start with `# S-NNNN: <Title>`
-   - Include `## Dependencies` (list requirement IDs)
+   - Include `## Dependencies` (list requirement IDs as bullet items, no inline form)
    - Include `## Description` (stakeholder perspective)
    - Include `## Acceptance Criteria` with checkboxes
    - Include `## Validation Criteria` when applicable (with executable commands)

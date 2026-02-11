@@ -3,7 +3,9 @@
 **Phase:** 3 (Realtime Subscriptions)  
 **Effort:** 6-8 hours  
 **Priority:** Medium  
-**Dependencies:** S-0047
+## Dependencies
+
+- S-0047
 
 ---
 

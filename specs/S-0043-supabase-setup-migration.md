@@ -3,7 +3,9 @@
 **Phase:** 2 (Supabase Migration)  
 **Effort:** 4-6 hours  
 **Priority:** Critical  
-**Dependencies:** S-0042
+## Dependencies
+
+- S-0042
 
 ---
 

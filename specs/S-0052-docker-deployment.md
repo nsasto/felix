@@ -3,7 +3,9 @@
 **Phase:** 4 (Production Hardening)  
 **Effort:** 8-10 hours  
 **Priority:** High  
-**Dependencies:** S-0051
+## Dependencies
+
+- S-0051
 
 ---
 

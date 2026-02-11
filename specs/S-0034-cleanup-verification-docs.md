@@ -3,7 +3,11 @@
 **Phase:** -1 (Legacy Code Cleanup)  
 **Effort:** 2-3 hours  
 **Priority:** Critical  
-**Dependencies:** S-0031, S-0032, S-0033
+## Dependencies
+
+- S-0031
+- S-0032
+- S-0033
 
 ---
 

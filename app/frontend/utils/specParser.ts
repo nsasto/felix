@@ -85,15 +85,6 @@ export function parseTags(markdown: string): string[] {
  * Returns array of spec IDs found in the section
  */
 export function parseSpecDependencies(markdown: string): string[] {
-  const inlineDepsMatch = markdown.match(/^\*\*Dependencies:\*\*\s+(.+)$/im);
-  if (inlineDepsMatch) {
-    const raw = inlineDepsMatch[1].trim();
-    if (raw.toLowerCase() === "none") {
-      return [];
-    }
-    return extractSpecIds(raw);
-  }
-
   // Find the Dependencies section (case-insensitive)
   const dependenciesMatch = markdown.match(/^##\s+Dependencies\s*$/im);
 
@@ -216,31 +207,12 @@ export function generateDependenciesSection(specIds: string[]): string {
 }
 
 /**
- * Generate inline dependencies metadata line.
- */
-export function generateDependenciesLine(specIds: string[]): string {
-  if (specIds.length === 0) {
-    return "**Dependencies:** None";
-  }
-  return `**Dependencies:** ${specIds.join(", ")}`;
-}
-
-/**
  * Replace the Dependencies section in markdown with new content
  */
 export function replaceDependenciesSection(
   markdown: string,
   newSpecIds: string[],
 ): string {
-  const inlineDepsMatch = markdown.match(/^\*\*Dependencies:\*\*\s+.+$/im);
-  if (inlineDepsMatch) {
-    const trailingBreak = /\s{2}$/.test(inlineDepsMatch[0]) ? "  " : "";
-    return markdown.replace(
-      inlineDepsMatch[0],
-      `${generateDependenciesLine(newSpecIds)}${trailingBreak}`,
-    );
-  }
-
   const dependenciesMatch = markdown.match(/^##\s+Dependencies\s*$/im);
 
   if (!dependenciesMatch) {
