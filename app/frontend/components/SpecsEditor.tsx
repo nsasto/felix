@@ -353,6 +353,7 @@ export default function SpecsEditor({
         specContent={specContent}
         originalContent={originalContent}
         requirement={selectedRequirement}
+        allRequirements={requirements}
         hasChanges={hasChanges}
         saving={saving}
         saveMessage={saveMessage}

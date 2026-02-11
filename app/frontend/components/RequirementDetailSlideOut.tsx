@@ -621,7 +621,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           "flex flex-col",
           "transition-all duration-300 ease-out",
           "outline-none",
-          "w-[60vw] max-w-[800px] min-w-[500px]",
+          "w-[70vw] max-w-[1200px] min-w-[600px]",
           isOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
           /* Responsive: Full-screen on small devices */
           "max-[768px]:w-full max-[768px]:max-w-none max-[768px]:min-w-0",

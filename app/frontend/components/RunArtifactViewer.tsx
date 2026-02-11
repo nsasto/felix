@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { felixApi, RunArtifactContent } from "../services/felixApi";
 import { marked } from "marked";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
+import { Card, CardContent } from "./ui/card";
 import {
   Bot as IconFelix,
   FileText as IconFileText,
@@ -153,7 +155,11 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => setActiveTab(value as ArtifactTab)}
+      className="flex-1 flex flex-col theme-bg-base overflow-hidden"
+    >
       {/* Header - only show if onClose is provided */}
       {onClose && (
         <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
@@ -187,100 +193,157 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
           </div>
 
           {/* Tab selector */}
-          <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+          <TabsList>
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
-                <button
+                <TabsTrigger
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all flex items-center gap-2 ${
-                    activeTab === tab.id
-                      ? "bg-slate-800 text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-400"
-                  }`}
+                  value={tab.id}
+                  className="px-4 py-1.5 text-[10px] font-bold"
                 >
-                  <Icon className="w-3 h-3" />
+                  <Icon className="w-3 h-3 mr-2" />
                   {tab.label}
-                </button>
+                </TabsTrigger>
               );
             })}
-          </div>
+          </TabsList>
         </div>
       )}
 
       {/* Embedded tab bar - only show if onClose is NOT provided */}
       {!onClose && (
-        <div className="h-10 border-b theme-border flex items-center px-3 gap-1 flex-shrink-0 theme-bg-deep">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  px-3 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1.5
-                  ${
-                    activeTab === tab.id
-                      ? "bg-slate-800 text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-400"
-                  }
-                `}
-              >
-                <Icon className="w-3 h-3" />
-                {tab.label}
-              </button>
-            );
-          })}
+        <div className="flex items-center px-6 pt-4 flex-shrink-0 theme-bg-base">
+          <TabsList>
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className="px-3 py-1.5 text-xs font-medium"
+                >
+                  <Icon className="w-3.5 h-3.5 mr-1.5" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
         </div>
       )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {loading ? (
-          <div className="flex-1 flex flex-col items-center justify-center h-full">
-            <div className="w-8 h-8 border-2 border-slate-600/30 border-t-brand-500 rounded-full animate-spin mb-4" />
-            <span className="text-xs font-mono text-slate-600 uppercase">
-              Loading artifact...
-            </span>
+      {/* Tab Content Panels */}
+      {loading ? (
+        <div className="flex-1 flex flex-col items-center justify-center h-full">
+          <div className="w-8 h-8 border-2 border-slate-600/30 border-t-brand-500 rounded-full animate-spin mb-4" />
+          <span className="text-xs font-mono text-slate-600 uppercase">
+            Loading artifact...
+          </span>
+        </div>
+      ) : error ? (
+        <div className="flex-1 flex flex-col items-center justify-center h-full text-center p-8">
+          <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
+            <IconFileText className="w-8 h-8 text-slate-600" />
           </div>
-        ) : error ? (
-          <div className="flex-1 flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-              <IconFileText className="w-8 h-8 text-slate-600" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-400 mb-2">
-              Artifact Not Found
-            </h3>
-            <p className="text-xs text-slate-600 max-w-md">{error}</p>
-          </div>
-        ) : activeTab === "log" ? (
-          // Log view - monospace text
-          <div className="h-full overflow-y-auto custom-scrollbar p-6 theme-bg-deepest">
-            <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
-              {content || "No log content available."}
-            </pre>
-          </div>
-        ) : (
-          // Markdown view - rendered HTML
-          <div className="h-full overflow-y-auto custom-scrollbar p-8 markdown-preview">
-            {parsedHtml ? (
-              <div
-                className="max-w-4xl mx-auto"
-                dangerouslySetInnerHTML={{ __html: parsedHtml }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
-                <IconFelix className="w-12 h-12 opacity-10" />
-                <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                  No content available
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+          <h3 className="text-sm font-bold text-slate-400 mb-2">
+            Artifact Not Found
+          </h3>
+          <p className="text-xs text-slate-600 max-w-md">{error}</p>
+        </div>
+      ) : (
+        <>
+          <TabsContent
+            value="report"
+            className="flex-1 overflow-hidden m-0 p-6"
+            forceMount
+            hidden={activeTab !== "report"}
+          >
+            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-100)]">
+              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6 markdown-preview">
+                {parsedHtml ? (
+                  <div
+                    className="max-w-4xl mx-auto"
+                    dangerouslySetInnerHTML={{ __html: parsedHtml }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                    <IconFelix className="w-12 h-12 opacity-10" />
+                    <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                      No content available
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent
+            value="log"
+            className="flex-1 overflow-hidden m-0 p-6"
+            forceMount
+            hidden={activeTab !== "log"}
+          >
+            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-200)]">
+              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6">
+                <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
+                  {content || "No log content available."}
+                </pre>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent
+            value="plan"
+            className="flex-1 overflow-hidden m-0 p-6"
+            forceMount
+            hidden={activeTab !== "plan"}
+          >
+            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-100)]">
+              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6 markdown-preview">
+                {parsedHtml ? (
+                  <div
+                    className="max-w-4xl mx-auto"
+                    dangerouslySetInnerHTML={{ __html: parsedHtml }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                    <IconFelix className="w-12 h-12 opacity-10" />
+                    <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                      No content available
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent
+            value="spec"
+            className="flex-1 overflow-hidden m-0 p-6"
+            forceMount
+            hidden={activeTab !== "spec"}
+          >
+            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-100)]">
+              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6 markdown-preview">
+                {parsedHtml ? (
+                  <div
+                    className="max-w-4xl mx-auto"
+                    dangerouslySetInnerHTML={{ __html: parsedHtml }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                    <IconFelix className="w-12 h-12 opacity-10" />
+                    <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                      No content available
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </>
+      )}
+    </Tabs>
   );
 };
 

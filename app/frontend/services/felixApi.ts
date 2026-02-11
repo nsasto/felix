@@ -571,6 +571,21 @@ class FelixApiService {
     );
   }
 
+  async updateRequirementMetadata(
+    projectId: string,
+    requirementId: string,
+    field: string,
+    value: any,
+  ): Promise<Requirement> {
+    return this.request<Requirement>(
+      `/projects/${projectId}/requirements/${requirementId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ field, value }),
+      },
+    );
+  }
+
   // --- Run Endpoints ---
 
   async listRuns(

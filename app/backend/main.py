@@ -26,6 +26,7 @@ from routers import (
     copilot,
     agent_configs,
     user,
+    requirements,
 )
 import storage
 from database.db import startup as db_startup, shutdown as db_shutdown, get_db
@@ -230,6 +231,7 @@ app.include_router(settings.router)
 app.include_router(copilot.router)
 app.include_router(agent_configs.router)
 app.include_router(user.router)
+app.include_router(requirements.router)
 
 
 @app.get("/health")
