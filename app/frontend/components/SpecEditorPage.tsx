@@ -108,7 +108,7 @@ export default function SpecEditorPage({
   const handleWarningAction = (action: WarningAction) => {
     setIsWarningModalOpen(false);
 
-    if (action === "proceed") {
+    if (action === "continue") {
       if (pendingAction === "save") {
         onSave();
       } else if (pendingAction === "discard") {

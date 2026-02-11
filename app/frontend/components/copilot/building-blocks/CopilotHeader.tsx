@@ -1,5 +1,5 @@
 import React from "react";
-import CopilotAvatar, { AvatarState } from "../CopilotAvatar";
+import { AvatarState } from "../CopilotAvatar";
 import { Button } from "../../ui/button";
 import { Trash2, Minimize2 } from "lucide-react";
 
@@ -12,13 +12,13 @@ interface CopilotHeaderProps {
 }
 
 /**
- * CopilotHeader - Header with avatar, title, and action buttons
+ * CopilotHeader - Header with title and action buttons
  *
  * Features:
- * - Animated avatar showing current state
  * - Title and context badge
  * - Clear history button (with confirmation)
  * - Optional minimize button
+ * - Avatar state tracking (for future animated character)
  */
 export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
   avatarState,
@@ -35,9 +35,6 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
 
   return (
     <div className="flex items-center gap-3 p-4 border-b border-[var(--border)]">
-      {/* Avatar */}
-      <CopilotAvatar state={avatarState} size={48} />
-
       {/* Title and context badge */}
       <div className="flex-1 min-w-0">
         <h3 className="text-sm font-semibold text-[var(--text)]">{title}</h3>
