@@ -27,6 +27,13 @@ import {
   replaceDependenciesSection,
   replaceOverviewSection,
   ValidationIssue,
+  SyncableField,
+  parseTitle,
+  parsePriority,
+  parseLabels,
+  replaceTitle,
+  replacePriority,
+  replaceLabels,
 } from "../utils/specParser";
 
 interface SpecEditorPageProps {
@@ -78,6 +85,13 @@ export default function SpecEditorPage({
     [],
   );
   const [dismissedWarnings, setDismissedWarnings] = useState(false);
+  const [lastSyncSource, setLastSyncSource] = useState<
+    "metadata" | "markdown" | null
+  >(null);
+  const [lastSyncTimestamp, setLastSyncTimestamp] = useState<number>(0);
+  const [dismissedFields, setDismissedFields] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Check if copilot is enabled in settings
   useEffect(() => {
@@ -103,13 +117,102 @@ export default function SpecEditorPage({
   useEffect(() => {
     if (!requirement || dismissedWarnings) return;
 
+    // Skip validation if user just made an edit (within last 5 seconds)
+    const isRecentEdit =
+      lastSyncSource && Date.now() - lastSyncTimestamp < 5000;
+    if (isRecentEdit) {
+      setValidationIssues([]);
+      return;
+    }
+
     const timer = setTimeout(() => {
       const issues = validateSpecMetadata(requirement, specContent);
-      setValidationIssues(issues);
+      // Filter out dismissed fields
+      const filteredIssues = issues.filter(
+        (issue) => !dismissedFields.has(issue.field),
+      );
+      setValidationIssues(filteredIssues);
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [specContent, requirement, dismissedWarnings]);
+  }, [
+    specContent,
+    requirement,
+    dismissedWarnings,
+    lastSyncSource,
+    lastSyncTimestamp,
+    dismissedFields,
+  ]);
+
+  // Auto-sync markdown changes to metadata
+  useEffect(() => {
+    if (!requirement || dismissedWarnings) return;
+
+    // Skip if we just synced FROM metadata (within last 2 seconds)
+    if (
+      lastSyncSource === "metadata" &&
+      Date.now() - lastSyncTimestamp < 2000
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const changes: Array<{ field: SyncableField; value: any }> = [];
+
+      const markdownTitle = parseTitle(specContent);
+      if (markdownTitle && markdownTitle !== requirement.title) {
+        changes.push({ field: "title", value: markdownTitle });
+      }
+
+      const markdownPriority = parsePriority(specContent);
+      if (markdownPriority !== requirement.priority) {
+        changes.push({ field: "priority", value: markdownPriority });
+      }
+
+      const markdownLabels = parseLabels(specContent);
+      const labelsMatch =
+        JSON.stringify(markdownLabels.sort()) ===
+        JSON.stringify((requirement.labels || []).sort());
+      if (!labelsMatch) {
+        changes.push({ field: "labels", value: markdownLabels });
+      }
+
+      const markdownDeps = parseSpecDependencies(specContent);
+      const depsMatch =
+        JSON.stringify(markdownDeps.sort()) ===
+        JSON.stringify((requirement.depends_on || []).sort());
+      if (!depsMatch) {
+        changes.push({ field: "depends_on", value: markdownDeps });
+      }
+
+      if (changes.length > 0) {
+        setLastSyncSource("markdown");
+        setLastSyncTimestamp(Date.now());
+
+        for (const change of changes) {
+          try {
+            await felixApi.updateRequirementMetadata(
+              projectId,
+              requirement.id,
+              change.field,
+              change.value,
+            );
+          } catch (error) {
+            console.error(`Failed to sync ${change.field} to metadata:`, error);
+          }
+        }
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    specContent,
+    requirement,
+    projectId,
+    dismissedWarnings,
+    lastSyncSource,
+    lastSyncTimestamp,
+  ]);
 
   // Check if requirement is in_progress
   const isInProgress = requirement?.status === "in_progress";
@@ -170,13 +273,38 @@ export default function SpecEditorPage({
     if (!requirement) return;
 
     try {
+      setLastSyncSource("metadata");
+      setLastSyncTimestamp(Date.now());
+
       await felixApi.updateRequirementMetadata(
         projectId,
         requirement.id,
         field,
         value,
       );
-      console.log(`Updated ${field} successfully`);
+
+      // Immediately sync to markdown
+      let updatedMarkdown = specContent;
+      switch (field) {
+        case "title":
+          updatedMarkdown = replaceTitle(specContent, value);
+          break;
+        case "priority":
+          updatedMarkdown = replacePriority(specContent, value);
+          break;
+        case "labels":
+          updatedMarkdown = replaceLabels(specContent, value);
+          break;
+        case "depends_on":
+          updatedMarkdown = replaceDependenciesSection(specContent, value);
+          break;
+      }
+
+      if (updatedMarkdown !== specContent) {
+        onContentChange(updatedMarkdown);
+      }
+
+      console.log(`Updated and synced ${field} successfully`);
       // Note: The requirement will be updated via Supabase realtime subscription
     } catch (error) {
       console.error("Failed to update metadata:", error);
@@ -184,23 +312,67 @@ export default function SpecEditorPage({
     }
   };
 
-  // Sync depends_on from markdown to metadata
-  const handleSyncFromMarkdown = () => {
+  // Sync a specific field in the specified direction
+  const syncField = async (
+    direction: "markdown-to-metadata" | "metadata-to-markdown",
+    field: SyncableField,
+  ) => {
     if (!requirement) return;
-    const markdownDeps = parseSpecDependencies(specContent);
-    handleMetadataUpdate("depends_on", markdownDeps);
-    setDismissedWarnings(false);
-  };
 
-  // Sync depends_on from metadata to markdown
-  const handleSyncToMarkdown = () => {
-    if (!requirement) return;
-    const updatedMarkdown = replaceDependenciesSection(
-      specContent,
-      requirement.depends_on || [],
+    setLastSyncSource(
+      direction === "markdown-to-metadata" ? "markdown" : "metadata",
     );
-    onContentChange(updatedMarkdown);
-    setDismissedWarnings(false);
+    setLastSyncTimestamp(Date.now());
+
+    // Remove from dismissed
+    setDismissedFields((prev) => {
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
+
+    if (direction === "markdown-to-metadata") {
+      let value: any;
+      switch (field) {
+        case "title":
+          value = parseTitle(specContent);
+          break;
+        case "priority":
+          value = parsePriority(specContent);
+          break;
+        case "labels":
+          value = parseLabels(specContent);
+          break;
+        case "depends_on":
+          value = parseSpecDependencies(specContent);
+          break;
+      }
+      await handleMetadataUpdate(field, value);
+    } else {
+      // metadata-to-markdown
+      let updatedMarkdown = specContent;
+      const value = (requirement as any)[field];
+
+      switch (field) {
+        case "title":
+          updatedMarkdown = replaceTitle(specContent, value as string);
+          break;
+        case "priority":
+          updatedMarkdown = replacePriority(specContent, value as string);
+          break;
+        case "labels":
+          updatedMarkdown = replaceLabels(specContent, value as string[]);
+          break;
+        case "depends_on":
+          updatedMarkdown = replaceDependenciesSection(
+            specContent,
+            value as string[],
+          );
+          break;
+      }
+
+      onContentChange(updatedMarkdown);
+    }
   };
 
   // Sync overview content to markdown
@@ -210,9 +382,16 @@ export default function SpecEditorPage({
   };
 
   // Dismiss validation warning for this session
-  const handleDismissWarning = () => {
-    setDismissedWarnings(true);
-    setValidationIssues([]);
+  const handleDismissWarning = (field?: string) => {
+    if (field) {
+      setDismissedFields((prev) => new Set(prev).add(field));
+      setValidationIssues((prev) =>
+        prev.filter((issue) => issue.field !== field),
+      );
+    } else {
+      setDismissedWarnings(true);
+      setValidationIssues([]);
+    }
   };
 
   // Toggle sidebar and switch to appropriate tab
@@ -323,8 +502,7 @@ export default function SpecEditorPage({
               validationIssues={dismissedWarnings ? [] : validationIssues}
               onInsertSpec={onInsertGeneratedSpec}
               onMetadataUpdate={handleMetadataUpdate}
-              onSyncFromMarkdown={handleSyncFromMarkdown}
-              onSyncToMarkdown={handleSyncToMarkdown}
+              onSyncField={syncField}
               onOverviewChange={handleOverviewChange}
               onDismissWarning={handleDismissWarning}
               isCopilotEnabled={isCopilotEnabled}

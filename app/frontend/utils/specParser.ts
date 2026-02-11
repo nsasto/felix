@@ -2,11 +2,14 @@
  * Utility functions for parsing spec markdown content
  */
 
+export type SyncableField = "title" | "priority" | "labels" | "depends_on";
+
 export interface ValidationIssue {
-  type: "dependency_mismatch";
+  field: SyncableField;
+  type: "mismatch";
   message: string;
-  markdownValue: string[];
-  metadataValue: string[];
+  markdownValue: any;
+  metadataValue: any;
 }
 
 /**
@@ -17,6 +20,52 @@ function extractSpecIds(text: string): string[] {
   const matches = text.match(specIdPattern) || [];
   // Return unique IDs
   return [...new Set(matches)];
+}
+
+/**
+ * Parse title from markdown (# S-XXXX: Title)
+ */
+export function parseTitle(markdown: string): string {
+  const titleMatch = markdown.match(/^#\s+S-\d{4}:\s+(.+)$/m);
+  return titleMatch ? titleMatch[1].trim() : "";
+}
+
+/**
+ * Parse priority from markdown (**Priority:** High)
+ */
+export function parsePriority(markdown: string): string {
+  const priorityMatch = markdown.match(/^\*\*Priority:\*\*\s+(.+)$/m);
+  if (!priorityMatch) return "medium"; // default
+  return priorityMatch[1].trim().toLowerCase();
+}
+
+/**
+ * Parse labels from the ## Labels section of markdown
+ */
+export function parseLabels(markdown: string): string[] {
+  const labelsMatch = markdown.match(/^##\s+Labels\s*$/im);
+  if (!labelsMatch) return [];
+
+  const startIndex = labelsMatch.index! + labelsMatch[0].length;
+  const remainingText = markdown.slice(startIndex);
+  const nextSectionMatch = remainingText.match(/^##\s+/m);
+  const sectionEnd = nextSectionMatch
+    ? nextSectionMatch.index!
+    : remainingText.length;
+  const labelsSection = remainingText.slice(0, sectionEnd);
+
+  // Check if section says "None" or is effectively empty
+  const contentWithoutWhitespace = labelsSection
+    .replace(/\s/g, "")
+    .toLowerCase();
+  if (contentWithoutWhitespace === "none" || contentWithoutWhitespace === "") {
+    return [];
+  }
+
+  const bulletMatches = labelsSection.match(/^-\s+(.+)$/gm);
+  return bulletMatches
+    ? bulletMatches.map((m) => m.replace(/^-\s+/, "").trim())
+    : [];
 }
 
 /**
@@ -59,26 +108,72 @@ export function parseSpecDependencies(markdown: string): string[] {
  * Returns validation issues if any discrepancies found
  */
 export function validateSpecMetadata(
-  requirement: { depends_on: string[] },
+  requirement: {
+    title: string;
+    priority: string;
+    labels: string[];
+    depends_on: string[];
+  },
   markdown: string,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
+  // Check title
+  const markdownTitle = parseTitle(markdown);
+  if (markdownTitle && markdownTitle !== requirement.title) {
+    issues.push({
+      field: "title",
+      type: "mismatch",
+      message: "Title mismatch",
+      markdownValue: markdownTitle,
+      metadataValue: requirement.title,
+    });
+  }
+
+  // Check priority
+  const markdownPriority = parsePriority(markdown);
+  if (markdownPriority !== requirement.priority) {
+    issues.push({
+      field: "priority",
+      type: "mismatch",
+      message: "Priority mismatch",
+      markdownValue: markdownPriority,
+      metadataValue: requirement.priority,
+    });
+  }
+
+  // Check labels
+  const markdownLabels = parseLabels(markdown);
+  const labelsSet1 = new Set(markdownLabels);
+  const labelsSet2 = new Set(requirement.labels || []);
+  const labelsDiffer =
+    labelsSet1.size !== labelsSet2.size ||
+    [...labelsSet1].some((l) => !labelsSet2.has(l));
+
+  if (labelsDiffer) {
+    issues.push({
+      field: "labels",
+      type: "mismatch",
+      message: "Labels mismatch",
+      markdownValue: markdownLabels.sort(),
+      metadataValue: (requirement.labels || []).sort(),
+    });
+  }
+
+  // Check dependencies
   const markdownDeps = parseSpecDependencies(markdown);
   const metadataDeps = requirement.depends_on || [];
+  const depsSet1 = new Set(markdownDeps);
+  const depsSet2 = new Set(metadataDeps);
+  const depsDiffer =
+    depsSet1.size !== depsSet2.size ||
+    [...depsSet1].some((id) => !depsSet2.has(id));
 
-  // Check if arrays are different (order-independent comparison)
-  const markdownSet = new Set(markdownDeps);
-  const metadataSet = new Set(metadataDeps);
-
-  const hasDifference =
-    markdownSet.size !== metadataSet.size ||
-    [...markdownSet].some((id) => !metadataSet.has(id));
-
-  if (hasDifference) {
+  if (depsDiffer) {
     issues.push({
-      type: "dependency_mismatch",
-      message: "Markdown↔metadata mismatch",
+      field: "depends_on",
+      type: "mismatch",
+      message: "Dependencies mismatch",
       markdownValue: markdownDeps.sort(),
       metadataValue: metadataDeps.sort(),
     });
@@ -207,4 +302,88 @@ export function replaceOverviewSection(
   const after = markdown.slice(sectionEnd);
 
   return before + "## Overview\n\n" + newContent + "\n\n" + after;
+}
+
+/**
+ * Replace title in markdown (# S-XXXX: Title)
+ */
+export function replaceTitle(markdown: string, title: string): string {
+  const match = markdown.match(/^(#\s+S-\d{4}:)\s+.+$/m);
+  if (!match) return markdown;
+  return markdown.replace(match[0], `${match[1]} ${title}`);
+}
+
+/**
+ * Replace priority in markdown (**Priority:** value)
+ */
+export function replacePriority(markdown: string, priority: string): string {
+  const priorityMatch = markdown.match(/^\*\*Priority:\*\*\s+.+$/m);
+  const capitalized = priority.charAt(0).toUpperCase() + priority.slice(1);
+
+  if (!priorityMatch) {
+    // Add after title if doesn't exist
+    const titleMatch = markdown.match(/^#\s+S-\d{4}:.+$/m);
+    if (titleMatch) {
+      const insertPos = titleMatch.index! + titleMatch[0].length;
+      return (
+        markdown.slice(0, insertPos) +
+        `\n\n**Priority:** ${capitalized}` +
+        markdown.slice(insertPos)
+      );
+    }
+    return markdown;
+  }
+
+  return markdown.replace(priorityMatch[0], `**Priority:** ${capitalized}`);
+}
+
+/**
+ * Generate markdown Labels section from label array
+ */
+export function generateLabelsSection(labels: string[]): string {
+  if (labels.length === 0) {
+    return "## Labels\n\nNone\n";
+  }
+
+  const listItems = labels.map((label) => `- ${label}`).join("\n");
+  return `## Labels\n\n${listItems}\n`;
+}
+
+/**
+ * Replace the Labels section in markdown with new content
+ */
+export function replaceLabels(markdown: string, labels: string[]): string {
+  const labelsMatch = markdown.match(/^##\s+Labels\s*$/im);
+  const labelSection = generateLabelsSection(labels);
+
+  if (!labelsMatch) {
+    // Add after Dependencies section or before first ## after Dependencies
+    const depsMatch = markdown.match(/^##\s+Dependencies\s*$/im);
+    if (depsMatch) {
+      const startIndex = depsMatch.index! + depsMatch[0].length;
+      const remainingText = markdown.slice(startIndex);
+      const nextSectionMatch = remainingText.match(/^##\s+/m);
+      if (nextSectionMatch) {
+        const insertPos = startIndex + nextSectionMatch.index!;
+        return (
+          markdown.slice(0, insertPos) +
+          "\n" +
+          labelSection +
+          markdown.slice(insertPos)
+        );
+      }
+    }
+    return markdown + "\n\n" + labelSection;
+  }
+
+  const startIndex = labelsMatch.index!;
+  const remainingText = markdown.slice(startIndex + labelsMatch[0].length);
+  const nextSectionMatch = remainingText.match(/^##\s+/m);
+  const sectionEnd = nextSectionMatch
+    ? startIndex + labelsMatch[0].length + nextSectionMatch.index!
+    : markdown.length;
+
+  return (
+    markdown.slice(0, startIndex) + labelSection + markdown.slice(sectionEnd)
+  );
 }

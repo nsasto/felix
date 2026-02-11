@@ -1,6 +1,6 @@
 import React from "react";
 import { Requirement } from "../services/felixApi";
-import { ValidationIssue } from "../utils/specParser";
+import { ValidationIssue, SyncableField } from "../utils/specParser";
 import { CopilotSidebar } from "./copilot";
 import { SpecMetadataPanel } from "./SpecMetadataPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
@@ -20,10 +20,12 @@ interface SpecSidebarTabsProps {
   validationIssues: ValidationIssue[];
   onInsertSpec: (spec: string) => void;
   onMetadataUpdate: (field: string, value: any) => Promise<void>;
-  onSyncFromMarkdown: () => void;
-  onSyncToMarkdown: () => void;
+  onSyncField: (
+    direction: "markdown-to-metadata" | "metadata-to-markdown",
+    field: string,
+  ) => void;
   onOverviewChange: (content: string) => void;
-  onDismissWarning: () => void;
+  onDismissWarning: (field?: string) => void;
   isCopilotEnabled: boolean;
 }
 
@@ -37,8 +39,7 @@ export function SpecSidebarTabs({
   validationIssues,
   onInsertSpec,
   onMetadataUpdate,
-  onSyncFromMarkdown,
-  onSyncToMarkdown,
+  onSyncField,
   onOverviewChange,
   onDismissWarning,
   isCopilotEnabled,
@@ -78,8 +79,7 @@ export function SpecSidebarTabs({
           specContent={specContent}
           validationIssues={validationIssues}
           onMetadataUpdate={onMetadataUpdate}
-          onSyncFromMarkdown={onSyncFromMarkdown}
-          onSyncToMarkdown={onSyncToMarkdown}
+          onSyncField={onSyncField}
           onOverviewChange={onOverviewChange}
           onDismissWarning={onDismissWarning}
         />
