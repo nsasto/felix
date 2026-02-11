@@ -11,7 +11,15 @@ import {
   setCopilotApiKey,
   clearCopilotApiKey,
 } from "../services/felixApi";
-import { Bot as IconFelix } from "lucide-react";
+import {
+  Settings as IconSettings,
+  Folder as IconFolder,
+  Sparkles as IconSparkles,
+  Code as IconCode,
+  Briefcase as IconBriefcase,
+  Cpu as IconCpu,
+  FileCode as IconFileCode,
+} from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -50,113 +58,37 @@ const CATEGORIES: CategoryInfo[] = [
     id: "general",
     label: "General",
     description: "Basic Felix configuration",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-        />
-      </svg>
-    ),
+    icon: <IconSettings className="w-5 h-5" />,
   },
   {
     id: "paths",
     label: "Paths",
     description: "File and directory locations",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-        />
-      </svg>
-    ),
+    icon: <IconFolder className="w-5 h-5" />,
   },
   {
     id: "copilot",
     label: "Felix Copilot",
     description: "AI-powered spec writing assistant",
-    icon: <span className="text-lg">✨</span>,
+    icon: <IconSparkles className="w-5 h-5" />,
   },
   {
     id: "advanced",
     label: "Advanced",
     description: "Developer and debug options",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-        />
-      </svg>
-    ),
+    icon: <IconCode className="w-5 h-5" />,
   },
   {
     id: "projects",
     label: "Projects",
     description: "Manage registered projects",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-        />
-      </svg>
-    ),
+    icon: <IconBriefcase className="w-5 h-5" />,
   },
   {
     id: "agents",
     label: "Agents",
     description: "Agent registry and status",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
-        />
-      </svg>
-    ),
+    icon: <IconCpu className="w-5 h-5" />,
   },
 ];
 
@@ -2899,36 +2831,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Categories List */}
         <div className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
           {CATEGORIES.map((category) => (
-            <Button
+            <button
               key={category.id}
               onClick={() => setActiveCategory(category.id)}
-              variant="ghost"
-              size="sm"
-              className={`w-full justify-start gap-3 px-4 py-3 rounded-xl text-left ${
-                activeCategory === category.id
-                  ? "bg-[var(--selected-bg)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/20"
-                  : "theme-text-tertiary hover:theme-text-secondary hover:bg-[var(--hover-bg)] border border-transparent"
-              }`}
+              className={`sidebar-nav-item ${activeCategory === category.id ? "active" : ""} w-full`}
             >
-              <div
-                className={`flex-shrink-0 ${activeCategory === category.id ? "text-[var(--accent-primary)]" : "theme-text-muted"}`}
-              >
-                {category.icon}
-              </div>
-              <div className="min-w-0">
+              <span className="sidebar-icon">{category.icon}</span>
+              <div className="sidebar-labels">
                 <span className="sidebar-label">{category.label}</span>
-                <span className="block text-[10px] theme-text-muted truncate">
-                  {category.description}
-                </span>
+                <span className="sidebar-sublabel">{category.description}</span>
               </div>
-            </Button>
+            </button>
           ))}
         </div>
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-[var(--border-default)]">
           <div className="flex items-center gap-2 text-[10px] theme-text-muted">
-            <IconFelix className="w-4 h-4 text-[var(--accent-primary)]/50" />
+            <IconFileCode className="w-4 h-4 text-[var(--accent-primary)]/50" />
             <span className="font-mono">felix/config.json</span>
           </div>
         </div>
