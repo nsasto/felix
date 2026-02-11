@@ -2038,75 +2038,82 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {Object.entries(registeredAgents)
                 .sort(([, a], [, b]) => {
                   const statusOrder = { active: 0, inactive: 1, stopped: 2 };
+                  const agentA = a as AgentEntry;
+                  const agentB = b as AgentEntry;
                   const aOrder =
-                    statusOrder[a.status as keyof typeof statusOrder] ?? 3;
+                    statusOrder[agentA.status as keyof typeof statusOrder] ?? 3;
                   const bOrder =
-                    statusOrder[b.status as keyof typeof statusOrder] ?? 3;
+                    statusOrder[agentB.status as keyof typeof statusOrder] ?? 3;
                   if (aOrder !== bOrder) return aOrder - bOrder;
-                  const aTime = a.last_heartbeat
-                    ? new Date(a.last_heartbeat).getTime()
+                  const aTime = agentA.last_heartbeat
+                    ? new Date(agentA.last_heartbeat).getTime()
                     : 0;
-                  const bTime = b.last_heartbeat
-                    ? new Date(b.last_heartbeat).getTime()
+                  const bTime = agentB.last_heartbeat
+                    ? new Date(agentB.last_heartbeat).getTime()
                     : 0;
                   return bTime - aTime;
                 })
-                .map(([agentName, agent]) => (
-                  <div
-                    key={agentName}
-                    className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        className="flex-shrink-0"
-                        title={`Status: ${agent.status}`}
-                      >
-                        {agent.status === "active" && (
-                          <span className="text-base">🟢</span>
-                        )}
-                        {agent.status === "inactive" && (
-                          <span className="text-base">⚪</span>
-                        )}
-                        {agent.status === "stopped" && (
-                          <span className="text-base">🔴</span>
-                        )}
-                      </span>
-                      <h5 className="text-sm font-bold theme-text-secondary truncate">
-                        {agentName}
-                      </h5>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                      <div className="flex items-center gap-2">
-                        <span className="theme-text-muted">Hostname:</span>
-                        <span className="theme-text-tertiary font-mono">
-                          {agent.hostname}
+                .map(([agentName, agent]) => {
+                  const agentEntry = agent as AgentEntry;
+                  return (
+                    <div
+                      key={agentName}
+                      className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span
+                          className="flex-shrink-0"
+                          title={`Status: ${agentEntry.status}`}
+                        >
+                          {agentEntry.status === "active" && (
+                            <span className="text-base">🟢</span>
+                          )}
+                          {agentEntry.status === "inactive" && (
+                            <span className="text-base">⚪</span>
+                          )}
+                          {agentEntry.status === "stopped" && (
+                            <span className="text-base">🔴</span>
+                          )}
                         </span>
+                        <h5 className="text-sm font-bold theme-text-secondary truncate">
+                          {agentName}
+                        </h5>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="theme-text-muted">PID:</span>
-                        <span className="theme-text-tertiary font-mono">
-                          {agent.pid}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="theme-text-muted">
-                          Last heartbeat:
-                        </span>
-                        <span className="theme-text-tertiary">
-                          {getRelativeTime(agent.last_heartbeat)}
-                        </span>
-                      </div>
-                      {agent.current_run_id && (
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                         <div className="flex items-center gap-2">
-                          <span className="theme-text-muted">Working on:</span>
-                          <span className="theme-text-secondary font-mono">
-                            {agent.current_run_id}
+                          <span className="theme-text-muted">Hostname:</span>
+                          <span className="theme-text-tertiary font-mono">
+                            {agentEntry.hostname}
                           </span>
                         </div>
-                      )}
+                        <div className="flex items-center gap-2">
+                          <span className="theme-text-muted">PID:</span>
+                          <span className="theme-text-tertiary font-mono">
+                            {agentEntry.pid}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="theme-text-muted">
+                            Last heartbeat:
+                          </span>
+                          <span className="theme-text-tertiary">
+                            {getRelativeTime(agentEntry.last_heartbeat)}
+                          </span>
+                        </div>
+                        {agentEntry.current_run_id && (
+                          <div className="flex items-center gap-2">
+                            <span className="theme-text-muted">
+                              Working on:
+                            </span>
+                            <span className="theme-text-secondary font-mono">
+                              {agentEntry.current_run_id}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           )}
         </div>
