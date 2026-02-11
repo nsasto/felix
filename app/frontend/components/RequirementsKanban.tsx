@@ -308,12 +308,6 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
     localStorage.setItem("felix-kanban-compact-view", String(isCompactView));
   }, [isCompactView]);
 
-  // Requirement status info for each requirement (maps requirement id -> status info)
-  // This includes plan info and spec modification timestamps for drift detection
-  const [requirementStatusMap, setRequirementStatusMap] = useState<
-    Record<string, RequirementStatusResponse>
-  >({});
-
   // Selected requirement for slide-out detail view
   const [selectedRequirement, setSelectedRequirement] =
     useState<Requirement | null>(null);
@@ -336,45 +330,48 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
   // Fetch requirement status for all requirements that might have plans
   // This includes both plan info and spec modification times for drift detection
-  useEffect(() => {
-    const fetchRequirementStatus = async () => {
-      if (!projectId || requirements.length === 0) return;
+  // PERFORMANCE: Disabled until backend implements requirement status endpoint (S-0032)
+  // This used to make N individual API calls per requirement, but the endpoint returns 501.
+  // The status map is used for plan drift detection. Re-enable after database migration.
+  // useEffect(() => {
+  //   const fetchRequirementStatus = async () => {
+  //     if (!projectId || requirements.length === 0) return;
 
-      // Only fetch for requirements that might have plans
-      const relevantReqs = requirements.filter(
-        (req) =>
-          req.status === "planned" ||
-          req.status === "in_progress" ||
-          req.status === "complete",
-      );
+  //     // Only fetch for requirements that might have plans
+  //     const relevantReqs = requirements.filter(
+  //       (req) =>
+  //         req.status === "planned" ||
+  //         req.status === "in_progress" ||
+  //         req.status === "complete",
+  //     );
 
-      const statusMap: Record<string, RequirementStatusResponse> = {};
+  //     const statusMap: Record<string, RequirementStatusResponse> = {};
 
-      // Fetch status info for each relevant requirement
-      await Promise.all(
-        relevantReqs.map(async (req) => {
-          try {
-            const statusInfo = await felixApi.getRequirementStatus(
-              projectId,
-              req.id,
-            );
-            if (statusInfo.has_plan) {
-              statusMap[req.id] = statusInfo;
-            }
-          } catch (err) {
-            console.warn(
-              `Failed to fetch requirement status for ${req.id}:`,
-              err,
-            );
-          }
-        }),
-      );
+  //     // Fetch status info for each relevant requirement
+  //     await Promise.all(
+  //       relevantReqs.map(async (req) => {
+  //         try {
+  //           const statusInfo = await felixApi.getRequirementStatus(
+  //             projectId,
+  //             req.id,
+  //           );
+  //           if (statusInfo.has_plan) {
+  //             statusMap[req.id] = statusInfo;
+  //           }
+  //         } catch (err) {
+  //           console.warn(
+  //             `Failed to fetch requirement status for ${req.id}:`,
+  //             err,
+  //           );
+  //         }
+  //       }),
+  //     );
 
-      setRequirementStatusMap(statusMap);
-    };
+  //     setRequirementStatusMap(statusMap);
+  //   };
 
-    fetchRequirementStatus();
-  }, [projectId, requirements]);
+  //   fetchRequirementStatus();
+  // }, [projectId, requirements]);
 
   // Fetch requirements on mount and when projectId changes
   useEffect(() => {
@@ -533,24 +530,23 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
   // Get plan info for a requirement and check if spec was modified after plan
   const getPlanTimestampInfo = (
-    requirementId: string,
+    requirement: Requirement,
   ): {
     planTime: string | null;
     specModifiedAfterPlan: boolean;
     hasPlan: boolean;
   } => {
-    const statusInfo = requirementStatusMap[requirementId];
-    if (!statusInfo || !statusInfo.has_plan) {
+    if (!requirement.has_plan || !requirement.plan_modified_at) {
       return { planTime: null, specModifiedAfterPlan: false, hasPlan: false };
     }
 
-    const planTime = formatTimestamp(statusInfo.plan_modified_at);
+    const planTime = formatTimestamp(requirement.plan_modified_at);
 
     // Check if spec was modified after plan was generated
     let specModifiedAfterPlan = false;
-    if (statusInfo.plan_modified_at && statusInfo.spec_modified_at) {
-      const planModTime = parseFloat(statusInfo.plan_modified_at);
-      const specModTime = parseFloat(statusInfo.spec_modified_at);
+    if (requirement.plan_modified_at && requirement.spec_modified_at) {
+      const planModTime = parseFloat(requirement.plan_modified_at);
+      const specModTime = parseFloat(requirement.spec_modified_at);
       // If spec was modified after plan, there's drift
       specModifiedAfterPlan =
         !isNaN(planModTime) && !isNaN(specModTime) && specModTime > planModTime;
@@ -762,9 +758,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                   const incompleteDeps = getIncompleteDepsList(requirement);
                   const hasBlockedDeps = incompleteDeps.length > 0;
                   const isDragging = draggedItem?.id === requirement.id;
-                  const planTimestampInfo = getPlanTimestampInfo(
-                    requirement.id,
-                  );
+                  const planTimestampInfo = getPlanTimestampInfo(requirement);
                   const depsTooltip = hasBlockedDeps
                     ? `Incomplete dependencies:\n${formatIncompleteDependenciesTooltip(incompleteDeps)}`
                     : "";
@@ -944,9 +938,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                           }}
                           className="h-auto p-0 text-[var(--text-muted)] hover:text-[var(--brand-400)] hover:bg-transparent font-bold text-[9px] flex items-center gap-1"
                         >
-                          <IconWrapper size={12}>
-                            <IconFileText />
-                          </IconWrapper>
+                          <IconFileText size={12} />
                           View Spec
                         </Button>
                       </div>

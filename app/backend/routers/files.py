@@ -56,6 +56,11 @@ class Requirement(BaseModel):
     labels: List[str] = Field(default_factory=list)
     depends_on: List[str] = Field(default_factory=list)
     updated_at: Optional[str] = None
+    # Plan status fields (enriched at runtime)
+    has_plan: Optional[bool] = None
+    plan_path: Optional[str] = None
+    plan_modified_at: Optional[str] = None
+    spec_modified_at: Optional[str] = None
 
 
 class RequirementsContent(BaseModel):
@@ -474,15 +479,68 @@ async def update_spec(
 @router.get("/{project_id}/requirements", response_model=RequirementsContent)
 async def read_requirements(project_id: str = PathParam(..., description="Project ID")):
     """
-    Read the project's requirements.
+    Read the project's requirements and enrich with plan status.
 
-    NOTE: Stubbed for Phase 0 database migration (S-0032).
-    Returns empty requirements list until database-driven state management is implemented.
+    NOTE: Performance optimization for Phase 0.
+    Embeds plan status (has_plan, timestamps) in single response to avoid N+1 queries.
+    Will be replaced by database-driven queries in S-0032.
     """
-    # Validate project exists (preserves existing behavior for 404 on invalid project)
-    get_project_path(project_id)
+    project_path = get_project_path(project_id)
+    req_file = project_path / ".felix" / "requirements.json"
 
-    return RequirementsContent(requirements=[], path=".felix/requirements.json")
+    if not req_file.exists():
+        raise HTTPException(
+            status_code=404, detail="requirements.json not found in .felix directory"
+        )
+
+    try:
+        # Read requirements from file (utf-8-sig handles BOM if present)
+        requirements_data = json.loads(req_file.read_text(encoding="utf-8-sig"))
+        requirements = requirements_data.get("requirements", [])
+
+        # Build plan map once (efficient for many run directories)
+        plan_map = build_plan_map(project_path)
+
+        # Enrich each requirement with plan status
+        for req in requirements:
+            req_id = req["id"]
+
+            # Lookup plan from pre-built map (O(1) instead of O(m) per requirement)
+            plan_info = plan_map.get(req_id)
+
+            req["has_plan"] = plan_info is not None
+
+            if plan_info:
+                plan_file, run_id = plan_info
+                req["plan_path"] = str(plan_file.relative_to(project_path))
+                req["plan_modified_at"] = str(plan_file.stat().st_mtime)
+            else:
+                req["plan_path"] = None
+                req["plan_modified_at"] = None
+
+            # Get spec timestamp for drift detection
+            spec_path = req.get("spec_path")
+            if spec_path:
+                spec_file = project_path / spec_path
+                if spec_file.exists():
+                    req["spec_modified_at"] = str(spec_file.stat().st_mtime)
+                else:
+                    req["spec_modified_at"] = None
+            else:
+                req["spec_modified_at"] = None
+
+        return RequirementsContent(
+            requirements=requirements, path=".felix/requirements.json"
+        )
+
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read requirements: {str(e)}"
+        )
 
 
 # --- README Endpoint ---
@@ -806,6 +864,49 @@ def find_plan_for_requirement(
     # Sort by run_id (which is a timestamp) and return the most recent
     plan_files.sort(key=lambda x: x[1], reverse=True)
     return plan_files[0]
+
+
+def build_plan_map(project_path: Path) -> dict[str, tuple[Path, str]]:
+    """
+    Build a map of requirement_id -> (plan_path, run_id) by scanning runs directory once.
+
+    This is much more efficient than calling find_plan_for_requirement() for each requirement
+    when there are many run directories. Reduces O(n*m) to O(m) where n=requirements, m=runs.
+
+    Returns dict mapping requirement_id to (plan_path, run_id) for the most recent plan.
+    """
+    runs_dir = project_path / "runs"
+    if not runs_dir.exists():
+        return {}
+
+    # Map: requirement_id -> list of (plan_path, run_id)
+    plan_files_by_req: dict[str, list[tuple[Path, str]]] = {}
+
+    # Single pass through all run directories
+    for run_dir in runs_dir.iterdir():
+        if not run_dir.is_dir():
+            continue
+
+        # Find all plan files in this run directory
+        for plan_file in run_dir.glob("plan-*.md"):
+            # Extract requirement ID from filename: plan-{req_id}.md
+            filename = plan_file.name
+            if filename.startswith("plan-") and filename.endswith(".md"):
+                req_id = filename[5:-3]  # Remove "plan-" prefix and ".md" suffix
+
+                if req_id not in plan_files_by_req:
+                    plan_files_by_req[req_id] = []
+
+                plan_files_by_req[req_id].append((plan_file, run_dir.name))
+
+    # For each requirement, keep only the most recent plan
+    result: dict[str, tuple[Path, str]] = {}
+    for req_id, plans in plan_files_by_req.items():
+        # Sort by run_id (timestamp) and take most recent
+        plans.sort(key=lambda x: x[1], reverse=True)
+        result[req_id] = plans[0]
+
+    return result
 
 
 @router.get(

@@ -47,6 +47,11 @@ export interface Requirement {
   depends_on: string[];
   updated_at: string;
   last_run_id?: string;
+  // Plan status fields (enriched by backend)
+  has_plan?: boolean;
+  plan_path?: string | null;
+  plan_modified_at?: string | null;
+  spec_modified_at?: string | null;
 }
 
 export interface RequirementsData {
