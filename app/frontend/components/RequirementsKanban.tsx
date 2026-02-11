@@ -142,12 +142,12 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
     let styles = "border-2 ";
 
     if (isDropTarget) {
-      // Active drop target styles
+      // Active drop target styles - use state colors
       switch (variant) {
         case "default":
           return (
             styles +
-            "border-[var(--brand-500)]/70 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+            "border-[var(--brand-500)] bg-[var(--brand-500)]/20 text-[var(--brand-500)]"
           );
         case "secondary":
           return (
@@ -157,30 +157,30 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
         case "destructive":
           return (
             styles +
-            "border-[var(--destructive-500)]/70 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]"
+            "border-[var(--destructive-500)] bg-[var(--destructive-500)]/20 text-[var(--destructive-500)]"
           );
         case "warning":
           return (
             styles +
-            "border-[var(--warning-500)]/70 bg-[var(--warning-500)]/10 text-[var(--warning-500)]"
+            "border-[var(--status-in-progress)] bg-[var(--status-in-progress)]/20 text-[var(--status-in-progress)]"
           );
         case "success":
           return (
             styles +
-            "border-[var(--brand-500)]/70 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+            "border-[var(--brand-500)] bg-[var(--brand-500)]/20 text-[var(--brand-500)]"
           );
         default:
           return (
             styles +
-            "border-[var(--brand-500)]/70 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
+            "border-[var(--brand-500)] bg-[var(--brand-500)]/20 text-[var(--brand-500)]"
           );
       }
     } else {
-      // Inactive styles
+      // Inactive styles - subtle backgrounds matching state colors
       switch (variant) {
         case "default":
           return (
-            styles + "border-[var(--brand-500)]/20 bg-[var(--brand-500)]/5"
+            styles + "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10"
           );
         case "secondary":
           return (
@@ -189,15 +189,16 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
         case "destructive":
           return (
             styles +
-            "border-[var(--destructive-500)]/20 bg-[var(--destructive-500)]/5"
+            "border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10"
           );
         case "warning":
           return (
-            styles + "border-[var(--warning-500)]/20 bg-[var(--warning-500)]/5"
+            styles +
+            "border-[var(--status-in-progress)]/30 bg-[var(--status-in-progress)]/10"
           );
         case "success":
           return (
-            styles + "border-[var(--brand-500)]/20 bg-[var(--brand-500)]/5"
+            styles + "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10"
           );
         default:
           return (
@@ -215,59 +216,50 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
         opacity: draggedItem ? 1 : 0,
       }}
     >
-      <div className="flex gap-6 px-6 py-3 overflow-x-auto">
-        {/* Adjust for scroll offset */}
-        <div
-          style={{ transform: `translateX(-${scrollOffset}px)` }}
-          className="flex gap-6"
-        >
-          {visibleColumns.map((column) => {
-            const isDropTarget = dragOverColumn === column.status;
-            const isCurrentColumn = draggedItem.status === column.status;
+      <div className="flex gap-3 px-6 py-3">
+        {visibleColumns.map((column) => {
+          const isDropTarget = dragOverColumn === column.status;
+          const isCurrentColumn = draggedItem.status === column.status;
 
-            return (
-              <div
-                key={`sticky-${column.status}`}
-                className={cn(
-                  "flex-shrink-0 w-80 h-16 rounded-xl flex items-center justify-center transition-all duration-200 ease-in-out touch-manipulation min-h-[44px]",
-                  getDropZoneStyles(column.variant, isDropTarget),
-                  isDropTarget ? "scale-105 shadow-lg" : "",
-                  isCurrentColumn
-                    ? "opacity-50 cursor-not-allowed"
-                    : "cursor-pointer hover:border-opacity-50",
-                )}
-                style={{
-                  boxShadow: isDropTarget
-                    ? "0 8px 32px rgba(0, 0, 0, 0.2)"
-                    : "none",
-                }}
-                onDragOver={(e) =>
-                  !isCurrentColumn && onDragOver(e, column.status)
-                }
-                onDragLeave={onDragLeave}
-                onDrop={(e) => !isCurrentColumn && onDrop(e, column.status)}
-              >
-                <div className="flex items-center gap-3">
-                  <Badge
-                    variant={column.variant}
-                    className="pointer-events-none"
-                  >
-                    {column.label}
-                  </Badge>
-                  <div className="text-center">
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {isDropTarget
-                        ? "Drop here"
-                        : isCurrentColumn
-                          ? "Current"
-                          : "Drop to move"}
-                    </p>
-                  </div>
+          return (
+            <div
+              key={`sticky-${column.status}`}
+              className={cn(
+                "flex-1 h-16 rounded-xl flex items-center justify-center transition-all duration-200 ease-in-out touch-manipulation min-h-[44px]",
+                getDropZoneStyles(column.variant, isDropTarget),
+                isDropTarget ? "scale-105 shadow-lg" : "",
+                isCurrentColumn
+                  ? "opacity-50 cursor-not-allowed"
+                  : "cursor-pointer hover:border-opacity-50",
+              )}
+              style={{
+                boxShadow: isDropTarget
+                  ? "0 8px 32px rgba(0, 0, 0, 0.2)"
+                  : "none",
+              }}
+              onDragOver={(e) =>
+                !isCurrentColumn && onDragOver(e, column.status)
+              }
+              onDragLeave={onDragLeave}
+              onDrop={(e) => !isCurrentColumn && onDrop(e, column.status)}
+            >
+              <div className="flex items-center gap-3">
+                <Badge variant={column.variant} className="pointer-events-none">
+                  {column.label}
+                </Badge>
+                <div className="text-center">
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {isDropTarget
+                      ? "Drop here"
+                      : isCurrentColumn
+                        ? "Current"
+                        : "Drop to move"}
+                  </p>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
