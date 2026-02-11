@@ -50,7 +50,7 @@ const COLUMNS: Column[] = [
   {
     status: "draft",
     label: "Draft",
-    variant: "secondary",
+    variant: "default",
   },
   {
     status: "planned",
@@ -75,11 +75,13 @@ const COLUMNS: Column[] = [
   {
     status: "done",
     label: "Done",
-    variant: "outline", // Distinct from Complete
+    variant: "default", // Distinct from Complete
   },
 ];
 
-const getPriorityVariant = (priority: string) => {
+const getPriorityVariant = (
+  priority: string,
+): "default" | "success" | "warning" | "destructive" => {
   switch (priority) {
     case "critical":
       return "destructive";
@@ -88,9 +90,9 @@ const getPriorityVariant = (priority: string) => {
     case "medium":
       return "default"; // Brand/Blue equivalent
     case "low":
-      return "secondary";
+      return "default";
     default:
-      return "outline";
+      return "default";
   }
 };
 
@@ -698,7 +700,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
 
         {/* Requirements count */}
         <Badge
-          variant="outline"
+          variant="default"
           className="font-mono text-[var(--text-lighter)]"
         >
           {filteredRequirements.length} / {requirements.length} requirements
@@ -729,7 +731,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                     {column.label}
                   </span>
                   <Badge
-                    variant="outline"
+                    variant="default"
                     className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-surface-200)] border-[var(--border-muted)] px-1.5 py-0.5 rounded"
                   >
                     {columnRequirements.length}
@@ -788,9 +790,30 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         className={`flex justify-between items-start ${isCompactView ? "mb-1" : "mb-2"}`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono font-bold text-[var(--brand-400)] bg-[var(--brand-500)]/10 px-2 py-0.5 rounded border border-[var(--brand-500)]/20">
-                            {requirement.id}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-mono font-bold text-[var(--brand-400)] bg-[var(--brand-500)]/10 px-2 py-0.5 rounded border border-[var(--brand-500)]/20">
+                              {requirement.id}
+                            </span>
+                            {/* Warning icon if spec is stale - compact view only */}
+                            {isCompactView &&
+                              planTimestampInfo.hasPlan &&
+                              planTimestampInfo.specModifiedAfterPlan && (
+                                <svg
+                                  className="w-3 h-3 text-[var(--warning-400)]"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  title="Spec changed • Plan stale"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                  />
+                                </svg>
+                              )}
+                          </div>
                           {/* In-progress indicator for actively worked on requirements */}
                           {requirement.status === "in_progress" && (
                             <div
@@ -872,11 +895,9 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Plan timestamp indicator with drift detection - Animated hide/show */}
-                      {planTimestampInfo.hasPlan && (
-                        <div
-                          className={`kanban-card-section kanban-card-section-hideable flex items-center gap-2 text-[9px] ${isCompactView ? "" : "mb-2"}`}
-                        >
+                      {/* Plan timestamp indicator with drift detection - Hidden in compact view */}
+                      {!isCompactView && planTimestampInfo.hasPlan && (
+                        <div className="kanban-card-section kanban-card-section-hideable flex items-center gap-2 text-[9px] mb-2">
                           {/* Drift warning indicator - spec modified after plan */}
                           {planTimestampInfo.specModifiedAfterPlan ? (
                             <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-[var(--warning-500)]/10 border border-[var(--warning-500)]/30">
@@ -921,27 +942,27 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Footer: Updated date + view spec link - Animated hide/show */}
-                      <div
-                        className={`kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t border-[var(--border-muted)] ${isCompactView ? "" : ""}`}
-                      >
-                        <span className="text-[9px] font-mono text-[var(--text-muted)]">
-                          Updated: {requirement.updated_at}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedRequirement(requirement);
-                            onSelectRequirement?.(requirement);
-                          }}
-                          className="h-auto p-0 text-[var(--text-muted)] hover:text-[var(--brand-400)] hover:bg-transparent font-bold text-[9px] flex items-center gap-1"
-                        >
-                          <IconFileText size={12} />
-                          View Spec
-                        </Button>
-                      </div>
+                      {/* Footer: Updated date + view spec link - Hidden in compact view */}
+                      {!isCompactView && (
+                        <div className="kanban-card-section kanban-card-section-hideable flex justify-between items-center pt-2 border-t border-[var(--border-muted)]">
+                          <span className="text-[9px] font-mono text-[var(--text-muted)]">
+                            Updated: {requirement.updated_at}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedRequirement(requirement);
+                              onSelectRequirement?.(requirement);
+                            }}
+                            className="h-auto p-0 text-[var(--text-muted)] hover:text-[var(--brand-400)] hover:bg-transparent font-bold text-[9px] flex items-center gap-1"
+                          >
+                            <IconFileText size={12} />
+                            View Spec
+                          </Button>
+                        </div>
+                      )}
                     </Card>
                   );
                 })}
