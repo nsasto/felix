@@ -11,7 +11,7 @@ import {
   setCopilotApiKey,
   clearCopilotApiKey,
 } from "../services/felixApi";
-import { IconFelix } from "./Icons";
+import { Bot as IconFelix } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { felixApi } from "../services/felixApi";
 import { marked } from "marked";
-import { IconFileText } from "./Icons";
+import { FileText as IconFileText } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";

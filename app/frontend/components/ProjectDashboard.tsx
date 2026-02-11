@@ -7,7 +7,12 @@ import {
   AgentEntry,
   AgentConfiguration,
 } from "../services/felixApi";
-import { IconKanban, IconFileText, IconTerminal, IconPulse } from "./Icons";
+import {
+  Kanban as IconKanban,
+  FileText as IconFileText,
+  Terminal as IconTerminal,
+  Activity as IconPulse,
+} from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";

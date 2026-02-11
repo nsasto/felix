@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect } from "react";
 import { felixApi, Project, ProjectDetails } from "../services/felixApi";
-import { IconPlus, IconFelix } from "./Icons";
+import { Plus as IconPlus, Bot as IconFelix } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Alert, AlertDescription } from "./ui/alert";
 import {

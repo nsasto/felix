@@ -12,7 +12,11 @@ import {
   RequirementStatusResponse,
 } from "../services/felixApi";
 import { marked } from "marked";
-import { IconChevronDown, IconFileText, IconPlus } from "./Icons";
+import {
+  ChevronDown as IconChevronDown,
+  FileText as IconFileText,
+  Plus as IconPlus,
+} from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";

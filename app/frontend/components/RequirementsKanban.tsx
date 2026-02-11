@@ -5,7 +5,7 @@ import {
   RequirementsData,
   RequirementStatusResponse,
 } from "../services/felixApi";
-import { IconPlus, IconFileText } from "./Icons";
+import { Plus as IconPlus, FileText as IconFileText } from "lucide-react";
 import RequirementDetailSlideOut from "./RequirementDetailSlideOut";
 import {
   hasIncompleteDependencies,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { felixApi, RunArtifactContent } from "../services/felixApi";
 import { marked } from "marked";
-import { IconFelix, IconFileText } from "./Icons";
+import { Bot as IconFelix, FileText as IconFileText } from "lucide-react";
 
 interface RunArtifactViewerProps {
   projectId: string;

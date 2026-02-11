@@ -1,13 +1,13 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { felixApi, Project, ProjectDetails } from "../services/felixApi";
 import {
-  IconPlus,
-  IconFelix,
-  IconSearch,
-  IconGridView,
-  IconListView,
-  IconFilter,
-} from "./Icons";
+  Plus as IconPlus,
+  Bot as IconFelix,
+  Search as IconSearch,
+  LayoutGrid as IconGridView,
+  List as IconListView,
+  Filter as IconFilter,
+} from "lucide-react";
 
 interface ProjectSelectorProps {
   selectedProjectId: string | null;
@@ -161,7 +161,9 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       setRegisterName("");
       onSelectProject(project.id, details);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to register project");
+      setError(
+        err instanceof Error ? err.message : "Failed to register project",
+      );
     } finally {
       setIsRegistering(false);
     }
@@ -178,7 +180,9 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       });
       setConfirmUnregister(null);
       if (selectedProjectId === projectId) {
-        const remaining = projects.filter((project) => project.id !== projectId);
+        const remaining = projects.filter(
+          (project) => project.id !== projectId,
+        );
         if (remaining.length > 0) {
           const primary = remaining[0];
           const fallbackDetails = projectDetails.get(primary.id);
@@ -188,7 +192,9 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to unregister project");
+      setError(
+        err instanceof Error ? err.message : "Failed to unregister project",
+      );
     }
   };
 
@@ -201,9 +207,7 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       const details = projectDetails.get(project.id);
       const status = details?.status?.toLowerCase() ?? "";
       return (
-        name.includes(query) ||
-        path.includes(query) ||
-        status.includes(query)
+        name.includes(query) || path.includes(query) || status.includes(query)
       );
     });
   }, [projects, projectDetails, searchTerm]);
@@ -222,7 +226,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       >
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-2xl font-semibold" style={{ color: "var(--text-secondary)" }}>
+            <p
+              className="text-2xl font-semibold"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Projects
             </p>
             <p className="text-xs uppercase tracking-[0.4em] text-[var(--text-muted)]">
@@ -270,7 +277,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               backgroundColor: "var(--bg-deep)",
             }}
           >
-            <IconSearch className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+            <IconSearch
+              className="w-4 h-4"
+              style={{ color: "var(--text-muted)" }}
+            />
             <input
               type="text"
               className="flex-1 bg-transparent outline-none text-sm"
@@ -279,7 +289,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <span className="text-[10px] uppercase tracking-[0.3em]" style={{ color: "var(--text-muted)" }}>
+            <span
+              className="text-[10px] uppercase tracking-[0.3em]"
+              style={{ color: "var(--text-muted)" }}
+            >
               Cmd+K
             </span>
           </div>
@@ -318,7 +331,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         {isLoading ? (
           <div className="projects-empty flex flex-col items-center justify-center gap-3 px-8 py-12 text-center">
             <IconFelix className="w-12 h-12 text-[var(--text-muted)]" />
-            <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+            <p
+              className="text-sm font-semibold"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Loading projects...
             </p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -328,7 +344,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         ) : filteredProjects.length === 0 ? (
           <div className="projects-empty flex flex-col items-center justify-center gap-3 px-8 py-12 text-center">
             <IconFelix className="w-12 h-12 text-[var(--text-muted)]" />
-            <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+            <p
+              className="text-sm font-semibold"
+              style={{ color: "var(--text-secondary)" }}
+            >
               No projects yet
             </p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -346,12 +365,19 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   onClick={() => handleProjectClick(project)}
                   className="project-card flex flex-col rounded-2xl border p-5 text-left transition hover:border-brand-400/70"
                   style={{
-                    borderColor: isActive ? "var(--brand-500)" : "var(--border-default)",
-                    backgroundColor: isActive ? "var(--bg-elevated)" : "var(--bg-surface)",
+                    borderColor: isActive
+                      ? "var(--brand-500)"
+                      : "var(--border-default)",
+                    backgroundColor: isActive
+                      ? "var(--bg-elevated)"
+                      : "var(--bg-surface)",
                   }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-lg font-semibold" style={{ color: "var(--text-secondary)" }}>
+                    <span
+                      className="text-lg font-semibold"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {getProjectName(project)}
                     </span>
                     <span
@@ -454,7 +480,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div
             className="rounded-2xl shadow-2xl w-[420px] overflow-hidden"
-            style={{ backgroundColor: "var(--bg-base)", border: "1px solid var(--border-default)" }}
+            style={{
+              backgroundColor: "var(--bg-base)",
+              border: "1px solid var(--border-default)",
+            }}
           >
             <div
               className="h-12 border-b flex items-center justify-between px-4"
@@ -462,7 +491,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             >
               <div className="flex items-center gap-2">
                 <IconPlus className="w-4 h-4" />
-                <span className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <span
+                  className="text-xs font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   Register Project
                 </span>
               </div>
@@ -477,7 +509,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
+                <label
+                  className="block text-[10px] font-bold uppercase tracking-wider mb-2"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Project Path *
                 </label>
                 <input
@@ -494,7 +529,10 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
+                <label
+                  className="block text-[10px] font-bold uppercase tracking-wider mb-2"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Display Name (optional)
                 </label>
                 <input
@@ -511,12 +549,18 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                 />
               </div>
               {error && (
-                <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs" style={{ color: "var(--status-error)" }}>
+                <div
+                  className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs"
+                  style={{ color: "var(--status-error)" }}
+                >
                   {error}
                 </div>
               )}
             </div>
-            <div className="h-14 border-t flex items-center justify-end gap-3 px-4" style={{ borderColor: "var(--border-default)" }}>
+            <div
+              className="h-14 border-t flex items-center justify-end gap-3 px-4"
+              style={{ borderColor: "var(--border-default)" }}
+            >
               <button
                 type="button"
                 className="px-4 py-2 text-xs font-medium"
@@ -542,19 +586,32 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div
             className="rounded-2xl shadow-2xl w-[360px] overflow-hidden"
-            style={{ backgroundColor: "var(--bg-base)", border: "1px solid var(--border-default)" }}
+            style={{
+              backgroundColor: "var(--bg-base)",
+              border: "1px solid var(--border-default)",
+            }}
           >
             <div className="p-6 text-center">
               <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl" style={{ color: "var(--status-error)" }}>
+                <span
+                  className="text-2xl"
+                  style={{ color: "var(--status-error)" }}
+                >
                   !
                 </span>
               </div>
-              <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text-secondary)" }}>
+              <h3
+                className="text-sm font-bold mb-2"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 Unregister Project?
               </h3>
-              <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
-                This removes the project from Felix but does not delete your files.
+              <p
+                className="text-xs mb-6"
+                style={{ color: "var(--text-muted)" }}
+              >
+                This removes the project from Felix but does not delete your
+                files.
               </p>
               <div className="flex gap-3 justify-center">
                 <button

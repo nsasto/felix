@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { felixApi, AgentStatus, RunHistoryEntry } from "../services/felixApi";
-import { IconFelix, IconCpu } from "./Icons";
+import { Bot as IconFelix, Cpu as IconCpu } from "lucide-react";
 import RunCard from "./RunCard";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";

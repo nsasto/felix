@@ -16,19 +16,19 @@ import {
 } from "../src/api/client";
 import type { Agent, Run } from "../src/api/types";
 import {
-  IconFelix,
-  IconCpu,
-  IconTerminal,
-  IconPlay,
-  IconStop,
-  IconSettings,
-  IconRefresh,
-  IconPause,
-  IconZap,
-  IconLock,
-  IconTrash,
-  IconWorkflow,
-} from "./Icons";
+  Bot as IconFelix,
+  Cpu as IconCpu,
+  Terminal as IconTerminal,
+  Play as IconPlay,
+  Square as IconStop,
+  Settings as IconSettings,
+  RefreshCw as IconRefresh,
+  Pause as IconPause,
+  Zap as IconZap,
+  Lock as IconLock,
+  Trash2 as IconTrash,
+  Workflow as IconWorkflow,
+} from "lucide-react";
 import { marked } from "marked";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";

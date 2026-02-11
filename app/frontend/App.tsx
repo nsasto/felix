@@ -2,20 +2,20 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Task, UIState, MarkdownAsset } from "./types";
 import { felixApi, ProjectDetails } from "./services/felixApi";
 import {
-  IconFelix,
-  IconSearch,
-  IconTerminal,
-  IconFileCode,
-  IconFileText,
-  IconCpu,
-  IconKanban,
-  IconPlus,
-  IconPulse,
-  IconOrganization,
-  IconChevronDown,
-  IconHelpCircle,
-  IconCheckCircle,
-} from "./components/Icons";
+  Bot as IconFelix,
+  Search as IconSearch,
+  Terminal as IconTerminal,
+  FileCode as IconFileCode,
+  FileText as IconFileText,
+  Cpu as IconCpu,
+  Kanban as IconKanban,
+  Plus as IconPlus,
+  Activity as IconPulse,
+  LayoutGrid as IconOrganization,
+  ChevronDown as IconChevronDown,
+  HelpCircle as IconHelpCircle,
+  CheckCircle as IconCheckCircle,
+} from "lucide-react";
 import FelixLogo from "../../img/felix_logo_small.png";
 import FelixLogoHover from "../../img/felix_logo_hammer_small.png";
 import ProjectSelector from "./components/ProjectSelector";

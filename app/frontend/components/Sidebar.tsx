@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  IconFileText,
-  IconFileCode,
-  IconKanban,
-  IconPanelLeftDashed,
-  IconPulse,
-  IconSettings,
-} from "./Icons";
+  FileText as IconFileText,
+  FileCode as IconFileCode,
+  Kanban as IconKanban,
+  PanelLeftDashed as IconPanelLeftDashed,
+  Activity as IconPulse,
+  Settings as IconSettings,
+} from "lucide-react";
 
 export type SidebarView =
   | "projects"

@@ -5,21 +5,21 @@ import {
   WorkflowConfigResponse,
 } from "../services/felixApi";
 import {
-  IconTarget,
-  IconPlay,
-  IconGitBranch,
-  IconFolder,
-  IconFileText,
-  IconCpu,
-  IconFileCode,
-  IconShield,
-  IconCheckSquare,
-  IconFlask,
-  IconGitCommit,
-  IconCheckCircle,
-  IconBarChart,
-  IconFlag,
-} from "./Icons";
+  Target as IconTarget,
+  Play as IconPlay,
+  GitBranch as IconGitBranch,
+  Folder as IconFolder,
+  FileText as IconFileText,
+  Cpu as IconCpu,
+  FileCode as IconFileCode,
+  Shield as IconShield,
+  CheckSquare as IconCheckSquare,
+  FlaskConical as IconFlask,
+  GitCommit as IconGitCommit,
+  CheckCircle as IconCheckCircle,
+  BarChart as IconBarChart,
+  Flag as IconFlag,
+} from "lucide-react";
 
 // --- Types ---
 

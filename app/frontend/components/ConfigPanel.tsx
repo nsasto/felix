@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { felixApi, FelixConfig, ConfigContent } from '../services/felixApi';
-import { IconFelix, IconFileText } from './Icons';
+import React, { useState, useEffect, useCallback } from "react";
+import { felixApi, FelixConfig, ConfigContent } from "../services/felixApi";
+import { Bot as IconFelix, FileText as IconFileText } from "lucide-react";
 
 interface ConfigPanelProps {
   projectId: string;
@@ -9,26 +9,32 @@ interface ConfigPanelProps {
 
 const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
   const [config, setConfig] = useState<FelixConfig | null>(null);
-  const [originalConfig, setOriginalConfig] = useState<FelixConfig | null>(null);
+  const [originalConfig, setOriginalConfig] = useState<FelixConfig | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   // Fetch config on mount
   useEffect(() => {
     const fetchConfig = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const result = await felixApi.getConfig(projectId);
         setConfig(result.config);
         setOriginalConfig(result.config);
       } catch (err) {
-        console.error('Failed to fetch config:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load configuration');
+        console.error("Failed to fetch config:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load configuration",
+        );
       } finally {
         setLoading(false);
       }
@@ -46,24 +52,33 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
   }, [successMessage]);
 
   // Validate config
-  const validateConfig = useCallback((cfg: FelixConfig): Record<string, string> => {
-    const errors: Record<string, string> = {};
+  const validateConfig = useCallback(
+    (cfg: FelixConfig): Record<string, string> => {
+      const errors: Record<string, string> = {};
 
-    // Validate max_iterations
-    if (!Number.isInteger(cfg.executor.max_iterations) || cfg.executor.max_iterations <= 0) {
-      errors.max_iterations = 'Must be a positive integer';
-    }
+      // Validate max_iterations
+      if (
+        !Number.isInteger(cfg.executor.max_iterations) ||
+        cfg.executor.max_iterations <= 0
+      ) {
+        errors.max_iterations = "Must be a positive integer";
+      }
 
-    // Validate default_mode
-    if (!['planning', 'building'].includes(cfg.executor.default_mode)) {
-      errors.default_mode = 'Must be "planning" or "building"';
-    }
+      // Validate default_mode
+      if (!["planning", "building"].includes(cfg.executor.default_mode)) {
+        errors.default_mode = 'Must be "planning" or "building"';
+      }
 
-    return errors;
-  }, []);
+      return errors;
+    },
+    [],
+  );
 
   // Handle config field changes
-  const handleExecutorChange = (field: keyof FelixConfig['executor'], value: any) => {
+  const handleExecutorChange = (
+    field: keyof FelixConfig["executor"],
+    value: any,
+  ) => {
     if (!config) return;
 
     const newConfig = {
@@ -78,7 +93,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
     setValidationErrors(validateConfig(newConfig));
   };
 
-  const handleBackpressureChange = (field: keyof FelixConfig['backpressure'], value: any) => {
+  const handleBackpressureChange = (
+    field: keyof FelixConfig["backpressure"],
+    value: any,
+  ) => {
     if (!config) return;
 
     setConfig({
@@ -108,17 +126,21 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
       const result = await felixApi.updateConfig(projectId, config);
       setConfig(result.config);
       setOriginalConfig(result.config);
-      setSuccessMessage('Configuration saved successfully');
+      setSuccessMessage("Configuration saved successfully");
     } catch (err) {
-      console.error('Failed to save config:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save configuration');
+      console.error("Failed to save config:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to save configuration",
+      );
     } finally {
       setSaving(false);
     }
   };
 
   // Check if config has changes
-  const hasChanges = config && originalConfig && 
+  const hasChanges =
+    config &&
+    originalConfig &&
     JSON.stringify(config) !== JSON.stringify(originalConfig);
 
   // Reset to original config
@@ -137,18 +159,32 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
             <button
               onClick={onClose}
               className="p-2 hover:theme-bg-elevated rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
-              style={{ backgroundColor: 'var(--hover-bg)' }}
+              style={{ backgroundColor: "var(--hover-bg)" }}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
-            <h2 className="text-sm font-bold theme-text-primary">Configuration</h2>
+            <h2 className="text-sm font-bold theme-text-primary">
+              Configuration
+            </h2>
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="w-8 h-8 border-2 theme-border border-t-brand-500 rounded-full animate-spin mb-4" />
-          <span className="text-xs font-mono theme-text-muted uppercase">Loading configuration...</span>
+          <span className="text-xs font-mono theme-text-muted uppercase">
+            Loading configuration...
+          </span>
         </div>
       </div>
     );
@@ -162,22 +198,40 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
             <button
               onClick={onClose}
               className="p-2 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
-              style={{ backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              style={{ backgroundColor: "transparent" }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "var(--hover-bg)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
-            <h2 className="text-sm font-bold theme-text-primary">Configuration</h2>
+            <h2 className="text-sm font-bold theme-text-primary">
+              Configuration
+            </h2>
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
           <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
             <IconFileText className="w-8 h-8 theme-text-muted" />
           </div>
-          <h3 className="text-sm font-bold theme-text-tertiary mb-2">Failed to Load Configuration</h3>
+          <h3 className="text-sm font-bold theme-text-tertiary mb-2">
+            Failed to Load Configuration
+          </h3>
           <p className="text-xs theme-text-muted max-w-md">{error}</p>
         </div>
       </div>
@@ -194,17 +248,35 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           <button
             onClick={onClose}
             className="p-2 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
-            style={{ backgroundColor: 'transparent' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            style={{ backgroundColor: "transparent" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "var(--hover-bg)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "transparent")
+            }
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </button>
           <div>
-            <h2 className="text-sm font-bold theme-text-primary">Configuration</h2>
-            <p className="text-[10px] font-mono theme-text-muted">felix/config.json</p>
+            <h2 className="text-sm font-bold theme-text-primary">
+              Configuration
+            </h2>
+            <p className="text-[10px] font-mono theme-text-muted">
+              felix/config.json
+            </p>
           </div>
         </div>
 
@@ -220,11 +292,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           )}
           <button
             onClick={handleSave}
-            disabled={saving || !hasChanges || Object.keys(validationErrors).length > 0}
+            disabled={
+              saving || !hasChanges || Object.keys(validationErrors).length > 0
+            }
             className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
               hasChanges && Object.keys(validationErrors).length === 0
-                ? 'bg-brand-600 text-white hover:bg-brand-500'
-                : 'theme-bg-surface theme-text-muted cursor-not-allowed'
+                ? "bg-brand-600 text-white hover:bg-brand-500"
+                : "theme-bg-surface theme-text-muted cursor-not-allowed"
             }`}
           >
             {saving ? (
@@ -233,7 +307,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 Saving...
               </>
             ) : (
-              'Save Changes'
+              "Save Changes"
             )}
           </button>
         </div>
@@ -241,9 +315,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
 
       {/* Success/Error messages */}
       {(successMessage || error) && (
-        <div className={`px-6 py-3 text-xs ${
-          successMessage ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-        }`}>
+        <div
+          className={`px-6 py-3 text-xs ${
+            successMessage
+              ? "bg-emerald-500/10 text-emerald-400"
+              : "bg-red-500/10 text-red-400"
+          }`}
+        >
           {successMessage || error}
         </div>
       )}
@@ -258,8 +336,12 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 <IconFelix className="w-5 h-5 text-brand-400" />
               </div>
               <div>
-                <h3 className="text-sm font-bold theme-text-primary">Executor Settings</h3>
-                <p className="text-[10px] theme-text-muted">Agent execution configuration</p>
+                <h3 className="text-sm font-bold theme-text-primary">
+                  Executor Settings
+                </h3>
+                <p className="text-[10px] theme-text-muted">
+                  Agent execution configuration
+                </p>
               </div>
             </div>
 
@@ -273,15 +355,22 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   type="number"
                   min="1"
                   value={config.executor.max_iterations}
-                  onChange={(e) => handleExecutorChange('max_iterations', parseInt(e.target.value) || 0)}
+                  onChange={(e) =>
+                    handleExecutorChange(
+                      "max_iterations",
+                      parseInt(e.target.value) || 0,
+                    )
+                  }
                   className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all ${
-                    validationErrors.max_iterations 
-                      ? 'border-red-500/50 focus:border-red-500'
-                      : 'theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20'
+                    validationErrors.max_iterations
+                      ? "border-red-500/50 focus:border-red-500"
+                      : "theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20"
                   }`}
                 />
                 {validationErrors.max_iterations && (
-                  <p className="mt-1 text-[10px] text-red-400">{validationErrors.max_iterations}</p>
+                  <p className="mt-1 text-[10px] text-red-400">
+                    {validationErrors.max_iterations}
+                  </p>
                 )}
                 <p className="mt-1 text-[10px] theme-text-muted">
                   Maximum number of iterations the agent will run
@@ -295,18 +384,22 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 </label>
                 <select
                   value={config.executor.default_mode}
-                  onChange={(e) => handleExecutorChange('default_mode', e.target.value)}
+                  onChange={(e) =>
+                    handleExecutorChange("default_mode", e.target.value)
+                  }
                   className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all cursor-pointer ${
                     validationErrors.default_mode
-                      ? 'border-red-500/50'
-                      : 'theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20'
+                      ? "border-red-500/50"
+                      : "theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20"
                   }`}
                 >
                   <option value="planning">Planning</option>
                   <option value="building">Building</option>
                 </select>
                 {validationErrors.default_mode && (
-                  <p className="mt-1 text-[10px] text-red-400">{validationErrors.default_mode}</p>
+                  <p className="mt-1 text-[10px] text-red-400">
+                    {validationErrors.default_mode}
+                  </p>
                 )}
                 <p className="mt-1 text-[10px] theme-text-muted">
                   Mode the agent starts in when a run begins
@@ -324,16 +417,21 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   </p>
                 </div>
                 <button
-                  onClick={() => handleExecutorChange('auto_transition', !config.executor.auto_transition)}
+                  onClick={() =>
+                    handleExecutorChange(
+                      "auto_transition",
+                      !config.executor.auto_transition,
+                    )
+                  }
                   className={`w-12 h-6 rounded-full transition-all relative ${
-                    config.executor.auto_transition 
-                      ? 'bg-brand-600' 
-                      : 'theme-bg-surface'
+                    config.executor.auto_transition
+                      ? "bg-brand-600"
+                      : "theme-bg-surface"
                   }`}
                 >
                   <div
                     className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                      config.executor.auto_transition ? 'left-7' : 'left-1'
+                      config.executor.auto_transition ? "left-7" : "left-1"
                     }`}
                   />
                 </button>
@@ -345,13 +443,27 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <svg
+                  className="w-5 h-5 text-amber-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-bold theme-text-primary">Backpressure</h3>
-                <p className="text-[10px] theme-text-muted">Build validation between iterations</p>
+                <h3 className="text-sm font-bold theme-text-primary">
+                  Backpressure
+                </h3>
+                <p className="text-[10px] theme-text-muted">
+                  Build validation between iterations
+                </p>
               </div>
             </div>
 
@@ -367,40 +479,50 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                   </p>
                 </div>
                 <button
-                  onClick={() => handleBackpressureChange('enabled', !config.backpressure.enabled)}
+                  onClick={() =>
+                    handleBackpressureChange(
+                      "enabled",
+                      !config.backpressure.enabled,
+                    )
+                  }
                   className={`w-12 h-6 rounded-full transition-all relative ${
-                    config.backpressure.enabled 
-                      ? 'bg-brand-600' 
-                      : 'theme-bg-surface'
+                    config.backpressure.enabled
+                      ? "bg-brand-600"
+                      : "theme-bg-surface"
                   }`}
                 >
                   <div
                     className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                      config.backpressure.enabled ? 'left-7' : 'left-1'
+                      config.backpressure.enabled ? "left-7" : "left-1"
                     }`}
                   />
                 </button>
               </div>
 
               {/* Backpressure Commands (read-only display) */}
-              {config.backpressure.enabled && config.backpressure.commands.length > 0 && (
-                <div>
-                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                    Validation Commands
-                  </label>
-                  <div className="theme-bg-base border theme-border-muted rounded-xl p-4 space-y-2">
-                    {config.backpressure.commands.map((cmd, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono theme-text-muted w-4">{index + 1}.</span>
-                        <code className="text-xs font-mono theme-text-tertiary">{cmd}</code>
-                      </div>
-                    ))}
+              {config.backpressure.enabled &&
+                config.backpressure.commands.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                      Validation Commands
+                    </label>
+                    <div className="theme-bg-base border theme-border-muted rounded-xl p-4 space-y-2">
+                      {config.backpressure.commands.map((cmd, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <span className="text-[9px] font-mono theme-text-muted w-4">
+                            {index + 1}.
+                          </span>
+                          <code className="text-xs font-mono theme-text-tertiary">
+                            {cmd}
+                          </code>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[10px] theme-text-muted">
+                      Edit felix/config.json directly to modify commands
+                    </p>
                   </div>
-                  <p className="mt-1 text-[10px] theme-text-muted">
-                    Edit felix/config.json directly to modify commands
-                  </p>
-                </div>
-              )}
+                )}
             </div>
           </section>
 
@@ -408,32 +530,56 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                <svg
+                  className="w-5 h-5 text-emerald-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                  />
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-bold theme-text-primary">Project Paths</h3>
-                <p className="text-[10px] theme-text-muted">File and directory locations (read-only)</p>
+                <h3 className="text-sm font-bold theme-text-primary">
+                  Project Paths
+                </h3>
+                <p className="text-[10px] theme-text-muted">
+                  File and directory locations (read-only)
+                </p>
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b theme-border-subtle">
-                <span className="text-xs theme-text-muted">Specs Directory</span>
-                <code className="text-xs font-mono theme-text-tertiary">{config.paths.specs}</code>
+                <span className="text-xs theme-text-muted">
+                  Specs Directory
+                </span>
+                <code className="text-xs font-mono theme-text-tertiary">
+                  {config.paths.specs}
+                </code>
               </div>
               <div className="flex justify-between items-center py-2 border-b theme-border-subtle">
                 <span className="text-xs theme-text-muted">Plan File</span>
-                <code className="text-xs font-mono theme-text-tertiary">{config.paths.plan}</code>
+                <code className="text-xs font-mono theme-text-tertiary">
+                  {config.paths.plan}
+                </code>
               </div>
               <div className="flex justify-between items-center py-2 border-b theme-border-subtle">
                 <span className="text-xs theme-text-muted">AGENTS.md</span>
-                <code className="text-xs font-mono theme-text-tertiary">{config.paths.agents}</code>
+                <code className="text-xs font-mono theme-text-tertiary">
+                  {config.paths.agents}
+                </code>
               </div>
               <div className="flex justify-between items-center py-2">
                 <span className="text-xs theme-text-muted">Runs Directory</span>
-                <code className="text-xs font-mono theme-text-tertiary">{config.paths.runs}</code>
+                <code className="text-xs font-mono theme-text-tertiary">
+                  {config.paths.runs}
+                </code>
               </div>
             </div>
           </section>
