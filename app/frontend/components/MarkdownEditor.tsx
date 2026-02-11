@@ -65,11 +65,14 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 }) => {
   // Internal view mode state with localStorage persistence
   const [viewMode, setViewMode] = useState<string>(() => {
+    if (initialViewMode && viewModes.includes(initialViewMode)) {
+      return initialViewMode;
+    }
     const savedMode = localStorage.getItem("markdownEditorViewMode");
     if (savedMode && viewModes.includes(savedMode)) {
       return savedMode;
     }
-    return initialViewMode || viewModes[0] || "edit";
+    return viewModes[0] || "edit";
   });
 
   // Persist view mode changes to localStorage

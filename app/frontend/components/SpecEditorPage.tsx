@@ -94,6 +94,7 @@ export default function SpecEditorPage({
   const [dismissedFields, setDismissedFields] = useState<Set<string>>(
     new Set(),
   );
+  const [specIdWarningShownAt, setSpecIdWarningShownAt] = useState<number>(0);
 
   // Check if copilot is enabled in settings
   useEffect(() => {
@@ -220,6 +221,52 @@ export default function SpecEditorPage({
     lastSyncSource,
     lastSyncTimestamp,
   ]);
+
+  // Prevent spec ID edits in the markdown title line.
+  useEffect(() => {
+    if (!requirement) return;
+
+    const titleMatch = specContent.match(/^#\s+(S-\d{4}):\s+(.+)$/m);
+    if (!titleMatch) return;
+
+    const [, specId, titleText] = titleMatch;
+    if (specId === requirement.id) return;
+
+    const now = Date.now();
+    if (now - specIdWarningShownAt > 2000) {
+      alert("Spec ID cannot be changed. Reverting to the original ID.");
+      setSpecIdWarningShownAt(now);
+    }
+
+    const correctedTitle = `# ${requirement.id}: ${titleText.trim()}`;
+    const updatedMarkdown = specContent.replace(titleMatch[0], correctedTitle);
+    if (updatedMarkdown !== specContent) {
+      onContentChange(updatedMarkdown);
+    }
+  }, [specContent, requirement, onContentChange, specIdWarningShownAt]);
+
+  // Enforce title line format and revert invalid edits.
+  useEffect(() => {
+    if (!requirement) return;
+
+    const anyTitleLine = specContent.match(/^#\s+S-\d{4}.*$/m);
+    if (!anyTitleLine) return;
+
+    const validTitleLine = specContent.match(/^#\s+S-\d{4}:\s+.+$/m);
+    if (validTitleLine) return;
+
+    const now = Date.now();
+    if (now - specIdWarningShownAt > 2000) {
+      alert("Spec title line must be '# S-XXXX: Title'. Reverting.");
+      setSpecIdWarningShownAt(now);
+    }
+
+    const correctedTitle = `# ${requirement.id}: ${requirement.title}`;
+    const updatedMarkdown = specContent.replace(anyTitleLine[0], correctedTitle);
+    if (updatedMarkdown !== specContent) {
+      onContentChange(updatedMarkdown);
+    }
+  }, [specContent, requirement, onContentChange, specIdWarningShownAt]);
 
   // Check if requirement is in_progress
   const isInProgress = requirement?.status === "in_progress";
@@ -467,7 +514,9 @@ export default function SpecEditorPage({
             content={specContent}
             onContentChange={onContentChange}
             viewModes={["edit", "split", "preview"]}
-            initialViewMode="edit"
+            initialViewMode={
+              requirement?.status === "draft" ? "edit" : "preview"
+            }
             onSave={handleSaveClick}
             onDiscard={handleDiscardClick}
             hasChanges={hasChanges}
