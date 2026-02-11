@@ -11,7 +11,6 @@ import {
   Requirement,
   RequirementStatusResponse,
 } from "../services/felixApi";
-import { marked } from "marked";
 import {
   ChevronDown as IconChevronDown,
   FileText as IconFileText,
@@ -30,7 +29,6 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -43,6 +41,7 @@ import {
 import SpecEditWarningModal, { WarningAction } from "./SpecEditWarningModal";
 import { useRequirementStatus } from "../hooks/useRequirementStatus";
 import CopilotChat from "./CopilotChat";
+import MarkdownEditor from "./MarkdownEditor";
 
 /**
  * Extract acceptance criteria and validation criteria sections from markdown content.
@@ -108,8 +107,6 @@ interface SpecsEditorProps {
   initialSpecFilename?: string;
   onSelectSpec?: (filename: string) => void;
 }
-
-type ViewMode = "edit" | "preview" | "split";
 
 // Spec templates
 const SPEC_TEMPLATES = {
@@ -291,10 +288,6 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     type: "success" | "error";
     text: string;
   } | null>(null);
-
-  // View mode and parsed markdown
-  const [viewMode, setViewMode] = useState<ViewMode>("split");
-  const [parsedHtml, setParsedHtml] = useState<string>("");
 
   // New spec modal state
   const [isNewSpecOpen, setIsNewSpecOpen] = useState(false);
@@ -500,29 +493,6 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
     fetchContent();
   }, [projectId, selectedFilename]);
-
-  // Parse markdown for preview
-  useEffect(() => {
-    let isMounted = true;
-    const parseMarkdown = async () => {
-      try {
-        const result = await marked.parse(specContent || "");
-        if (isMounted) setParsedHtml(result);
-      } catch (err) {
-        console.error("Markdown rendering error:", err);
-        if (isMounted)
-          setParsedHtml(
-            `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`,
-          );
-      }
-    };
-
-    const timeout = setTimeout(parseMarkdown, 50);
-    return () => {
-      isMounted = false;
-      clearTimeout(timeout);
-    };
-  }, [specContent]);
 
   // Handle spec selection - initiates the selection process
   // If requirement is in_progress, shows warning modal first
@@ -738,6 +708,11 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     }
   };
 
+  // Handle discarding changes
+  const handleDiscard = () => {
+    setSpecContent(originalContent);
+  };
+
   // Handle opening the new spec modal
   const handleOpenNewSpec = () => {
     // Find the next available spec ID
@@ -804,34 +779,6 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     } finally {
       setIsCreating(false);
     }
-  };
-
-  // Insert formatting at cursor position
-  const insertFormatting = (prefix: string, suffix: string = "") => {
-    if (!editorRef.current) return;
-    const textarea = editorRef.current;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selectedText = text.substring(start, end);
-    const newContent =
-      text.substring(0, start) +
-      prefix +
-      selectedText +
-      suffix +
-      text.substring(end);
-
-    setSpecContent(newContent);
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
-    }, 0);
-  };
-
-  // Copy raw content to clipboard
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(specContent);
   };
 
   // Get selected spec's display info
@@ -1139,249 +1086,6 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
 
       {/* Editor Pane */}
       <div className="flex-1 flex flex-col min-w-0 bg-[var(--bg-base)]">
-        {/* Toolbar */}
-        <div className="h-12 border-b border-[var(--border-default)] flex items-center px-4 justify-between bg-[var(--bg-base)]/95 backdrop-blur z-20 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            {/* View mode toggle */}
-            <ToggleGroup
-              type="single"
-              value={viewMode}
-              onValueChange={(value) => {
-                if (value) setViewMode(value as ViewMode);
-              }}
-            >
-              <ToggleGroupItem value="edit">SOURCE</ToggleGroupItem>
-              <ToggleGroupItem value="split">SPLIT</ToggleGroupItem>
-              <ToggleGroupItem value="preview">PREVIEW</ToggleGroupItem>
-            </ToggleGroup>
-
-            {/* Formatting buttons (only in edit/split mode) */}
-            {(viewMode === "edit" || viewMode === "split") && (
-              <div className="flex items-center gap-0.5 border-l border-[var(--border-default)] pl-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => insertFormatting("# ")}
-                  title="H1"
-                >
-                  <span className="font-bold text-xs">H1</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => insertFormatting("## ")}
-                  title="H2"
-                >
-                  <span className="font-bold text-xs">H2</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => insertFormatting("**", "**")}
-                  title="Bold"
-                >
-                  <span className="font-bold text-xs uppercase">B</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => insertFormatting("*", "*")}
-                  title="Italic"
-                >
-                  <span className="italic text-xs font-serif font-bold uppercase">
-                    I
-                  </span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => insertFormatting("- ")}
-                  title="List"
-                >
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => insertFormatting("`", "`")}
-                  title="Code"
-                >
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M16 18l6-6-6-6M8 6l-6 6 6 6"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => insertFormatting("- [ ] ")}
-                  title="Checkbox"
-                >
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M9 12l2 2 4-4"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <rect
-                      x="3"
-                      y="3"
-                      width="18"
-                      height="18"
-                      rx="2"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Save button */}
-            <Button
-              onClick={handleSave}
-              disabled={!hasChanges || saving}
-              size="sm"
-              className="uppercase"
-            >
-              {saving ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M5 13l4 4L19 7"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Save
-                </>
-              )}
-            </Button>
-
-            {/* Save message */}
-            {saveMessage && (
-              <Badge
-                variant={
-                  saveMessage.type === "success" ? "success" : "destructive"
-                }
-              >
-                {saveMessage.text}
-              </Badge>
-            )}
-
-            {/* Reset Plan button - S-0006: Manual Reset Plan Controls */}
-            {selectedSpecHasPlan &&
-              (selectedSpecStatus?.status === "planned" ||
-                selectedSpecStatus?.status === "in_progress") && (
-                <>
-                  <div className="h-4 w-px bg-[var(--border-default)]"></div>
-                  <Button
-                    onClick={handleResetPlanClick}
-                    variant="secondary"
-                    size="sm"
-                    className="uppercase text-[var(--warning-500)] border-[var(--warning-500)]/30 hover:bg-[var(--warning-500)]/10"
-                    title="Delete the current plan for this requirement"
-                  >
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M4 4l16 16M4 20L20 4"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    Reset Plan
-                  </Button>
-                </>
-              )}
-
-            {/* Copy button */}
-            <Button variant="ghost" size="sm" onClick={copyToClipboard}>
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Copy
-            </Button>
-
-            <div className="h-4 w-px bg-[var(--border-default)]"></div>
-
-            {/* Filename display */}
-            <div className="flex items-center gap-2">
-              {hasChanges && (
-                <div
-                  className="w-1.5 h-1.5 rounded-full bg-[var(--warning-500)]"
-                  title="Unsaved changes"
-                />
-              )}
-              <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
-                {selectedFilename || "No spec selected"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Content Area */}
         {!selectedFilename ? (
           // No spec selected
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[var(--bg-base)]">
@@ -1414,54 +1118,53 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
             </Alert>
           </div>
         ) : (
-          // Editor and preview
-          <div
-            className={`flex-1 flex overflow-hidden ${
-              viewMode === "split"
-                ? "divide-x divide-[var(--border-muted)]"
-                : ""
-            }`}
-          >
-            {/* Editor pane */}
-            {(viewMode === "edit" || viewMode === "split") && (
-              <div className="flex-1 flex flex-col min-w-0 relative h-full">
-                <Textarea
-                  ref={editorRef}
-                  value={specContent}
-                  onChange={(e) => setSpecContent(e.target.value)}
-                  className="w-full h-full p-12 font-mono text-sm leading-relaxed resize-none custom-scrollbar selection:bg-brand-500/30 border-0 rounded-none bg-[var(--bg-surface-100)] text-[var(--text-light)] focus-visible:ring-0 focus-visible:ring-offset-0"
-                  placeholder="# Spec content..."
-                />
-                {viewMode === "edit" && (
-                  <div className="absolute top-4 right-4 text-[9px] font-mono text-[var(--text-lighter)] uppercase tracking-[0.2em] bg-[var(--bg-alternative)]/30 px-3 py-1 rounded-full border border-[var(--border-secondary)] backdrop-blur">
-                    Source Editor
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Preview pane */}
-            {(viewMode === "preview" || viewMode === "split") && (
-              <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg-base)]/10 relative">
-                <div className="flex-1 p-12 overflow-y-auto custom-scrollbar markdown-preview font-sans max-w-4xl mx-auto w-full">
-                  <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
-                  {!parsedHtml && (
-                    <div className="flex flex-col items-center justify-center h-full text-[var(--text-lighter)] gap-4">
-                      <IconFileText className="w-12 h-12 opacity-10" />
-                      <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                        No content to preview
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {viewMode === "preview" && (
-                  <div className="absolute top-4 right-4 text-[9px] font-mono text-[var(--text-lighter)] uppercase tracking-[0.2em] bg-[var(--bg-alternative)]/30 px-3 py-1 rounded-full border border-[var(--border-secondary)] backdrop-blur">
-                    Live Preview
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <MarkdownEditor
+            content={specContent}
+            onContentChange={setSpecContent}
+            viewModes={["edit", "split", "preview"]}
+            initialViewMode="split"
+            onSave={handleSave}
+            onDiscard={handleDiscard}
+            hasChanges={hasChanges}
+            saving={saving}
+            saveMessage={saveMessage}
+            fileName={selectedFilename || undefined}
+            showFormatting={true}
+            showCopy={true}
+            showSave={true}
+            placeholder="# Spec content..."
+            additionalActions={
+              selectedSpecHasPlan &&
+              (selectedSpecStatus?.status === "planned" ||
+                selectedSpecStatus?.status === "in_progress") && (
+                <>
+                  <div className="h-4 w-px bg-[var(--border-default)]"></div>
+                  <Button
+                    onClick={handleResetPlanClick}
+                    variant="secondary"
+                    size="sm"
+                    className="uppercase text-[var(--warning-500)] border-[var(--warning-500)]/30 hover:bg-[var(--warning-500)]/10"
+                    title="Delete the current plan for this requirement"
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M4 4l16 16M4 20L20 4"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Reset Plan
+                  </Button>
+                </>
+              )
+            }
+          />
         )}
       </div>
 
