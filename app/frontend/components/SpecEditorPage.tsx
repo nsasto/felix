@@ -281,7 +281,7 @@ export default function SpecEditorPage({
             content={specContent}
             onContentChange={onContentChange}
             viewModes={["edit", "split", "preview"]}
-            initialViewMode="split"
+            initialViewMode="edit"
             onSave={handleSaveClick}
             onDiscard={handleDiscardClick}
             hasChanges={hasChanges}
@@ -309,7 +309,7 @@ export default function SpecEditorPage({
         {/* Collapsible tabbed sidebar */}
         <div
           className={`flex-shrink-0 transition-all duration-300 overflow-hidden ${
-            sidebarOpen ? "w-[400px]" : "w-0"
+            sidebarOpen ? "w-[480px]" : "w-0"
           }`}
         >
           {sidebarOpen && (

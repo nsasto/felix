@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { Requirement } from "../services/felixApi";
-import { ValidationIssue, parseSpecOverview } from "../utils/specParser";
+import { ValidationIssue } from "../utils/specParser";
 import { Select } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { MultiSelect } from "./multi-select";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 import {
   AlertTriangle as IconAlertTriangle,
   X as IconX,
   Plus as IconPlus,
   Check as IconCheck,
   Tag as IconTag,
+  SquareArrowRight,
+  SquareArrowLeft,
+  RefreshCwOff,
 } from "lucide-react";
 
 interface SpecMetadataPanelProps {
@@ -54,17 +65,7 @@ export function SpecMetadataPanel({
   const [newLabel, setNewLabel] = useState("");
   const [isAddingLabel, setIsAddingLabel] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [overviewContent, setOverviewContent] = useState("");
-  const [selectedDependency, setSelectedDependency] = useState("");
   const [editedTitle, setEditedTitle] = useState(requirement?.title || "");
-
-  // Parse overview content from markdown when it changes
-  useEffect(() => {
-    if (specContent) {
-      const parsed = parseSpecOverview(specContent);
-      setOverviewContent(parsed);
-    }
-  }, [specContent]);
 
   // Update local title when requirement changes
   useEffect(() => {
@@ -125,39 +126,6 @@ export function SpecMetadataPanel({
     }
   };
 
-  const handleRemoveDependency = async (depToRemove: string) => {
-    setUpdating("depends_on");
-    try {
-      const updatedDeps = (requirement.depends_on || []).filter(
-        (d) => d !== depToRemove,
-      );
-      await onMetadataUpdate("depends_on", updatedDeps);
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  const handleAddDependency = async () => {
-    if (
-      !selectedDependency ||
-      requirement.depends_on?.includes(selectedDependency)
-    ) {
-      return;
-    }
-
-    setUpdating("depends_on");
-    try {
-      const updatedDeps = [
-        ...(requirement.depends_on || []),
-        selectedDependency,
-      ];
-      await onMetadataUpdate("depends_on", updatedDeps);
-      setSelectedDependency("");
-    } finally {
-      setUpdating(null);
-    }
-  };
-
   const handleTitleChange = async (newTitle: string) => {
     setUpdating("title");
     try {
@@ -167,19 +135,8 @@ export function SpecMetadataPanel({
     }
   };
 
-  const handleOverviewChange = (content: string) => {
-    setOverviewContent(content);
-    onOverviewChange(content);
-  };
-
   const dependencyIssue = validationIssues.find(
     (issue) => issue.type === "dependency_mismatch",
-  );
-
-  // Filter available dependencies (exclude self and already selected)
-  const availableDependencies = allRequirements.filter(
-    (req) =>
-      req.id !== requirement.id && !requirement.depends_on?.includes(req.id),
   );
 
   return (
@@ -208,32 +165,55 @@ export function SpecMetadataPanel({
                       : "None"}
                   </div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={onSyncFromMarkdown}
-                    className="text-xs"
-                  >
-                    Use Markdown Values
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={onSyncToMarkdown}
-                    className="text-xs"
-                  >
-                    Update Markdown Section
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={onDismissWarning}
-                    className="text-xs"
-                  >
-                    Ignore
-                  </Button>
-                </div>
+                <TooltipProvider>
+                  <div className="flex gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={onSyncFromMarkdown}
+                          className="h-8 w-8 p-0"
+                        >
+                          <SquareArrowRight className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Use Markdown Values</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={onSyncToMarkdown}
+                          className="h-8 w-8 p-0"
+                        >
+                          <SquareArrowLeft className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Update Markdown Section</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={onDismissWarning}
+                          className="h-8 w-8 p-0"
+                        >
+                          <RefreshCwOff className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ignore</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
               </div>
             </div>
           </div>
@@ -286,18 +266,22 @@ export function SpecMetadataPanel({
           <label className="text-sm font-semibold text-[var(--text)] uppercase tracking-wider block">
             Status
           </label>
-          <select
+          <ToggleGroup
+            type="single"
+            size="sm"
             value={requirement.status}
-            onChange={(e) => handleStatusChange(e.target.value)}
+            onValueChange={(value) => {
+              if (value) handleStatusChange(value);
+            }}
             disabled={updating === "status"}
-            className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-md text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+            className="justify-start flex-wrap"
           >
             {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
+              <ToggleGroupItem key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </ToggleGroupItem>
             ))}
-          </select>
+          </ToggleGroup>
         </div>
 
         {/* Priority */}
@@ -305,18 +289,22 @@ export function SpecMetadataPanel({
           <label className="text-sm font-semibold text-[var(--text)] uppercase tracking-wider block">
             Priority
           </label>
-          <select
+          <ToggleGroup
+            type="single"
+            size="sm"
             value={requirement.priority}
-            onChange={(e) => handlePriorityChange(e.target.value)}
+            onValueChange={(value) => {
+              if (value) handlePriorityChange(value);
+            }}
             disabled={updating === "priority"}
-            className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-md text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+            className="justify-start flex-wrap"
           >
             {PRIORITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
+              <ToggleGroupItem key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </ToggleGroupItem>
             ))}
-          </select>
+          </ToggleGroup>
         </div>
 
         {/* Labels */}
@@ -400,73 +388,19 @@ export function SpecMetadataPanel({
           <label className="text-sm font-semibold text-[var(--text)] uppercase tracking-wider block">
             Dependencies
           </label>
-          <div className="flex flex-wrap gap-2 w-full">
-            {(requirement.depends_on || []).map((dep) => (
-              <Badge
-                key={dep}
-                variant="secondary"
-                className="flex items-center gap-1 font-mono break-all"
-              >
-                {dep}
-                <button
-                  onClick={() => handleRemoveDependency(dep)}
-                  disabled={updating === "depends_on"}
-                  className="ml-1 hover:text-[var(--destructive-500)]"
-                >
-                  <IconX className="w-3 h-3" />
-                </button>
-              </Badge>
-            ))}
-            {(requirement.depends_on || []).length === 0 && (
-              <span className="text-sm text-[var(--text-muted)]">
-                No dependencies
-              </span>
-            )}
-          </div>
-          {availableDependencies.length > 0 && (
-            <div className="flex gap-2 items-center mt-2">
-              <select
-                value={selectedDependency}
-                onChange={(e) => setSelectedDependency(e.target.value)}
-                disabled={updating === "depends_on"}
-                className="flex-1 px-3 py-2 text-sm bg-[var(--bg-surface-200)] text-[var(--text)] border border-[var(--border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--brand-400)]"
-              >
-                <option value="">Select dependency...</option>
-                {availableDependencies.map((req) => (
-                  <option key={req.id} value={req.id}>
-                    {req.id} - {req.title}
-                  </option>
-                ))}
-              </select>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleAddDependency}
-                disabled={!selectedDependency || updating === "depends_on"}
-                className="h-9"
-              >
-                <IconPlus className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Overview/Narrative */}
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-[var(--text)] uppercase tracking-wider block">
-            Overview
-          </label>
-          <textarea
-            value={overviewContent}
-            onChange={(e) => handleOverviewChange(e.target.value)}
-            disabled={updating === "overview"}
-            className="w-full px-3 py-2 text-sm bg-[var(--bg-surface-200)] text-[var(--text)] border border-[var(--border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--brand-400)] min-h-[120px] resize-y"
-            placeholder="Overview content from ## Overview section..."
+          <MultiSelect
+            options={allRequirements
+              .filter((req) => req.id !== requirement?.id)
+              .map((req) => ({
+                label: `${req.id} - ${req.title}`,
+                value: req.id,
+              }))}
+            value={requirement.depends_on || []}
+            onValueChange={(selected) =>
+              onMetadataUpdate("depends_on", selected)
+            }
+            placeholder="Select dependencies..."
           />
-          <p className="text-xs text-[var(--text-muted)]">
-            Changes to overview are reflected in the markdown editor. Save the
-            spec to persist.
-          </p>
         </div>
       </div>
     </div>

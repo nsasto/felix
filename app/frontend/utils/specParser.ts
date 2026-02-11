@@ -78,7 +78,7 @@ export function validateSpecMetadata(
   if (hasDifference) {
     issues.push({
       type: "dependency_mismatch",
-      message: "Markdown dependencies differ from metadata",
+      message: "Markdown↔metadata mismatch",
       markdownValue: markdownDeps.sort(),
       metadataValue: metadataDeps.sort(),
     });

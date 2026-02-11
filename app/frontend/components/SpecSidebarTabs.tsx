@@ -52,8 +52,8 @@ export function SpecSidebarTabs({
       className="flex flex-col h-full bg-[var(--bg-surface-100)] border-l border-[var(--border)]"
     >
       <div className="flex-shrink-0 bg-[var(--bg-surface-100)] px-4">
-        <TabsList variant="line" className="w-full">
-          <TabsTrigger value="metadata" variant="line" className="flex-1">
+        <TabsList variant="line">
+          <TabsTrigger value="metadata" variant="line">
             <IconSettings className="w-4 h-4 mr-2" />
             Metadata
             {hasValidationIssues && activeTab !== "metadata" && (
@@ -63,7 +63,7 @@ export function SpecSidebarTabs({
             )}
           </TabsTrigger>
           {isCopilotEnabled && (
-            <TabsTrigger value="copilot" variant="line" className="flex-1">
+            <TabsTrigger value="copilot" variant="line">
               <IconMessageSquare className="w-4 h-4 mr-2" />
               Copilot
             </TabsTrigger>

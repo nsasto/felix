@@ -58,7 +58,7 @@ Use XML-style tags to structure your responses:
 
 2. **Required Sections:**
    - Start with `# S-NNNN: <Title>`
-   - Include `## Narrative` (stakeholder perspective)
+   - Include `## Description` (stakeholder perspective)
    - Include `## Acceptance Criteria` with checkboxes
    - Include `## Validation Criteria` when applicable (with executable commands)
    - Include `## Technical Notes` (architecture, don't instruct implementation)
