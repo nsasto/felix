@@ -1,54 +1,20 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   felixApi,
   SpecFile,
   Requirement,
   RequirementStatusResponse,
 } from "../services/felixApi";
-import {
-  ChevronDown as IconChevronDown,
-  FileText as IconFileText,
-  Plus as IconPlus,
-} from "lucide-react";
-import { Alert, AlertDescription } from "./ui/alert";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
-import { Input } from "./ui/input";
-import { Textarea } from "./ui/textarea";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
-import SpecEditWarningModal, { WarningAction } from "./SpecEditWarningModal";
-import { useRequirementStatus } from "../hooks/useRequirementStatus";
-import CopilotChat from "./CopilotChat";
-import MarkdownEditor from "./MarkdownEditor";
+import SpecsTableView from "./SpecsTableView";
+import SpecEditorPage from "./SpecEditorPage";
+import SpecCreateDialog, {
+  SPEC_TEMPLATES,
+  TemplateType,
+} from "./SpecCreateDialog";
 
 /**
  * Extract acceptance criteria and validation criteria sections from markdown content.
  * Returns the combined criteria sections for change detection.
- *
- * Looks for sections starting with "## Acceptance Criteria" or "## Validation Criteria"
- * and captures content until the next heading of same or higher level.
  */
 function extractCriteriaSections(content: string): string {
   if (!content) return "";
@@ -63,42 +29,32 @@ function extractCriteriaSections(content: string): string {
     const line = lines[i];
     const trimmedLine = line.trim();
 
-    // Check if this is a criteria heading (## Acceptance Criteria or ## Validation Criteria)
     const isCriteriaHeading = /^##\s+(acceptance|validation)\s+criteria/i.test(
       trimmedLine,
     );
-
-    // Check if this is a new section (any ## heading)
     const isHeading = /^##\s+/.test(trimmedLine);
 
     if (isCriteriaHeading) {
-      // Start capturing this criteria section
       if (inCriteriaSection && currentSection.length > 0) {
-        // Save previous section before starting new one
         sections.push(currentSection.join("\n"));
       }
       inCriteriaSection = true;
       currentSection = [line];
     } else if (inCriteriaSection) {
       if (isHeading) {
-        // End of criteria section - reached a new ## heading
         sections.push(currentSection.join("\n"));
         currentSection = [];
         inCriteriaSection = false;
       } else {
-        // Continue capturing current criteria section
         currentSection.push(line);
       }
     }
   }
 
-  // Don't forget the last section if we ended while in one
   if (inCriteriaSection && currentSection.length > 0) {
     sections.push(currentSection.join("\n"));
   }
 
-  // Return combined sections, normalized for comparison
-  // Trim each section and join with a delimiter for comparison
   return sections.map((s) => s.trim()).join("\n---SECTION---\n");
 }
 
@@ -108,170 +64,22 @@ interface SpecsEditorProps {
   onSelectSpec?: (filename: string) => void;
 }
 
-// Spec templates
-const SPEC_TEMPLATES = {
-  basic: {
-    name: "Basic Spec",
-    description: "A minimal spec template with essential sections",
-    content: (id: string, title: string) => `# ${id}: ${title}
-
-## Summary
-
-Brief description of this specification.
-
-## Acceptance Criteria
-
-- [ ] Criterion 1
-- [ ] Criterion 2
-- [ ] Criterion 3
-
-## Technical Notes
-
-Implementation details and considerations.
-
-## Dependencies
-
-- List any dependencies on other specs or requirements
-
-## Validation Criteria
-
-- [ ] Validation check 1
-- [ ] Validation check 2
-`,
-  },
-  feature: {
-    name: "Feature Spec",
-    description: "Detailed feature specification with narrative",
-    content: (id: string, title: string) => `# ${id}: ${title}
-
-## Narrative
-
-As a [user type], I need [goal] so that [benefit].
-
-## Acceptance Criteria
-
-### Core Functionality
-
-- [ ] Core feature requirement 1
-- [ ] Core feature requirement 2
-
-### Edge Cases
-
-- [ ] Edge case handling 1
-- [ ] Edge case handling 2
-
-## Technical Notes
-
-### Architecture
-
-Describe the technical architecture.
-
-### API Changes
-
-List any API changes needed.
-
-### Data Model
-
-Describe any data model changes.
-
-## Dependencies
-
-- Dependency 1
-- Dependency 2
-
-## Validation Criteria
-
-- [ ] Feature works as specified
-- [ ] Tests pass
-- [ ] Documentation updated
-`,
-  },
-  bugfix: {
-    name: "Bug Fix Spec",
-    description: "Template for documenting a bug fix",
-    content: (id: string, title: string) => `# ${id}: ${title}
-
-## Problem Statement
-
-Describe the bug or issue being addressed.
-
-## Root Cause
-
-Analysis of what caused the issue.
-
-## Solution
-
-### Proposed Fix
-
-Describe the fix to be implemented.
-
-### Files Affected
-
-- file1.ts
-- file2.ts
-
-## Acceptance Criteria
-
-- [ ] Bug is fixed
-- [ ] No regression introduced
-- [ ] Tests added to prevent recurrence
-
-## Testing
-
-### Steps to Reproduce (Before Fix)
-
-1. Step 1
-2. Step 2
-3. Bug occurs
-
-### Expected Behavior (After Fix)
-
-Describe expected behavior.
-
-## Validation Criteria
-
-- [ ] Bug no longer reproducible
-- [ ] Tests pass
-`,
-  },
-};
-
-type TemplateType = keyof typeof SPEC_TEMPLATES;
-
-// Close icon component
-const IconX = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
-
-const SpecsEditor: React.FC<SpecsEditorProps> = ({
+export default function SpecsEditor({
   projectId,
   initialSpecFilename,
   onSelectSpec,
-}) => {
-  // Spec list state
+}: SpecsEditorProps) {
+  // View state
+  const [viewMode, setViewMode] = useState<"table" | "editor">(
+    initialSpecFilename ? "editor" : "table",
+  );
+
+  // Specs list state
   const [specs, setSpecs] = useState<SpecFile[]>([]);
   const [specsLoading, setSpecsLoading] = useState(true);
   const [specsError, setSpecsError] = useState<string | null>(null);
-  const [specSectionOpen, setSpecSectionOpen] = useState({
-    draft: true,
-    planned: false,
-    in_progress: false,
-    blocked: false,
-    done: false,
-  });
 
-  // Requirements state (for S-0015: Spec Screen Enhancements - search filtering)
+  // Requirements state (for table display)
   const [requirements, setRequirements] = useState<Requirement[]>([]);
 
   // Selected spec state
@@ -280,75 +88,34 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
   );
   const [specContent, setSpecContent] = useState<string>("");
   const [originalContent, setOriginalContent] = useState<string>("");
-  const [originalCriteria, setOriginalCriteria] = useState<string>(""); // For S-0006: Track original acceptance/validation criteria
+  const [originalCriteria, setOriginalCriteria] = useState<string>("");
   const [contentLoading, setContentLoading] = useState(false);
-  const [contentError, setContentError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string>("");
 
-  // New spec modal state
+  // New spec dialog state
   const [isNewSpecOpen, setIsNewSpecOpen] = useState(false);
-  const [newSpecId, setNewSpecId] = useState("");
-  const [newSpecTitle, setNewSpecTitle] = useState("");
-  const [newSpecTemplate, setNewSpecTemplate] = useState<TemplateType>("basic");
-  const [isCreating, setIsCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  // Warning modal state (for S-0006: Spec Edit Safety)
-  const [pendingSpecFilename, setPendingSpecFilename] = useState<string | null>(
-    null,
-  );
-  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-  const [isBlockingRequirement, setIsBlockingRequirement] = useState(false);
-
-  // Reset Plan modal state (for S-0006: Manual Reset Plan Controls)
-  const [isResetPlanModalOpen, setIsResetPlanModalOpen] = useState(false);
-  const [isResettingPlan, setIsResettingPlan] = useState(false);
-  const [resetPlanMessage, setResetPlanMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
-
-  // Search state (for S-0015: Spec Screen Enhancements)
-  const [searchQuery, setSearchQuery] = useState<string>("");
-
-  // Requirement status cache for safety indicators (S-0015: Drift detection)
-  const [requirementStatuses, setRequirementStatuses] = useState<
-    Map<string, RequirementStatusResponse>
-  >(new Map());
-
-  const editorRef = useRef<HTMLTextAreaElement>(null);
-
-  // Hook to check requirement status for warning modal (S-0006)
-  const {
-    status: pendingSpecStatus,
-    isInProgress: pendingSpecIsInProgress,
-    requirementId: pendingRequirementId,
-  } = useRequirementStatus(projectId, pendingSpecFilename);
-
-  // Hook to check requirement status for currently selected spec (S-0006: Manual Reset Plan Controls)
-  const {
-    status: selectedSpecStatus,
-    hasPlan: selectedSpecHasPlan,
-    requirementId: selectedRequirementId,
-    refreshStatus: refreshSelectedSpecStatus,
-  } = useRequirementStatus(projectId, selectedFilename);
 
   // Check if content has been modified
   const hasChanges = specContent !== originalContent;
 
-  // S-0006: Check if acceptance/validation criteria have changed
-  // This is used for plan invalidation detection on save
+  // Check if acceptance/validation criteria have changed
   const currentCriteria = useMemo(
     () => extractCriteriaSections(specContent),
     [specContent],
   );
   const hasCriteriaChanged = originalCriteria !== currentCriteria;
 
-  // Fetch specs list on mount or when projectId changes
+  // Get selected requirement details
+  const selectedRequirement = useMemo(() => {
+    if (!selectedFilename) return null;
+    return (
+      requirements.find((req) => req.spec_path.includes(selectedFilename)) ||
+      null
+    );
+  }, [requirements, selectedFilename]);
+
+  // Fetch specs list
   useEffect(() => {
     const fetchSpecs = async () => {
       setSpecsLoading(true);
@@ -356,11 +123,6 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
       try {
         const specList = await felixApi.listSpecs(projectId);
         setSpecs(specList);
-
-        // If no spec selected but we have specs, select the first one
-        if (!selectedFilename && specList.length > 0) {
-          setSelectedFilename(specList[0].filename);
-        }
       } catch (err) {
         console.error("Failed to fetch specs:", err);
         setSpecsError(
@@ -374,15 +136,14 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     fetchSpecs();
   }, [projectId]);
 
-  // Fetch requirements on mount or when projectId changes (for S-0015: search filtering)
+  // Fetch requirements
   useEffect(() => {
     const fetchRequirements = async () => {
       try {
         const reqData = await felixApi.getRequirements(projectId);
         setRequirements(reqData.requirements);
       } catch (err) {
-        // Don't fail the UI if requirements can't be fetched - search just won't work as well
-        console.error("Failed to fetch requirements for search:", err);
+        console.error("Failed to fetch requirements:", err);
         setRequirements([]);
       }
     };
@@ -390,99 +151,21 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     fetchRequirements();
   }, [projectId]);
 
-  // Fetch requirement statuses for drift detection (S-0015: Safety Indicators)
-  useEffect(() => {
-    const fetchStatuses = async () => {
-      if (requirements.length === 0) return;
-
-      const statusMap = new Map<string, RequirementStatusResponse>();
-
-      // Fetch status for each requirement (limit to first 20 to avoid too many API calls)
-      const reqsToFetch = requirements.slice(0, 20);
-      await Promise.all(
-        reqsToFetch.map(async (req) => {
-          try {
-            const status = await felixApi.getRequirementStatus(
-              projectId,
-              req.id,
-            );
-            statusMap.set(req.id, status);
-          } catch (err) {
-            // Silently fail for individual status fetches
-            console.debug(`Failed to fetch status for ${req.id}:`, err);
-          }
-        }),
-      );
-
-      setRequirementStatuses(statusMap);
-    };
-
-    fetchStatuses();
-  }, [projectId, requirements]);
-
-  // Filter specs based on search query (S-0015: Spec Screen Enhancements)
-  const filteredSpecs = useMemo(() => {
-    if (!searchQuery.trim()) return specs;
-
-    const query = searchQuery.toLowerCase().trim();
-    return specs.filter((spec) => {
-      // Parse spec filename to get ID and title
-      const { id: specId, title: specTitle } = parseSpecFilename(spec.filename);
-
-      // Find matching requirement for this spec
-      const req = requirements.find(
-        (r) => r.spec_path.includes(spec.filename) || r.id === specId,
-      );
-
-      // Match on spec ID
-      if (specId.toLowerCase().includes(query)) return true;
-
-      // Match on spec title (derived from filename)
-      if (specTitle.toLowerCase().includes(query)) return true;
-
-      // Match on requirement data if available
-      if (req) {
-        // Match on requirement ID
-        if (req.id.toLowerCase().includes(query)) return true;
-
-        // Match on requirement title
-        if (req.title.toLowerCase().includes(query)) return true;
-
-        // Match on status
-        if (req.status.toLowerCase().includes(query)) return true;
-
-        // Match on labels
-        if (req.labels.some((label) => label.toLowerCase().includes(query)))
-          return true;
-      }
-
-      return false;
-    });
-  }, [specs, searchQuery, requirements]);
-
   // Fetch spec content when selection changes
   useEffect(() => {
-    if (!selectedFilename) {
-      setSpecContent("");
-      setOriginalContent("");
-      setOriginalCriteria("");
+    if (!selectedFilename || viewMode !== "editor") {
       return;
     }
 
     const fetchContent = async () => {
       setContentLoading(true);
-      setContentError(null);
       try {
         const result = await felixApi.getSpec(projectId, selectedFilename);
         setSpecContent(result.content);
         setOriginalContent(result.content);
-        // S-0006: Extract and store original acceptance/validation criteria for change detection
         setOriginalCriteria(extractCriteriaSections(result.content));
       } catch (err) {
         console.error("Failed to fetch spec content:", err);
-        setContentError(
-          err instanceof Error ? err.message : "Failed to load spec",
-        );
         setSpecContent("");
         setOriginalContent("");
         setOriginalCriteria("");
@@ -492,1013 +175,196 @@ const SpecsEditor: React.FC<SpecsEditorProps> = ({
     };
 
     fetchContent();
-  }, [projectId, selectedFilename]);
+  }, [projectId, selectedFilename, viewMode]);
 
-  // Handle spec selection - initiates the selection process
-  // If requirement is in_progress, shows warning modal first
-  const handleSelectSpec = async (filename: string) => {
-    // Warn if unsaved changes
+  // Handle spec selection from table
+  const handleSpecClick = useCallback((specPath: string) => {
+    // Extract filename from path
+    const filename = specPath.split("/").pop() || specPath;
+    setSelectedFilename(filename);
+    setViewMode("editor");
+  }, []);
+
+  // Handle back to table
+  const handleBack = useCallback(() => {
     if (hasChanges) {
       const confirm = window.confirm("You have unsaved changes. Discard them?");
       if (!confirm) return;
     }
-
-    // Extract requirement ID from filename to check status
-    const match = filename.match(/^(S-\d+)/);
-    const reqId = match ? match[1] : null;
-
-    if (reqId) {
-      try {
-        // Check requirement status before opening
-        const status = await felixApi.getRequirementStatus(projectId, reqId);
-        if (status.status === "in_progress") {
-          // Show warning modal - store pending spec for later
-          setPendingSpecFilename(filename);
-          setIsWarningModalOpen(true);
-          return;
-        }
-      } catch (err) {
-        // If status check fails, proceed anyway (graceful degradation)
-        console.error("Failed to check requirement status:", err);
-      }
-    }
-
-    // No warning needed - proceed with selection
-    setSelectedFilename(filename);
-    onSelectSpec?.(filename);
-  };
-
-  // Handle warning modal actions (S-0006: Spec Edit Safety)
-  const handleWarningAction = async (action: WarningAction) => {
-    if (action === "cancel") {
-      // User cancelled - close modal and clear pending spec
-      setIsWarningModalOpen(false);
-      setPendingSpecFilename(null);
-      return;
-    }
-
-    if (action === "continue") {
-      // User chose to continue editing despite warning
-      if (pendingSpecFilename) {
-        setSelectedFilename(pendingSpecFilename);
-        onSelectSpec?.(pendingSpecFilename);
-      }
-      setIsWarningModalOpen(false);
-      setPendingSpecFilename(null);
-      return;
-    }
-
-    if (action === "reset_plan") {
-      // User wants to reset the plan before editing (S-0015: Pre-Edit Warning Modal)
-      if (!pendingRequirementId) {
-        setIsWarningModalOpen(false);
-        setPendingSpecFilename(null);
-        return;
-      }
-
-      setIsBlockingRequirement(true);
-      try {
-        // Delete the plan file
-        try {
-          await felixApi.deletePlan(projectId, pendingRequirementId);
-        } catch (delErr) {
-          // Plan might not exist - that's okay
-          console.log("Plan deletion attempted (may not exist):", delErr);
-        }
-
-        // Update requirement status to "planned"
-        await felixApi.updateRequirementStatus(
-          projectId,
-          pendingRequirementId,
-          "planned",
-        );
-
-        // Try to stop the agent if running
-        try {
-          await felixApi.stopRun(projectId);
-        } catch (stopErr) {
-          // Agent might not be running - that's okay
-          console.log(
-            "Agent stop attempted (may not have been running):",
-            stopErr,
-          );
-        }
-
-        // Now proceed with editing
-        if (pendingSpecFilename) {
-          setSelectedFilename(pendingSpecFilename);
-          onSelectSpec?.(pendingSpecFilename);
-        }
-
-        // Refresh requirements to update the list
-        const reqData = await felixApi.getRequirements(projectId);
-        setRequirements(reqData.requirements);
-      } catch (err) {
-        console.error("Failed to reset plan:", err);
-        // Still allow editing even if reset failed
-        if (pendingSpecFilename) {
-          setSelectedFilename(pendingSpecFilename);
-          onSelectSpec?.(pendingSpecFilename);
-        }
-      } finally {
-        setIsBlockingRequirement(false);
-        setIsWarningModalOpen(false);
-        setPendingSpecFilename(null);
-      }
-    }
-  };
-
-  // Handle Reset Plan button click (S-0006: Manual Reset Plan Controls)
-  const handleResetPlanClick = () => {
-    if (!selectedRequirementId || !selectedSpecHasPlan) return;
-    setIsResetPlanModalOpen(true);
-    setResetPlanMessage(null);
-  };
-
-  // Handle Reset Plan confirmation (S-0006: Manual Reset Plan Controls)
-  const handleResetPlanConfirm = async () => {
-    if (!selectedRequirementId) return;
-
-    setIsResettingPlan(true);
-    setResetPlanMessage(null);
-    try {
-      await felixApi.deletePlan(projectId, selectedRequirementId);
-      // Refresh the requirement status to update the hasPlan flag
-      await refreshSelectedSpecStatus();
-      setResetPlanMessage({ type: "success", text: "Plan reset successfully" });
-      // Close modal after short delay to show success message
-      setTimeout(() => {
-        setIsResetPlanModalOpen(false);
-        setResetPlanMessage(null);
-      }, 1500);
-    } catch (err) {
-      console.error("Failed to reset plan:", err);
-      setResetPlanMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "Failed to reset plan",
-      });
-    } finally {
-      setIsResettingPlan(false);
-    }
-  };
-
-  // Handle Reset Plan cancel
-  const handleResetPlanCancel = () => {
-    setIsResetPlanModalOpen(false);
-    setResetPlanMessage(null);
-  };
+    setViewMode("table");
+    setSelectedFilename(null);
+    setSpecContent("");
+    setOriginalContent("");
+    setOriginalCriteria("");
+  }, [hasChanges]);
 
   // Handle save
   const handleSave = async () => {
     if (!selectedFilename || !hasChanges) return;
 
     setSaving(true);
-    setSaveMessage(null);
+    setSaveMessage("");
 
-    // S-0006: Check if acceptance/validation criteria changed before saving
-    // This is used to detect plan invalidation
     const criteriaChanged = hasCriteriaChanged;
 
     try {
       await felixApi.updateSpec(projectId, selectedFilename, specContent);
       setOriginalContent(specContent);
 
-      // S-0006: If criteria changed, invalidate (delete) the plan
+      // If criteria changed, invalidate the plan
       if (criteriaChanged) {
-        // Extract requirement ID from filename
         const match = selectedFilename.match(/^(S-\d+)/);
         const reqId = match ? match[1] : null;
 
         if (reqId) {
           try {
-            // Check if a plan exists before attempting to delete
             const planInfo = await felixApi.getPlanInfo(projectId, reqId);
             if (planInfo.exists) {
               await felixApi.deletePlan(projectId, reqId);
-              setSaveMessage({
-                type: "success",
-                text: "Saved. Plan invalidated due to criteria changes.",
-              });
-              // Update original criteria to match the new saved content
+              setSaveMessage(
+                "Saved. Plan invalidated due to criteria changes.",
+              );
               setOriginalCriteria(extractCriteriaSections(specContent));
-              // Clear success message after 5 seconds (longer for the important message)
-              setTimeout(() => setSaveMessage(null), 5000);
+              setTimeout(() => setSaveMessage(""), 5000);
+              // Refresh requirements to update status
+              const reqData = await felixApi.getRequirements(projectId);
+              setRequirements(reqData.requirements);
               return;
             }
           } catch (planErr) {
-            // Plan deletion failed or plan doesn't exist - log but don't fail the save
             console.log("Plan invalidation skipped:", planErr);
           }
         }
-        // Update original criteria even if no plan was deleted
         setOriginalCriteria(extractCriteriaSections(specContent));
       }
 
-      setSaveMessage({ type: "success", text: "Saved successfully" });
-      // Clear success message after 3 seconds
-      setTimeout(() => setSaveMessage(null), 3000);
+      setSaveMessage("Saved successfully");
+      setTimeout(() => setSaveMessage(""), 3000);
     } catch (err) {
       console.error("Failed to save spec:", err);
-      setSaveMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "Failed to save",
-      });
+      setSaveMessage(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
   };
 
-  // Handle discarding changes
+  // Handle discard changes
   const handleDiscard = () => {
     setSpecContent(originalContent);
   };
 
-  // Handle opening the new spec modal
+  // Handle reset plan
+  const handleResetPlan = async () => {
+    if (!selectedFilename) return;
+
+    const match = selectedFilename.match(/^(S-\d+)/);
+    const reqId = match ? match[1] : null;
+
+    if (!reqId) {
+      console.error("Could not extract requirement ID from filename");
+      return;
+    }
+
+    try {
+      await felixApi.deletePlan(projectId, reqId);
+      setSaveMessage("Plan reset successfully");
+      setTimeout(() => setSaveMessage(""), 3000);
+
+      // Refresh requirements to update status
+      const reqData = await felixApi.getRequirements(projectId);
+      setRequirements(reqData.requirements);
+    } catch (err) {
+      console.error("Failed to reset plan:", err);
+      setSaveMessage(
+        err instanceof Error ? err.message : "Failed to reset plan",
+      );
+    }
+  };
+
+  // Handle open new spec dialog
   const handleOpenNewSpec = () => {
-    // Find the next available spec ID
-    const existingIds = specs
-      .map((s) => parseSpecFilename(s.filename).id)
-      .filter((id) => id.match(/^S-\d+$/))
-      .map((id) => parseInt(id.replace("S-", ""), 10))
-      .filter((n) => !isNaN(n));
-
-    const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
-    const nextId = `S-${String(maxId + 1).padStart(4, "0")}`;
-
-    setNewSpecId(nextId);
-    setNewSpecTitle("");
-    setNewSpecTemplate("basic");
-    setCreateError(null);
     setIsNewSpecOpen(true);
   };
 
-  // Handle creating a new spec
-  const handleCreateSpec = async () => {
-    if (!newSpecId.trim() || !newSpecTitle.trim()) {
-      setCreateError("Spec ID and title are required");
-      return;
-    }
-
+  // Handle create new spec
+  const handleCreateSpec = async (
+    id: string,
+    title: string,
+    template: TemplateType,
+  ) => {
     // Validate spec ID format
-    if (!newSpecId.match(/^S-\d{4}$/)) {
-      setCreateError("Spec ID must be in format S-XXXX (e.g., S-0006)");
-      return;
+    if (!id.match(/^S-\d{4}$/)) {
+      throw new Error("Spec ID must be in format S-XXXX (e.g., S-0006)");
     }
 
     // Generate filename from ID and title
-    const slugTitle = newSpecTitle
+    const slugTitle = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    const filename = `${newSpecId}-${slugTitle}.md`;
+    const filename = `${id}-${slugTitle}.md`;
 
     // Generate content from template
-    const template = SPEC_TEMPLATES[newSpecTemplate];
-    const content = template.content(newSpecId, newSpecTitle);
+    const templateObj = SPEC_TEMPLATES[template];
+    const content = templateObj.content(id, title);
 
-    setIsCreating(true);
-    setCreateError(null);
-    try {
-      await felixApi.createSpec(projectId, filename, content);
+    // Create the spec
+    await felixApi.createSpec(projectId, filename, content);
 
-      // Refresh spec list
-      const specList = await felixApi.listSpecs(projectId);
-      setSpecs(specList);
+    // Refresh spec list
+    const specList = await felixApi.listSpecs(projectId);
+    setSpecs(specList);
 
-      // Select the new spec
-      setSelectedFilename(filename);
-      onSelectSpec?.(filename);
-
-      // Close the modal
-      setIsNewSpecOpen(false);
-    } catch (err) {
-      console.error("Failed to create spec:", err);
-      setCreateError(
-        err instanceof Error ? err.message : "Failed to create spec",
-      );
-    } finally {
-      setIsCreating(false);
-    }
+    // Select the new spec and switch to editor view
+    setSelectedFilename(filename);
+    setViewMode("editor");
+    onSelectSpec?.(filename);
   };
 
-  // Get selected spec's display info
-  const selectedSpec = useMemo(() => {
-    return specs.find((s) => s.filename === selectedFilename);
-  }, [specs, selectedFilename]);
-
-  // Extract spec ID and title from filename (e.g., "S-0001-felix-agent.md")
-  const parseSpecFilename = (
-    filename: string,
-  ): { id: string; title: string } => {
-    const match = filename.match(/^(S-\d+)-(.+)\.md$/);
-    if (match) {
-      const title = match[2]
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
-      return { id: match[1], title };
-    }
-    return { id: "", title: filename };
+  // Handle inserting generated spec content from copilot
+  const handleInsertGeneratedSpec = (content: string) => {
+    setSpecContent(content);
   };
 
-  type SpecStatusKey = "draft" | "planned" | "in_progress" | "blocked" | "done";
-
-  const statusSections: { key: SpecStatusKey; label: string }[] = [
-    { key: "draft", label: "Draft" },
-    { key: "planned", label: "Planned" },
-    { key: "in_progress", label: "In Progress" },
-    { key: "blocked", label: "Blocked" },
-    { key: "done", label: "Done" },
-  ];
-
-  const getSpecStatusKey = (status?: string): SpecStatusKey => {
-    switch (status?.toLowerCase()) {
-      case "planned":
-        return "planned";
-      case "in_progress":
-        return "in_progress";
-      case "blocked":
-        return "blocked";
-      case "complete":
-      case "done":
-        return "done";
-      default:
-        return "draft";
-    }
-  };
-
-  const getStatusBadgeClass = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case "draft":
-        return "border-[var(--status-draft)]/30 bg-[var(--status-draft)]/10 text-[var(--status-draft)]";
-      case "planned":
-        return "border-[var(--status-planned)]/30 bg-[var(--status-planned)]/10 text-[var(--status-planned)]";
-      case "in_progress":
-        return "border-[var(--status-in-progress)]/30 bg-[var(--status-in-progress)]/10 text-[var(--status-in-progress)]";
-      case "complete":
-        return "border-[var(--status-complete)]/30 bg-[var(--status-complete)]/10 text-[var(--status-complete)]";
-      case "done":
-        return "border-[var(--status-done)]/30 bg-[var(--status-done)]/10 text-[var(--status-done)]";
-      case "blocked":
-        return "border-[var(--status-blocked)]/30 bg-[var(--status-blocked)]/10 text-[var(--status-blocked)]";
-      default:
-        return "border-[var(--border-muted)] bg-[var(--bg-surface-100)] text-[var(--text-muted)]";
-    }
-  };
-
-  const groupedSpecs = useMemo(() => {
-    const groups: Record<SpecStatusKey, SpecFile[]> = {
-      draft: [],
-      planned: [],
-      in_progress: [],
-      blocked: [],
-      done: [],
-    };
-
-    filteredSpecs.forEach((spec) => {
-      const { id } = parseSpecFilename(spec.filename);
-      const req = requirements.find(
-        (r) => r.spec_path.includes(spec.filename) || r.id === id,
-      );
-      const statusKey = getSpecStatusKey(req?.status);
-      groups[statusKey].push(spec);
-    });
-
-    return groups;
-  }, [filteredSpecs, requirements]);
-
-  const toggleSpecSection = (key: SpecStatusKey) => {
-    setSpecSectionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const renderSpecRow = (spec: SpecFile) => {
-    const { id, title } = parseSpecFilename(spec.filename);
-    const req = requirements.find(
-      (r) => r.spec_path.includes(spec.filename) || r.id === id,
-    );
-
-    const reqStatus = req ? requirementStatuses.get(req.id) : null;
-    const hasDrift =
-      reqStatus &&
-      reqStatus.has_plan &&
-      reqStatus.spec_modified_at &&
-      reqStatus.plan_modified_at
-        ? new Date(reqStatus.spec_modified_at) >
-          new Date(reqStatus.plan_modified_at)
-        : false;
-
-    const isAgentActive = req?.status === "in_progress";
-
+  if (viewMode === "table") {
     return (
-      <Button
-        key={spec.filename}
-        onClick={() => handleSelectSpec(spec.filename)}
-        variant="ghost"
-        size="sm"
-        className={`w-full h-auto justify-start gap-3 px-3 py-2.5 rounded-xl text-xs border transition-colors ${
-          selectedFilename === spec.filename
-            ? "bg-[var(--brand-500)]/10 text-[var(--brand-500)] border-[var(--brand-500)]/20"
-            : "border-transparent text-[var(--text-muted)] hover:bg-[var(--bg-surface-100)] hover:text-[var(--text-secondary)]"
-        }`}
-      >
-        <div className="relative flex-shrink-0">
-          <IconFileText className="w-4 h-4" />
-          {hasDrift && !isAgentActive && (
-            <span
-              className="absolute -top-1 -right-1 text-[8px]"
-              title="Spec modified after plan generated"
-            >
-              ⚠️
-            </span>
-          )}
-          {isAgentActive && (
-            <span
-              className="absolute -top-1 -right-1 text-[8px] animate-pulse"
-              title="Agent is currently running on this requirement"
-            >
-              🤖
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col items-start min-w-0 flex-1">
-          <div className="flex items-center gap-2 w-full">
-            <span className="truncate font-medium text-left flex-1">
-              {title}
-            </span>
-            {req && (
-              <span
-                className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider flex-shrink-0 border ${getStatusBadgeClass(
-                  req.status,
-                )}`}
-                title={`Status: ${req.status}`}
-              >
-                {req.status === "in_progress"
-                  ? "IN PROG"
-                  : req.status.slice(0, 4).toUpperCase()}
-              </span>
-            )}
-          </div>
-          <span className="text-[9px] opacity-40 font-mono">{id}</span>
-        </div>
-      </Button>
+      <>
+        <SpecsTableView
+          requirements={requirements}
+          loading={specsLoading}
+          error={specsError}
+          onSpecClick={handleSpecClick}
+          onNewSpec={handleOpenNewSpec}
+        />
+        <SpecCreateDialog
+          isOpen={isNewSpecOpen}
+          onOpenChange={setIsNewSpecOpen}
+          onCreate={handleCreateSpec}
+        />
+      </>
     );
-  };
+  }
 
-  return (
-    <div className="flex-1 flex bg-[var(--bg-base)] overflow-hidden">
-      {/* Specs List Sidebar */}
-      <div className="w-80 border-r border-[var(--border-default)] flex flex-col bg-[var(--bg-deep)]/40 flex-shrink-0">
-        <div className="h-12 border-b border-[var(--border-default)] flex items-center px-4 justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-            Specifications
-          </span>
-          <Badge className="text-[10px] font-mono px-1.5 py-0.5">
-            {specs.length}
-          </Badge>
-        </div>
-
-        {/* Search Bar - S-0015: Spec Screen Enhancements */}
-        <div className="px-3 pt-3 pb-2 space-y-1.5">
-          <div className="relative">
-            <Input
-              type="text"
-              placeholder="Search specs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 text-xs pr-8"
-            />
-            {searchQuery && (
-              <Button
-                onClick={() => setSearchQuery("")}
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-                title="Clear search"
-              >
-                <IconX className="w-3.5 h-3.5" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Search Results Count - S-0015 */}
-        {!specsLoading && !specsError && searchQuery && (
-          <div className="px-3 pb-1">
-            <span className="text-[9px] font-mono text-[var(--text-muted)]">
-              {filteredSpecs.length} / {specs.length} specs
-            </span>
-          </div>
-        )}
-
-        {/* Scrollable Spec List */}
-        <div className="px-3 pb-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
-          {specsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-xs animate-pulse text-[var(--text-muted)]">
-                Loading specs...
-              </div>
-            </div>
-          ) : specsError ? (
-            <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
-              <AlertDescription className="text-[var(--destructive-500)]">
-                {specsError}
-              </AlertDescription>
-            </Alert>
-          ) : specs.length === 0 ? (
-            <div className="text-xs text-[var(--text-muted)] text-center py-8">
-              No specs found
-            </div>
-          ) : filteredSpecs.length === 0 ? (
-            // No specs match search - S-0015
-            <div className="text-center py-8">
-              <div className="text-xs text-[var(--text-muted)]">
-                No specs match your search
-              </div>
-              <Button
-                onClick={() => setSearchQuery("")}
-                variant="ghost"
-                size="sm"
-                className="mt-2 text-[10px] font-medium text-[var(--accent-primary)]"
-              >
-                Clear search
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {statusSections.map((section) => {
-                const sectionSpecs = groupedSpecs[section.key];
-                if (sectionSpecs.length === 0 && section.key !== "draft") {
-                  return null;
-                }
-
-                const isOpen = specSectionOpen[section.key];
-
-                return (
-                  <div key={section.key} className="space-y-1">
-                    <Button
-                      type="button"
-                      onClick={() => toggleSpecSection(section.key)}
-                      variant="ghost"
-                      size="sm"
-                      className={`w-full justify-between px-2 py-2 text-[10px] font-bold uppercase tracking-wider ${
-                        isOpen
-                          ? "bg-[var(--bg-surface-100)] text-[var(--text-secondary)]"
-                          : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-100)] hover:text-[var(--text-secondary)]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{section.label}</span>
-                        <Badge className="text-[9px] font-mono px-1.5 py-0.5">
-                          {sectionSpecs.length}
-                        </Badge>
-                      </div>
-                      <IconChevronDown
-                        className={`w-3 h-3 transition-transform text-[var(--text-muted)] ${
-                          isOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </Button>
-                    {isOpen && (
-                      <div className="space-y-1">
-                        {sectionSpecs.map(renderSpecRow)}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Fixed New Spec Button - Always visible at bottom */}
-        <div className="p-3 border-t border-[var(--border-default)]">
-          <Button
-            onClick={handleOpenNewSpec}
-            size="sm"
-            className="w-full"
-            title="Create a new spec"
-          >
-            <IconPlus className="w-4 h-4" />
-            <span>New Spec</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Editor Pane */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[var(--bg-base)]">
-        {!selectedFilename ? (
-          // No spec selected
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[var(--bg-base)]">
-            <div className="w-16 h-16 bg-[var(--bg-surface-200)] rounded-2xl flex items-center justify-center mb-4">
-              <IconFileText className="w-8 h-8 text-[var(--text-lighter)]" />
-            </div>
-            <h3 className="text-sm font-bold text-[var(--text-lighter)] mb-2">
-              No Spec Selected
-            </h3>
-            <p className="text-xs text-[var(--text-muted)] max-w-sm">
-              Select a specification from the list to view and edit its content.
-            </p>
-          </div>
-        ) : contentLoading ? (
-          // Loading content
-          <div className="flex-1 flex items-center justify-center bg-[var(--bg-base)]">
-            <div className="flex items-center gap-3 text-[var(--text-muted)]">
-              <div className="w-5 h-5 border-2 border-[var(--border-default)] border-t-brand-500 rounded-full animate-spin" />
-              <span className="text-xs font-mono">Loading spec...</span>
-            </div>
-          </div>
-        ) : contentError ? (
-          // Error loading content
-          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[var(--bg-base)]">
-            <Alert className="max-w-md border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
-              <AlertDescription className="text-[var(--destructive-500)]">
-                <strong className="block text-sm">Failed to Load Spec</strong>
-                <span className="text-xs opacity-80">{contentError}</span>
-              </AlertDescription>
-            </Alert>
-          </div>
-        ) : (
-          <MarkdownEditor
-            content={specContent}
-            onContentChange={setSpecContent}
-            viewModes={["edit", "split", "preview"]}
-            initialViewMode="split"
-            onSave={handleSave}
-            onDiscard={handleDiscard}
-            hasChanges={hasChanges}
-            saving={saving}
-            saveMessage={saveMessage}
-            fileName={selectedFilename || undefined}
-            showFormatting={true}
-            showCopy={true}
-            showSave={true}
-            placeholder="# Spec content..."
-            additionalActions={
-              selectedSpecHasPlan &&
-              (selectedSpecStatus?.status === "planned" ||
-                selectedSpecStatus?.status === "in_progress") && (
-                <>
-                  <div className="h-4 w-px bg-[var(--border-default)]"></div>
-                  <Button
-                    onClick={handleResetPlanClick}
-                    variant="secondary"
-                    size="sm"
-                    className="uppercase text-[var(--warning-500)] border-[var(--warning-500)]/30 hover:bg-[var(--warning-500)]/10"
-                    title="Delete the current plan for this requirement"
-                  >
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M4 4l16 16M4 20L20 4"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    Reset Plan
-                  </Button>
-                </>
-              )
-            }
-          />
-        )}
-      </div>
-
-      {/* New Spec Modal */}
-      <Dialog open={isNewSpecOpen} onOpenChange={setIsNewSpecOpen}>
-        <DialogContent className="max-w-[480px]">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <IconPlus className="w-4 h-4 text-[var(--accent-primary)]" />
-              <DialogTitle>Create New Spec</DialogTitle>
-            </div>
-            <DialogClose asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <IconX className="w-4 h-4" />
-              </Button>
-            </DialogClose>
-          </DialogHeader>
-
-          <div className="p-4 space-y-4">
-            <div>
-              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
-                Spec ID *
-              </label>
-              <Input
-                type="text"
-                value={newSpecId}
-                onChange={(e) => setNewSpecId(e.target.value.toUpperCase())}
-                placeholder="S-0006"
-                className="font-mono"
-              />
-              <p className="mt-1.5 text-[9px] text-[var(--text-muted)]">
-                Format: S-XXXX (auto-incremented from existing specs)
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
-                Title *
-              </label>
-              <Input
-                type="text"
-                value={newSpecTitle}
-                onChange={(e) => setNewSpecTitle(e.target.value)}
-                placeholder="My New Feature"
-              />
-              <p className="mt-1.5 text-[9px] text-[var(--text-muted)]">
-                Filename will be:{" "}
-                {newSpecId && newSpecTitle
-                  ? `${newSpecId}-${newSpecTitle
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, "-")
-                      .replace(/^-|-$/g, "")}.md`
-                  : "S-XXXX-your-title.md"}
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
-                Template
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(Object.keys(SPEC_TEMPLATES) as TemplateType[]).map(
-                  (templateKey) => {
-                    const template = SPEC_TEMPLATES[templateKey];
-                    const isSelected = newSpecTemplate === templateKey;
-                    return (
-                      <Button
-                        key={templateKey}
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setNewSpecTemplate(templateKey)}
-                        className={`h-auto items-start text-left px-3 py-3 ${
-                          isSelected
-                            ? "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
-                            : "text-[var(--text-secondary)]"
-                        }`}
-                      >
-                        <div>
-                          <div className="text-xs font-medium mb-1">
-                            {template.name}
-                          </div>
-                          <div className="text-[9px] opacity-60">
-                            {template.description}
-                          </div>
-                        </div>
-                      </Button>
-                    );
-                  },
-                )}
-              </div>
-            </div>
-
-            {createError && (
-              <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
-                <AlertDescription className="text-[var(--destructive-500)]">
-                  {createError}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsNewSpecOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateSpec}
-              disabled={!newSpecId.trim() || !newSpecTitle.trim() || isCreating}
-              size="sm"
-              className="uppercase"
-            >
-              {isCreating ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <IconPlus className="w-3 h-3" />
-                  Create Spec
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reset Plan Confirmation Modal (S-0006: Manual Reset Plan Controls) */}
-      <AlertDialog
-        open={isResetPlanModalOpen}
-        onOpenChange={(open) => {
-          if (!open) handleResetPlanCancel();
-        }}
-      >
-        <AlertDialogContent className="max-w-[400px]">
-          <AlertDialogHeader className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3">
-            <div className="flex items-center gap-2">
-              <svg
-                className="w-4 h-4 text-[var(--warning-500)]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <AlertDialogTitle className="text-xs font-bold">
-                Reset Plan
-              </AlertDialogTitle>
-            </div>
-            <AlertDialogCancel asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                disabled={isResettingPlan}
-              >
-                <IconX className="w-4 h-4" />
-              </Button>
-            </AlertDialogCancel>
-          </AlertDialogHeader>
-
-          <div className="p-5">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-[var(--warning-500)]/10 text-[var(--warning-500)]">
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-light)] mb-1">
-                  Delete plan for {selectedRequirementId}?
-                </h3>
-                <AlertDialogDescription className="text-xs leading-relaxed">
-                  This will permanently delete the implementation plan for this
-                  requirement. The agent will need to regenerate the plan on the
-                  next run.
-                </AlertDialogDescription>
-              </div>
-            </div>
-
-            {selectedSpecStatus?.plan_modified_at && (
-              <div className="rounded-lg border border-[var(--border-muted)] bg-[var(--bg-surface-100)] p-3 mb-4">
-                <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mb-1">
-                  Current Plan
-                </div>
-                <div className="text-xs text-[var(--text-muted)]">
-                  Generated:{" "}
-                  {new Date(
-                    selectedSpecStatus.plan_modified_at,
-                  ).toLocaleString()}
-                </div>
-              </div>
-            )}
-
-            {resetPlanMessage && (
-              <Alert
-                className={`mb-4 ${
-                  resetPlanMessage.type === "success"
-                    ? "border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]"
-                    : "border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]"
-                }`}
-              >
-                <AlertDescription
-                  className={
-                    resetPlanMessage.type === "success"
-                      ? "text-[var(--brand-500)]"
-                      : "text-[var(--destructive-500)]"
-                  }
-                >
-                  {resetPlanMessage.text}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-
-          <AlertDialogFooter className="flex items-center justify-end gap-3 border-t border-[var(--border-default)] px-4 py-3">
-            <AlertDialogCancel asChild>
-              <Button variant="ghost" size="sm" disabled={isResettingPlan}>
-                Cancel
-              </Button>
-            </AlertDialogCancel>
-            <Button
-              onClick={handleResetPlanConfirm}
-              disabled={isResettingPlan || resetPlanMessage?.type === "success"}
-              size="sm"
-              variant={
-                resetPlanMessage?.type === "success"
-                  ? "secondary"
-                  : "destructive"
-              }
-              className="uppercase"
-            >
-              {isResettingPlan ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Deleting...
-                </>
-              ) : resetPlanMessage?.type === "success" ? (
-                <>
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="3"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  Done
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  Delete Plan
-                </>
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Warning modal for editing in_progress requirements (S-0006) */}
-      <SpecEditWarningModal
-        requirementId={pendingRequirementId || ""}
-        requirementTitle={
-          pendingSpecStatus?.title ||
-          parseSpecFilename(pendingSpecFilename || "").title
-        }
-        isOpen={isWarningModalOpen}
-        isLoading={isBlockingRequirement}
-        onAction={handleWarningAction}
-      />
-
-      {/* S-0017: Felix Copilot Chat Assistant */}
-      {/* CopilotChat renders its own floating button and panel */}
-      <CopilotChat
+  if (viewMode === "editor" && selectedFilename) {
+    return (
+      <SpecEditorPage
         projectId={projectId}
-        onInsertSpec={(content: string) => {
-          // Insert the generated spec content into the editor
-          // If no spec is currently selected, user needs to select or create one first
-          if (!selectedFilename) {
-            // Show alert if no spec is selected
-            alert("Please select or create a spec first to insert content.");
-            return;
-          }
-          // Replace or append to current content based on whether editor is empty
-          if (!specContent.trim()) {
-            // Editor is empty - replace with generated content
-            setSpecContent(content);
-          } else {
-            // Editor has content - append at cursor or end
-            // For simplicity, we'll append at the end with a separator
-            setSpecContent((prev) => `${prev}\n\n---\n\n${content}`);
-          }
-        }}
+        specFilename={selectedFilename}
+        specContent={specContent}
+        originalContent={originalContent}
+        requirement={selectedRequirement}
+        hasChanges={hasChanges}
+        saving={saving}
+        saveMessage={saveMessage}
+        onBack={handleBack}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+        onContentChange={setSpecContent}
+        onResetPlan={handleResetPlan}
+        onInsertGeneratedSpec={handleInsertGeneratedSpec}
       />
-    </div>
-  );
-};
+    );
+  }
 
-export default SpecsEditor;
+  return null;
+}
