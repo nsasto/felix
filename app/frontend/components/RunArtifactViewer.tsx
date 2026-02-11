@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { felixApi, RunArtifactContent } from "../services/felixApi";
 import { marked } from "marked";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
-import { Card, CardContent } from "./ui/card";
 import {
   Bot as IconFelix,
   FileText as IconFileText,
@@ -193,13 +192,14 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
           </div>
 
           {/* Tab selector */}
-          <TabsList>
+          <TabsList variant="line">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
+                  variant="line"
                   className="px-4 py-1.5 text-[10px] font-bold"
                 >
                   <Icon className="w-3 h-3 mr-2" />
@@ -214,13 +214,14 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
       {/* Embedded tab bar - only show if onClose is NOT provided */}
       {!onClose && (
         <div className="flex items-center px-6 pt-4 flex-shrink-0 theme-bg-base">
-          <TabsList>
+          <TabsList variant="line">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
+                  variant="line"
                   className="px-3 py-1.5 text-xs font-medium"
                 >
                   <Icon className="w-3.5 h-3.5 mr-1.5" />
@@ -254,92 +255,76 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
         <>
           <TabsContent
             value="report"
-            className="flex-1 overflow-hidden m-0 p-6"
+            className="flex-1 overflow-y-auto custom-scrollbar m-0 p-6 markdown-preview"
             forceMount
             hidden={activeTab !== "report"}
           >
-            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-100)]">
-              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6 markdown-preview">
-                {parsedHtml ? (
-                  <div
-                    className="max-w-4xl mx-auto"
-                    dangerouslySetInnerHTML={{ __html: parsedHtml }}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
-                    <IconFelix className="w-12 h-12 opacity-10" />
-                    <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                      No content available
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {parsedHtml ? (
+              <div
+                className="max-w-4xl mx-auto"
+                dangerouslySetInnerHTML={{ __html: parsedHtml }}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                <IconFelix className="w-12 h-12 opacity-10" />
+                <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                  No content available
+                </span>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent
             value="log"
-            className="flex-1 overflow-hidden m-0 p-6"
+            className="flex-1 overflow-y-auto custom-scrollbar m-0 p-6"
             forceMount
             hidden={activeTab !== "log"}
           >
-            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-200)]">
-              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6">
-                <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
-                  {content || "No log content available."}
-                </pre>
-              </CardContent>
-            </Card>
+            <pre className="font-mono text-xs theme-text-tertiary whitespace-pre-wrap leading-relaxed">
+              {content || "No log content available."}
+            </pre>
           </TabsContent>
 
           <TabsContent
             value="plan"
-            className="flex-1 overflow-hidden m-0 p-6"
+            className="flex-1 overflow-y-auto custom-scrollbar m-0 p-6 markdown-preview"
             forceMount
             hidden={activeTab !== "plan"}
           >
-            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-100)]">
-              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6 markdown-preview">
-                {parsedHtml ? (
-                  <div
-                    className="max-w-4xl mx-auto"
-                    dangerouslySetInnerHTML={{ __html: parsedHtml }}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
-                    <IconFelix className="w-12 h-12 opacity-10" />
-                    <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                      No content available
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {parsedHtml ? (
+              <div
+                className="max-w-4xl mx-auto"
+                dangerouslySetInnerHTML={{ __html: parsedHtml }}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                <IconFelix className="w-12 h-12 opacity-10" />
+                <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                  No content available
+                </span>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent
             value="spec"
-            className="flex-1 overflow-hidden m-0 p-6"
+            className="flex-1 overflow-y-auto custom-scrollbar m-0 p-6 markdown-preview"
             forceMount
             hidden={activeTab !== "spec"}
           >
-            <Card className="h-full border-[var(--border)] bg-[var(--bg-surface-100)]">
-              <CardContent className="h-full overflow-y-auto custom-scrollbar p-6 markdown-preview">
-                {parsedHtml ? (
-                  <div
-                    className="max-w-4xl mx-auto"
-                    dangerouslySetInnerHTML={{ __html: parsedHtml }}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
-                    <IconFelix className="w-12 h-12 opacity-10" />
-                    <span className="text-xs font-mono uppercase tracking-widest opacity-20">
-                      No content available
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {parsedHtml ? (
+              <div
+                className="max-w-4xl mx-auto"
+                dangerouslySetInnerHTML={{ __html: parsedHtml }}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-700 gap-4">
+                <IconFelix className="w-12 h-12 opacity-10" />
+                <span className="text-xs font-mono uppercase tracking-widest opacity-20">
+                  No content available
+                </span>
+              </div>
+            )}
           </TabsContent>
         </>
       )}

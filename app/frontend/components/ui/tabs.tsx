@@ -12,7 +12,7 @@ const tabsListVariants = cva(
     variants: {
       variant: {
         default: "h-10 bg-transparent",
-        line: "h-10 border-b border-[var(--border)] bg-transparent",
+        line: "h-10 bg-transparent",
       },
     },
     defaultVariants: {
