@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import MarkdownEditor from "./MarkdownEditor";
 import SpecEditWarningModal, { WarningAction } from "./SpecEditWarningModal";
-import CopilotChat from "./CopilotChat";
+import { CopilotSidebar } from "./copilot";
 
 interface SpecEditorPageProps {
   projectId: string;
@@ -216,33 +216,15 @@ export default function SpecEditorPage({
         {/* Collapsible chat sidebar */}
         {isCopilotEnabled && (
           <div
-            className={`flex-shrink-0 border-l border-[var(--border)] bg-[var(--bg-surface-100)] transition-all duration-300 overflow-hidden ${
-              chatOpen ? "w-[350px]" : "w-0"
+            className={`flex-shrink-0 transition-all duration-300 overflow-hidden ${
+              chatOpen ? "w-[400px]" : "w-0"
             }`}
           >
             {chatOpen && (
-              <div className="h-full flex flex-col p-4">
-                <div className="mb-3">
-                  <h3 className="text-[var(--text)] font-medium text-sm mb-1">
-                    Copilot Chat
-                  </h3>
-                  <p className="text-[var(--text-muted)] text-xs">
-                    Ask questions or get help with this spec
-                  </p>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <CopilotChat
-                    projectId={projectId}
-                    context={{
-                      type: "spec",
-                      filename: specFilename,
-                      content: specContent,
-                    }}
-                    onInsertSpec={onInsertGeneratedSpec}
-                    inline={true}
-                  />
-                </div>
-              </div>
+              <CopilotSidebar
+                projectId={projectId}
+                onInsertSpec={onInsertGeneratedSpec}
+              />
             )}
           </div>
         )}

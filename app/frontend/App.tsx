@@ -29,7 +29,6 @@ import ConfigPanel from "./components/ConfigPanel";
 import PlanViewer from "./components/PlanViewer";
 import SettingsScreen from "./components/SettingsScreen";
 import AgentDashboard from "./components/AgentDashboard";
-import CopilotChat from "./components/CopilotChat";
 import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
@@ -1451,11 +1450,6 @@ export const executeTask = (taskId: string) => {
             </div>
           )}
         </div>
-
-        {/* Copilot Chat - Always rendered when in specs view */}
-        {uiState === "assets" && selectedProjectId && (
-          <CopilotChat projectId={selectedProjectId} />
-        )}
       </div>
 
       {/* Persistent OS Status Bar */}
