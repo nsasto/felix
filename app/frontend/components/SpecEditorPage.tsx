@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { felixApi, Requirement, CopilotConfig } from "../services/felixApi";
 import { Button } from "./ui/button";
 import {
@@ -95,6 +96,9 @@ export default function SpecEditorPage({
     new Set(),
   );
   const [specIdWarningShownAt, setSpecIdWarningShownAt] = useState<number>(0);
+  const showToast = (message: string) => {
+    toast(message);
+  };
 
   // Check if copilot is enabled in settings
   useEffect(() => {
@@ -234,7 +238,7 @@ export default function SpecEditorPage({
 
     const now = Date.now();
     if (now - specIdWarningShownAt > 2000) {
-      alert("Spec ID cannot be changed. Reverting to the original ID.");
+      showToast("Spec ID cannot be changed. Reverting.");
       setSpecIdWarningShownAt(now);
     }
 
@@ -257,7 +261,7 @@ export default function SpecEditorPage({
 
     const now = Date.now();
     if (now - specIdWarningShownAt > 2000) {
-      alert("Spec title line must be '# S-XXXX: Title'. Reverting.");
+      showToast("Spec title line must be '# S-XXXX: Title'. Reverting.");
       setSpecIdWarningShownAt(now);
     }
 

@@ -6,13 +6,9 @@
             "spec_path": "specs/S-0038-agent-registration-heartbeat.md",
             "status": "done",
             "priority": "high",
-            "tags": [
-                "dfdf"
-            ],
+            "tags": [],
             "depends_on": [
-                "S-0037",
-                "S-0039",
-                "S-0031"
+                "S-0037"
             ],
             "updated_at": "2026-02-11"
         },

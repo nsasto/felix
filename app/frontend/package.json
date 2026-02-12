@@ -32,6 +32,7 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-resizable-panels": "^4.5.2",
+    "sonner": "^1.7.2",
     "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {

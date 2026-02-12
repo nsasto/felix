@@ -32,6 +32,7 @@ import AgentDashboard from "./components/AgentDashboard";
 import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
+import { Toaster } from "./components/ui/sonner";
 
 // localStorage key for remembering the last selected project
 const LAST_PROJECT_KEY = "felix-last-project-id";
@@ -1515,6 +1516,7 @@ export const executeTask = (taskId: string) => {
           </span>
         </div>
       </footer>
+      <Toaster position="top-center" />
     </div>
   );
 };
