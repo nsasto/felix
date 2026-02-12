@@ -15,6 +15,7 @@ import {
   stopRun as apiStopRun,
 } from "../src/api/client";
 import type { Agent, Run } from "../src/api/types";
+import { PageLoading } from "./ui/page-loading";
 import {
   Bot as IconFelix,
   Cpu as IconCpu,
@@ -559,8 +560,8 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
             Agents
           </h2>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-6 h-6 border-2 rounded-full animate-spin border-[var(--border-muted)] border-t-[var(--text-muted)]" />
+        <div className="flex-1">
+          <PageLoading size="md" showText={false} />
         </div>
       </div>
     );
@@ -1159,7 +1160,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="w-6 h-6 border-2 rounded-full animate-spin border-[var(--border-muted)] border-t-[var(--text-muted)]" />
+            <PageLoading size="md" showText={false} fullPage={false} />
           </div>
         ) : filteredRuns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">

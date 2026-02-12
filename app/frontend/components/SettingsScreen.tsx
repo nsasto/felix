@@ -23,6 +23,7 @@ import {
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { PageLoading } from "./ui/page-loading";
 import {
   Select,
   SelectContent,
@@ -1014,10 +1015,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Loading State */}
         {projectsLoading && (
           <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-4" />
-            <span className="text-xs font-mono theme-text-muted uppercase">
-              Loading projects...
-            </span>
+            <PageLoading message="Loading projects..." fullPage={false} />
           </div>
         )}
 
@@ -1709,10 +1707,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {/* Loading State */}
           {agentConfigsLoading && agentConfigurations.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-3" />
-              <span className="text-[10px] font-mono theme-text-muted uppercase">
-                Loading agent configurations...
-              </span>
+              <PageLoading
+                message="Loading agent configurations..."
+                size="md"
+                fullPage={false}
+              />
             </div>
           )}
 
@@ -1945,10 +1944,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {/* Loading State */}
           {agentsLoading && Object.keys(registeredAgents).length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin mb-3" />
-              <span className="text-[10px] font-mono theme-text-muted uppercase">
-                Loading running agents...
-              </span>
+              <PageLoading
+                message="Loading running agents..."
+                size="md"
+                fullPage={false}
+              />
             </div>
           )}
 
@@ -2749,11 +2749,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   if (loading) {
     return (
       <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
-        <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 border-[var(--border-default)] border-t-brand-500 rounded-full animate-spin mb-4" />
-          <span className="text-xs font-mono theme-text-muted uppercase">
-            Loading settings...
-          </span>
+        <div className="flex-1">
+          <PageLoading message="Loading settings..." />
         </div>
       </div>
     );

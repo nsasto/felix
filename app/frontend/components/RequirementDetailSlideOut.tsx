@@ -10,6 +10,7 @@ import {
   isDependencyComplete,
   DependencyInfo,
 } from "../utils/dependencies";
+import { PageLoading } from "./ui/page-loading";
 import {
   X as IconX,
   FileText as IconFileText,
@@ -481,7 +482,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
           {specLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-6 h-6 border-2 border-[var(--brand-500)]/30 border-t-[var(--brand-500)] rounded-full animate-spin" />
+              <PageLoading size="md" showText={false} fullPage={false} />
             </div>
           ) : specError ? (
             <div className="bg-[var(--destructive-500)]/10 border border-[var(--destructive-500)]/20 rounded-xl px-4 py-3 text-sm text-[var(--destructive-400)]">
@@ -526,7 +527,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {historyLoading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="w-6 h-6 border-2 border-[var(--brand-500)]/30 border-t-[var(--brand-500)] rounded-full animate-spin" />
+                <PageLoading size="md" showText={false} fullPage={false} />
               </div>
             ) : historyError ? (
               <div className="p-4">

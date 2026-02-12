@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { felixApi, RunArtifactContent } from "../services/felixApi";
 import { marked } from "marked";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
+import { PageLoading } from "./ui/page-loading";
 import {
   Bot as IconFelix,
   FileText as IconFileText,
@@ -235,11 +236,8 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
 
       {/* Tab Content Panels */}
       {loading ? (
-        <div className="flex-1 flex flex-col items-center justify-center h-full">
-          <div className="w-8 h-8 border-2 border-slate-600/30 border-t-brand-500 rounded-full animate-spin mb-4" />
-          <span className="text-xs font-mono text-slate-600 uppercase">
-            Loading artifact...
-          </span>
+        <div className="flex-1">
+          <PageLoading message="Loading artifact..." />
         </div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center h-full text-center p-8">

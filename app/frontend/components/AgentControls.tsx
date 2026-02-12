@@ -5,6 +5,7 @@ import RunCard from "./RunCard";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
+import { PageLoading } from "./ui/page-loading";
 
 interface AgentControlsProps {
   projectId: string;
@@ -191,10 +192,13 @@ const AgentControls: React.FC<AgentControlsProps> = ({
             : "p-4 bg-[var(--bg-surface-100)] border border-[var(--border-default)] rounded-2xl",
         )}
       >
-        <div className="w-4 h-4 border-2 border-[var(--border-muted)] border-t-[var(--text-muted)] rounded-full animate-spin" />
-        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
-          Checking agent...
-        </span>
+        <PageLoading
+          message="Checking agent..."
+          size="xs"
+          layout="horizontal"
+          variant="muted"
+          fullPage={false}
+        />
       </div>
     );
   }
