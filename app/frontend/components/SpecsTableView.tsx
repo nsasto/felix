@@ -288,14 +288,16 @@ export default function SpecsTableView({
             {
               key: "id",
               header: (
-                <button
+                <Button
                   type="button"
-                  className="flex items-center gap-2 cursor-pointer select-none"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 flex items-center gap-2 cursor-pointer select-none"
                   onClick={() => handleSort("id")}
                 >
                   ID
                   <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </button>
+                </Button>
               ),
               cell: (req) => req.id,
               className: "font-mono text-sm text-[var(--brand-400)]",
@@ -303,14 +305,16 @@ export default function SpecsTableView({
             {
               key: "title",
               header: (
-                <button
+                <Button
                   type="button"
-                  className="flex items-center gap-2 cursor-pointer select-none"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 flex items-center gap-2 cursor-pointer select-none"
                   onClick={() => handleSort("title")}
                 >
                   Title
                   <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </button>
+                </Button>
               ),
               className: "min-w-0",
               cell: (req) => {
@@ -362,14 +366,16 @@ export default function SpecsTableView({
             {
               key: "status",
               header: (
-                <button
+                <Button
                   type="button"
-                  className="flex items-center gap-2 cursor-pointer select-none"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 flex items-center gap-2 cursor-pointer select-none"
                   onClick={() => handleSort("status")}
                 >
                   Status
                   <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </button>
+                </Button>
               ),
               cell: (req) => (
                 <Badge
@@ -384,14 +390,16 @@ export default function SpecsTableView({
             {
               key: "priority",
               header: (
-                <button
+                <Button
                   type="button"
-                  className="flex items-center gap-2 cursor-pointer select-none"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 flex items-center gap-2 cursor-pointer select-none"
                   onClick={() => handleSort("priority")}
                 >
                   Priority
                   <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </button>
+                </Button>
               ),
               cell: (req) => (
                 <Badge
@@ -408,14 +416,16 @@ export default function SpecsTableView({
             {
               key: "modified",
               header: (
-                <button
+                <Button
                   type="button"
-                  className="flex items-center gap-2 cursor-pointer select-none"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 flex items-center gap-2 cursor-pointer select-none"
                   onClick={() => handleSort("modified")}
                 >
                   Last Modified
                   <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </button>
+                </Button>
               ),
               cell: (req) => (
                 <span className="table-secondary text-sm">

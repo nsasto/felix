@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const toggleGroupVariants = cva(
-  "inline-flex items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] p-0.5",
+  "inline-flex items-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] p-0",
 );
 
 const toggleItemVariants = cva(

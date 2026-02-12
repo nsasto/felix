@@ -16,7 +16,7 @@ import {
   Activity as IconPulse,
   LayoutGrid as IconOrganization,
   ChevronDown as IconChevronDown,
-  HelpCircle as IconHelpCircle,
+  CircleHelp as IconHelpCircle,
   CheckCircle as IconCheckCircle,
 } from "lucide-react";
 import FelixLogo from "../../img/felix_logo_small.png";
@@ -34,6 +34,9 @@ import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
 import { Toaster } from "./components/ui/sonner";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Textarea } from "./components/ui/textarea";
 
 // localStorage key for remembering the last selected project
 const LAST_PROJECT_KEY = "felix-last-project-id";
@@ -498,15 +501,18 @@ const App: React.FC = () => {
                       >
                         {task.priority}
                       </span>
-                      <button
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 p-1 h-7 w-7 rounded transition-opacity"
                         style={{ backgroundColor: "transparent" }}
                       >
                         <IconPlus
                           className="w-3 h-3"
                           style={{ color: "var(--text-muted)" }}
                         />
-                      </button>
+                      </Button>
                     </div>
                     <h4
                       className="text-sm font-semibold mb-1 group-hover:text-brand-400 transition-colors"
@@ -536,8 +542,11 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 ))}
-              <button
-                className="w-full py-2 border border-dashed rounded-xl text-[10px] transition-all flex items-center justify-center gap-2 group"
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full py-2 border border-dashed rounded-xl text-[10px] transition-all flex items-center justify-center gap-2 group h-auto"
                 style={{
                   borderColor: "var(--border-default)",
                   color: "var(--text-muted)",
@@ -545,7 +554,7 @@ const App: React.FC = () => {
               >
                 <IconPlus className="w-3 h-3 group-hover:scale-125 transition-transform" />
                 Add Task
-              </button>
+              </Button>
             </div>
           </div>
         ))}
@@ -642,12 +651,15 @@ export const executeTask = (taskId: string) => {
           </div>
           <div className="p-3 space-y-1 overflow-y-auto custom-scrollbar">
             {assets.map((asset) => (
-              <button
+              <Button
                 key={asset.id}
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setSelectedAssetId(asset.id);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${selectedAssetId === asset.id ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10" : "border-transparent"}`}
+                className={`w-full h-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${selectedAssetId === asset.id ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10" : "border-transparent"}`}
                 style={{
                   color:
                     selectedAssetId !== asset.id
@@ -662,10 +674,13 @@ export const executeTask = (taskId: string) => {
                     markdown
                   </span>
                 </div>
-              </button>
+              </Button>
             ))}
-            <button
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs border border-dashed mt-4 transition-all"
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full h-auto flex items-center gap-2 px-3 py-2 rounded-xl text-xs border border-dashed mt-4 transition-all"
               style={{
                 color: "var(--text-muted)",
                 borderColor: "var(--border-default)",
@@ -673,7 +688,7 @@ export const executeTask = (taskId: string) => {
             >
               <IconPlus className="w-3.5 h-3.5" />
               <span>New Resource</span>
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -697,9 +712,11 @@ export const executeTask = (taskId: string) => {
                   borderColor: "var(--border-default)",
                 }}
               >
-                <button
+                <Button
                   onClick={() => setAssetViewMode("edit")}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all`}
+                  variant="ghost"
+                  size="sm"
+                  className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
                   style={{
                     backgroundColor:
                       assetViewMode === "edit"
@@ -712,10 +729,12 @@ export const executeTask = (taskId: string) => {
                   }}
                 >
                   SOURCE
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setAssetViewMode("split")}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all`}
+                  variant="ghost"
+                  size="sm"
+                  className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
                   style={{
                     backgroundColor:
                       assetViewMode === "split"
@@ -728,10 +747,12 @@ export const executeTask = (taskId: string) => {
                   }}
                 >
                   ORCHESTRATE
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setAssetViewMode("preview")}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all`}
+                  variant="ghost"
+                  size="sm"
+                  className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
                   style={{
                     backgroundColor:
                       assetViewMode === "preview"
@@ -744,7 +765,7 @@ export const executeTask = (taskId: string) => {
                   }}
                 >
                   PREVIEW
-                </button>
+                </Button>
               </div>
 
               {(assetViewMode === "edit" || assetViewMode === "split") && (
@@ -752,32 +773,40 @@ export const executeTask = (taskId: string) => {
                   className="flex items-center gap-0.5 border-l pl-4"
                   style={{ borderColor: "var(--border-default)" }}
                 >
-                  <button
+                  <Button
                     onClick={() => insertFormatting("# ")}
+                    variant="ghost"
+                    size="icon"
                     className="p-1.5 rounded-md transition-all"
                     style={{ color: "var(--text-muted)" }}
                     title="H1"
                   >
                     <span className="font-bold text-xs">H1</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => insertFormatting("## ")}
+                    variant="ghost"
+                    size="icon"
                     className="p-1.5 rounded-md transition-all"
                     style={{ color: "var(--text-muted)" }}
                     title="H2"
                   >
                     <span className="font-bold text-xs">H2</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => insertFormatting("**", "**")}
+                    variant="ghost"
+                    size="icon"
                     className="p-1.5 rounded-md transition-all"
                     style={{ color: "var(--text-muted)" }}
                     title="Bold"
                   >
                     <span className="font-bold text-xs uppercase">B</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => insertFormatting("*", "*")}
+                    variant="ghost"
+                    size="icon"
                     className="p-1.5 rounded-md transition-all"
                     style={{ color: "var(--text-muted)" }}
                     title="Italic"
@@ -785,36 +814,42 @@ export const executeTask = (taskId: string) => {
                     <span className="italic text-xs font-serif font-bold uppercase">
                       I
                     </span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => insertFormatting("- ")}
+                    variant="ghost"
+                    size="icon"
                     className="p-1.5 rounded-md transition-all"
                     style={{ color: "var(--text-muted)" }}
                     title="List"
                   >
                     <List className="w-3.5 h-3.5" />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => insertFormatting("`", "`")}
+                    variant="ghost"
+                    size="icon"
                     className="p-1.5 rounded-md transition-all"
                     style={{ color: "var(--text-muted)" }}
                     title="Code"
                   >
                     <Code className="w-3.5 h-3.5" />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
 
             <div className="flex items-center gap-4">
-              <button
+              <Button
                 onClick={copyToClipboard}
+                variant="ghost"
+                size="sm"
                 className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2"
                 style={{ color: "var(--text-muted)" }}
               >
                 <Copy className="w-3 h-3" />
                 Copy Raw
-              </button>
+              </Button>
               <div
                 className="h-4 w-px"
                 style={{ backgroundColor: "var(--border-default)" }}
@@ -838,7 +873,7 @@ export const executeTask = (taskId: string) => {
           >
             {(assetViewMode === "edit" || assetViewMode === "split") && (
               <div className="flex-1 flex flex-col min-w-0 relative h-full">
-                <textarea
+                <Textarea
                   ref={editorRef}
                   value={activeAsset.content}
                   onChange={(e) =>
@@ -974,8 +1009,10 @@ export const executeTask = (taskId: string) => {
           </span>
           <div className="org-menu-group" ref={orgMenuRef}>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
                 style={{
                   color: "var(--text-secondary)",
@@ -991,15 +1028,17 @@ export const executeTask = (taskId: string) => {
                   style={{ color: "var(--text-muted)" }}
                 />
                 <span>{selectedOrg}</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 className="org-menu-trigger"
                 onClick={() => setOrgMenuOpen((prev) => !prev)}
                 aria-label="Organization menu"
               >
                 <IconChevronDown className="w-4 h-4" />
-              </button>
+              </Button>
               <span
                 className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
                 style={{
@@ -1014,11 +1053,15 @@ export const executeTask = (taskId: string) => {
               <div className="org-menu-panel">
                 <div className="org-menu-search">
                   <IconSearch className="w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Find organization..."
-                    value={orgSearch}
+                  <Input
+              type="text"
+              placeholder="Search... ?K"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}                    value={orgSearch}
                     onChange={(event) => setOrgSearch(event.target.value)}
+                    className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
                 <div className="org-menu-list">
@@ -1031,9 +1074,12 @@ export const executeTask = (taskId: string) => {
                     .map((option) => {
                       const isSelected = option.label === selectedOrg;
                       return (
-                        <button
+                        <Button
                           key={option.id}
-                          className={`org-menu-item ${isSelected ? "selected" : ""}`}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
                           onClick={() => {
                             if (option.type === "org") {
                               setSelectedOrg(option.label);
@@ -1048,7 +1094,7 @@ export const executeTask = (taskId: string) => {
                           {option.type === "action" && !isSelected && (
                             <IconPlus className="w-4 h-4" />
                           )}
-                        </button>
+                        </Button>
                       );
                     })}
                 </div>
@@ -1062,14 +1108,16 @@ export const executeTask = (taskId: string) => {
             <span>/</span>
             {selectedProject && (
               <>
-                <button
+                <Button
                   onClick={handleReturnToProjects}
-                  className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer"
+                  variant="ghost"
+                  size="sm"
+                  className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer px-1"
                   style={{ color: "var(--text-secondary)" }}
                 >
                   {selectedProject.name ||
                     selectedProject.path.split(/[\\/]/).pop()}
-                </button>
+                </Button>
                 <span>/</span>
               </>
             )}
@@ -1097,27 +1145,18 @@ export const executeTask = (taskId: string) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 justify-end flex-1">
-          <button
-            className="text-[11px] font-semibold px-4 py-1 border rounded-full flex items-center gap-2"
-            style={{
-              borderColor: "var(--border-muted)",
-              color: "var(--text-secondary)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
-            <IconPlus className="w-3 h-3" />
-            Connect
-          </button>
-        </div>
+        <div className="flex items-center gap-3 justify-end flex-1" />
 
         <div className="flex items-center gap-3">
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             className="text-xs font-semibold uppercase tracking-[0.3em]"
             style={{ color: "var(--text-secondary)" }}
           >
             Feedback
-          </button>
+          </Button>
           <div
             className="flex items-center gap-3 px-3 py-2 border rounded-full"
             style={{
@@ -1129,15 +1168,22 @@ export const executeTask = (taskId: string) => {
               className="w-4 h-4"
               style={{ color: "var(--text-muted)" }}
             />
-            <input
+            <Input
               type="text"
-              placeholder="Search... ⌘K"
-              className="flex-1 bg-transparent outline-none text-sm"
+              placeholder="Search... Ctrl+K"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="flex-1 bg-transparent outline-none text-sm border-0 p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
               style={{ color: "var(--text-secondary)" }}
             />
           </div>
-          <button
-            className="w-9 h-9 rounded-full border flex items-center justify-center"
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="w-9 h-9 rounded-full border"
             style={{
               borderColor: "var(--border-muted)",
               color: "var(--text-muted)",
@@ -1145,10 +1191,12 @@ export const executeTask = (taskId: string) => {
             }}
             aria-label="Help"
           >
-            <IconHelpCircle className="w-4 h-4" />
-          </button>
+            <IconHelpCircle className="w-5 h-5" />
+          </Button>
           <div className="relative" ref={userMenuRef}>
-            <button
+            <Button
+              type="button"
+              variant="ghost"
               className="w-11 h-11 rounded-full border shadow-inner flex items-center justify-center text-[10px] font-bold"
               style={{
                 borderColor: "var(--border-muted)",
@@ -1168,7 +1216,7 @@ export const executeTask = (taskId: string) => {
                     .slice(0, 2)
                     .join("")
                 : "?"}
-            </button>
+            </Button>
             {isUserMenuOpen && (
               <div className="user-menu-panel">
                 <div className="user-menu-header">
@@ -1180,26 +1228,35 @@ export const executeTask = (taskId: string) => {
                   </p>
                 </div>
                 <hr />
-                <button
-                  className="user-menu-item"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="user-menu-item justify-start text-left"
                   onClick={() => setUserMenuOpen(false)}
                 >
                   Account preferences
-                </button>
-                <button
-                  className="user-menu-item"
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="user-menu-item justify-start text-left"
                   onClick={() => setUserMenuOpen(false)}
                 >
                   Feature previews
-                </button>
+                </Button>
                 <div className="user-menu-divider" />
                 <p className="user-menu-divider-label">Theme</p>
                 {themeOptions.map((option) => {
                   const showDot = option.value === theme && !option.isVariant;
                   return (
-                    <button
+                    <Button
                       key={option.label}
-                      className={`user-menu-item ${showDot ? "selected" : ""}`}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={`user-menu-item ${showDot ? "selected" : ""} justify-start text-left`}
                       onClick={() => {
                         setTheme(option.value);
                         setUserMenuOpen(false);
@@ -1207,16 +1264,19 @@ export const executeTask = (taskId: string) => {
                     >
                       {showDot && <span className="user-menu-item-dot" />}
                       {option.label}
-                    </button>
+                    </Button>
                   );
                 })}
                 <div className="user-menu-divider" />
-                <button
-                  className="user-menu-item"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="user-menu-item justify-start text-left"
                   onClick={() => setUserMenuOpen(false)}
                 >
                   Log out
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -1291,12 +1351,15 @@ export const executeTask = (taskId: string) => {
               <span className="text-sm" style={{ color: "var(--text-muted)" }}>
                 Unknown view state
               </span>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setUiState("projects")}
-                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
+                className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors h-auto"
               >
                 Go to Projects
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -1370,3 +1433,4 @@ export const executeTask = (taskId: string) => {
   );
 };
 export default App;
+

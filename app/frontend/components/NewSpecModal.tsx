@@ -12,6 +12,13 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import {
   Plus as IconPlus,
   X as IconX,
   FileText as IconFileText,
@@ -199,16 +206,17 @@ export function NewSpecModal({
             <label className="text-sm font-medium text-[var(--text)]">
               Priority
             </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-md text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
+            <Select value={priority} onValueChange={setPriority}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Tags */}
@@ -224,12 +232,15 @@ export function NewSpecModal({
                   className="flex items-center gap-1"
                 >
                   {tag}
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleRemoveTag(tag)}
-                    className="ml-1 hover:text-[var(--destructive-500)]"
+                    className="ml-1 h-5 w-5 hover:text-[var(--destructive-500)]"
                   >
                     <IconX className="w-3 h-3" />
-                  </button>
+                  </Button>
                 </Badge>
               ))}
               {isAddingTag ? (

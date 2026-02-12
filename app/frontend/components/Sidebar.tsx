@@ -7,6 +7,7 @@ import {
   Activity as IconPulse,
   Settings as IconSettings,
 } from "lucide-react";
+import { Button } from "./ui/button";
 
 export type SidebarView =
   | "projects"
@@ -121,16 +122,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         {NAV_ITEMS.map((item) => {
           const isActive = activeView === item.id;
           return (
-            <button
+            <Button
               key={item.id}
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => onChangeView(item.id)}
-              className={`sidebar-nav-item ${isActive ? "active" : ""}`}
+              className={`sidebar-nav-item ${isActive ? "active" : ""} justify-start text-left`}
             >
               <span className="sidebar-icon">{item.icon}</span>
               <div className="sidebar-labels">
                 <span className="sidebar-label">{item.label}</span>
               </div>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -155,14 +159,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
       <div className="sidebar-collapse-wrapper">
         <div className="sidebar-collapse-control">
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setModeMenuOpen((prev) => !prev)}
             className="sidebar-mode-menu-btn"
             aria-haspopup="true"
             aria-expanded={modeMenuOpen}
           >
             <IconPanelLeftDashed className="w-4 h-4" />
-          </button>
+          </Button>
           {modeMenuOpen && (
             <div
               className="sidebar-mode-menu sidebar-mode-menu-top"
@@ -171,16 +178,19 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <p className="sidebar-mode-menu-heading">Sidebar control</p>
               {MODE_OPTIONS.map((modeOption) => (
-                <button
+                <Button
                   key={modeOption.key}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => handleModeChange(modeOption.key)}
                   className={`sidebar-mode-menu-item ${
                     sidebarMode === modeOption.key ? "selected" : ""
-                  }`}
+                  } justify-start text-left`}
                 >
                   <span className="sidebar-mode-menu-dot" />
                   {modeOption.label}
-                </button>
+                </Button>
               ))}
             </div>
           )}

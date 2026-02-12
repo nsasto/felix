@@ -2600,17 +2600,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Categories List */}
         <div className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
           {CATEGORIES.map((category) => (
-            <button
+            <Button
               key={category.id}
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveCategory(category.id)}
-              className={`sidebar-nav-item ${activeCategory === category.id ? "active" : ""} w-full`}
+              className={`sidebar-nav-item ${activeCategory === category.id ? "active" : ""} w-full justify-start text-left`}
             >
               <span className="sidebar-icon">{category.icon}</span>
               <div className="sidebar-labels">
                 <span className="sidebar-label">{category.label}</span>
                 <span className="sidebar-sublabel">{category.description}</span>
               </div>
-            </button>
+            </Button>
           ))}
         </div>
 

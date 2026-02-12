@@ -2,6 +2,7 @@ import React from "react";
 import { RunHistoryEntry } from "../services/felixApi";
 import { cn } from "../lib/utils";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 
 interface RunCardProps {
   run: RunHistoryEntry;
@@ -42,10 +43,12 @@ const RunCard: React.FC<RunCardProps> = ({
   };
 
   return (
-    <button
+    <Button
+      type="button"
+      variant="ghost"
       onClick={() => onClick(run.run_id)}
       className={cn(
-        "w-full text-left px-3 py-2 rounded-lg border transition-all duration-200",
+        "w-full h-auto text-left px-3 py-2 rounded-lg border transition-all duration-200 justify-start",
         isSelected
           ? "bg-[var(--bg-surface-200)] border-[var(--brand-500)]/50 ring-1 ring-[var(--brand-500)]/30"
           : "bg-[var(--bg-surface-100)]/50 border-[var(--border-muted)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-surface-100)]",
@@ -81,7 +84,7 @@ const RunCard: React.FC<RunCardProps> = ({
           <Badge variant={getStatusVariant(run.status)}>{run.status}</Badge>
         </div>
       </div>
-    </button>
+    </Button>
   );
 };
 

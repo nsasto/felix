@@ -3,6 +3,7 @@ import { felixApi, RunArtifactContent } from "../services/felixApi";
 import { marked } from "marked";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { PageLoading } from "./ui/page-loading";
+import { Button } from "./ui/button";
 import {
   Bot as IconFelix,
   FileText as IconFileText,
@@ -165,12 +166,15 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
       {onClose && (
         <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
           <div className="flex items-center gap-4">
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
               onClick={onClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
+              className="p-2 h-9 w-9 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
             >
               <ChevronLeft className="w-4 h-4" />
-            </button>
+            </Button>
             <div>
               <h2 className="text-sm font-bold text-slate-200">
                 Run Artifacts

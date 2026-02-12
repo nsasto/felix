@@ -593,9 +593,11 @@
   color: var(--text-secondary);
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.5rem;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease;
+  width: 100%;
 }
 
 .user-menu-item:hover {
@@ -694,7 +696,7 @@
 .org-menu-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--spacing-2);
   padding: 0.55rem 0.7rem;
   border-radius: 12px;
@@ -703,6 +705,8 @@
   color: var(--text-secondary);
   font-size: 0.9rem;
   cursor: pointer;
+  text-align: left;
+  width: 100%;
 }
 
 .org-menu-item.selected {

@@ -45,6 +45,7 @@ import RunArtifactViewer from "./RunArtifactViewer";
 import { cn } from "../lib/utils";
 import WorkflowVisualization from "./WorkflowVisualization";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 import {
@@ -287,13 +288,16 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                   </div>
                 ) : (
                   availableRequirements.map((req) => (
-                    <button
+                    <Button
                       key={req.id}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         onStart(req.id);
                         setShowStartDropdown(false);
                       }}
-                      className="w-full px-3 py-2 text-left hover:bg-[var(--brand-500)]/10 transition-colors flex items-center justify-between rounded-md border border-transparent hover:border-[var(--brand-500)]/20"
+                      className="w-full h-auto px-3 py-2 text-left justify-between rounded-md border border-transparent hover:border-[var(--brand-500)]/20 hover:bg-[var(--brand-500)]/10"
                     >
                       <div>
                         <span className="text-xs font-mono text-[var(--brand-400)]">
@@ -316,7 +320,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                       >
                         {req.status}
                       </Badge>
-                    </button>
+                    </Button>
                   ))
                 )}
               </div>
@@ -363,12 +367,15 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2 py-2">
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     onStop("graceful");
                     setShowStopDropdown(false);
                   }}
-                  className="w-full px-4 py-3 text-left text-xs hover:bg-[var(--warning-500)]/10 transition-all duration-150 flex items-center gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--warning-500)]/30"
+                  className="w-full h-auto px-4 py-3 text-left text-xs justify-start gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--warning-500)]/30 hover:bg-[var(--warning-500)]/10"
                 >
                   <div className="w-7 h-7 rounded-md bg-[var(--warning-500)]/10 flex items-center justify-center flex-shrink-0">
                     <IconPause className="w-3.5 h-3.5 text-[var(--warning-500)]" />
@@ -381,13 +388,16 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                       Wait for current task
                     </p>
                   </div>
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     onStop("force");
                     setShowStopDropdown(false);
                   }}
-                  className="w-full px-4 py-3 text-left text-xs hover:bg-[var(--destructive-500)]/10 transition-all duration-150 flex items-center gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--destructive-500)]/30"
+                  className="w-full h-auto px-4 py-3 text-left text-xs justify-start gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--destructive-500)]/30 hover:bg-[var(--destructive-500)]/10"
                 >
                   <div className="w-7 h-7 rounded-md bg-[var(--destructive-500)]/10 flex items-center justify-center flex-shrink-0">
                     <IconZap className="w-3.5 h-3.5 text-[var(--destructive-500)]" />
@@ -400,7 +410,7 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                       Terminate immediately
                     </p>
                   </div>
-                </button>
+                </Button>
               </div>
               <DialogFooter>
                 <Button
@@ -886,10 +896,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setScrollLocked(!scrollLocked)}
             className={cn(
-              "p-1.5 rounded transition-colors",
+              "h-7 w-7 rounded transition-colors",
               scrollLocked
                 ? "bg-brand-500/10 text-brand-400"
                 : "text-[var(--text-muted)]",
@@ -897,14 +910,17 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
             title={scrollLocked ? "Unlock scroll" : "Lock scroll"}
           >
             <IconLock className="w-3.5 h-3.5" />
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={handleClear}
-            className="p-1.5 rounded transition-colors text-[var(--text-muted)]"
+            className="h-7 w-7 rounded transition-colors text-[var(--text-muted)]"
             title="Clear console"
           >
             <IconTrash className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1058,22 +1074,25 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
             Run History
           </h2>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
-              "p-1 rounded transition-colors",
+              "h-7 w-7 rounded transition-colors",
               showFilters
                 ? "bg-brand-500/10 text-brand-400"
                 : "text-[var(--text-muted)]",
             )}
           >
             <Filter className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <input
+          <Input
             type="text"
             placeholder="Search runs..."
             value={searchQuery}
@@ -1092,8 +1111,11 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
             <div className="flex flex-wrap gap-2 mt-2">
               {["running", "completed", "failed", "blocked", "stopped"].map(
                 (status) => (
-                  <button
+                  <Button
                     key={status}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setStatusFilter((prev) =>
                         prev.includes(status)
@@ -1102,14 +1124,14 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
                       );
                     }}
                     className={cn(
-                      "px-2 py-1 text-[10px] rounded-lg border transition-colors",
+                      "h-7 px-2 text-[10px] rounded-lg border transition-colors",
                       statusFilter.includes(status)
-                        ? "bg-brand-500/10 border-brand-500/30 text-brand-400"
+                        ? "bg-brand-500/10 border-brand-500/30 text-brand-400 hover:bg-brand-500/20"
                         : "border-[var(--border)] text-[var(--text-muted)]",
                     )}
                   >
                     {status}
-                  </button>
+                  </Button>
                 ),
               )}
             </div>
@@ -1191,11 +1213,13 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
   };
 
   return (
-    <button
+    <Button
+      type="button"
+      variant="ghost"
       onClick={() => onClick(run.id)}
-      className="w-full p-3 rounded-xl text-left transition-all border border-[var(--border-muted)] hover:border-[var(--brand-500)]/30 bg-[var(--bg-surface-100)] hover:bg-[var(--bg-surface-200)] group"
+      className="w-full h-auto p-3 rounded-xl text-left transition-all border border-[var(--border-muted)] hover:border-[var(--brand-500)]/30 bg-[var(--bg-surface-100)] hover:bg-[var(--bg-surface-200)] group flex flex-col items-start"
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 w-full">
         <span
           className="text-xs font-mono text-[var(--brand-400)] truncate group-hover:text-[var(--brand-300)] transition-colors"
           style={{ maxWidth: "60%" }}
@@ -1218,7 +1242,7 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
           Req: {run.requirement_id}
         </div>
       )}
-    </button>
+    </Button>
   );
 };
 
@@ -1499,12 +1523,15 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
             <AlertCircle className="w-4 h-4" />
             <span className="text-xs">{error}</span>
           </div>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             onClick={fetchAgents}
-            className="text-[10px] font-bold text-red-400 hover:text-red-300"
+            className="h-auto px-2 py-1 text-[10px] font-bold text-red-400 hover:text-red-300"
           >
             Retry
-          </button>
+          </Button>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { marked } from "marked";
 import RunArtifactViewer from "./RunArtifactViewer";
 import RunCard from "./RunCard";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import {
   getAllDependenciesWithStatus,
@@ -645,13 +646,16 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               {requirement.title}
             </h2>
           </div>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-light)] hover:bg-[var(--bg-surface-200)] transition-colors"
+            className="p-2 h-9 w-9 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-light)] hover:bg-[var(--bg-surface-200)] transition-colors"
             aria-label="Close"
           >
             <IconX size={20} />
-          </button>
+          </Button>
         </div>
 
         {/* Tab Navigation */}
@@ -659,11 +663,14 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           {TOP_LEVEL_TABS.map((tab) => {
             const Icon = tab.icon;
             return (
-              <button
+              <Button
                 key={tab.id}
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap",
+                  "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap h-auto",
                   activeTab === tab.id
                     ? "bg-[var(--brand-500)]/10 text-[var(--brand-400)] border border-[var(--brand-500)]/20"
                     : "text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-surface-200)]",
@@ -673,7 +680,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               >
                 <Icon size={14} />
                 {tab.label}
-              </button>
+              </Button>
             );
           })}
         </div>

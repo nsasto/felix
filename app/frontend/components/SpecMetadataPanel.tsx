@@ -339,13 +339,16 @@ export function SpecMetadataPanel({
               >
                 <IconTag className="w-3 h-3" />
                 {tag}
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => handleRemoveTag(tag)}
                   disabled={updating === "tags"}
-                  className="ml-1 hover:text-[var(--destructive-500)]"
+                  className="ml-1 h-5 w-5 hover:text-[var(--destructive-500)]"
                 >
                   <IconX className="w-3 h-3" />
-                </button>
+                </Button>
               </Badge>
             ))}
             {isAddingTag ? (

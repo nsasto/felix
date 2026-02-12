@@ -454,14 +454,17 @@ const AgentControls: React.FC<AgentControlsProps> = ({
 
       {/* Run History Section */}
       <div className="px-6 py-4">
-        <button
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => {
             setShowHistory(!showHistory);
             if (!showHistory && runs.length === 0) {
               fetchRunHistory();
             }
           }}
-          className="w-full flex items-center justify-between text-left group"
+          className="w-full h-auto flex items-center justify-between text-left group px-0 py-0 hover:bg-transparent"
         >
           <div className="flex items-center gap-2">
             <ChevronRight
@@ -482,7 +485,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           {runsLoading && (
             <div className="w-3 h-3 border-2 border-[var(--border-muted)] border-t-[var(--text-muted)] rounded-full animate-spin" />
           )}
-        </button>
+        </Button>
 
         {/* Expandable run history list */}
         {showHistory && (

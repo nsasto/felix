@@ -8,6 +8,16 @@ import {
   Folder,
 } from "lucide-react";
 import { PageLoading } from "./ui/page-loading";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Switch } from "./ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface ConfigPanelProps {
   projectId: string;
@@ -163,13 +173,15 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
       <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
           <div className="flex items-center gap-4">
-            <button
+            <Button
+              type="button"
               onClick={onClose}
-              className="p-2 hover:theme-bg-elevated rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
-              style={{ backgroundColor: "var(--hover-bg)" }}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg transition-all theme-text-muted hover:theme-text-secondary hover:bg-[var(--hover-bg)]"
             >
               <ChevronLeft className="w-4 h-4" />
-            </button>
+            </Button>
             <h2 className="text-sm font-bold theme-text-primary">
               Configuration
             </h2>
@@ -187,19 +199,15 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
       <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
           <div className="flex items-center gap-4">
-            <button
+            <Button
+              type="button"
               onClick={onClose}
-              className="p-2 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
-              style={{ backgroundColor: "transparent" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = "var(--hover-bg)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = "transparent")
-              }
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg transition-all theme-text-muted hover:theme-text-secondary hover:bg-[var(--hover-bg)]"
             >
               <ChevronLeft className="w-4 h-4" />
-            </button>
+            </Button>
             <h2 className="text-sm font-bold theme-text-primary">
               Configuration
             </h2>
@@ -225,19 +233,15 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
       {/* Header */}
       <div className="h-14 border-b theme-border flex items-center px-6 justify-between theme-bg-base/95 backdrop-blur">
         <div className="flex items-center gap-4">
-          <button
+          <Button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
-            style={{ backgroundColor: "transparent" }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "var(--hover-bg)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg transition-all theme-text-muted hover:theme-text-secondary hover:bg-[var(--hover-bg)]"
           >
             <ChevronLeft className="w-4 h-4" />
-          </button>
+          </Button>
           <div>
             <h2 className="text-sm font-bold theme-text-primary">
               Configuration
@@ -251,19 +255,23 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
         {/* Save controls */}
         <div className="flex items-center gap-3">
           {hasChanges && (
-            <button
+            <Button
+              type="button"
               onClick={handleReset}
-              className="px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
+              variant="ghost"
+              size="sm"
+              className="h-auto px-3 py-1.5 text-[10px] font-bold theme-text-muted hover:theme-text-secondary transition-colors"
             >
               Reset
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            type="button"
             onClick={handleSave}
             disabled={
               saving || !hasChanges || Object.keys(validationErrors).length > 0
             }
-            className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
+            className={`h-auto px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-2 ${
               hasChanges && Object.keys(validationErrors).length === 0
                 ? "bg-brand-600 text-white hover:bg-brand-500"
                 : "theme-bg-surface theme-text-muted cursor-not-allowed"
@@ -277,7 +285,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
             ) : (
               "Save Changes"
             )}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -319,7 +327,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Max Iterations
                 </label>
-                <input
+                <Input
                   type="number"
                   min="1"
                   value={config.executor.max_iterations}
@@ -329,7 +337,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                       parseInt(e.target.value) || 0,
                     )
                   }
-                  className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all ${
+                  className={`w-full h-auto theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all ${
                     validationErrors.max_iterations
                       ? "border-red-500/50 focus:border-red-500"
                       : "theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20"
@@ -350,20 +358,26 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Default Mode
                 </label>
-                <select
+                <Select
                   value={config.executor.default_mode}
-                  onChange={(e) =>
-                    handleExecutorChange("default_mode", e.target.value)
+                  onValueChange={(value) =>
+                    handleExecutorChange("default_mode", value)
                   }
-                  className={`w-full theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all cursor-pointer ${
-                    validationErrors.default_mode
-                      ? "border-red-500/50"
-                      : "theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20"
-                  }`}
                 >
-                  <option value="planning">Planning</option>
-                  <option value="building">Building</option>
-                </select>
+                  <SelectTrigger
+                    className={`w-full h-auto theme-bg-base border rounded-xl px-4 py-3 text-sm theme-text-secondary outline-none transition-all ${
+                      validationErrors.default_mode
+                        ? "border-red-500/50"
+                        : "theme-border-muted focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20"
+                    }`}
+                  >
+                    <SelectValue placeholder="Select mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="building">Building</SelectItem>
+                  </SelectContent>
+                </Select>
                 {validationErrors.default_mode && (
                   <p className="mt-1 text-[10px] text-red-400">
                     {validationErrors.default_mode}
@@ -384,25 +398,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                     Automatically switch from planning to building mode
                   </p>
                 </div>
-                <button
-                  onClick={() =>
-                    handleExecutorChange(
-                      "auto_transition",
-                      !config.executor.auto_transition,
-                    )
+                <Switch
+                  checked={config.executor.auto_transition}
+                  onCheckedChange={(checked) =>
+                    handleExecutorChange("auto_transition", checked)
                   }
-                  className={`w-12 h-6 rounded-full transition-all relative ${
-                    config.executor.auto_transition
-                      ? "bg-brand-600"
-                      : "theme-bg-surface"
-                  }`}
-                >
-                  <div
-                    className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                      config.executor.auto_transition ? "left-7" : "left-1"
-                    }`}
-                  />
-                </button>
+                  aria-label="Auto transition"
+                />
               </div>
             </div>
           </section>
@@ -434,25 +436,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                     Run lint/test/build commands between agent iterations
                   </p>
                 </div>
-                <button
-                  onClick={() =>
-                    handleBackpressureChange(
-                      "enabled",
-                      !config.backpressure.enabled,
-                    )
+                <Switch
+                  checked={config.backpressure.enabled}
+                  onCheckedChange={(checked) =>
+                    handleBackpressureChange("enabled", checked)
                   }
-                  className={`w-12 h-6 rounded-full transition-all relative ${
-                    config.backpressure.enabled
-                      ? "bg-brand-600"
-                      : "theme-bg-surface"
-                  }`}
-                >
-                  <div
-                    className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${
-                      config.backpressure.enabled ? "left-7" : "left-1"
-                    }`}
-                  />
-                </button>
+                  aria-label="Enable backpressure"
+                />
               </div>
 
               {/* Backpressure Commands (read-only display) */}
