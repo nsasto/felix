@@ -1,6 +1,7 @@
 import React from "react";
 import { RunHistoryEntry } from "../services/felixApi";
 import { cn } from "../lib/utils";
+import { getRunStatusVariant } from "../lib/status";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 
@@ -26,19 +27,6 @@ const RunCard: React.FC<RunCardProps> = ({
       return `${Math.floor(diff / 86400)}d ago`;
     } catch {
       return isoString;
-    }
-  };
-
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "success";
-      case "running":
-        return "warning";
-      case "failed":
-        return "destructive";
-      default:
-        return "default";
     }
   };
 
@@ -81,7 +69,7 @@ const RunCard: React.FC<RunCardProps> = ({
               exit: {run.exit_code}
             </span>
           )}
-          <Badge variant={getStatusVariant(run.status)}>{run.status}</Badge>
+          <Badge variant={getRunStatusVariant(run.status)}>{run.status}</Badge>
         </div>
       </div>
     </Button>

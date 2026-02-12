@@ -16,6 +16,11 @@ import {
   getIncompleteDependencies,
   formatIncompleteDependenciesTooltip,
 } from "../utils/dependencies";
+import {
+  RequirementStatus,
+  getRequirementPriorityVariant,
+  getRequirementStatusColor,
+} from "../lib/status";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
@@ -29,15 +34,6 @@ import {
 } from "./ui/select";
 import { cn } from "../lib/utils";
 import { PageLoading } from "./ui/page-loading";
-
-// Requirement status columns matching the felix/requirements.json schema
-type RequirementStatus =
-  | "draft"
-  | "planned"
-  | "in_progress"
-  | "complete"
-  | "blocked"
-  | "done";
 
 interface Column {
   status: RequirementStatus;
@@ -83,42 +79,6 @@ const COLUMNS: Column[] = [
     variant: "default", // Distinct from Complete
   },
 ];
-
-const getPriorityVariant = (
-  priority: string,
-): "default" | "success" | "warning" | "destructive" => {
-  switch (priority) {
-    case "critical":
-      return "destructive";
-    case "high":
-      return "warning";
-    case "medium":
-      return "default"; // Brand/Blue equivalent
-    case "low":
-      return "default";
-    default:
-      return "default";
-  }
-};
-
-const getStatusColor = (status: RequirementStatus): string => {
-  switch (status) {
-    case "draft":
-      return "var(--status-draft)";
-    case "planned":
-      return "var(--status-planned)";
-    case "in_progress":
-      return "var(--status-in-progress)";
-    case "complete":
-      return "var(--status-complete)";
-    case "done":
-      return "var(--status-done)";
-    case "blocked":
-      return "var(--status-blocked)";
-    default:
-      return "var(--text-muted)";
-  }
-};
 
 // Sticky Drop Zones Component
 interface StickyDropZonesProps {
@@ -727,7 +687,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                 <div
                   className="w-full rounded-full"
                   style={{
-                    backgroundColor: getStatusColor(column.status),
+                    backgroundColor: getRequirementStatusColor(column.status),
                     height: "0.15rem",
                   }}
                 />
@@ -800,7 +760,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                           )}
                         </div>
                         <Badge
-                          variant={getPriorityVariant(requirement.priority)}
+                          variant={getRequirementPriorityVariant(requirement.priority)}
                           className={cn(
                             "font-bold uppercase",
                             isCompactView

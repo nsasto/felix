@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { MultiSelect } from "./multi-select";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import { getRequirementStatusColor } from "../lib/status";
 import {
   Tooltip,
   TooltipContent,
@@ -44,25 +45,6 @@ const PRIORITY_OPTIONS = [
   { value: "high", label: "High" },
   { value: "critical", label: "Critical" },
 ];
-
-const getStatusColor = (status: string): string => {
-  switch (status) {
-    case "draft":
-      return "var(--status-draft)";
-    case "planned":
-      return "var(--status-planned)";
-    case "in_progress":
-      return "var(--status-in-progress)";
-    case "complete":
-      return "var(--status-complete)";
-    case "done":
-      return "var(--status-done)";
-    case "blocked":
-      return "var(--status-blocked)";
-    default:
-      return "var(--text-muted)";
-  }
-};
 
 export function SpecMetadataPanel({
   requirement,
@@ -243,14 +225,14 @@ export function SpecMetadataPanel({
               <label className="text-xs text-[var(--text-muted)] block mb-1">
                 Status
               </label>
-              <Badge
-                style={{
-                  backgroundColor: `${getStatusColor(requirement.status)}33`,
-                  color: getStatusColor(requirement.status),
-                  borderColor: getStatusColor(requirement.status),
-                }}
-                className="border capitalize"
-              >
+                <Badge
+                  style={{
+                    backgroundColor: `${getRequirementStatusColor(requirement.status)}33`,
+                    color: getRequirementStatusColor(requirement.status),
+                    borderColor: getRequirementStatusColor(requirement.status),
+                  }}
+                  className="border capitalize"
+                >
                 {requirement.status.replace("_", " ")}
               </Badge>
             </div>

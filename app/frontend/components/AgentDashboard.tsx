@@ -43,11 +43,13 @@ import { marked } from "marked";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
 import { cn } from "../lib/utils";
+import { getRequirementStatusColor, getRunStatusVariant } from "../lib/status";
 import WorkflowVisualization from "./WorkflowVisualization";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
+import { EmptyState } from "./ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -73,26 +75,6 @@ interface SelectedAgent {
 }
 
 // --- Status Icon Component Removed (Integrated into Badge/Dot) ---
-
-// --- Requirement Status Color Helper ---
-const getStatusColor = (status: string): string => {
-  switch (status) {
-    case "draft":
-      return "var(--status-draft)";
-    case "planned":
-      return "var(--status-planned)";
-    case "in_progress":
-      return "var(--status-in-progress)";
-    case "complete":
-      return "var(--status-complete)";
-    case "done":
-      return "var(--status-done)";
-    case "blocked":
-      return "var(--status-blocked)";
-    default:
-      return "var(--text-muted)";
-  }
-};
 
 // --- Run Status Badge Component ---
 
@@ -313,9 +295,9 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                         }
                         className="text-[9px] px-1.5 py-0.5"
                         style={{
-                          backgroundColor: getStatusColor(req.status),
+                          backgroundColor: getRequirementStatusColor(req.status),
                           color: "#ffffff",
-                          borderColor: getStatusColor(req.status),
+                          borderColor: getRequirementStatusColor(req.status),
                         }}
                       >
                         {req.status}
@@ -589,17 +571,11 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
             Agents
           </h2>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 bg-[var(--bg-surface)]">
-            <IconCpu className="w-6 h-6 text-[var(--text-faint)]" />
-          </div>
-          <p className="text-xs font-bold mb-1 text-[var(--text-tertiary)]">
-            No agents configured
-          </p>
-          <p className="text-[10px] text-[var(--text-muted)]">
-            Configure agents in Settings
-          </p>
-        </div>
+        <EmptyState
+          title="No agents configured"
+          description="Configure agents in Settings"
+          icon={<IconCpu className="w-6 h-6 text-[var(--text-faint)]" />}
+        />
       </div>
     );
   }
@@ -1186,23 +1162,6 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
     }
   };
 
-  const getStatusVariant = (
-    status: string,
-  ): "success" | "warning" | "destructive" | "default" => {
-    switch (status) {
-      case "completed":
-        return "success";
-      case "running":
-        return "warning";
-      case "failed":
-        return "destructive";
-      case "cancelled":
-        return "default";
-      default:
-        return "default";
-    }
-  };
-
   return (
     <Button
       type="button"
@@ -1215,7 +1174,7 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
           {run.id.substring(0, 8)}...
         </span>
         <Badge
-          variant={getStatusVariant(run.status)}
+          variant={getRunStatusVariant(run.status)}
           className="px-2 py-0.5 text-[10px] uppercase"
         >
           {run.status}

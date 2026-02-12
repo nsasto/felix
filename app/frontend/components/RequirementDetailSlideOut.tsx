@@ -7,6 +7,10 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import {
+  getRequirementStatusColor,
+  getRequirementStatusVariant,
+} from "../lib/status";
+import {
   getAllDependenciesWithStatus,
   isDependencyComplete,
   DependencyInfo,
@@ -22,25 +26,6 @@ import {
   Clock as IconClock,
 } from "lucide-react";
 
-const getStatusVariant = (status: string) => {
-  switch (status.toLowerCase()) {
-    case "completed":
-    case "complete":
-    case "done":
-      return "success";
-    case "running":
-    case "in_progress":
-      return "warning";
-    case "blocked":
-    case "failed":
-      return "destructive";
-    case "planned":
-      return "default";
-    default:
-      return "secondary";
-  }
-};
-
 const getPriorityVariant = (priority: string) => {
   switch (priority.toLowerCase()) {
     case "critical":
@@ -52,27 +37,6 @@ const getPriorityVariant = (priority: string) => {
     case "low":
     default:
       return "secondary";
-  }
-};
-
-const getStatusColor = (status: string): string => {
-  switch (status.toLowerCase()) {
-    case "draft":
-      return "var(--status-draft)";
-    case "planned":
-      return "var(--status-planned)";
-    case "in_progress":
-    case "running":
-      return "var(--status-in-progress)";
-    case "complete":
-    case "completed":
-      return "var(--status-complete)";
-    case "done":
-      return "var(--status-done)";
-    case "blocked":
-      return "var(--status-blocked)";
-    default:
-      return "var(--text-muted)";
   }
 };
 
@@ -371,16 +335,16 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           <div className="space-y-4">
             {/* Status and Priority Row */}
             <div className="flex items-center gap-3 flex-wrap">
-              <Badge
-                variant={getStatusVariant(requirement.status)}
-                style={{
-                  backgroundColor: getStatusColor(requirement.status),
-                  color: "#ffffff",
-                  borderColor: getStatusColor(requirement.status),
-                }}
-              >
-                {getStatusLabel(requirement.status)}
-              </Badge>
+                <Badge
+                  variant={getRequirementStatusVariant(requirement.status)}
+                  style={{
+                    backgroundColor: getRequirementStatusColor(requirement.status),
+                    color: "#ffffff",
+                    borderColor: getRequirementStatusColor(requirement.status),
+                  }}
+                >
+                  {getStatusLabel(requirement.status)}
+                </Badge>
               <Badge variant={getPriorityVariant(requirement.priority)}>
                 {requirement.priority}
               </Badge>

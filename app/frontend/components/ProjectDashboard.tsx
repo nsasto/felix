@@ -17,8 +17,10 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { EmptyState } from "./ui/empty-state";
 import { Input } from "./ui/input";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import { getRequirementStatusColor } from "../lib/status";
 
 interface ProjectDashboardProps {
   projectId: string;
@@ -35,25 +37,6 @@ type DashboardAgent = {
   currentRunId?: string | null;
   workflowStage?: string | null;
   source: "registry" | "config";
-};
-
-const getStatusColor = (status: string): string => {
-  switch (status) {
-    case "draft":
-      return "var(--status-draft)";
-    case "planned":
-      return "var(--status-planned)";
-    case "in_progress":
-      return "var(--status-in-progress)";
-    case "complete":
-      return "var(--status-complete)";
-    case "done":
-      return "var(--status-done)";
-    case "blocked":
-      return "var(--status-blocked)";
-    default:
-      return "var(--text-muted)";
-  }
 };
 
 const formatDateTime = (value: string | null) => {
@@ -552,9 +535,10 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               </span>
             </div>
             {requirementsPreview.length === 0 && !loading && (
-              <div className="text-xs theme-text-muted">
-                No requirements found.
-              </div>
+              <EmptyState
+                title="No requirements found"
+                className="p-0 items-start text-left"
+              />
             )}
             <div className="space-y-3">
               {requirementsPreview.map((req) => (
@@ -570,9 +554,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                   <Badge
                     className="text-[9px] uppercase px-2 py-1"
                     style={{
-                      backgroundColor: getStatusColor(req.status),
+                      backgroundColor: getRequirementStatusColor(req.status),
                       color: "#ffffff",
-                      borderColor: getStatusColor(req.status),
+                      borderColor: getRequirementStatusColor(req.status),
                     }}
                   >
                     {req.status.replace(/_/g, " ")}
@@ -629,9 +613,10 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           </div>
 
           {filteredAgents.length === 0 && !loading && (
-            <div className="text-xs theme-text-muted">
-              No agents match this filter.
-            </div>
+            <EmptyState
+              title="No agents match this filter"
+              className="p-0 items-start text-left"
+            />
           )}
 
           <div

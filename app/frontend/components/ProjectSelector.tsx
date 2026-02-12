@@ -45,26 +45,9 @@ import DataSurface from "./DataSurface";
 import FilterPopover from "./FilterPopover";
 import DataTable from "./DataTable";
 import RowActionsMenu from "./RowActionsMenu";
+import { getProjectStatusDotClass } from "../lib/status";
 
 type ViewMode = "cards" | "table";
-
-// Project status color mapping
-const getStatusColor = (status: string | null): string => {
-  switch (status?.toLowerCase()) {
-    case "running":
-      return "bg-[var(--brand-500)] animate-pulse";
-    case "complete":
-    case "done":
-      return "bg-[var(--brand-500)]";
-    case "blocked":
-    case "error":
-      return "bg-[var(--destructive-500)]";
-    case "planned":
-      return "bg-[var(--warning-500)]";
-    default:
-      return "bg-[var(--text-muted)]";
-  }
-};
 
 interface ProjectSelectorProps {
   selectedProjectId: string | null;
@@ -380,7 +363,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                     {details?.status && (
                       <Badge className="gap-1.5 mb-3">
                         <div
-                          className={`w-2 h-2 rounded-full ${getStatusColor(details.status)}`}
+                          className={`w-2 h-2 rounded-full ${getProjectStatusDotClass(details.status)}`}
                         />
                         <span className="uppercase text-[10px] tracking-wider">
                           {details.status}
@@ -466,7 +449,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                     return (
                       <Badge className="gap-1.5">
                         <div
-                          className={`w-2 h-2 rounded-full ${getStatusColor(details.status)}`}
+                          className={`w-2 h-2 rounded-full ${getProjectStatusDotClass(details.status)}`}
                         />
                         <span className="uppercase text-[10px] tracking-wider">
                           {details.status}
