@@ -4,6 +4,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card } from "./ui/card";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import {
   Table,
   TableBody,
@@ -13,18 +14,15 @@ import {
   TableRow,
 } from "./ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import {
   Search as IconSearch,
   ArrowUpDown as IconSort,
   Plus as IconPlus,
+  LayoutGrid as IconLayoutGrid,
+  List as IconList,
 } from "lucide-react";
 import { PageLoading } from "./ui/page-loading";
+import DataSurface from "./DataSurface";
+import FilterPopover from "./FilterPopover";
 
 interface SpecsTableViewProps {
   requirements: Requirement[];
@@ -36,6 +34,7 @@ interface SpecsTableViewProps {
 
 type SortField = "id" | "title" | "status" | "priority" | "modified";
 type SortOrder = "asc" | "desc";
+type ViewMode = "table" | "cards";
 
 const STATUS_COLORS = {
   draft:
@@ -66,8 +65,11 @@ export default function SpecsTableView({
   onNewSpec,
 }: SpecsTableViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [filters, setFilters] = useState<Record<string, Set<string>>>({
+    status: new Set(),
+    priority: new Set(),
+  });
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [sortField, setSortField] = useState<SortField>("modified");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
@@ -87,13 +89,13 @@ export default function SpecsTableView({
     }
 
     // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((req) => req.status === statusFilter);
+    if (filters.status.size > 0) {
+      filtered = filtered.filter((req) => filters.status.has(req.status));
     }
 
     // Apply priority filter
-    if (priorityFilter !== "all") {
-      filtered = filtered.filter((req) => req.priority === priorityFilter);
+    if (filters.priority.size > 0) {
+      filtered = filtered.filter((req) => filters.priority.has(req.priority));
     }
 
     // Sort
@@ -133,14 +135,7 @@ export default function SpecsTableView({
     });
 
     return sorted;
-  }, [
-    requirements,
-    searchQuery,
-    statusFilter,
-    priorityFilter,
-    sortField,
-    sortOrder,
-  ]);
+  }, [requirements, searchQuery, filters, sortField, sortOrder]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -152,10 +147,10 @@ export default function SpecsTableView({
   };
 
   const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "—";
+    if (!dateString) return "-";
     const date = new Date(dateString);
     // Check if date is valid
-    if (isNaN(date.getTime())) return "—";
+    if (isNaN(date.getTime())) return "-";
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
@@ -171,7 +166,7 @@ export default function SpecsTableView({
     }
     const specTime = new Date(req.spec_modified_at).getTime();
     const planTime = new Date(req.plan_modified_at).getTime();
-    return specTime > planTime ? "⚠️" : null;
+    return specTime > planTime ? "!" : null;
   };
 
   if (loading) {
@@ -194,218 +189,301 @@ export default function SpecsTableView({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg)]">
-      <div>
-        {/* New Spec Button */}
-        <div className="h-14 flex items-center px-6 justify-end">
-          <Button onClick={onNewSpec} className="flex items-center gap-2">
-            <IconPlus className="w-4 h-4" />
-            New Spec
-          </Button>
+    <DataSurface
+      className="pt-6"
+      search={
+        <div className="relative w-full max-w-sm">
+          <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+          <Input
+            type="text"
+            placeholder="Search specs by ID, title, or tags..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-9 text-sm"
+          />
         </div>
-
-        {/* Search and filters */}
-        <div className="px-6 py-3 flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
-              <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-              <Input
-                type="text"
-                placeholder="Search specs by ID, title, or tags..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="planned">Planned</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="blocked">Blocked</SelectItem>
-                <SelectItem value="done">Done</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <div className="text-[var(--text-muted)] text-sm ml-auto">
-              {filteredAndSortedRequirements.length} of {requirements.length}{" "}
-              specs
-            </div>
+      }
+      filters={
+        <FilterPopover
+          groups={[
+            {
+              key: "status",
+              label: "Status",
+              options: [
+                { label: "Draft", value: "draft" },
+                { label: "Planned", value: "planned" },
+                { label: "In Progress", value: "in_progress" },
+                { label: "Blocked", value: "blocked" },
+                { label: "Done", value: "done" },
+              ],
+            },
+            {
+              key: "priority",
+              label: "Priority",
+              options: [
+                { label: "Low", value: "low" },
+                { label: "Medium", value: "medium" },
+                { label: "High", value: "high" },
+                { label: "Critical", value: "critical" },
+              ],
+            },
+          ]}
+          value={filters}
+          onChange={setFilters}
+          label="Filter specs"
+        />
+      }
+      actions={
+        <Button onClick={onNewSpec} className="flex items-center gap-2 h-9">
+          <IconPlus className="w-4 h-4" />
+          New Spec
+        </Button>
+      }
+      viewToggle={
+        <ToggleGroup
+          type="single"
+          value={viewMode}
+          onValueChange={(value) => {
+            if (value) {
+              setViewMode(value as ViewMode);
+            }
+          }}
+          className="border border-[var(--border)] rounded-md"
+        >
+          <ToggleGroupItem value="cards" className="h-9 w-9">
+            <IconLayoutGrid className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="table" className="h-9 w-9">
+            <IconList className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+      }
+      footer={
+        <div className="text-[var(--text-muted)] text-sm">
+          {filteredAndSortedRequirements.length} of {requirements.length} specs
+        </div>
+      }
+    >
+      {filteredAndSortedRequirements.length === 0 ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <p className="text-[var(--text-muted)] mb-4">
+              {searchQuery ||
+              filters.status.size > 0 ||
+              filters.priority.size > 0
+                ? "No specs match your filters"
+                : "No specifications yet"}
+            </p>
+            {!searchQuery &&
+              filters.status.size === 0 &&
+              filters.priority.size === 0 && (
+                <Button onClick={onNewSpec}>
+                  <IconPlus className="w-4 h-4 mr-2" />
+                  Create First Spec
+                </Button>
+              )}
           </div>
         </div>
-      </div>
-
-      {/* Table Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4">
-        {filteredAndSortedRequirements.length === 0 ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="text-center">
-              <p className="text-[var(--text-muted)] mb-4">
-                {searchQuery ||
-                statusFilter !== "all" ||
-                priorityFilter !== "all"
-                  ? "No specs match your filters"
-                  : "No specifications yet"}
-              </p>
-              {!searchQuery &&
-                statusFilter === "all" &&
-                priorityFilter === "all" && (
-                  <Button onClick={onNewSpec}>
-                    <IconPlus className="w-4 h-4 mr-2" />
-                    Create First Spec
-                  </Button>
-                )}
-            </div>
-          </div>
-        ) : (
-          <Card className="overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-[var(--border)]">
-                  <TableHead
-                    className="cursor-pointer select-none"
-                    onClick={() => handleSort("id")}
-                  >
+      ) : viewMode === "table" ? (
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent border-[var(--border)]">
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("id")}
+              >
+                <div className="flex items-center gap-2">
+                  ID
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("title")}
+              >
+                <div className="flex items-center gap-2">
+                  Title
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("status")}
+              >
+                <div className="flex items-center gap-2">
+                  Status
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("priority")}
+              >
+                <div className="flex items-center gap-2">
+                  Priority
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("modified")}
+              >
+                <div className="flex items-center gap-2">
+                  Last Modified
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </div>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredAndSortedRequirements.map((req) => {
+              const driftIndicator = getDriftIndicator(req);
+              return (
+                <TableRow
+                  key={req.id}
+                  className="cursor-pointer hover:bg-[var(--bg-surface-100)] transition-colors border-[var(--border)]"
+                  onClick={() => onSpecClick(req.spec_path)}
+                >
+                  <TableCell className="font-mono text-sm text-[var(--brand-400)]">
+                    {req.id}
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-2">
-                      ID
-                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                      <span className="text-[var(--text)]">{req.title}</span>
+                      {driftIndicator && (
+                        <span
+                          className="text-xs"
+                          title="Spec modified after plan was created"
+                        >
+                          {driftIndicator}
+                        </span>
+                      )}
                     </div>
-                  </TableHead>
-                  <TableHead
-                    className="cursor-pointer select-none"
-                    onClick={() => handleSort("title")}
-                  >
-                    <div className="flex items-center gap-2">
-                      Title
-                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                    </div>
-                  </TableHead>
-                  <TableHead
-                    className="cursor-pointer select-none"
-                    onClick={() => handleSort("status")}
-                  >
-                    <div className="flex items-center gap-2">
-                      Status
-                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                    </div>
-                  </TableHead>
-                  <TableHead
-                    className="cursor-pointer select-none"
-                    onClick={() => handleSort("priority")}
-                  >
-                    <div className="flex items-center gap-2">
-                      Priority
-                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                    </div>
-                  </TableHead>
-                  <TableHead
-                    className="cursor-pointer select-none"
-                    onClick={() => handleSort("modified")}
-                  >
-                    <div className="flex items-center gap-2">
-                      Last Modified
-                      <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                    </div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAndSortedRequirements.map((req) => {
-                  const driftIndicator = getDriftIndicator(req);
-                  return (
-                    <TableRow
-                      key={req.id}
-                      className="cursor-pointer hover:bg-[var(--bg-surface-100)] transition-colors border-[var(--border)]"
-                      onClick={() => onSpecClick(req.spec_path)}
-                    >
-                      <TableCell className="font-mono text-sm text-[var(--brand-400)]">
-                        {req.id}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[var(--text)]">
-                            {req.title}
+                    {req.tags.length > 0 && (
+                      <div className="flex gap-1 mt-1">
+                        {req.tags.slice(0, 3).map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
+                          >
+                            {tag}
                           </span>
-                          {driftIndicator && (
+                        ))}
+                        {req.tags.length > 3 && (
+                          <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
+                            +{req.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        STATUS_COLORS[req.status as keyof typeof STATUS_COLORS]
+                      }
+                    >
+                      {req.status.replace("_", " ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        PRIORITY_COLORS[
+                          req.priority as keyof typeof PRIORITY_COLORS
+                        ]
+                      }
+                    >
+                      {req.priority}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-[var(--text-muted)] text-sm">
+                    {formatDate(req.spec_modified_at)}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 p-4">
+          {filteredAndSortedRequirements.map((req) => {
+            const driftIndicator = getDriftIndicator(req);
+            return (
+              <Card
+                key={req.id}
+                className="cursor-pointer hover:bg-[var(--bg-surface-100)] transition-colors"
+                onClick={() => onSpecClick(req.spec_path)}
+              >
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm text-[var(--brand-400)]">
+                          {req.id}
+                        </span>
+                        {driftIndicator && (
+                          <span
+                            className="text-xs"
+                            title="Spec modified after plan was created"
+                          >
+                            {driftIndicator}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[var(--text)]">{req.title}</div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge
+                        className={
+                          STATUS_COLORS[
+                            req.status as keyof typeof STATUS_COLORS
+                          ]
+                        }
+                      >
+                        {req.status.replace("_", " ")}
+                      </Badge>
+                      <Badge
+                        className={
+                          PRIORITY_COLORS[
+                            req.priority as keyof typeof PRIORITY_COLORS
+                          ]
+                        }
+                      >
+                        {req.priority}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-sm text-[var(--text-muted)]">
+                    <div>
+                      {req.tags.length > 0 ? (
+                        <div className="flex gap-1">
+                          {req.tags.slice(0, 3).map((tag) => (
                             <span
-                              className="text-xs"
-                              title="Spec modified after plan was created"
+                              key={tag}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
                             >
-                              {driftIndicator}
+                              {tag}
+                            </span>
+                          ))}
+                          {req.tags.length > 3 && (
+                            <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
+                              +{req.tags.length - 3}
                             </span>
                           )}
                         </div>
-                        {req.tags.length > 0 && (
-                          <div className="flex gap-1 mt-1">
-                            {req.tags.slice(0, 3).map((tag) => (
-                              <span
-                                key={tag}
-                                className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                            {req.tags.length > 3 && (
-                              <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
-                                +{req.tags.length - 3}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            STATUS_COLORS[
-                              req.status as keyof typeof STATUS_COLORS
-                            ]
-                          }
-                        >
-                          {req.status.replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            PRIORITY_COLORS[
-                              req.priority as keyof typeof PRIORITY_COLORS
-                            ]
-                          }
-                        >
-                          {req.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-[var(--text-muted)] text-sm">
-                        {formatDate(req.spec_modified_at)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
-      </div>
-    </div>
+                      ) : (
+                        <span>No tags</span>
+                      )}
+                    </div>
+                    <div>{formatDate(req.spec_modified_at)}</div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </DataSurface>
   );
 }
