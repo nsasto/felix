@@ -6,14 +6,6 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./ui/table";
-import {
   Search as IconSearch,
   ArrowUpDown as IconSort,
   Plus as IconPlus,
@@ -23,6 +15,7 @@ import {
 import { PageLoading } from "./ui/page-loading";
 import DataSurface from "./DataSurface";
 import FilterPopover from "./FilterPopover";
+import DataTable from "./DataTable";
 
 interface SpecsTableViewProps {
   requirements: Requirement[];
@@ -287,126 +280,152 @@ export default function SpecsTableView({
           </div>
         </div>
       ) : viewMode === "table" ? (
-        <Table>
-          <TableHeader>
-            <TableRow className="border-[var(--border)]">
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("id")}
-              >
-                <div className="flex items-center gap-2">
+        <DataTable
+          data={filteredAndSortedRequirements}
+          rowKey={(req) => req.id}
+          onRowClick={(req) => onSpecClick(req.spec_path)}
+          columns={[
+            {
+              key: "id",
+              header: (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                  onClick={() => handleSort("id")}
+                >
                   ID
                   <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("title")}
-              >
-                <div className="flex items-center gap-2">
+                </button>
+              ),
+              cell: (req) => req.id,
+              className: "font-mono text-sm text-[var(--brand-400)]",
+            },
+            {
+              key: "title",
+              header: (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                  onClick={() => handleSort("title")}
+                >
                   Title
                   <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("status")}
-              >
-                <div className="flex items-center gap-2">
-                  Status
-                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("priority")}
-              >
-                <div className="flex items-center gap-2">
-                  Priority
-                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("modified")}
-              >
-                <div className="flex items-center gap-2">
-                  Last Modified
-                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
-                </div>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAndSortedRequirements.map((req) => {
-              const driftIndicator = getDriftIndicator(req);
-              return (
-                <TableRow
-                  key={req.id}
-                  className="cursor-pointer border-[var(--border)]"
-                  onClick={() => onSpecClick(req.spec_path)}
-                >
-                  <TableCell className="font-mono text-sm text-[var(--brand-400)]">
-                    {req.id}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[var(--text)]">{req.title}</span>
-                      {driftIndicator && (
+                </button>
+              ),
+              className: "min-w-0",
+              cell: (req) => {
+                const driftIndicator = getDriftIndicator(req);
+                return (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[var(--text)] truncate whitespace-nowrap">
+                      {req.title}
+                    </span>
+                    {driftIndicator && (
+                      <span
+                        className="text-xs"
+                        title="Spec modified after plan was created"
+                      >
+                        {driftIndicator}
+                      </span>
+                    )}
+                  </div>
+                );
+              },
+            },
+            {
+              key: "tags",
+              header: "Tags",
+              cell: (req) => (
+                <div className="flex gap-1 items-center whitespace-nowrap overflow-hidden">
+                  {req.tags.length > 0 ? (
+                    <>
+                      {req.tags.slice(0, 3).map((tag) => (
                         <span
-                          className="text-xs"
-                          title="Spec modified after plan was created"
+                          key={tag}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
                         >
-                          {driftIndicator}
+                          {tag}
+                        </span>
+                      ))}
+                      {req.tags.length > 3 && (
+                        <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
+                          +{req.tags.length - 3}
                         </span>
                       )}
-                    </div>
-                    {req.tags.length > 0 && (
-                      <div className="flex gap-1 mt-1">
-                        {req.tags.slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface-200)] text-[var(--text-muted)]"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {req.tags.length > 3 && (
-                          <span className="text-[10px] px-1.5 py-0.5 text-[var(--text-muted)]">
-                            +{req.tags.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={
-                        STATUS_COLORS[req.status as keyof typeof STATUS_COLORS]
-                      }
-                    >
-                      {req.status.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={
-                        PRIORITY_COLORS[
-                          req.priority as keyof typeof PRIORITY_COLORS
-                        ]
-                      }
-                    >
-                      {req.priority}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-[var(--text-muted)] text-sm">
-                    {formatDate(req.spec_modified_at)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                    </>
+                  ) : (
+                    <span className="table-secondary text-xs">-</span>
+                  )}
+                </div>
+              ),
+            },
+            {
+              key: "status",
+              header: (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                  onClick={() => handleSort("status")}
+                >
+                  Status
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </button>
+              ),
+              cell: (req) => (
+                <Badge
+                  className={
+                    STATUS_COLORS[req.status as keyof typeof STATUS_COLORS]
+                  }
+                >
+                  {req.status.replace("_", " ")}
+                </Badge>
+              ),
+            },
+            {
+              key: "priority",
+              header: (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                  onClick={() => handleSort("priority")}
+                >
+                  Priority
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </button>
+              ),
+              cell: (req) => (
+                <Badge
+                  className={
+                    PRIORITY_COLORS[
+                      req.priority as keyof typeof PRIORITY_COLORS
+                    ]
+                  }
+                >
+                  {req.priority}
+                </Badge>
+              ),
+            },
+            {
+              key: "modified",
+              header: (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                  onClick={() => handleSort("modified")}
+                >
+                  Last Modified
+                  <IconSort className="w-3 h-3 text-[var(--text-muted)]" />
+                </button>
+              ),
+              cell: (req) => (
+                <span className="table-secondary text-sm">
+                  {formatDate(req.spec_modified_at)}
+                </span>
+              ),
+            },
+          ]}
+          rowClassName={() => "h-14"}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-2">
           {filteredAndSortedRequirements.map((req) => {

@@ -29,17 +29,11 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./ui/table";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import DataSurface from "./DataSurface";
 import FilterPopover from "./FilterPopover";
+import DataTable from "./DataTable";
+import RowActionsMenu from "./RowActionsMenu";
 
 type ViewMode = "cards" | "table";
 
@@ -176,24 +170,6 @@ const IconSearch = ({ className = "w-4 h-4", style }: IconProps) => (
   </svg>
 );
 
-// More icon (three dots)
-const IconMore = ({ className = "w-4 h-4", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <circle cx="12" cy="12" r="1" />
-    <circle cx="12" cy="5" r="1" />
-    <circle cx="12" cy="19" r="1" />
-  </svg>
-);
-
 interface ProjectSelectorProps {
   selectedProjectId: string | null;
   onSelectProject: (projectId: string, details: ProjectDetails) => void;
@@ -223,6 +199,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   const [filters, setFilters] = useState<Record<string, Set<string>>>({
     status: new Set(),
   });
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Load projects on mount
   useEffect(() => {
@@ -459,10 +436,11 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             )}
           </div>
         ) : viewMode === "cards" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredProjects.map((project) => {
               const details = projectDetails.get(project.id);
-              const isSelected = selectedProjectId === project.id;
+              const isSelected =
+                selectedProjectId === project.id || openMenuId === project.id;
 
               return (
                 <Card
@@ -471,7 +449,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   className={cn(
                     "relative group",
                     isSelected
-                      ? "border-2 border-[var(--brand-500)]"
+                      ? "border-2 border-[var(--brand-500)] bg-[var(--bg-surface-200)]"
                       : "border-[var(--border-default)]",
                   )}
                   onClick={() => handleProjectClick(project)}
@@ -484,18 +462,18 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                           {getProjectName(project)}
                         </h3>
                       </div>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmUnregister(project.id);
-                        }}
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/10"
-                        title="Unregister project"
-                      >
-                        <IconMore className="w-4 h-4" />
-                      </Button>
+                      <RowActionsMenu
+                        items={[
+                          {
+                            label: "Unregister project",
+                            icon: "trash",
+                            onSelect: () => setConfirmUnregister(project.id),
+                          },
+                        ]}
+                        onOpenChange={(open) =>
+                          setOpenMenuId(open ? project.id : null)
+                        }
+                      />
                     </div>
 
                     <p className="text-xs mb-3 truncate font-mono theme-text-muted">
@@ -530,11 +508,11 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                         <span className="text-xs theme-text-muted">
                           Project is paused
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="ml-auto text-[var(--text-muted)]"
-                        >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-auto text-[var(--text-muted)]"
+                    >
                           <svg
                             className="w-4 h-4"
                             viewBox="0 0 24 24"
@@ -555,78 +533,89 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             })}
           </div>
         ) : (
-          <div className="px-2 py-2">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Compute</TableHead>
-                  <TableHead>Region</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProjects.map((project) => {
-                  const details = projectDetails.get(project.id);
-                  const isSelected = selectedProjectId === project.id;
-
-                  return (
-                    <TableRow
-                      key={project.id}
-                      className={cn(
-                        "group cursor-pointer",
-                        isSelected && "bg-[var(--bg-surface-200)]",
-                      )}
-                      onClick={() => handleProjectClick(project)}
-                    >
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-sm theme-text-primary">
-                            {getProjectName(project)}
-                          </span>
-                          <span className="text-xs font-mono theme-text-muted">
-                            {project.path.length > 40
-                              ? "..." + project.path.slice(-37)
-                              : project.path}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {details?.status && (
-                          <Badge className="gap-1.5">
-                            <div
-                              className={`w-2 h-2 rounded-full ${getStatusColor(details.status)}`}
-                            />
-                            <span className="uppercase text-[10px] tracking-wider">
-                              {details.status}
-                            </span>
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="theme-text-muted">-</TableCell>
-                      <TableCell className="theme-text-secondary">-</TableCell>
-                      <TableCell className="theme-text-secondary">-</TableCell>
-                      <TableCell>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmUnregister(project.id);
-                          }}
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/10"
-                          title="Unregister project"
-                        >
-                          <IconMore className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div>
+            <DataTable
+              data={filteredProjects}
+              rowKey={(project) => project.id}
+              onRowClick={handleProjectClick}
+              rowClassName={(project) =>
+                cn(
+                  "group",
+                  (selectedProjectId === project.id ||
+                    openMenuId === project.id) &&
+                    "bg-[var(--bg-surface-200)]",
+                )
+              }
+              actionsHeader="Actions"
+              actionsClassName="text-right"
+              actions={(project) => (
+                <RowActionsMenu
+                  items={[
+                    {
+                      label: "Unregister project",
+                      icon: "trash",
+                      onSelect: () => setConfirmUnregister(project.id),
+                    },
+                  ]}
+                  onOpenChange={(open) =>
+                    setOpenMenuId(open ? project.id : null)
+                  }
+                />
+              )}
+              columns={[
+                {
+                  key: "project",
+                  header: "Project",
+                  cell: (project) => (
+                    <div className="flex flex-col">
+                      <span className="font-medium text-sm">
+                        {getProjectName(project)}
+                      </span>
+                      <span className="table-secondary text-xs font-mono">
+                        {project.path.length > 40
+                          ? "..." + project.path.slice(-37)
+                          : project.path}
+                      </span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "status",
+                  header: "Status",
+                  cell: (project) => {
+                    const details = projectDetails.get(project.id);
+                    if (!details?.status) {
+                      return null;
+                    }
+                    return (
+                      <Badge className="gap-1.5">
+                        <div
+                          className={`w-2 h-2 rounded-full ${getStatusColor(details.status)}`}
+                        />
+                        <span className="uppercase text-[10px] tracking-wider">
+                          {details.status}
+                        </span>
+                      </Badge>
+                    );
+                  },
+                },
+                {
+                  key: "compute",
+                  header: "Compute",
+                  cell: () => <span className="table-secondary">-</span>,
+                },
+                {
+                  key: "region",
+                  header: "Region",
+                  cell: () => <span className="table-secondary">-</span>,
+                },
+                {
+                  key: "created",
+                  header: "Created",
+                  cell: () => <span className="table-secondary">-</span>,
+                },
+              ]}
+            />
           </div>
         )}
       </DataSurface>
