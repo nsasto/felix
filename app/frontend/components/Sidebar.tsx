@@ -47,7 +47,7 @@ const NAV_ITEMS: Array<{
   },
   {
     id: "assets",
-    label: "Specs",
+    label: "Specifications",
     icon: <IconFileCode />,
     subtitle: "Documentation",
   },
