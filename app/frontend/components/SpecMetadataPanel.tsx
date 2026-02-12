@@ -7,7 +7,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { MultiSelect } from "./multi-select";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
-import { getRequirementStatusColor } from "../lib/status";
+import { getRequirementStatusSoftBadgeClass } from "../lib/status";
 import {
   Tooltip,
   TooltipContent,
@@ -226,12 +226,9 @@ export function SpecMetadataPanel({
                 Status
               </label>
                 <Badge
-                  style={{
-                    backgroundColor: `${getRequirementStatusColor(requirement.status)}33`,
-                    color: getRequirementStatusColor(requirement.status),
-                    borderColor: getRequirementStatusColor(requirement.status),
-                  }}
-                  className="border capitalize"
+                  className={`border capitalize ${getRequirementStatusSoftBadgeClass(
+                    requirement.status,
+                  )}`}
                 >
                 {requirement.status.replace("_", " ")}
               </Badge>

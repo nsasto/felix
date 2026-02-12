@@ -558,6 +558,8 @@
 
 .footer-bar {
   transition: left 200ms ease, width 200ms ease;
+  left: var(--sidebar-offset, 240px);
+  width: calc(100% - var(--sidebar-offset, 240px));
 }
 
 .user-menu-panel {

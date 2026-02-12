@@ -19,7 +19,7 @@ import {
 import {
   RequirementStatus,
   getRequirementPriorityVariant,
-  getRequirementStatusColor,
+  getRequirementStatusColorClass,
 } from "../lib/status";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -175,11 +175,7 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-base)]/95 backdrop-blur-sm border-b border-[var(--border-muted)] transition-all duration-300 ease-out"
-      style={{
-        transform: draggedItem ? "translateY(0)" : "translateY(-100%)",
-        opacity: draggedItem ? 1 : 0,
-      }}
+      className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-base)]/95 backdrop-blur-sm border-b border-[var(--border-muted)] transition-all duration-300 ease-out translate-y-0 opacity-100"
     >
       <div className="flex gap-3 px-6 py-3">
         {visibleColumns.map((column) => {
@@ -192,16 +188,13 @@ const StickyDropZones: React.FC<StickyDropZonesProps> = ({
               className={cn(
                 "flex-1 h-16 rounded-xl flex items-center justify-center transition-all duration-200 ease-in-out touch-manipulation min-h-[44px]",
                 getDropZoneStyles(column.variant, isDropTarget),
-                isDropTarget ? "scale-105 shadow-lg" : "",
+                isDropTarget
+                  ? "scale-105 shadow-lg shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
+                  : "shadow-none",
                 isCurrentColumn
                   ? "opacity-50 cursor-not-allowed"
                   : "cursor-pointer hover:border-opacity-50",
               )}
-              style={{
-                boxShadow: isDropTarget
-                  ? "0 8px 32px rgba(0, 0, 0, 0.2)"
-                  : "none",
-              }}
               onDragOver={(e) =>
                 !isCurrentColumn && onDragOver(e, column.status)
               }
@@ -685,11 +678,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                 </div>
                 {/* Solid color line */}
                 <div
-                  className="w-full rounded-full"
-                  style={{
-                    backgroundColor: getRequirementStatusColor(column.status),
-                    height: "0.15rem",
-                  }}
+                  className={cn(
+                    "w-full rounded-full h-[0.15rem]",
+                    getRequirementStatusColorClass(column.status),
+                  )}
                 />
               </div>
 

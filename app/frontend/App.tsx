@@ -184,31 +184,43 @@ const App: React.FC = () => {
 
   const viewMetadata: Record<
     SidebarView,
-    { label: string; tag: string; color: string }
+    { label: string; tag: string; colorClass: string }
   > = {
     projects: {
       label: "Projects",
       tag: "Workspace List",
-      color: "var(--brand-500)",
+      colorClass: "bg-[var(--brand-500)]",
     },
     kanban: {
       label: "System Board",
       tag: "Requirement Flow",
-      color: "#fb923c",
+      colorClass: "bg-[#fb923c]",
     },
-    assets: { label: "Specifications", tag: "Resource Docs", color: "#34d399" },
+    assets: {
+      label: "Specifications",
+      tag: "Resource Docs",
+      colorClass: "bg-[#34d399]",
+    },
     orchestration: {
       label: "Agent Dashboard",
       tag: "Runtime Control",
-      color: "#22d3ee",
+      colorClass: "bg-[#22d3ee]",
     },
     config: {
       label: "Configuration",
       tag: "Project Settings",
-      color: "var(--text-muted)",
+      colorClass: "bg-[var(--text-muted)]",
     },
-    plan: { label: "Project README", tag: "Planning", color: "#38bdf8" },
-    settings: { label: "Settings", tag: "Preferences", color: "#c084fc" },
+    plan: {
+      label: "Project README",
+      tag: "Planning",
+      colorClass: "bg-[#38bdf8]",
+    },
+    settings: {
+      label: "Settings",
+      tag: "Preferences",
+      colorClass: "bg-[#c084fc]",
+    },
   };
   const activeViewMeta = viewMetadata[activeSidebarView];
   const projectHeaderLabel = selectedProject
@@ -970,8 +982,7 @@ export const executeTask = (taskId: string) => {
             )}
             <div className="flex items-center gap-2">
               <span
-                className="w-2 h-2 rounded-full shadow"
-                style={{ backgroundColor: activeViewMeta.color }}
+                className={`w-2 h-2 rounded-full shadow ${activeViewMeta.colorClass}`}
               />
               <span
                 className="text-sm font-semibold text-[var(--text-secondary)]"
@@ -1190,10 +1201,6 @@ export const executeTask = (taskId: string) => {
       {/* Persistent OS Status Bar */}
       <footer
         className="footer-bar h-8 border-t border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-muted)] z-[var(--z-fixed)] flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
-        style={{
-          left: "var(--sidebar-offset, 240px)",
-          width: "calc(100% - var(--sidebar-offset, 240px))",
-        }}
       >
         <div className="flex items-center gap-6">
           <div

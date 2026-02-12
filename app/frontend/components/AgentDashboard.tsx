@@ -43,7 +43,7 @@ import { marked } from "marked";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
 import { cn } from "../lib/utils";
-import { getRequirementStatusColor, getRunStatusVariant } from "../lib/status";
+import { getRequirementStatusBadgeClass, getRunStatusVariant } from "../lib/status";
 import WorkflowVisualization from "./WorkflowVisualization";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -293,12 +293,10 @@ const DashboardToolbar: React.FC<ToolbarProps> = ({
                         variant={
                           req.status === "blocked" ? "destructive" : "default"
                         }
-                        className="text-[9px] px-1.5 py-0.5"
-                        style={{
-                          backgroundColor: getRequirementStatusColor(req.status),
-                          color: "#ffffff",
-                          borderColor: getRequirementStatusColor(req.status),
-                        }}
+                        className={cn(
+                          "text-[9px] px-1.5 py-0.5",
+                          getRequirementStatusBadgeClass(req.status),
+                        )}
                       >
                         {req.status}
                       </Badge>

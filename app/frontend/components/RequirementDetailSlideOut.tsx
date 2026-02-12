@@ -7,7 +7,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import {
-  getRequirementStatusColor,
+  getRequirementStatusBadgeClass,
   getRequirementStatusVariant,
 } from "../lib/status";
 import {
@@ -337,11 +337,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
             <div className="flex items-center gap-3 flex-wrap">
                 <Badge
                   variant={getRequirementStatusVariant(requirement.status)}
-                  style={{
-                    backgroundColor: getRequirementStatusColor(requirement.status),
-                    color: "#ffffff",
-                    borderColor: getRequirementStatusColor(requirement.status),
-                  }}
+                  className={getRequirementStatusBadgeClass(requirement.status)}
                 >
                   {getStatusLabel(requirement.status)}
                 </Badge>

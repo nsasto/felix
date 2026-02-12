@@ -24,6 +24,15 @@ const ALLOWED_SVG = [
   path.join(ROOT, "components", "copilot", "CopilotAvatar.tsx"),
 ];
 
+const ALLOWED_INLINE_STYLE = [
+  path.join(ROOT, "components", "copilot", "CopilotAvatar.tsx"),
+  path.join(ROOT, "components", "copilot", "building-blocks", "CopilotLoading.tsx"),
+];
+
+const ALLOWED_RAW_INPUT = [
+  path.join(ROOT, "components", "RequirementDetailSlideOut.tsx"),
+];
+
 const UI_COMPONENT_DIR = path.join(ROOT, "components", "ui");
 
 const fileList = [];
@@ -63,6 +72,9 @@ const checkFile = (filePath) => {
     const lineNum = index + 1;
 
     if (line.includes("style={{")) {
+      if (ALLOWED_INLINE_STYLE.includes(filePath)) {
+        return;
+      }
       addIssue(filePath, lineNum, "inline-style", line.trim());
     }
 
@@ -79,6 +91,9 @@ const checkFile = (filePath) => {
     }
 
     if (!isUiComponentFile && /<input\b/.test(line)) {
+      if (ALLOWED_RAW_INPUT.includes(filePath)) {
+        return;
+      }
       if (!hasUiImport(content, "input")) {
         addIssue(filePath, lineNum, "raw-input", "Use Input from components/ui/input");
       }

@@ -20,7 +20,7 @@ import { Card } from "./ui/card";
 import { EmptyState } from "./ui/empty-state";
 import { Input } from "./ui/input";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
-import { getRequirementStatusColor } from "../lib/status";
+import { getRequirementStatusBadgeClass } from "../lib/status";
 
 interface ProjectDashboardProps {
   projectId: string;
@@ -552,12 +552,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                     </div>
                   </div>
                   <Badge
-                    className="text-[9px] uppercase px-2 py-1"
-                    style={{
-                      backgroundColor: getRequirementStatusColor(req.status),
-                      color: "#ffffff",
-                      borderColor: getRequirementStatusColor(req.status),
-                    }}
+                    className={`text-[9px] uppercase px-2 py-1 ${getRequirementStatusBadgeClass(
+                      req.status,
+                    )}`}
                   >
                     {req.status.replace(/_/g, " ")}
                   </Badge>
