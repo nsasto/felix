@@ -144,14 +144,7 @@ const StageNode: React.FC<{
       {/* Stage Node */}
       <div className="relative group">
         {/* Tooltip */}
-        <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none"
-          style={{
-            backgroundColor: "var(--bg-elevated)",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border-default)",
-          }}
-        >
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-default)]">
           {stage.description}
           {stage.conditional && (
             <span className="ml-1 text-amber-400 text-[9px]">
@@ -162,22 +155,16 @@ const StageNode: React.FC<{
 
         {/* Node Container */}
         <div
-          className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all duration-300 ${styles.animation} ${styles.glow} ${
-            isPending ? "" : `border ${styles.border} ${styles.bg}`
+          className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all duration-300 min-w-[52px] ${styles.animation} ${styles.glow} ${
+            isPending
+              ? "bg-[var(--bg-surface)] border border-[var(--border-muted)]"
+              : `border ${styles.border} ${styles.bg}`
           }`}
-          style={{
-            backgroundColor: isPending ? "var(--bg-surface)" : undefined,
-            borderColor: isPending ? "var(--border-muted)" : undefined,
-            minWidth: "52px",
-          }}
         >
           {/* Icon with optional overlay */}
           <div className="relative">
             <IconComponent
-              className={`w-4 h-4 transition-colors ${styles.iconColor}`}
-              style={{
-                color: isPending ? "var(--text-faint)" : undefined,
-              }}
+              className={`w-4 h-4 transition-colors ${styles.iconColor} ${isPending ? "text-[var(--text-faint)]" : ""}`}
             />
             {/* Status overlay */}
             {status === "completed" && (
@@ -194,10 +181,9 @@ const StageNode: React.FC<{
 
           {/* Stage Name */}
           <span
-            className={`text-[9px] font-medium text-center leading-tight ${styles.nameColor}`}
-            style={{
-              color: isPending ? "var(--text-muted)" : undefined,
-            }}
+            className={`text-[9px] font-medium text-center leading-tight ${styles.nameColor} ${
+              isPending ? "text-[var(--text-muted)]" : ""
+            }`}
           >
             {stage.name}
           </span>
@@ -208,23 +194,19 @@ const StageNode: React.FC<{
       {!isLast && (
         <div className="flex items-center px-0.5">
           <div
-            className="w-3 h-px transition-colors"
-            style={{
-              backgroundColor:
-                status === "completed" || status === "active"
-                  ? "var(--text-muted)"
-                  : "var(--border-muted)",
-            }}
+            className={`w-3 h-px transition-colors ${
+              status === "completed" || status === "active"
+                ? "bg-[var(--text-muted)]"
+                : "bg-[var(--border-muted)]"
+            }`}
           />
           <ChevronRight
-            className="w-2 h-2 -ml-0.5"
+            className={`w-2 h-2 -ml-0.5 ${
+              status === "completed" || status === "active"
+                ? "text-[var(--text-muted)]"
+                : "text-[var(--border-muted)]"
+            }`}
             strokeWidth={1.5}
-            style={{
-              color:
-                status === "completed" || status === "active"
-                  ? "var(--text-muted)"
-                  : "var(--border-muted)",
-            }}
           />
         </div>
       )}
@@ -328,18 +310,9 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
   // Loading state
   if (loading) {
     return (
-      <div
-        className="flex items-center justify-center p-4"
-        style={{ backgroundColor: "var(--bg-surface)" }}
-      >
-        <div
-          className="w-4 h-4 border-2 rounded-full animate-spin"
-          style={{
-            borderColor: "var(--border-muted)",
-            borderTopColor: "var(--text-muted)",
-          }}
-        />
-        <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
+      <div className="flex items-center justify-center p-4 bg-[var(--bg-surface)]">
+        <div className="w-4 h-4 border-2 border-[var(--border-muted)] border-t-[var(--text-muted)] rounded-full animate-spin" />
+        <span className="ml-2 text-xs text-[var(--text-muted)]">
           Loading workflow...
         </span>
       </div>
@@ -349,10 +322,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
   // Error state
   if (error) {
     return (
-      <div
-        className="flex items-center justify-center p-4"
-        style={{ backgroundColor: "var(--bg-surface)" }}
-      >
+      <div className="flex items-center justify-center p-4 bg-[var(--bg-surface)]">
         <span className="text-xs text-red-400">{error}</span>
       </div>
     );
@@ -361,11 +331,8 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
   // No config state
   if (!workflowConfig || sortedStages.length === 0) {
     return (
-      <div
-        className="flex items-center justify-center p-4"
-        style={{ backgroundColor: "var(--bg-surface)" }}
-      >
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+      <div className="flex items-center justify-center p-4 bg-[var(--bg-surface)]">
+        <span className="text-xs text-[var(--text-muted)]">
           No workflow data
         </span>
       </div>
@@ -374,7 +341,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
 
   // Render workflow visualization
   return (
-    <div className="px-4 py-1" style={{ backgroundColor: "var(--bg-base)" }}>
+    <div className="px-4 py-1 bg-[var(--bg-base)]">
       {/* Unknown stage warning */}
       {isCurrentStageUnknown && currentStage && (
         <div className="mb-2 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20">
@@ -386,11 +353,8 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({
 
       {/* Agent idle message */}
       {!isAgentActive && (
-        <div
-          className="mb-2 px-2 py-1 rounded"
-          style={{ backgroundColor: "var(--bg-base)" }}
-        >
-          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+        <div className="mb-2 px-2 py-1 rounded bg-[var(--bg-base)]">
+          <span className="text-[10px] text-[var(--text-muted)]">
             Agent idle - workflow inactive
           </span>
         </div>

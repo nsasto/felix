@@ -323,19 +323,15 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
             isRunning
               ? "bg-brand-500/10 border-brand-500/20"
-              : "theme-bg-surface"
+              : "theme-bg-surface border-[var(--border-muted)]"
           }`}
-          style={{ borderColor: isRunning ? undefined : "var(--border-muted)" }}
         >
           <div
             className={`w-2 h-2 rounded-full ${
               isRunning
                 ? "bg-brand-500 animate-pulse shadow-lg shadow-brand-500/50"
-                : ""
+                : "bg-[var(--text-faint)]"
             }`}
-            style={{
-              backgroundColor: isRunning ? undefined : "var(--text-faint)",
-            }}
           />
           <span
             className={`text-[10px] font-bold uppercase ${

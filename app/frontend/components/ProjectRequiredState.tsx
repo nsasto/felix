@@ -11,11 +11,8 @@ export default function ProjectRequiredState({
   onGoToProjects,
 }: ProjectRequiredStateProps) {
   return (
-    <div
-      className="flex-1 flex flex-col items-center justify-center text-center"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
-      <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+    <div className="flex-1 flex flex-col items-center justify-center text-center bg-[var(--bg-base)]">
+      <span className="text-sm text-[var(--text-muted)]">
         {message}
       </span>
       <Button

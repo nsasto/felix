@@ -211,10 +211,6 @@ const App: React.FC = () => {
     settings: { label: "Settings", tag: "Preferences", color: "#c084fc" },
   };
   const activeViewMeta = viewMetadata[activeSidebarView];
-  const rootStyle: React.CSSProperties = {
-    backgroundColor: "var(--bg-base)",
-    color: "var(--text-secondary)",
-  };
   const projectHeaderLabel = selectedProject
     ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
     : "No project selected";
@@ -421,10 +417,7 @@ const App: React.FC = () => {
     ];
 
     return (
-      <div
-        className="flex-1 flex gap-6 p-8 overflow-x-auto custom-scrollbar"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
+      <div className="flex-1 flex gap-6 p-8 overflow-x-auto custom-scrollbar bg-[var(--bg-base)]">
         {columns.map((col) => (
           <div
             key={col.status}
@@ -440,28 +433,17 @@ const App: React.FC = () => {
                         ? "bg-brand-500 animate-pulse"
                         : col.status === "completed"
                           ? "bg-emerald-500"
-                          : ""
+                          : "bg-[var(--text-muted)]"
                   }`}
-                  style={{
-                    backgroundColor:
-                      col.status === "backlog"
-                        ? "var(--text-muted)"
-                        : undefined,
-                  }}
                 />
                 <h3
-                  className="text-xs font-bold uppercase tracking-widest"
-                  style={{ color: "var(--text-tertiary)" }}
+                  className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]"
                 >
                   {col.label}
                 </h3>
               </div>
               <span
-                className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-                style={{
-                  color: "var(--text-muted)",
-                  backgroundColor: "var(--bg-deep)",
-                }}
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded text-[var(--text-muted)] bg-[var(--bg-deep)]"
               >
                 {tasks.filter((t) => t.status === col.status).length}
               </span>
@@ -473,11 +455,7 @@ const App: React.FC = () => {
                 .map((task) => (
                   <div
                     key={task.id}
-                    className="border p-4 rounded-xl hover:border-brand-600/40 transition-all cursor-pointer group shadow-lg"
-                    style={{
-                      backgroundColor: "var(--bg-base)",
-                      borderColor: "var(--border-default)",
-                    }}
+                    className="border border-[var(--border-default)] bg-[var(--bg-base)] p-4 rounded-xl hover:border-brand-600/40 transition-all cursor-pointer group shadow-lg"
                   >
                     <div className="flex justify-between items-start mb-2">
                       <span
@@ -486,18 +464,8 @@ const App: React.FC = () => {
                             ? "bg-red-500/10 text-red-400 border border-red-500/20"
                             : task.priority === "medium"
                               ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                              : ""
+                              : "bg-[var(--bg-surface)] text-[var(--text-tertiary)]"
                         }`}
-                        style={{
-                          backgroundColor:
-                            task.priority === "low"
-                              ? "var(--bg-surface)"
-                              : undefined,
-                          color:
-                            task.priority === "low"
-                              ? "var(--text-tertiary)"
-                              : undefined,
-                        }}
                       >
                         {task.priority}
                       </span>
@@ -505,24 +473,18 @@ const App: React.FC = () => {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="opacity-0 group-hover:opacity-100 p-1 h-7 w-7 rounded transition-opacity"
-                        style={{ backgroundColor: "transparent" }}
+                        className="opacity-0 group-hover:opacity-100 p-1 h-7 w-7 rounded transition-opacity bg-transparent"
                       >
-                        <IconPlus
-                          className="w-3 h-3"
-                          style={{ color: "var(--text-muted)" }}
-                        />
+                        <IconPlus className="w-3 h-3 text-[var(--text-muted)]" />
                       </Button>
                     </div>
                     <h4
-                      className="text-sm font-semibold mb-1 group-hover:text-brand-400 transition-colors"
-                      style={{ color: "var(--text-secondary)" }}
+                      className="text-sm font-semibold mb-1 group-hover:text-brand-400 transition-colors text-[var(--text-secondary)]"
                     >
                       {task.title}
                     </h4>
                     <p
-                      className="text-[11px] leading-relaxed mb-3 line-clamp-2"
-                      style={{ color: "var(--text-muted)" }}
+                      className="text-[11px] leading-relaxed mb-3 line-clamp-2 text-[var(--text-muted)]"
                     >
                       {task.description}
                     </p>
@@ -530,11 +492,7 @@ const App: React.FC = () => {
                       {task.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="text-[9px] font-mono border px-1 rounded transition-colors"
-                          style={{
-                            color: "var(--text-muted)",
-                            borderColor: "var(--border-default)",
-                          }}
+                          className="text-[9px] font-mono border border-[var(--border-default)] px-1 rounded transition-colors text-[var(--text-muted)]"
                         >
                           #{tag}
                         </span>
@@ -546,11 +504,7 @@ const App: React.FC = () => {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="w-full py-2 border border-dashed rounded-xl text-[10px] transition-all flex items-center justify-center gap-2 group h-auto"
-                style={{
-                  borderColor: "var(--border-default)",
-                  color: "var(--text-muted)",
-                }}
+                className="w-full py-2 border border-[var(--border-default)] border-dashed rounded-xl text-[10px] transition-all flex items-center justify-center gap-2 group h-auto text-[var(--text-muted)]"
               >
                 <IconPlus className="w-3 h-3 group-hover:scale-125 transition-transform" />
                 Add Task
@@ -564,29 +518,17 @@ const App: React.FC = () => {
 
   const renderCanvas = () => {
     return (
-      <div
-        className="flex-1 flex overflow-hidden"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
+      <div className="flex-1 flex overflow-hidden bg-[var(--bg-base)]">
         <div
-          className="flex-1 flex flex-col border-r"
-          style={{ borderColor: "var(--border-default)" }}
+          className="flex-1 flex flex-col border-r border-[var(--border-default)]"
         >
           <div
-            className="h-12 border-b flex items-center px-6 justify-between backdrop-blur"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-base)",
-            }}
+            className="h-12 border-b border-[var(--border-default)] bg-[var(--bg-base)] flex items-center px-6 justify-between backdrop-blur"
           >
             <div className="flex items-center gap-3">
-              <IconFileCode
-                className="w-4 h-4"
-                style={{ color: "var(--accent-primary)" }}
-              />
+              <IconFileCode className="w-4 h-4 text-[var(--accent-primary)]" />
               <span
-                className="text-xs font-mono font-bold"
-                style={{ color: "var(--text-tertiary)" }}
+                className="text-xs font-mono font-bold text-[var(--text-tertiary)]"
               >
                 workspace/felix-core/orchestrator.ts
               </span>
@@ -626,25 +568,16 @@ export const executeTask = (taskId: string) => {
 
   const renderAssets = () => {
     return (
-      <div
-        className="flex-1 flex overflow-hidden"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
+      <div className="flex-1 flex overflow-hidden bg-[var(--bg-base)]">
         {/* Sub-nav Panel */}
         <div
-          className="w-64 border-r flex flex-col flex-shrink-0"
-          style={{
-            borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-deep)",
-          }}
+          className="w-64 border-r border-[var(--border-default)] flex flex-col flex-shrink-0 bg-[var(--bg-deep)]"
         >
           <div
-            className="h-12 border-b flex items-center px-4"
-            style={{ borderColor: "var(--border-default)" }}
+            className="h-12 border-b border-[var(--border-default)] flex items-center px-4"
           >
             <span
-              className="text-[10px] font-bold uppercase tracking-widest"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]"
             >
               Project Workspace
             </span>
@@ -659,13 +592,11 @@ export const executeTask = (taskId: string) => {
                 onClick={() => {
                   setSelectedAssetId(asset.id);
                 }}
-                className={`w-full h-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${selectedAssetId === asset.id ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10" : "border-transparent"}`}
-                style={{
-                  color:
-                    selectedAssetId !== asset.id
-                      ? "var(--text-muted)"
-                      : undefined,
-                }}
+                className={`w-full h-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all border ${
+                  selectedAssetId === asset.id
+                    ? "bg-brand-600/10 text-brand-400 border-brand-500/20 shadow-lg shadow-brand-900/10"
+                    : "border-transparent text-[var(--text-muted)]"
+                }`}
               >
                 <IconFileText className="w-4 h-4" />
                 <div className="flex flex-col items-start min-w-0">
@@ -680,11 +611,7 @@ export const executeTask = (taskId: string) => {
               type="button"
               variant="ghost"
               size="sm"
-              className="w-full h-auto flex items-center gap-2 px-3 py-2 rounded-xl text-xs border border-dashed mt-4 transition-all"
-              style={{
-                color: "var(--text-muted)",
-                borderColor: "var(--border-default)",
-              }}
+              className="w-full h-auto flex items-center gap-2 px-3 py-2 rounded-xl text-xs border border-[var(--border-default)] border-dashed mt-4 transition-all text-[var(--text-muted)]"
             >
               <IconPlus className="w-3.5 h-3.5" />
               <span>New Resource</span>
@@ -694,39 +621,24 @@ export const executeTask = (taskId: string) => {
 
         {/* Integrated Orchestration Canvas */}
         <div
-          className="flex-1 flex flex-col min-w-0"
-          style={{ backgroundColor: "var(--bg-deep)" }}
+          className="flex-1 flex flex-col min-w-0 bg-[var(--bg-deep)]"
         >
           <div
-            className="h-12 border-b flex items-center px-4 justify-between backdrop-blur z-20 flex-shrink-0"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-base)",
-            }}
+            className="h-12 border-b border-[var(--border-default)] bg-[var(--bg-base)] flex items-center px-4 justify-between backdrop-blur z-20 flex-shrink-0"
           >
             <div className="flex items-center gap-4">
               <div
-                className="flex border rounded-lg p-0.5 shadow-inner"
-                style={{
-                  backgroundColor: "var(--bg-deep)",
-                  borderColor: "var(--border-default)",
-                }}
+                className="flex border border-[var(--border-default)] rounded-lg p-0.5 shadow-inner bg-[var(--bg-deep)]"
               >
                 <Button
                   onClick={() => setAssetViewMode("edit")}
                   variant="ghost"
                   size="sm"
-                  className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-                  style={{
-                    backgroundColor:
-                      assetViewMode === "edit"
-                        ? "var(--bg-surface)"
-                        : "transparent",
-                    color:
-                      assetViewMode === "edit"
-                        ? "var(--accent-primary)"
-                        : "var(--text-muted)",
-                  }}
+                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
+                    assetViewMode === "edit"
+                      ? "bg-[var(--bg-surface)] text-[var(--accent-primary)]"
+                      : "bg-transparent text-[var(--text-muted)]"
+                  }`}
                 >
                   SOURCE
                 </Button>
@@ -734,17 +646,11 @@ export const executeTask = (taskId: string) => {
                   onClick={() => setAssetViewMode("split")}
                   variant="ghost"
                   size="sm"
-                  className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-                  style={{
-                    backgroundColor:
-                      assetViewMode === "split"
-                        ? "var(--bg-surface)"
-                        : "transparent",
-                    color:
-                      assetViewMode === "split"
-                        ? "var(--accent-primary)"
-                        : "var(--text-muted)",
-                  }}
+                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
+                    assetViewMode === "split"
+                      ? "bg-[var(--bg-surface)] text-[var(--accent-primary)]"
+                      : "bg-transparent text-[var(--text-muted)]"
+                  }`}
                 >
                   ORCHESTRATE
                 </Button>
@@ -752,17 +658,11 @@ export const executeTask = (taskId: string) => {
                   onClick={() => setAssetViewMode("preview")}
                   variant="ghost"
                   size="sm"
-                  className="px-3 py-1 text-[10px] font-bold rounded-md transition-all"
-                  style={{
-                    backgroundColor:
-                      assetViewMode === "preview"
-                        ? "var(--bg-surface)"
-                        : "transparent",
-                    color:
-                      assetViewMode === "preview"
-                        ? "var(--accent-primary)"
-                        : "var(--text-muted)",
-                  }}
+                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
+                    assetViewMode === "preview"
+                      ? "bg-[var(--bg-surface)] text-[var(--accent-primary)]"
+                      : "bg-transparent text-[var(--text-muted)]"
+                  }`}
                 >
                   PREVIEW
                 </Button>
@@ -770,15 +670,13 @@ export const executeTask = (taskId: string) => {
 
               {(assetViewMode === "edit" || assetViewMode === "split") && (
                 <div
-                  className="flex items-center gap-0.5 border-l pl-4"
-                  style={{ borderColor: "var(--border-default)" }}
+                  className="flex items-center gap-0.5 border-l border-[var(--border-default)] pl-4"
                 >
                   <Button
                     onClick={() => insertFormatting("# ")}
                     variant="ghost"
                     size="icon"
-                    className="p-1.5 rounded-md transition-all"
-                    style={{ color: "var(--text-muted)" }}
+                    className="p-1.5 rounded-md transition-all text-[var(--text-muted)]"
                     title="H1"
                   >
                     <span className="font-bold text-xs">H1</span>
@@ -787,8 +685,7 @@ export const executeTask = (taskId: string) => {
                     onClick={() => insertFormatting("## ")}
                     variant="ghost"
                     size="icon"
-                    className="p-1.5 rounded-md transition-all"
-                    style={{ color: "var(--text-muted)" }}
+                    className="p-1.5 rounded-md transition-all text-[var(--text-muted)]"
                     title="H2"
                   >
                     <span className="font-bold text-xs">H2</span>
@@ -797,8 +694,7 @@ export const executeTask = (taskId: string) => {
                     onClick={() => insertFormatting("**", "**")}
                     variant="ghost"
                     size="icon"
-                    className="p-1.5 rounded-md transition-all"
-                    style={{ color: "var(--text-muted)" }}
+                    className="p-1.5 rounded-md transition-all text-[var(--text-muted)]"
                     title="Bold"
                   >
                     <span className="font-bold text-xs uppercase">B</span>
@@ -807,8 +703,7 @@ export const executeTask = (taskId: string) => {
                     onClick={() => insertFormatting("*", "*")}
                     variant="ghost"
                     size="icon"
-                    className="p-1.5 rounded-md transition-all"
-                    style={{ color: "var(--text-muted)" }}
+                    className="p-1.5 rounded-md transition-all text-[var(--text-muted)]"
                     title="Italic"
                   >
                     <span className="italic text-xs font-serif font-bold uppercase">
@@ -819,8 +714,7 @@ export const executeTask = (taskId: string) => {
                     onClick={() => insertFormatting("- ")}
                     variant="ghost"
                     size="icon"
-                    className="p-1.5 rounded-md transition-all"
-                    style={{ color: "var(--text-muted)" }}
+                    className="p-1.5 rounded-md transition-all text-[var(--text-muted)]"
                     title="List"
                   >
                     <List className="w-3.5 h-3.5" />
@@ -829,8 +723,7 @@ export const executeTask = (taskId: string) => {
                     onClick={() => insertFormatting("`", "`")}
                     variant="ghost"
                     size="icon"
-                    className="p-1.5 rounded-md transition-all"
-                    style={{ color: "var(--text-muted)" }}
+                    className="p-1.5 rounded-md transition-all text-[var(--text-muted)]"
                     title="Code"
                   >
                     <Code className="w-3.5 h-3.5" />
@@ -844,21 +737,16 @@ export const executeTask = (taskId: string) => {
                 onClick={copyToClipboard}
                 variant="ghost"
                 size="sm"
-                className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2 text-[var(--text-muted)]"
               >
                 <Copy className="w-3 h-3" />
                 Copy Raw
               </Button>
-              <div
-                className="h-4 w-px"
-                style={{ backgroundColor: "var(--border-default)" }}
-              ></div>
+              <div className="h-4 w-px bg-[var(--border-default)]"></div>
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                 <span
-                  className="text-[10px] font-mono uppercase"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10px] font-mono uppercase text-[var(--text-muted)]"
                 >
                   {activeAsset.name}
                 </span>
@@ -868,8 +756,7 @@ export const executeTask = (taskId: string) => {
 
           {/* Flexible Content Panels */}
           <div
-            className={`flex-1 flex overflow-hidden ${assetViewMode === "split" ? "divide-x" : ""}`}
-            style={{ borderColor: "var(--border-muted)" }}
+            className={`flex-1 flex overflow-hidden ${assetViewMode === "split" ? "divide-x divide-[var(--border-muted)]" : ""}`}
           >
             {(assetViewMode === "edit" || assetViewMode === "split") && (
               <div className="flex-1 flex flex-col min-w-0 relative h-full">
@@ -879,21 +766,12 @@ export const executeTask = (taskId: string) => {
                   onChange={(e) =>
                     updateAssetContent(activeAsset.id, e.target.value)
                   }
-                  className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30"
-                  style={{
-                    backgroundColor: "var(--bg-base)",
-                    color: "var(--text-secondary)",
-                  }}
+                  className="w-full h-full p-12 font-mono text-sm leading-relaxed outline-none resize-none custom-scrollbar selection:bg-brand-500/30 bg-[var(--bg-base)] text-[var(--text-secondary)]"
                   placeholder="# Orchestrate your document content here..."
                 />
                 {assetViewMode === "edit" && (
                   <div
-                    className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border backdrop-blur"
-                    style={{
-                      color: "var(--text-faint)",
-                      backgroundColor: "var(--bg-deep)",
-                      borderColor: "var(--border-muted)",
-                    }}
+                    className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur text-[var(--text-faint)] bg-[var(--bg-deep)]"
                   >
                     Resource Source Editor
                   </div>
@@ -903,15 +781,13 @@ export const executeTask = (taskId: string) => {
 
             {(assetViewMode === "preview" || assetViewMode === "split") && (
               <div
-                className="flex-1 flex flex-col min-w-0 h-full relative"
-                style={{ backgroundColor: "var(--bg-base)" }}
+                className="flex-1 flex flex-col min-w-0 h-full relative bg-[var(--bg-base)]"
               >
                 <div className="flex-1 p-12 overflow-y-auto custom-scrollbar markdown-preview font-sans max-w-4xl mx-auto w-full">
                   <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
                   {!parsedHtml && (
                     <div
-                      className="flex flex-col items-center justify-center h-full gap-4"
-                      style={{ color: "var(--text-faint)" }}
+                      className="flex flex-col items-center justify-center h-full gap-4 text-[var(--text-faint)]"
                     >
                       <IconFelix className="w-12 h-12 opacity-10" />
                       <span className="text-xs font-mono uppercase tracking-widest opacity-20">
@@ -922,12 +798,7 @@ export const executeTask = (taskId: string) => {
                 </div>
                 {assetViewMode === "preview" && (
                   <div
-                    className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border backdrop-blur"
-                    style={{
-                      color: "var(--text-faint)",
-                      backgroundColor: "var(--bg-deep)",
-                      borderColor: "var(--border-muted)",
-                    }}
+                    className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur text-[var(--text-faint)] bg-[var(--bg-deep)]"
                   >
                     Live Visualization
                   </div>
@@ -975,19 +846,9 @@ export const executeTask = (taskId: string) => {
   }, [isUserMenuOpen, isOrgMenuOpen]);
 
   return (
-    <div
-      className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30"
-      style={rootStyle}
-    >
+    <div className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30 bg-[var(--bg-base)] text-[var(--text-secondary)]">
       <header
-        className="h-16 flex items-center px-6 justify-between gap-6 shrink-0"
-        style={{
-          borderBottom: "1px solid var(--border-default)",
-          backgroundColor: "var(--bg-base)",
-          backdropFilter: "blur(12px)",
-          position: "relative",
-          zIndex: "var(--z-fixed)",
-        }}
+        className="h-16 flex items-center px-6 justify-between gap-6 shrink-0 border-b border-[var(--border-default)] bg-[var(--bg-base)] backdrop-blur relative z-[var(--z-fixed)]"
       >
         <div className="flex items-center gap-3">
           <div
@@ -1002,8 +863,7 @@ export const executeTask = (taskId: string) => {
             />
           </div>
           <span
-            className="text-sm font-semibold"
-            style={{ color: "var(--text-secondary)" }}
+            className="text-sm font-semibold text-[var(--text-secondary)]"
           >
             /
           </span>
@@ -1013,20 +873,12 @@ export const executeTask = (taskId: string) => {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors"
-                style={{
-                  color: "var(--text-secondary)",
-                  backgroundColor: "transparent",
-                  border: "none",
-                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors text-[var(--text-secondary)] bg-transparent border-0"
                 onClick={() => setOrgMenuOpen((prev) => !prev)}
                 aria-haspopup="true"
                 aria-expanded={isOrgMenuOpen}
               >
-                <IconOrganization
-                  className="w-4 h-4"
-                  style={{ color: "var(--text-muted)" }}
-                />
+                <IconOrganization className="w-4 h-4 text-[var(--text-muted)]" />
                 <span>{selectedOrg}</span>
               </Button>
               <Button
@@ -1040,11 +892,7 @@ export const executeTask = (taskId: string) => {
                 <IconChevronDown className="w-4 h-4" />
               </Button>
               <span
-                className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border px-2 py-0.5"
-                style={{
-                  borderColor: "var(--border-muted)",
-                  color: "var(--text-muted)",
-                }}
+                className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border border-[var(--border-muted)] px-2 py-0.5 text-[var(--text-muted)]"
               >
                 FREE
               </span>
@@ -1054,12 +902,13 @@ export const executeTask = (taskId: string) => {
                 <div className="org-menu-search">
                   <IconSearch className="w-4 h-4" />
                   <Input
-              type="text"
-              placeholder="Search... ?K"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}                    value={orgSearch}
+                    type="text"
+                    placeholder="Search organizations"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    value={orgSearch}
                     onChange={(event) => setOrgSearch(event.target.value)}
                     className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
@@ -1102,8 +951,7 @@ export const executeTask = (taskId: string) => {
             )}
           </div>
           <div
-            className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em]"
-            style={{ color: "var(--text-muted)" }}
+            className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]"
           >
             <span>/</span>
             {selectedProject && (
@@ -1112,8 +960,7 @@ export const executeTask = (taskId: string) => {
                   onClick={handleReturnToProjects}
                   variant="ghost"
                   size="sm"
-                  className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer px-1"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer px-1 text-[var(--text-secondary)]"
                 >
                   {selectedProject.name ||
                     selectedProject.path.split(/[\\/]/).pop()}
@@ -1127,18 +974,13 @@ export const executeTask = (taskId: string) => {
                 style={{ backgroundColor: activeViewMeta.color }}
               />
               <span
-                className="text-sm font-semibold"
-                style={{ color: "var(--text-secondary)" }}
+                className="text-sm font-semibold text-[var(--text-secondary)]"
               >
                 {activeViewMeta.label}
               </span>
             </div>
             <span
-              className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
-              style={{
-                borderColor: "var(--border-muted)",
-                color: "var(--text-muted)",
-              }}
+              className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-[var(--border-muted)] text-[var(--text-muted)]"
             >
               {activeViewMeta.tag}
             </span>
@@ -1152,22 +994,14 @@ export const executeTask = (taskId: string) => {
             type="button"
             variant="ghost"
             size="sm"
-            className="text-xs font-semibold uppercase tracking-[0.3em]"
-            style={{ color: "var(--text-secondary)" }}
+            className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--text-secondary)]"
           >
             Feedback
           </Button>
           <div
-            className="flex items-center gap-3 px-3 py-2 border rounded-full"
-            style={{
-              borderColor: "var(--border-muted)",
-              backgroundColor: "var(--bg-surface)",
-            }}
+            className="flex items-center gap-3 px-3 py-2 border rounded-full border-[var(--border-muted)] bg-[var(--bg-surface)]"
           >
-            <IconSearch
-              className="w-4 h-4"
-              style={{ color: "var(--text-muted)" }}
-            />
+            <IconSearch className="w-4 h-4 text-[var(--text-muted)]" />
             <Input
               type="text"
               placeholder="Search... Ctrl+K"
@@ -1175,20 +1009,14 @@ export const executeTask = (taskId: string) => {
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="flex-1 bg-transparent outline-none text-sm border-0 p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-              style={{ color: "var(--text-secondary)" }}
+              className="flex-1 bg-transparent outline-none text-sm border-0 p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0 text-[var(--text-secondary)]"
             />
           </div>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="w-9 h-9 rounded-full border"
-            style={{
-              borderColor: "var(--border-muted)",
-              color: "var(--text-muted)",
-              backgroundColor: "transparent",
-            }}
+            className="w-9 h-9 rounded-full border border-[var(--border-muted)] text-[var(--text-muted)] bg-transparent"
             aria-label="Help"
           >
             <IconHelpCircle className="w-5 h-5" />
@@ -1197,12 +1025,7 @@ export const executeTask = (taskId: string) => {
             <Button
               type="button"
               variant="ghost"
-              className="w-11 h-11 rounded-full border shadow-inner flex items-center justify-center text-[10px] font-bold"
-              style={{
-                borderColor: "var(--border-muted)",
-                color: "var(--text-muted)",
-                backgroundColor: "var(--bg-surface)",
-              }}
+              className="w-11 h-11 rounded-full border border-[var(--border-muted)] shadow-inner flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)]"
               onClick={() => setUserMenuOpen((prev) => !prev)}
               aria-haspopup="true"
               aria-expanded={isUserMenuOpen}
@@ -1345,10 +1168,9 @@ export const executeTask = (taskId: string) => {
             />
           ) : (
             <div
-              className="flex-1 flex flex-col items-center justify-center text-center"
-              style={{ backgroundColor: "var(--bg-base)" }}
+              className="flex-1 flex flex-col items-center justify-center text-center bg-[var(--bg-base)]"
             >
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+              <span className="text-sm text-[var(--text-muted)]">
                 Unknown view state
               </span>
               <Button
@@ -1367,39 +1189,29 @@ export const executeTask = (taskId: string) => {
 
       {/* Persistent OS Status Bar */}
       <footer
-        className="footer-bar h-8 border-t flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
+        className="footer-bar h-8 border-t border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-muted)] z-[var(--z-fixed)] flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
         style={{
-          borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-base)",
-          color: "var(--text-muted)",
-          zIndex: "var(--z-fixed)",
           left: "var(--sidebar-offset, 240px)",
           width: "calc(100% - var(--sidebar-offset, 240px))",
         }}
       >
         <div className="flex items-center gap-6">
           <div
-            className="flex items-center gap-2 group cursor-default"
-            style={{ color: "var(--accent-primary)" }}
+            className="flex items-center gap-2 group cursor-default text-[var(--accent-primary)]"
           >
             <IconTerminal className="w-3.5 h-3.5 group-hover:animate-pulse" />
             <span className="font-bold uppercase tracking-[0.2em] text-[9px]">
               Felix Kernel: 3.1-STABLE
             </span>
           </div>
-          <div
-            className="h-4 w-[1px] opacity-50"
-            style={{ backgroundColor: "var(--border-default)" }}
-          ></div>
+          <div className="h-4 w-[1px] opacity-50 bg-[var(--border-default)]"></div>
           <span
-            className="opacity-60 uppercase tracking-tighter"
-            style={{ color: "var(--text-faint)" }}
+            className="opacity-60 uppercase tracking-tighter text-[var(--text-faint)]"
           >
             ID: FLX-ORCH-8821
           </span>
           <span
-            className="opacity-60 uppercase"
-            style={{ color: "var(--text-faint)" }}
+            className="opacity-60 uppercase text-[var(--text-faint)]"
           >
             Load: 0.42 / 1.00
           </span>
@@ -1409,20 +1221,14 @@ export const executeTask = (taskId: string) => {
             <span className="uppercase text-[9px]">Latency</span>
             <span className="text-emerald-500 font-bold">18ms</span>
           </div>
-          <div
-            className="h-4 w-[1px] opacity-50"
-            style={{ backgroundColor: "var(--border-default)" }}
-          ></div>
+          <div className="h-4 w-[1px] opacity-50 bg-[var(--border-default)]"></div>
           <div className="flex items-center gap-2 group cursor-pointer">
             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/20 group-hover:scale-125 transition-transform"></div>
             <span className="uppercase tracking-[0.1em] transition-colors">
               Workspace Encrypted
             </span>
           </div>
-          <div
-            className="h-4 w-[1px] opacity-50"
-            style={{ backgroundColor: "var(--border-default)" }}
-          ></div>
+          <div className="h-4 w-[1px] opacity-50 bg-[var(--border-default)]"></div>
           <span className="cursor-pointer transition-colors uppercase tracking-widest font-bold">
             UTF-8
           </span>

@@ -198,8 +198,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           {/* Formatting buttons (only show if enabled and in edit/split mode) */}
           {showFormatting && showEditor && (
             <div
-              className="flex items-center gap-0.5 border-l pl-4"
-              style={{ borderColor: "var(--border-default)" }}
+              className="flex items-center gap-0.5 border-l border-[var(--border-default)] pl-4"
             >
               <Button
                 variant="ghost"
@@ -374,12 +373,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               value={content}
               onChange={(e) => onContentChange(e.target.value)}
               placeholder={placeholder}
-              className={`flex-1 resize-none border-0 rounded-none font-mono text-xs leading-relaxed p-6 focus-visible:ring-0 focus-visible:ring-offset-0 custom-scrollbar ${editorClassName}`}
-              style={{
-                minHeight: "100%",
-                backgroundColor: "var(--bg-base)",
-                color: "var(--text-primary)",
-              }}
+              className={`flex-1 min-h-full resize-none border-0 rounded-none font-mono text-xs leading-relaxed p-6 focus-visible:ring-0 focus-visible:ring-offset-0 custom-scrollbar bg-[var(--bg-base)] text-[var(--text-primary)] ${editorClassName}`}
             />
           </div>
         )}

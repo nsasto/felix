@@ -27,10 +27,7 @@ export default function ProjectsView({
   }
 
   return (
-    <div
-      className="flex-1 flex flex-col overflow-hidden"
-      style={{ backgroundColor: "var(--bg-base)" }}
-    >
+    <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-base)]">
       <ProjectSelector
         selectedProjectId={selectedProjectId}
         onSelectProject={onSelectProject}

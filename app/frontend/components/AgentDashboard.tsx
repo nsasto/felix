@@ -590,22 +590,13 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
           </h2>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
-            style={{ backgroundColor: "var(--bg-surface)" }}
-          >
-            <IconCpu
-              className="w-6 h-6"
-              style={{ color: "var(--text-faint)" }}
-            />
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 bg-[var(--bg-surface)]">
+            <IconCpu className="w-6 h-6 text-[var(--text-faint)]" />
           </div>
-          <p
-            className="text-xs font-bold mb-1"
-            style={{ color: "var(--text-tertiary)" }}
-          >
+          <p className="text-xs font-bold mb-1 text-[var(--text-tertiary)]">
             No agents configured
           </p>
-          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px] text-[var(--text-muted)]">
             Configure agents in Settings
           </p>
         </div>
@@ -1220,10 +1211,7 @@ const DbRunCard: React.FC<DbRunCardProps> = ({ run, onClick }) => {
       className="w-full h-auto p-3 rounded-xl text-left transition-all border border-[var(--border-muted)] hover:border-[var(--brand-500)]/30 bg-[var(--bg-surface-100)] hover:bg-[var(--bg-surface-200)] group flex flex-col items-start"
     >
       <div className="flex items-center justify-between mb-2 w-full">
-        <span
-          className="text-xs font-mono text-[var(--brand-400)] truncate group-hover:text-[var(--brand-300)] transition-colors"
-          style={{ maxWidth: "60%" }}
-        >
+        <span className="text-xs font-mono text-[var(--brand-400)] truncate group-hover:text-[var(--brand-300)] transition-colors max-w-[60%]">
           {run.id.substring(0, 8)}...
         </span>
         <Badge
