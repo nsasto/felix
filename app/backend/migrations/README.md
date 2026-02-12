@@ -65,6 +65,15 @@ Get-ChildItem app/backend/migrations/*.sql | Sort-Object Name | ForEach-Object {
 }
 ```
 
+### Optional Dev Seed Data
+
+The `001_seed_dev_data.sql` file is for local/dev seeding only. It is skipped by
+default in `scripts/setup-db.ps1`. To include it:
+
+```powershell
+.\scripts\setup-db.ps1 -Seed
+```
+
 ## How to Add New Migrations
 
 1. Determine the next sequence number by checking existing migration files
@@ -96,7 +105,17 @@ For production environments, always write explicit rollback scripts.
 | File                   | Description                                                                         | Applied      |
 | ---------------------- | ----------------------------------------------------------------------------------- | ------------ |
 | 001_initial_schema.sql | Core tables: schema_migrations, organizations, projects, agents, runs, requirements | Auto-tracked |
-| 001_seed_dev_data.sql  | Development seed data for local testing                                             | Auto-tracked |
+| 002_enable_pgcrypto_and_status_checks.sql | Enable pgcrypto + align status constraints                             | Auto-tracked |
+| 003_updated_at_triggers.sql | Auto-update updated_at columns via triggers                                 | Auto-tracked |
+| 004_requirement_dependencies.sql | Join table for requirement dependencies                               | Auto-tracked |
+| 005_requirement_content_versions.sql | Requirement content snapshot + version history                      | Auto-tracked |
+| 006_add_requirement_code.sql | Add human-readable requirement code                                     | Auto-tracked |
+
+## Dev Seed (Optional)
+
+| File                  | Description                             | Applied              |
+| --------------------- | --------------------------------------- | -------------------- |
+| 001_seed_dev_data.sql | Development seed data for local testing | Only with `-Seed`    |
 
 ## Migration Tracking
 
@@ -111,8 +130,13 @@ Output:
 ```
  id |           version            |          applied_at
 ----+------------------------------+-------------------------------
-  1 | 001_initial_schema.sql       | 2026-02-02 10:30:00.123456+00
-  2 | 001_seed_dev_data.sql        | 2026-02-02 10:30:01.234567+00
+ 1 | 001_initial_schema.sql       | 2026-02-02 10:30:00.123456+00
+  2 | 001_seed_dev_data.sql        | 2026-02-02 10:30:01.234567+00  (dev only, when `-Seed` is used)
+  3 | 002_enable_pgcrypto_and_status_checks.sql | 2026-02-02 10:30:02.345678+00
+  4 | 003_updated_at_triggers.sql  | 2026-02-02 10:30:03.456789+00
+  5 | 004_requirement_dependencies.sql | 2026-02-02 10:30:04.567890+00
+  6 | 005_requirement_content_versions.sql | 2026-02-02 10:30:05.678901+00
+  7 | 006_add_requirement_code.sql | 2026-02-02 10:30:06.789012+00
 ```
 
 ## Quick Setup
@@ -134,13 +158,54 @@ setx PGDATA "C:\Program Files\PostgreSQL\18\data"
 # If you already have a DATABASE_URL (e.g. for CI), the script will use it automatically:
 $env:DATABASE_URL = 'postgresql://postgres:password@localhost:5432/felix'
 .\scripts\setup-db.ps1
+
+# Include dev seed data
+.\scripts\setup-db.ps1 -Seed
 ```
 
 What the script does:
 
 - Create the database if it doesn't exist
 - Create the migration tracking table
-- Run all pending migrations
+- Run all pending migrations (seed data optional)
+
+## Requirement Content + Versions (Working Model)
+
+We store spec content separately from the `requirements` table:
+
+- `requirement_content`: current snapshot for fast reads
+- `requirement_versions`: append-only history for audit/rollback
+
+Write flow:
+1) Insert a new row into `requirement_versions` with `content`, `author_id`, and `source`.
+2) Upsert `requirement_content` for the requirement:
+   - `content` = latest content
+   - `current_version_id` = new version ID
+   - `updated_at` = NOW()
+
+Read flow:
+- Default reads use `requirement_content` (single row).
+- History/rollback uses `requirement_versions` ordered by `created_at DESC`.
+
+## Requirements.json Migration Script
+
+Use the PowerShell helper to migrate `.felix/requirements.json` into the DB:
+
+```powershell
+.\scripts\migrate-requirements.ps1 -ProjectId "00000000-0000-0000-0000-000000000001"
+```
+
+Dry run (no DB writes):
+
+```powershell
+.\scripts\migrate-requirements.ps1 -ProjectId "00000000-0000-0000-0000-000000000001" -DryRun
+```
+
+This script:
+- Strips `S-XXXX:` from titles
+- Writes `code` into `requirements.code`
+- Inserts content into `requirement_content` + `requirement_versions`
+- Inserts dependency rows into `requirement_dependencies`
 - Verify the schema
 
 To force a fresh start (destroys all data):

@@ -9,6 +9,10 @@
 
 .PARAMETER Force
     Drop and recreate the database from scratch (destroys all data).
+.PARAMETER Seed
+    Include dev seed migrations (files with "_seed_" in the name).
+.PARAMETER Help
+    Show help for this script and exit.
 
 .EXAMPLE
     .\scripts\setup-db.ps1
@@ -17,15 +21,31 @@
 .EXAMPLE
     .\scripts\setup-db.ps1 -Force
     # Drop database and recreate from scratch
+
+.EXAMPLE
+    .\scripts\setup-db.ps1 -Seed
+    # Run migrations and include dev seed data
+
+.EXAMPLE
+    .\scripts\setup-db.ps1 -Force -Seed
+    # Drop database, recreate, and include dev seed data
 #>
 
 param(
     [string]$PgBin,
     [string]$DataDir,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Seed,
+    [switch]$Help
 )
 
 $ErrorActionPreference = "Stop"
+
+# Show help and exit
+if ($Help) {
+    Get-Help $MyInvocation.MyCommand.Path -Full
+    exit 0
+}
 
 # Allow overriding via environment variables
 if (-not $PgBin) { $PgBin = $env:PG_BIN }
@@ -187,7 +207,11 @@ if (-not (Test-Path $MIGRATIONS_DIR)) {
     exit 1
 }
 
-$migrationFiles = Get-ChildItem "$MIGRATIONS_DIR/*.sql" | Where-Object { $_.Name -match '^\d{3}_.*\.sql$' } | Sort-Object Name
+$migrationFiles = Get-ChildItem "$MIGRATIONS_DIR/*.sql" | Where-Object { $_.Name -match '^\d{3}_.*\.sql$' }
+if (-not $Seed) {
+    $migrationFiles = $migrationFiles | Where-Object { $_.Name -notmatch '_seed_' }
+}
+$migrationFiles = $migrationFiles | Sort-Object Name
 
 if ($migrationFiles.Count -eq 0) {
     Write-Host "ERROR: No migration files found in $MIGRATIONS_DIR" -ForegroundColor Red
