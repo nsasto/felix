@@ -1,14 +1,18 @@
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
-const Card = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  selectable?: boolean;
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, selectable = false, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
       "rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-100)] text-[var(--text-secondary)] shadow-[var(--shadow-xs)]",
+      selectable &&
+        "cursor-pointer transition-all hover:shadow-md hover:bg-[var(--bg-surface-200)]",
       className,
     )}
     {...props}

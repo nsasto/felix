@@ -467,8 +467,9 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               return (
                 <Card
                   key={project.id}
+                  selectable
                   className={cn(
-                    "relative group cursor-pointer transition-all hover:shadow-md",
+                    "relative group",
                     isSelected
                       ? "border-2 border-[var(--brand-500)]"
                       : "border-[var(--border-default)]",
@@ -576,9 +577,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                       key={project.id}
                       className={cn(
                         "group cursor-pointer",
-                        isSelected
-                          ? "bg-[var(--bg-selection)]"
-                          : "hover:bg-[var(--hover-bg)]",
+                        isSelected && "bg-[var(--bg-surface-200)]",
                       )}
                       onClick={() => handleProjectClick(project)}
                     >

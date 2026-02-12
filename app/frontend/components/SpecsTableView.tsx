@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Requirement } from "../services/felixApi";
 import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
@@ -288,7 +289,7 @@ export default function SpecsTableView({
       ) : viewMode === "table" ? (
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-[var(--border)]">
+            <TableRow className="border-[var(--border)]">
               <TableHead
                 className="cursor-pointer select-none"
                 onClick={() => handleSort("id")}
@@ -342,7 +343,7 @@ export default function SpecsTableView({
               return (
                 <TableRow
                   key={req.id}
-                  className="cursor-pointer hover:bg-[var(--bg-surface-100)] transition-colors border-[var(--border)]"
+                  className="cursor-pointer border-[var(--border)]"
                   onClick={() => onSpecClick(req.spec_path)}
                 >
                   <TableCell className="font-mono text-sm text-[var(--brand-400)]">
@@ -411,9 +412,9 @@ export default function SpecsTableView({
           {filteredAndSortedRequirements.map((req) => {
             const driftIndicator = getDriftIndicator(req);
             return (
-              <div
+              <Card
                 key={req.id}
-                className="cursor-pointer rounded-xl border border-[var(--border)] bg-[var(--bg-surface-100)] transition-all hover:shadow-md"
+                selectable
                 onClick={() => onSpecClick(req.spec_path)}
               >
                 <div className="p-4">
@@ -480,7 +481,7 @@ export default function SpecsTableView({
                     <div>{formatDate(req.spec_modified_at)}</div>
                   </div>
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>
