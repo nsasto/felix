@@ -38,6 +38,8 @@ import {
   TableRow,
 } from "./ui/table";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import DataSurface from "./DataSurface";
+import FilterPopover from "./FilterPopover";
 
 type ViewMode = "cards" | "table";
 
@@ -174,22 +176,6 @@ const IconSearch = ({ className = "w-4 h-4", style }: IconProps) => (
   </svg>
 );
 
-// Filter icon
-const IconFilter = ({ className = "w-4 h-4", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-  </svg>
-);
-
 // More icon (three dots)
 const IconMore = ({ className = "w-4 h-4", style }: IconProps) => (
   <svg
@@ -234,6 +220,9 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   );
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState<Record<string, Set<string>>>({
+    status: new Set(),
+  });
 
   // Load projects on mount
   useEffect(() => {
@@ -349,71 +338,103 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
     const name = getProjectName(project).toLowerCase();
     const path = project.path.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return name.includes(query) || path.includes(query);
+    const matchesSearch = name.includes(query) || path.includes(query);
+    if (!matchesSearch) {
+      return false;
+    }
+
+    if (filters.status.size > 0) {
+      const status = projectDetails.get(project.id)?.status?.toLowerCase();
+      return status ? filters.status.has(status) : false;
+    }
+
+    return true;
   });
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-base)]">
-      {/* Header */}
-      <div className="border-b border-[var(--border-default)]">
-        <div className="h-14 flex items-center px-6 justify-between">
-          <h1 className="text-lg font-semibold theme-text-primary">Projects</h1>
-          <Button onClick={() => setIsRegisterOpen(true)} size="sm">
-            <IconPlus className="w-4 h-4" />
-            New project
-          </Button>
-        </div>
-
-        {/* Search and view controls */}
-        <div className="px-6 py-3 flex items-center gap-3">
-          {/* Search */}
-          <div className="flex-1 relative">
+      <DataSurface
+        title="Projects"
+        className="bg-[var(--bg-base)]"
+        surfaceVariant={viewMode === "table" ? "card" : "plain"}
+        contentClassName={viewMode === "table" ? undefined : "rounded-lg"}
+        search={
+          <div className="relative w-full max-w-sm">
             <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for a project"
-              className="pl-9"
+              className="pl-9 h-9 text-sm"
             />
           </div>
-
-          {/* Filter button (placeholder) */}
-          <Button variant="ghost" size="icon" title="Filter">
-            <IconFilter className="w-4 h-4" />
+        }
+        filters={
+          <FilterPopover
+            groups={[
+              {
+                key: "status",
+                label: "Status",
+                options: [
+                  { label: "Running", value: "running" },
+                  { label: "Paused", value: "paused" },
+                  { label: "Planned", value: "planned" },
+                  { label: "Blocked", value: "blocked" },
+                  { label: "Error", value: "error" },
+                  { label: "Done", value: "done" },
+                  { label: "Complete", value: "complete" },
+                ],
+              },
+            ]}
+            value={filters}
+            onChange={setFilters}
+            label="Filter projects"
+          />
+        }
+        actions={
+          <Button
+            onClick={() => setIsRegisterOpen(true)}
+            size="sm"
+            className="h-9"
+          >
+            <IconPlus className="w-4 h-4" />
+            New project
           </Button>
-
-          {/* View mode toggles */}
+        }
+        viewToggle={
           <ToggleGroup
             type="single"
             value={viewMode}
             onValueChange={(value) => {
               if (value) setViewMode(value as ViewMode);
             }}
+            className="border border-[var(--border)] rounded-md"
           >
-            <ToggleGroupItem value="cards" title="Card view">
+            <ToggleGroupItem value="cards" title="Card view" className="h-9 w-9">
               <IconGrid className="w-4 h-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="table" title="Table view">
+            <ToggleGroupItem value="table" title="Table view" className="h-9 w-9">
               <IconList className="w-4 h-4" />
             </ToggleGroupItem>
           </ToggleGroup>
-        </div>
-      </div>
-
-      {/* Error display */}
-      {error && (
-        <Alert className="mx-6 mt-3 flex items-center justify-between border-[var(--destructive-500)]/20 bg-[var(--destructive-500)]/10">
-          <AlertDescription className="text-[var(--destructive-500)]">
-            {error}
-          </AlertDescription>
-          <Button variant="ghost" size="icon" onClick={() => setError(null)}>
-            <IconX className="w-4 h-4" />
-          </Button>
-        </Alert>
-      )}
-
-      {/* Project list */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        }
+      >
+        {error && (
+          <div className="px-6 pt-2">
+            <Alert className="flex items-center justify-between border-[var(--destructive-500)]/20 bg-[var(--destructive-500)]/10">
+              <AlertDescription className="text-[var(--destructive-500)]">
+                {error}
+              </AlertDescription>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setError(null)}
+              >
+                <IconX className="w-4 h-4" />
+              </Button>
+            </Alert>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-sm theme-text-muted">
             <IconFelix className="w-5 h-5 animate-spin mr-2" />
@@ -421,7 +442,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           </div>
         ) : filteredProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-6 theme-text-muted">
-            {searchQuery ? (
+            {searchQuery || filters.status.size > 0 ? (
               <>
                 <IconSearch className="w-12 h-12 mb-4 opacity-50" />
                 <p className="text-sm mb-1">No projects found</p>
@@ -438,8 +459,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             )}
           </div>
         ) : viewMode === "cards" ? (
-          /* Card View */
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-2">
             {filteredProjects.map((project) => {
               const details = projectDetails.get(project.id);
               const isSelected = selectedProjectId === project.id;
@@ -456,7 +476,6 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   onClick={() => handleProjectClick(project)}
                 >
                   <CardContent className="p-4">
-                    {/* Card header */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <IconFolder className="w-5 h-5 flex-shrink-0 theme-text-muted" />
@@ -478,13 +497,11 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                       </Button>
                     </div>
 
-                    {/* Project path */}
                     <p className="text-xs mb-3 truncate font-mono theme-text-muted">
                       {project.path.split("\\").pop() ||
                         project.path.split("/").pop()}
                     </p>
 
-                    {/* Status badge */}
                     {details?.status && (
                       <Badge className="gap-1.5 mb-3">
                         <div
@@ -496,7 +513,6 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                       </Badge>
                     )}
 
-                    {/* Status message */}
                     {details?.status === "paused" && (
                       <div className="flex items-center gap-2 p-2 rounded-lg mb-3 bg-[var(--bg-base)]">
                         <svg
@@ -538,8 +554,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             })}
           </div>
         ) : (
-          /* Table View */
-          <div className="px-6 py-4">
+          <div className="px-2 py-2">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -591,21 +606,9 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="theme-text-muted">—</TableCell>
-                      <TableCell className="theme-text-secondary">
-                        aws | us-east-2
-                      </TableCell>
-                      <TableCell className="theme-text-secondary">
-                        {details
-                          ? new Date().toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "—"}
-                      </TableCell>
+                      <TableCell className="theme-text-muted">-</TableCell>
+                      <TableCell className="theme-text-secondary">-</TableCell>
+                      <TableCell className="theme-text-secondary">-</TableCell>
                       <TableCell>
                         <Button
                           onClick={(e) => {
@@ -627,9 +630,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             </Table>
           </div>
         )}
-      </div>
+      </DataSurface>
 
       {/* Register Project Dialog */}
+
       <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
         <DialogContent className="max-w-md p-0">
           <DialogHeader>
@@ -660,7 +664,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               <p className="mt-1.5 text-[9px] theme-text-muted">
                 Enter the absolute path to your Felix project directory
                 <br />
-                Tip: Shift+Right-click folder in Explorer → "Copy as path"
+                Tip: Shift+Right-click folder in Explorer to "Copy as path"
               </p>
             </div>
 
