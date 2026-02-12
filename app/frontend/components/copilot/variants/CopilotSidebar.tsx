@@ -150,8 +150,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
   useEffect(() => {
     const loadContextSourceCount = async () => {
       try {
-        const config = await felixApi.getGlobalConfig();
-        const copilotConfig = config.config.copilot;
+        const configResult = await felixApi.getGlobalConfig();
+        const copilotConfig = configResult.config.copilot;
         if (copilotConfig?.context_sources) {
           const sources = copilotConfig.context_sources;
           const count = [
@@ -162,7 +162,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             sources.other_specs,
           ].filter(Boolean).length;
           setContextSourceCount(count);
+          return;
         }
+
+        setContextSourceCount(4);
       } catch (err) {
         console.error("Failed to load context source count:", err);
         setContextSourceCount(4);

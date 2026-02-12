@@ -110,7 +110,6 @@ export default function SpecEditorPage({
           | undefined;
         const enabled = copilotConfig?.enabled ?? false;
         setIsCopilotEnabled(enabled);
-        // Metadata tab is default, no need to change
       } catch (error) {
         console.error("Failed to check copilot status:", error);
         setIsCopilotEnabled(false);
