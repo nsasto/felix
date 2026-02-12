@@ -7,6 +7,7 @@ module.exports = {
     "./ProjectSelector.tsx",
     "./components/**/*.{ts,tsx}",
     "./hooks/**/*.{ts,tsx}",
+    "./lib/**/*.{ts,tsx}",
     "./services/**/*.{ts,tsx}",
     "./utils/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
