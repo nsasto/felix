@@ -11,6 +11,8 @@ interface DataSurfaceProps {
   footer?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  surfaceVariant?: "card" | "plain";
+  contentClassName?: string;
 }
 
 export default function DataSurface({
@@ -22,6 +24,8 @@ export default function DataSurface({
   footer,
   children,
   className,
+  surfaceVariant = "card",
+  contentClassName,
 }: DataSurfaceProps) {
   return (
     <div className={cn("flex flex-col h-full bg-[var(--bg)]", className)}>
@@ -45,16 +49,34 @@ export default function DataSurface({
       </div>
 
       <div className="flex-1 min-h-0 px-6 pb-6">
-        <Card className="h-full flex flex-col overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-            {children}
-          </div>
-          {footer && (
-            <div className="border-t border-[var(--border)] px-4 py-3">
-              {footer}
+        {surfaceVariant === "card" ? (
+          <Card className="h-full flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+              {children}
             </div>
-          )}
-        </Card>
+            {footer && (
+              <div className="border-t border-[var(--border)] px-4 py-3">
+                {footer}
+              </div>
+            )}
+          </Card>
+        ) : (
+          <div
+            className={cn(
+              "h-full flex flex-col overflow-hidden",
+              contentClassName,
+            )}
+          >
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+              {children}
+            </div>
+            {footer && (
+              <div className="border-t border-[var(--border)] px-1 py-3">
+                {footer}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

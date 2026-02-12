@@ -3,7 +3,6 @@ import { Requirement } from "../services/felixApi";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Card } from "./ui/card";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import {
   Table,
@@ -191,6 +190,8 @@ export default function SpecsTableView({
   return (
     <DataSurface
       className="pt-6"
+      surfaceVariant={viewMode === "table" ? "card" : "plain"}
+      contentClassName={viewMode === "table" ? undefined : "rounded-lg"}
       search={
         <div className="relative w-full max-w-sm">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
@@ -406,13 +407,13 @@ export default function SpecsTableView({
           </TableBody>
         </Table>
       ) : (
-        <div className="grid grid-cols-1 gap-3 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-2">
           {filteredAndSortedRequirements.map((req) => {
             const driftIndicator = getDriftIndicator(req);
             return (
-              <Card
+              <div
                 key={req.id}
-                className="cursor-pointer hover:bg-[var(--bg-surface-100)] transition-colors"
+                className="cursor-pointer rounded-xl border border-[var(--border)] bg-[var(--bg-surface-100)] transition-all hover:shadow-md"
                 onClick={() => onSpecClick(req.spec_path)}
               >
                 <div className="p-4">
@@ -479,7 +480,7 @@ export default function SpecsTableView({
                     <div>{formatDate(req.spec_modified_at)}</div>
                   </div>
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
