@@ -3,6 +3,7 @@ import { felixApi } from "../services/felixApi";
 import { FileText as IconFileText } from "lucide-react";
 import { Button } from "./ui/button";
 import MarkdownEditor from "./MarkdownEditor";
+import { PageLoading } from "./ui/page-loading";
 
 interface PlanViewerProps {
   projectId: string;
@@ -93,14 +94,11 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
   // Render loading state
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[var(--bg-base)]">
-        <div className="flex items-center gap-3 text-[var(--text-muted)]">
-          <div className="w-5 h-5 border-2 border-[var(--border-muted)] border-t-[var(--brand-500)] rounded-full animate-spin" />
-          <span className="text-xs font-mono">
-            Loading implementation plan...
-          </span>
-        </div>
-      </div>
+      <PageLoading
+        message="Loading implementation plan..."
+        layout="horizontal"
+        size="sm"
+      />
     );
   }
 

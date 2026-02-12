@@ -24,6 +24,7 @@ import {
   ArrowUpDown as IconSort,
   Plus as IconPlus,
 } from "lucide-react";
+import { PageLoading } from "./ui/page-loading";
 
 interface SpecsTableViewProps {
   requirements: Requirement[];
@@ -174,34 +175,12 @@ export default function SpecsTableView({
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col h-full bg-[var(--bg)]">
-        <div className="border-b border-[var(--border)]">
-          <div className="h-14 flex items-center px-6">
-            <h1 className="text-lg font-semibold text-[var(--text)]">
-              Specifications
-            </h1>
-          </div>
-        </div>
-        <div className="flex items-center justify-center py-16">
-          <div className="text-[var(--text-muted)]">
-            Loading specifications...
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoading message="Loading specifications..." />;
   }
 
   if (error) {
     return (
       <div className="flex flex-col h-full bg-[var(--bg)]">
-        <div className="border-b border-[var(--border)]">
-          <div className="h-14 flex items-center px-6">
-            <h1 className="text-lg font-semibold text-[var(--text)]">
-              Specifications
-            </h1>
-          </div>
-        </div>
         <div className="px-6 py-6">
           <div className="bg-[var(--destructive-500)]/10 border border-[var(--destructive-500)]/20 rounded-lg p-4">
             <p className="text-[var(--destructive-500)] font-medium">
@@ -216,12 +195,9 @@ export default function SpecsTableView({
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg)]">
-      {/* Page Title Header */}
       <div>
-        <div className="h-14 flex items-center px-6 justify-between">
-          <h1 className="text-lg font-semibold text-[var(--text)]">
-            Specifications
-          </h1>
+        {/* New Spec Button */}
+        <div className="h-14 flex items-center px-6 justify-end">
           <Button onClick={onNewSpec} className="flex items-center gap-2">
             <IconPlus className="w-4 h-4" />
             New Spec

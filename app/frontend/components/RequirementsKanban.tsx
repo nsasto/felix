@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { cn } from "../lib/utils";
+import { PageLoading } from "./ui/page-loading";
 
 // Requirement status columns matching the felix/requirements.json schema
 type RequirementStatus =
@@ -394,9 +395,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
   // Get all unique tags for filter dropdown
   const allTags = React.useMemo(() => {
     const tags = new Set<string>();
-    requirements.forEach((req) =>
-      req.tags?.forEach((tag) => tags.add(tag)),
-    );
+    requirements.forEach((req) => req.tags?.forEach((tag) => tags.add(tag)));
     return Array.from(tags).sort();
   }, [requirements]);
 
@@ -554,16 +553,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-[var(--bg-base)]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-[var(--brand-500)]/30 border-t-[var(--brand-500)] rounded-full animate-spin" />
-          <span className="text-xs font-mono text-[var(--text-muted)] uppercase tracking-widest">
-            Loading requirements...
-          </span>
-        </div>
-      </div>
-    );
+    return <PageLoading message="Loading requirements..." />;
   }
 
   if (error) {

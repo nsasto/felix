@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { felixApi, FelixConfig, ConfigContent } from "../services/felixApi";
 import { Bot as IconFelix, FileText as IconFileText } from "lucide-react";
+import { PageLoading } from "./ui/page-loading";
 
 interface ConfigPanelProps {
   projectId: string;
@@ -180,11 +181,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
             </h2>
           </div>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 theme-border border-t-brand-500 rounded-full animate-spin mb-4" />
-          <span className="text-xs font-mono theme-text-muted uppercase">
-            Loading configuration...
-          </span>
+        <div className="flex-1">
+          <PageLoading message="Loading configuration..." />
         </div>
       </div>
     );
