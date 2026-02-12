@@ -18,17 +18,15 @@ import {
 } from "lucide-react";
 import FelixLogo from "../../img/felix_logo_small.png";
 import FelixLogoHover from "../../img/felix_logo_hammer_small.png";
-import ProjectSelector from "./components/ProjectSelector";
-import ProjectDashboard from "./components/ProjectDashboard";
-import RequirementsKanban from "./components/RequirementsKanban";
 import AgentControls from "./components/AgentControls";
 import RunArtifactViewer from "./components/RunArtifactViewer";
-import SpecsEditor from "./components/SpecsEditor";
-
-import ConfigPanel from "./components/ConfigPanel";
-import PlanViewer from "./components/PlanViewer";
-import SettingsScreen from "./components/SettingsScreen";
-import AgentDashboard from "./components/AgentDashboard";
+import ProjectsView from "./components/views/ProjectsView";
+import KanbanView from "./components/views/KanbanView";
+import OrchestrationView from "./components/views/OrchestrationView";
+import SpecsView from "./components/views/SpecsView";
+import ConfigView from "./components/views/ConfigView";
+import PlanView from "./components/views/PlanView";
+import SettingsView from "./components/views/SettingsView";
 import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
@@ -940,31 +938,6 @@ export const executeTask = (taskId: string) => {
     );
   };
 
-  // Render the projects view
-  const renderProjects = () => {
-    if (selectedProjectId && selectedProject) {
-      return (
-        <ProjectDashboard
-          projectId={selectedProjectId}
-          project={selectedProject}
-          onNavigate={setUiState}
-        />
-      );
-    }
-
-    return (
-      <div
-        className="flex-1 flex flex-col overflow-hidden"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
-        <ProjectSelector
-          selectedProjectId={selectedProjectId}
-          onSelectProject={handleSelectProject}
-        />
-      </div>
-    );
-  };
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -1299,138 +1272,47 @@ export const executeTask = (taskId: string) => {
         {/* Main View Container */}
         <div className="main-view flex-1 flex flex-col relative min-w-0 mb-8">
           {uiState === "projects" ? (
-            renderProjects()
+            <ProjectsView
+              selectedProjectId={selectedProjectId}
+              selectedProject={selectedProject}
+              onSelectProject={handleSelectProject}
+              onNavigate={(view) => setUiState(view as ExtendedUIState)}
+            />
           ) : uiState === "kanban" ? (
-            selectedProjectId ? (
-              <RequirementsKanban
-                projectId={selectedProjectId}
-                onSelectRequirement={(req) => {
-                  // Open run artifact viewer if this requirement has a last run
-                  if (req.last_run_id) {
-                    setSelectedRunId(req.last_run_id);
-                  }
-                }}
-              />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Select a project to view requirements
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-                >
-                  Go to Projects
-                </button>
-              </div>
-            )
+            <KanbanView
+              projectId={selectedProjectId}
+              onGoToProjects={() => setUiState("projects")}
+              onSelectRequirement={(req) => {
+                if (req.last_run_id) {
+                  setSelectedRunId(req.last_run_id);
+                }
+              }}
+            />
           ) : uiState === "orchestration" ? (
-            selectedProjectId ? (
-              <AgentDashboard projectId={selectedProjectId} />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Select a project to view agent dashboard
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-                >
-                  Go to Projects
-                </button>
-              </div>
-            )
+            <OrchestrationView
+              projectId={selectedProjectId}
+              onGoToProjects={() => setUiState("projects")}
+            />
           ) : uiState === "assets" ? (
-            selectedProjectId ? (
-              <SpecsEditor
-                projectId={selectedProjectId}
-                onSelectSpec={(filename) => {
-                  console.log("Selected spec:", filename);
-                }}
-              />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Select a project to view specs
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-                >
-                  Go to Projects
-                </button>
-              </div>
-            )
+            <SpecsView
+              projectId={selectedProjectId}
+              onGoToProjects={() => setUiState("projects")}
+              onSelectSpec={(filename) => {
+                console.log("Selected spec:", filename);
+              }}
+            />
           ) : uiState === "config" ? (
-            selectedProjectId ? (
-              <ConfigPanel
-                projectId={selectedProjectId}
-                onClose={() => setUiState("projects")}
-              />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Select a project to view configuration
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-                >
-                  Go to Projects
-                </button>
-              </div>
-            )
+            <ConfigView
+              projectId={selectedProjectId}
+              onGoToProjects={() => setUiState("projects")}
+            />
           ) : uiState === "plan" ? (
-            selectedProjectId ? (
-              <PlanViewer
-                projectId={selectedProjectId}
-                onBack={() => setUiState("projects")}
-              />
-            ) : (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center"
-                style={{ backgroundColor: "var(--bg-base)" }}
-              >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Select a project to view README
-                </span>
-                <button
-                  onClick={() => setUiState("projects")}
-                  className="mt-4 px-4 py-2 text-xs font-bold text-brand-400 border border-brand-500/20 rounded-lg hover:bg-brand-500/10 transition-colors"
-                >
-                  Go to Projects
-                </button>
-              </div>
-            )
+            <PlanView
+              projectId={selectedProjectId}
+              onGoToProjects={() => setUiState("projects")}
+            />
           ) : uiState === "settings" ? (
-            <SettingsScreen
+            <SettingsView
               projectId={selectedProjectId ?? undefined}
               onBack={() => setUiState("projects")}
             />
