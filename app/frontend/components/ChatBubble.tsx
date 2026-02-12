@@ -1,6 +1,10 @@
 import React from "react";
 import { Message, MessageRole } from "../types";
-import { Bot as IconFelix, Terminal as IconTerminal } from "lucide-react";
+import {
+  Bot as IconFelix,
+  ExternalLink,
+  Terminal as IconTerminal,
+} from "lucide-react";
 
 interface ChatBubbleProps {
   message: Message;
@@ -61,19 +65,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
                     rel="noopener noreferrer"
                     className="text-[10px] px-2 py-1 bg-slate-800/80 border border-slate-700/50 rounded hover:text-brand-400 hover:border-brand-500/30 transition-all flex items-center gap-1.5"
                   >
-                    <svg
-                      className="w-2.5 h-2.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <ExternalLink className="w-2.5 h-2.5" />
                     {source.title}
                   </a>
                 ))}

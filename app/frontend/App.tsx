@@ -5,8 +5,11 @@ import {
   Bot as IconFelix,
   Search as IconSearch,
   Terminal as IconTerminal,
+  Code,
+  Copy,
   FileCode as IconFileCode,
   FileText as IconFileText,
+  List,
   Cpu as IconCpu,
   Kanban as IconKanban,
   Plus as IconPlus,
@@ -789,19 +792,7 @@ export const executeTask = (taskId: string) => {
                     style={{ color: "var(--text-muted)" }}
                     title="List"
                   >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <List className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => insertFormatting("`", "`")}
@@ -809,19 +800,7 @@ export const executeTask = (taskId: string) => {
                     style={{ color: "var(--text-muted)" }}
                     title="Code"
                   >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M16 18l6-6-6-6M8 6l-6 6 6 6"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <Code className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
@@ -833,19 +812,7 @@ export const executeTask = (taskId: string) => {
                 className="text-[10px] font-bold transition-colors uppercase tracking-widest flex items-center gap-2"
                 style={{ color: "var(--text-muted)" }}
               >
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <Copy className="w-3 h-3" />
                 Copy Raw
               </button>
               <div

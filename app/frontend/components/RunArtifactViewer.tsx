@@ -9,6 +9,7 @@ import {
   ClipboardList as IconClipboardList,
   Scroll as IconScroll,
   Edit as IconEdit,
+  ChevronLeft,
 } from "lucide-react";
 
 interface RunArtifactViewerProps {
@@ -168,19 +169,7 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
               onClick={onClose}
               className="p-2 hover:bg-slate-800 rounded-lg transition-all text-slate-500 hover:text-slate-300"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <div>
               <h2 className="text-sm font-bold text-slate-200">

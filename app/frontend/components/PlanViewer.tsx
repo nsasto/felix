@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { felixApi } from "../services/felixApi";
 import { FileText as IconFileText } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { Button } from "./ui/button";
 import MarkdownEditor from "./MarkdownEditor";
 import { PageLoading } from "./ui/page-loading";
@@ -141,19 +142,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
       additionalActions={
         onBack && (
           <Button variant="ghost" size="icon" onClick={onBack}>
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
+            <ChevronLeft className="w-4 h-4" />
           </Button>
         )
       }

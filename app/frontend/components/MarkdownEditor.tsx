@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { marked } from "marked";
+import {
+  CheckSquare2,
+  Code,
+  Copy,
+  FileText,
+  List,
+  Square,
+} from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -247,19 +255,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 onClick={() => insertFormatting("- ")}
                 title="List"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <line x1="8" y1="6" x2="21" y2="6" strokeWidth="2" />
-                  <line x1="8" y1="12" x2="21" y2="12" strokeWidth="2" />
-                  <line x1="8" y1="18" x2="21" y2="18" strokeWidth="2" />
-                  <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth="2" />
-                  <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth="2" />
-                  <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth="2" />
-                </svg>
+                <List className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -268,15 +264,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 onClick={() => insertFormatting("```\n", "\n```")}
                 title="Code Block"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <polyline points="16 18 22 12 16 6" strokeWidth="2" />
-                  <polyline points="8 6 2 12 8 18" strokeWidth="2" />
-                </svg>
+                <Code className="h-4 w-4" />
               </Button>
               <div className="w-px h-5 bg-[var(--border-muted)] mx-1" />
               <Button
@@ -286,22 +274,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 onClick={() => insertFormatting("- [ ] ")}
                 title="Empty Checkbox"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <rect
-                    x="3"
-                    y="3"
-                    width="18"
-                    height="18"
-                    rx="2"
-                    ry="2"
-                    strokeWidth="2"
-                  />
-                </svg>
+                <Square className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -310,28 +283,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 onClick={() => insertFormatting("- [x] ")}
                 title="Checked Checkbox"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <rect
-                    x="3"
-                    y="3"
-                    width="18"
-                    height="18"
-                    rx="2"
-                    ry="2"
-                    strokeWidth="2"
-                  />
-                  <polyline
-                    points="9 11 12 14 22 4"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <CheckSquare2 className="h-4 w-4" />
               </Button>
             </div>
           )}
@@ -385,26 +337,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               title="Copy to clipboard"
               className="h-7 w-7"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <rect
-                  x="9"
-                  y="9"
-                  width="13"
-                  height="13"
-                  rx="2"
-                  ry="2"
-                  strokeWidth="2"
-                />
-                <path
-                  d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
-                  strokeWidth="2"
-                />
-              </svg>
+              <Copy className="h-4 w-4" />
             </Button>
           )}
 
@@ -466,19 +399,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] gap-4">
-                  <svg
-                    className="w-12 h-12 opacity-10"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
+                  <FileText className="h-12 w-12 opacity-10" />
                   <span className="text-xs font-mono uppercase tracking-widest opacity-20">
                     No content
                   </span>

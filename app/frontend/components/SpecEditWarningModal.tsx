@@ -1,4 +1,5 @@
 import React from "react";
+import { AlertTriangle, Pause, Pencil, X } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import {
   AlertDialog,
@@ -25,74 +26,6 @@ interface SpecEditWarningModalProps {
   onAction: (action: WarningAction) => void;
 }
 
-// Warning icon
-const IconAlertTriangle = ({
-  className = "w-5 h-5",
-}: {
-  className?: string;
-}) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-    <line x1="12" y1="9" x2="12" y2="13" />
-    <line x1="12" y1="17" x2="12.01" y2="17" />
-  </svg>
-);
-
-// Close icon
-const IconX = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
-
-// Pause/Stop icon
-const IconPause = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <rect x="6" y="4" width="4" height="16" rx="1" />
-    <rect x="14" y="4" width="4" height="16" rx="1" />
-  </svg>
-);
-
-// Edit icon
-const IconEdit = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-  </svg>
-);
-
 const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
   requirementId,
   requirementTitle,
@@ -110,7 +43,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
       <AlertDialogContent className="max-w-[480px]">
         <AlertDialogHeader className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3 bg-[var(--warning-500)]/5">
           <div className="flex items-center gap-2">
-            <IconAlertTriangle className="w-4 h-4 text-[var(--warning-500)]" />
+            <AlertTriangle className="w-4 h-4 text-[var(--warning-500)]" />
             <AlertDialogTitle className="text-xs font-bold text-[var(--warning-500)]">
               Active Work in Progress
             </AlertDialogTitle>
@@ -123,7 +56,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
               size="icon"
               className="h-8 w-8"
             >
-              <IconX className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </Button>
           </AlertDialogCancel>
         </AlertDialogHeader>
@@ -218,7 +151,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
               </>
             ) : (
               <>
-                <IconPause className="w-3 h-3" />
+                <Pause className="w-3 h-3" />
                 Reset Plan
               </>
             )}
@@ -229,7 +162,7 @@ const SpecEditWarningModal: React.FC<SpecEditWarningModalProps> = ({
             size="sm"
             className="uppercase"
           >
-            <IconEdit className="w-3 h-3" />
+            <Pencil className="w-3 h-3" />
             Continue Editing
           </Button>
         </AlertDialogFooter>

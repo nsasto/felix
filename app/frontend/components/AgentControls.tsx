@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { felixApi, AgentStatus, RunHistoryEntry } from "../services/felixApi";
-import { Bot as IconFelix, Cpu as IconCpu } from "lucide-react";
+import {
+  AlertCircle,
+  Bot as IconFelix,
+  ChevronRight,
+  Clock,
+  Cpu as IconCpu,
+  StopCircle,
+} from "lucide-react";
 import RunCard from "./RunCard";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -213,19 +220,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         )}
       >
         <div className="flex items-center gap-2 text-red-400">
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
+          <AlertCircle className="w-4 h-4" />
           <span className="text-xs">{error}</span>
         </div>
         <Button
@@ -394,19 +389,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
       {error && (
         <div className="px-6 py-3 bg-red-500/10 border-b border-red-500/20">
           <div className="flex items-center gap-2 text-red-400">
-            <svg
-              className="w-4 h-4 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span className="text-xs">{error}</span>
           </div>
         </div>
@@ -443,25 +426,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
               </>
             ) : (
               <>
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
-                  />
-                </svg>
+                <StopCircle className="w-4 h-4" />
                 Stop Agent
               </>
             )}
@@ -499,22 +464,12 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           className="w-full flex items-center justify-between text-left group"
         >
           <div className="flex items-center gap-2">
-            <svg
+            <ChevronRight
               className={cn(
                 "w-4 h-4 text-[var(--text-muted)] transition-transform duration-200",
                 showHistory ? "rotate-90" : "",
               )}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
+            />
             <span className="text-xs font-bold text-[var(--text-lighter)] uppercase tracking-wider group-hover:text-[var(--text-light)] transition-colors">
               Run History
             </span>
@@ -534,19 +489,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           <div className="mt-4 space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
             {runs.length === 0 ? (
               <div className="text-center py-6 text-[var(--text-lighter)]">
-                <svg
-                  className="w-8 h-8 mx-auto mb-2 opacity-50"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-[10px] font-mono uppercase">No runs yet</p>
               </div>
             ) : (

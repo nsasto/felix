@@ -12,6 +12,16 @@ import {
   clearCopilotApiKey,
 } from "../services/felixApi";
 import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  Copy,
+  FolderOpen,
+  Info,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
   Settings as IconSettings,
   Folder as IconFolder,
   Sparkles as IconSparkles,
@@ -685,19 +695,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
         <Alert className="border-[var(--warning-500)]/30 bg-[var(--warning-500)]/10 text-[var(--warning-500)]">
           <AlertDescription className="flex items-start gap-3 text-[var(--warning-500)]/80">
-            <svg
-              className="w-4 h-4 mt-0.5 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <p className="text-xs">
               Path settings are read-only. Edit{" "}
               <code className="bg-[var(--warning-500)]/10 px-1 rounded">
@@ -854,19 +852,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             size="sm"
             className="uppercase"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <Plus className="w-4 h-4" />
             Register New Project
           </Button>
         </div>
@@ -880,19 +866,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             onChange={(e) => setProjectSearchQuery(e.target.value)}
             className="h-11 pl-10"
           />
-          <svg
-            className="w-4 h-4 theme-text-muted absolute left-4 top-1/2 -translate-y-1/2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+          <Search className="w-4 h-4 theme-text-muted absolute left-4 top-1/2 -translate-y-1/2" />
         </div>
 
         {/* Register Form Modal */}
@@ -912,19 +886,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 size="icon"
                 className="h-8 w-8"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+                <X className="w-4 h-4" />
               </Button>
             </div>
             <div className="space-y-4">
@@ -1023,19 +985,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {projectsError && !projectsLoading && (
           <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
             <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
-              <svg
-                className="w-4 h-4 mt-0.5 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-xs">{projectsError}</p>
                 <Button
@@ -1052,22 +1002,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         )}
 
         {/* Empty State */}
-        {!projectsLoading && !projectsError && projects.length === 0 && (
+          {!projectsLoading && !projectsError && projects.length === 0 && (
           <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
             <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-6 h-6 theme-text-muted"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                />
-              </svg>
+              <FolderOpen className="w-6 h-6 theme-text-muted" />
             </div>
             <h4 className="text-sm font-bold theme-text-tertiary mb-2">
               No Projects Registered
@@ -1132,19 +1070,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           className="h-7 w-7"
                           title="Copy path"
                         >
-                          <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                          </svg>
+                          <Copy className="w-3.5 h-3.5" />
                         </Button>
                       </div>
                       <p className="text-[10px] theme-text-muted mt-2">
@@ -1486,37 +1412,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               size="sm"
               className="text-xs font-bold"
             >
-              <svg
+              <RefreshCw
                 className={`w-4 h-4 ${agentConfigsLoading || agentsLoading ? "animate-spin" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
+              />
               {agentConfigsLoading || agentsLoading
                 ? "Refreshing..."
                 : "Refresh"}
             </Button>
             <Button onClick={openAddAgentForm} size="sm" className="uppercase">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              <Plus className="w-4 h-4" />
               Add Agent
             </Button>
           </div>
@@ -1535,19 +1439,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 size="icon"
                 className="h-8 w-8"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+                <X className="w-4 h-4" />
               </Button>
             </div>
 
@@ -1676,19 +1568,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {agentConfigsError && (
             <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
               <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
-                <svg
-                  className="w-4 h-4 mt-0.5 flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs">{agentConfigsError}</p>
                   <Button
@@ -1721,19 +1601,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             agentConfigurations.length === 0 && (
               <div className="text-center py-8">
                 <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-6 h-6 theme-text-muted"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
-                    />
-                  </svg>
+                  <IconCpu className="w-6 h-6 theme-text-muted" />
                 </div>
                 <h4 className="text-sm font-bold theme-text-tertiary mb-2">
                   No Agent Configurations
@@ -1913,19 +1781,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {agentsError && (
             <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
               <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
-                <svg
-                  className="w-4 h-4 mt-0.5 flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs">{agentsError}</p>
                   <Button
@@ -2053,19 +1909,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Info Note */}
         <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <svg
-              className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <Info className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" />
             <div className="text-xs text-[var(--status-info)]/80">
               <p>
                 <strong>Agent Configurations</strong> are saved presets (from
@@ -2353,19 +2197,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Info about BYOK */}
         <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <svg
-              className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <Info className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" />
             <p className="text-xs text-[var(--status-info)]/80">
               <strong>Bring Your Own Key (BYOK):</strong> Felix{" "}
               <strong>never</strong> stores your API remotely, or manages your
@@ -2409,19 +2241,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {copilotApiKeyHasValue && (
             <Alert className="mb-4 border-[var(--brand-500)]/30 bg-[var(--brand-500)]/10 text-[var(--brand-500)]">
               <AlertDescription className="flex items-center gap-2 text-[var(--brand-500)]">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                <Check className="w-4 h-4" />
                 <span className="text-xs">API key configured</span>
                 <Button
                   onClick={handleClearCopilotApiKey}
@@ -2482,19 +2302,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             {/* Save Confirmation */}
             {copilotApiKeySaved && (
               <div className="flex items-center gap-2 text-xs text-[var(--brand-500)]">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                <Check className="w-4 h-4" />
                 <span>API key saved successfully</span>
               </div>
             )}
@@ -2696,19 +2504,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {isEnabled && !copilotApiKeyHasValue && (
           <Alert className="border-[var(--warning-500)]/30 bg-[var(--warning-500)]/10 text-[var(--warning-500)]">
             <AlertDescription className="flex items-start gap-3 text-[var(--warning-500)]/80">
-              <svg
-                className="w-4 h-4 mt-0.5 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <p className="text-xs">
                 Copilot is enabled but no API key is configured. Enter your{" "}
                 {provider === "openai"
@@ -2762,19 +2558,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
           <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
-            <svg
-              className="w-8 h-8 text-[var(--status-error)]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
+            <AlertTriangle className="w-8 h-8 text-[var(--status-error)]" />
           </div>
           <h3 className="text-sm font-bold theme-text-tertiary mb-2">
             Failed to Load Settings
@@ -2806,19 +2590,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             className="mr-3 h-8 w-8"
             title="Back to Projects"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
+            <ChevronLeft className="w-4 h-4" />
           </Button>
           <span className="text-xs font-bold theme-text-tertiary uppercase tracking-widest">
             Settings
@@ -2907,33 +2679,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             }`}
           >
             {successMessage ? (
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              <Check className="w-4 h-4" />
             ) : (
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X className="w-4 h-4" />
             )}
             {successMessage || error}
           </div>

@@ -18,6 +18,7 @@ import type { Agent, Run } from "../src/api/types";
 import { PageLoading } from "./ui/page-loading";
 import {
   Bot as IconFelix,
+  AlertCircle,
   Cpu as IconCpu,
   Terminal as IconTerminal,
   Play as IconPlay,
@@ -28,6 +29,9 @@ import {
   Zap as IconZap,
   Lock as IconLock,
   Trash2 as IconTrash,
+  Filter,
+  Search,
+  Clock,
   Workflow as IconWorkflow,
   Loader2 as IconLoader,
   CheckCircle as IconCheckCircle,
@@ -1063,19 +1067,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
                 : "text-[var(--text-muted)]",
             )}
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-              />
-            </svg>
+            <Filter className="w-4 h-4" />
           </button>
         </div>
 
@@ -1088,19 +1080,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-3 py-2 pl-8 rounded-lg text-xs border outline-none focus:border-brand-500/50 bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-light)]"
           />
-          <svg
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
         </div>
 
         {/* Filters */}
@@ -1141,19 +1121,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-2">
         {!selectedAgentId ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <svg
-              className="w-8 h-8 mb-2 text-[var(--text-lighter)]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <Clock className="w-8 h-8 mb-2 text-[var(--text-lighter)]" />
             <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
               Select an agent
             </p>
@@ -1164,19 +1132,7 @@ const RunHistoryPanel: React.FC<RunHistoryPanelProps> = ({
           </div>
         ) : filteredRuns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <svg
-              className="w-8 h-8 mb-2 text-[var(--text-lighter)]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <Clock className="w-8 h-8 mb-2 text-[var(--text-lighter)]" />
             <p className="text-[10px] font-mono uppercase text-[var(--text-muted)]">
               {searchQuery || statusFilter.length > 0
                 ? "No matching runs"
@@ -1540,19 +1496,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       {error && (
         <div className="px-6 py-2 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between">
           <div className="flex items-center gap-2 text-red-400">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <AlertCircle className="w-4 h-4" />
             <span className="text-xs">{error}</span>
           </div>
           <button

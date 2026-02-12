@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { felixApi, FelixConfig, ConfigContent } from "../services/felixApi";
-import { Bot as IconFelix, FileText as IconFileText } from "lucide-react";
+import {
+  AlertTriangle,
+  Bot as IconFelix,
+  ChevronLeft,
+  FileText as IconFileText,
+  Folder,
+} from "lucide-react";
 import { PageLoading } from "./ui/page-loading";
 
 interface ConfigPanelProps {
@@ -162,19 +168,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
               className="p-2 hover:theme-bg-elevated rounded-lg transition-all theme-text-muted hover:theme-text-secondary"
               style={{ backgroundColor: "var(--hover-bg)" }}
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <h2 className="text-sm font-bold theme-text-primary">
               Configuration
@@ -204,19 +198,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
                 (e.currentTarget.style.backgroundColor = "transparent")
               }
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <h2 className="text-sm font-bold theme-text-primary">
               Configuration
@@ -254,19 +236,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
               (e.currentTarget.style.backgroundColor = "transparent")
             }
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
+            <ChevronLeft className="w-4 h-4" />
           </button>
           <div>
             <h2 className="text-sm font-bold theme-text-primary">
@@ -441,19 +411,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-amber-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
               </div>
               <div>
                 <h3 className="text-sm font-bold theme-text-primary">
@@ -528,19 +486,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ projectId, onClose }) => {
           <section className="theme-bg-elevated border theme-border rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-emerald-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                  />
-                </svg>
+                <Folder className="w-5 h-5 text-emerald-400" />
               </div>
               <div>
                 <h3 className="text-sm font-bold theme-text-primary">

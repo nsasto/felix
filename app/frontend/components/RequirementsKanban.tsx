@@ -5,7 +5,11 @@ import {
   RequirementsData,
   RequirementStatusResponse,
 } from "../services/felixApi";
-import { Plus as IconPlus, FileText as IconFileText } from "lucide-react";
+import {
+  AlertTriangle,
+  FileText as IconFileText,
+  Plus as IconPlus,
+} from "lucide-react";
 import RequirementDetailSlideOut from "./RequirementDetailSlideOut";
 import {
   hasIncompleteDependencies,
@@ -780,20 +784,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                             {isCompactView &&
                               planTimestampInfo.hasPlan &&
                               planTimestampInfo.specModifiedAfterPlan && (
-                                <svg
-                                  className="w-3 h-3 text-[var(--warning-400)]"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                  title="Spec changed • Plan stale"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                                  />
-                                </svg>
+                                <AlertTriangle className="w-3 h-3 text-[var(--warning-400)]" title="Spec changed • Plan stale" />
                               )}
                           </div>
                           {/* In-progress indicator for actively worked on requirements */}
@@ -835,19 +826,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                           className={`flex items-center gap-1.5 text-[var(--warning-400)] cursor-help ${isCompactView ? "mb-0 text-[8px]" : "mb-2 text-[9px]"}`}
                           title={depsTooltip}
                         >
-                          <svg
-                            className="w-3 h-3"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                            />
-                          </svg>
+                          <AlertTriangle className="w-3 h-3" />
                           {isCompactView ? (
                             <span>⚠️ {incompleteDeps.length}</span>
                           ) : (
@@ -883,38 +862,14 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                           {/* Drift warning indicator - spec modified after plan */}
                           {planTimestampInfo.specModifiedAfterPlan ? (
                             <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-[var(--warning-500)]/10 border border-[var(--warning-500)]/30">
-                              <svg
-                                className="w-3 h-3 text-[var(--warning-400)]"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth="2"
-                                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                                />
-                              </svg>
+                              <AlertTriangle className="w-3 h-3 text-[var(--warning-400)]" />
                               <span className="text-[var(--warning-400)] font-mono">
                                 Spec changed • Plan stale
                               </span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-[var(--brand-500)]/5 border border-[var(--brand-500)]/10">
-                              <svg
-                                className="w-3 h-3 text-[var(--brand-400)]"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth="2"
-                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                />
-                              </svg>
+                              <IconFileText className="w-3 h-3 text-[var(--brand-400)]" />
                               <span className="text-[var(--brand-400)] font-mono">
                                 Plan:{" "}
                                 {planTimestampInfo.planTime || "Available"}

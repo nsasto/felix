@@ -5,7 +5,18 @@
  */
 import React, { useState, useEffect } from "react";
 import { felixApi, Project, ProjectDetails } from "../services/felixApi";
-import { Plus as IconPlus, Bot as IconFelix } from "lucide-react";
+import {
+  Bot as IconFelix,
+  Folder,
+  HelpCircle,
+  Info,
+  LayoutGrid,
+  List,
+  Plus as IconPlus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { cn } from "../lib/utils";
 import { Alert, AlertDescription } from "./ui/alert";
 import {
@@ -54,121 +65,6 @@ const getStatusColor = (status: string | null): string => {
       return "bg-[var(--text-muted)]";
   }
 };
-
-// Icon props interface
-interface IconProps {
-  className?: string;
-  style?: React.CSSProperties;
-}
-
-// Folder icon component
-const IconFolder = ({ className = "w-5 h-5", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-  </svg>
-);
-
-// Trash icon for unregister
-const IconTrash = ({ className = "w-4 h-4", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <polyline points="3 6 5 6 21 6" />
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    <line x1="10" y1="11" x2="10" y2="17" />
-    <line x1="14" y1="11" x2="14" y2="17" />
-  </svg>
-);
-
-// Close icon
-const IconX = ({ className = "w-4 h-4", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
-
-// Grid icon for cards view
-const IconGrid = ({ className = "w-4 h-4", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <rect x="3" y="3" width="7" height="7" />
-    <rect x="14" y="3" width="7" height="7" />
-    <rect x="14" y="14" width="7" height="7" />
-    <rect x="3" y="14" width="7" height="7" />
-  </svg>
-);
-
-// List icon for table view
-const IconList = ({ className = "w-4 h-4", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <line x1="8" y1="6" x2="21" y2="6" />
-    <line x1="8" y1="12" x2="21" y2="12" />
-    <line x1="8" y1="18" x2="21" y2="18" />
-    <line x1="3" y1="6" x2="3.01" y2="6" />
-    <line x1="3" y1="12" x2="3.01" y2="12" />
-    <line x1="3" y1="18" x2="3.01" y2="18" />
-  </svg>
-);
-
-// Search icon
-const IconSearch = ({ className = "w-4 h-4", style }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.35-4.35" />
-  </svg>
-);
 
 interface ProjectSelectorProps {
   selectedProjectId: string | null;
@@ -337,7 +233,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         contentClassName={viewMode === "table" ? undefined : "rounded-lg"}
         search={
           <div className="relative w-full max-w-sm">
-            <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -388,10 +284,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             className="border border-[var(--border)] rounded-md"
           >
             <ToggleGroupItem value="cards" title="Card view" className="h-9 w-9">
-              <IconGrid className="w-4 h-4" />
+              <LayoutGrid className="w-4 h-4" />
             </ToggleGroupItem>
             <ToggleGroupItem value="table" title="Table view" className="h-9 w-9">
-              <IconList className="w-4 h-4" />
+              <List className="w-4 h-4" />
             </ToggleGroupItem>
           </ToggleGroup>
         }
@@ -407,7 +303,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                 size="icon"
                 onClick={() => setError(null)}
               >
-                <IconX className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </Button>
             </Alert>
           </div>
@@ -421,13 +317,13 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           <div className="flex flex-col items-center justify-center py-16 text-center px-6 theme-text-muted">
             {searchQuery || filters.status.size > 0 ? (
               <>
-                <IconSearch className="w-12 h-12 mb-4 opacity-50" />
+                <Search className="w-12 h-12 mb-4 opacity-50" />
                 <p className="text-sm mb-1">No projects found</p>
                 <p className="text-xs opacity-60">Try adjusting your search</p>
               </>
             ) : (
               <>
-                <IconFolder className="w-12 h-12 mb-4 opacity-50" />
+                <Folder className="w-12 h-12 mb-4 opacity-50" />
                 <p className="text-sm mb-1">No projects registered</p>
                 <p className="text-xs opacity-60">
                   Click "New project" to register a project
@@ -457,7 +353,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <IconFolder className="w-5 h-5 flex-shrink-0 theme-text-muted" />
+                        <Folder className="w-5 h-5 flex-shrink-0 theme-text-muted" />
                         <h3 className="font-semibold text-sm truncate theme-text-primary">
                           {getProjectName(project)}
                         </h3>
@@ -494,17 +390,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
 
                     {details?.status === "paused" && (
                       <div className="flex items-center gap-2 p-2 rounded-lg mb-3 bg-[var(--bg-base)]">
-                        <svg
-                          className="w-4 h-4 flex-shrink-0 theme-text-muted"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="8" x2="12" y2="12" />
-                          <line x1="12" y1="16" x2="12.01" y2="16" />
-                        </svg>
+                        <Info className="w-4 h-4 flex-shrink-0 theme-text-muted" />
                         <span className="text-xs theme-text-muted">
                           Project is paused
                         </span>
@@ -513,17 +399,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                       size="icon"
                       className="ml-auto text-[var(--text-muted)]"
                     >
-                          <svg
-                            className="w-4 h-4"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                            <line x1="12" y1="17" x2="12.01" y2="17" />
-                          </svg>
+                          <HelpCircle className="w-4 h-4" />
                         </Button>
                       </div>
                     )}
@@ -626,7 +502,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         <DialogContent className="max-w-md p-0">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <IconFolder className="w-4 h-4 text-[var(--brand-500)]" />
+              <Folder className="w-4 h-4 text-[var(--brand-500)]" />
               <DialogTitle>Register Project</DialogTitle>
             </div>
             <Button
@@ -634,7 +510,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               size="icon"
               onClick={() => setIsRegisterOpen(false)}
             >
-              <IconX className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </Button>
           </DialogHeader>
 
@@ -701,7 +577,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         <AlertDialogContent>
           <AlertDialogHeader className="text-center">
             <div className="w-12 h-12 bg-[var(--destructive-500)]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <IconTrash className="w-6 h-6 text-[var(--destructive-500)]" />
+              <Trash2 className="w-6 h-6 text-[var(--destructive-500)]" />
             </div>
             <AlertDialogTitle>Unregister Project?</AlertDialogTitle>
             <AlertDialogDescription className="mt-2">

@@ -5,6 +5,10 @@ import {
   WorkflowConfigResponse,
 } from "../services/felixApi";
 import {
+  Check,
+  ChevronRight,
+  HelpCircle,
+  X,
   Target as IconTarget,
   Play as IconPlay,
   GitBranch as IconGitBranch,
@@ -69,20 +73,7 @@ const DefaultIcon: React.FC<{
   className?: string;
   style?: React.CSSProperties;
 }> = ({ className, style }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <path d="M12 16v-4" />
-    <path d="M12 8h.01" />
-  </svg>
+  <HelpCircle className={className} style={style} />
 );
 
 // --- Styled Components ---
@@ -191,28 +182,12 @@ const StageNode: React.FC<{
             {/* Status overlay */}
             {status === "completed" && (
               <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
-                <svg
-                  className="w-1.5 h-1.5 text-white"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check className="w-1.5 h-1.5 text-white" strokeWidth={4} />
               </div>
             )}
             {status === "failed" && (
               <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 flex items-center justify-center">
-                <svg
-                  className="w-1.5 h-1.5 text-white"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                >
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
+                <X className="w-1.5 h-1.5 text-white" strokeWidth={4} />
               </div>
             )}
           </div>
@@ -241,21 +216,16 @@ const StageNode: React.FC<{
                   : "var(--border-muted)",
             }}
           />
-          <svg
+          <ChevronRight
             className="w-2 h-2 -ml-0.5"
-            viewBox="0 0 8 8"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth={1.5}
             style={{
               color:
                 status === "completed" || status === "active"
                   ? "var(--text-muted)"
                   : "var(--border-muted)",
             }}
-          >
-            <path d="M2 1l3 3-3 3" />
-          </svg>
+          />
         </div>
       )}
     </div>
