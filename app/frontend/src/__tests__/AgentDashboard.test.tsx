@@ -199,7 +199,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
       await waitFor(() => {
         // Should show the gray dot (⚫) for not-started status
         // Only test-agent (id: 1) should show this, so expect exactly one
-        const notStartedIcons = screen.getAllByTitle('Not Started');
+        const notStartedIcons = screen.getAllByTitle('not-started');
         expect(notStartedIcons.length).toBe(1);
       });
     });
@@ -210,7 +210,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
       await waitFor(() => {
         // Should show the green dot (🟢) for active status
         // Only felix-primary (id: 0) should show this, so expect exactly one
-        const activeIcons = screen.getAllByTitle('Active');
+        const activeIcons = screen.getAllByTitle('active');
         expect(activeIcons.length).toBe(1);
       });
     });

@@ -351,8 +351,8 @@ describe('WorkflowVisualization (S-0030: Agent Workflow Visualization)', () => {
         // The last stage should not have a connector
         const container = screen.getByText('Select').closest('[class*="overflow-x-auto"]')?.parentElement;
         if (container) {
-          // There should be connector arrows (svg with polyline/path)
-          const arrows = container.querySelectorAll('svg path[d*="M2 1l3 3-3 3"]');
+          // There should be connector arrows (ChevronRight icons)
+          const arrows = container.querySelectorAll('svg.lucide-chevron-right');
           // 13 arrows for 14 stages (no arrow after last)
           expect(arrows.length).toBe(13);
         }

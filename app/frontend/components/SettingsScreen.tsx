@@ -590,13 +590,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               handleExecutorChange("default_mode", value)
             }
           >
-            <SelectTrigger
-              className={
-                validationErrors.default_mode
-                  ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
-                  : ""
-              }
-            >
+          <SelectTrigger
+            aria-label="Default Mode"
+            className={
+              validationErrors.default_mode
+                ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                : ""
+            }
+          >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -2164,6 +2165,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               onCheckedChange={(checked) =>
                 handleCopilotChange("enabled", checked)
               }
+              aria-label="Enable Copilot"
             />
           </div>
         </div>
@@ -2180,7 +2182,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             onValueChange={(value) => handleCopilotChange("provider", value)}
             disabled={!isEnabled}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Provider">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -2374,7 +2376,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               onValueChange={(value) => handleCopilotChange("model", value)}
               disabled={!isEnabled}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Model">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -2417,7 +2419,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               },
               {
                 key: "requirements",
-                label: "requirements.json",
+                label: "requirements",
                 description: "Project dependencies and status",
               },
               {

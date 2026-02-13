@@ -263,8 +263,12 @@ describe("SettingsScreen", () => {
       );
 
       await waitFor(() => {
-        const defaultModeSelect = screen.getByDisplayValue("Planning");
-        expect(defaultModeSelect).toBeInTheDocument();
+        const defaultModeSection = screen.getByText("Default Mode")
+          .parentElement as HTMLElement;
+        const defaultModeSelect = within(defaultModeSection).getByRole(
+          "combobox",
+        );
+        expect(defaultModeSelect).toHaveTextContent("Planning");
       });
     });
 
@@ -1153,16 +1157,10 @@ describe("SettingsScreen", () => {
 
         await waitFor(() => {
           expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
-          // Verify the toggle exists (it's a button element with rounded-full class)
-          // The toggle is visually off when copilot is disabled (no explicit "Disabled" text shown)
-          const toggleButtons = screen
-            .getAllByRole("button")
-            .filter(
-              (btn) =>
-                btn.className.includes("rounded-full") &&
-                btn.className.includes("w-12"),
-            );
-          expect(toggleButtons.length).toBeGreaterThan(0);
+          const enableToggle = screen.getByRole("switch", {
+            name: /enable copilot/i,
+          });
+          expect(enableToggle).toBeInTheDocument();
         });
       });
 
@@ -1180,13 +1178,15 @@ describe("SettingsScreen", () => {
         const copilotButtons = screen.getAllByText("Felix Copilot");
         fireEvent.click(copilotButtons[0]);
 
-        await waitFor(() => {
-          expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
-          // When enabled, the provider dropdown should be enabled (not have cursor-not-allowed)
-          const providerSelect = screen.getByDisplayValue("OpenAI");
-          expect(providerSelect).not.toBeDisabled();
-        });
+      await waitFor(() => {
+        expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
+        // When enabled, the provider dropdown should be enabled (not have cursor-not-allowed)
+        const providerSection = screen.getByText("Provider")
+          .parentElement as HTMLElement;
+        const providerSelect = within(providerSection).getByRole("combobox");
+        expect(providerSelect).not.toBeDisabled();
       });
+    });
     });
 
     describe("Provider Selection", () => {
@@ -1214,30 +1214,31 @@ describe("SettingsScreen", () => {
           mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
         );
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+      renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
 
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          // Find the provider dropdown
-          const providerSelect = screen.getByDisplayValue("OpenAI");
-          expect(providerSelect).toBeInTheDocument();
-
-          // Check that dropdown options include all providers
-          const options = providerSelect.querySelectorAll("option");
-          const optionValues = Array.from(options).map(
-            (opt) => opt.textContent,
-          );
-          expect(optionValues).toContain("OpenAI");
-          expect(optionValues).toContain("Anthropic");
-          expect(optionValues).toContain("Custom");
-        });
+      await waitFor(() => {
+        expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
       });
+
+      const copilotButtons = screen.getAllByText("Felix Copilot");
+      fireEvent.click(copilotButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText("Provider")).toBeInTheDocument();
+      });
+
+      const providerSection = screen.getByText("Provider")
+        .parentElement as HTMLElement;
+      const providerSelect = within(providerSection).getByRole("combobox");
+      fireEvent.click(providerSelect);
+
+      await waitFor(() => {
+        // Check that dropdown options include all providers
+        expect(screen.getAllByText("OpenAI").length).toBeGreaterThan(0);
+        expect(screen.getByText("Anthropic")).toBeInTheDocument();
+        expect(screen.getByText("Custom")).toBeInTheDocument();
+      });
+    });
     });
 
     describe("Model Selection", () => {
@@ -1257,12 +1258,15 @@ describe("SettingsScreen", () => {
         const copilotButtons = screen.getAllByText("Felix Copilot");
         fireEvent.click(copilotButtons[0]);
 
-        await waitFor(() => {
-          expect(screen.getByText("Model")).toBeInTheDocument();
-          // Default OpenAI model
-          expect(screen.getByDisplayValue("GPT-4o")).toBeInTheDocument();
-        });
+      await waitFor(() => {
+        expect(screen.getByText("Model")).toBeInTheDocument();
+        const modelSection = screen.getByText("Model")
+          .parentElement as HTMLElement;
+        const modelSelect = within(modelSection).getByRole("combobox");
+        // Default OpenAI model
+        expect(modelSelect).toHaveTextContent("GPT-4o");
       });
+    });
     });
 
     describe("Context Sources", () => {
@@ -1285,7 +1289,7 @@ describe("SettingsScreen", () => {
           expect(screen.getByText("AGENTS.md")).toBeInTheDocument();
           expect(screen.getByText("LEARNINGS.md")).toBeInTheDocument();
           expect(screen.getByText("prompt.md")).toBeInTheDocument();
-          expect(screen.getByText("requirements.json")).toBeInTheDocument();
+          expect(screen.getByText("requirements")).toBeInTheDocument();
           // Component shows "Other specs" (lowercase s)
           expect(screen.getByText("Other specs")).toBeInTheDocument();
         });
@@ -1426,12 +1430,14 @@ describe("SettingsScreen", () => {
         const copilotButtons = screen.getAllByText("Felix Copilot");
         fireEvent.click(copilotButtons[0]);
 
-        await waitFor(() => {
-          // Find the provider dropdown and verify it's disabled
-          const providerSelect = screen.getByDisplayValue("OpenAI");
-          expect(providerSelect).toBeDisabled();
-        });
+      await waitFor(() => {
+        // Find the provider dropdown and verify it's disabled
+        const providerSection = screen.getByText("Provider")
+          .parentElement as HTMLElement;
+        const providerSelect = within(providerSection).getByRole("combobox");
+        expect(providerSelect).toBeDisabled();
       });
+    });
 
       it("disables model dropdown when copilot is disabled", async () => {
         vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
@@ -1447,12 +1453,14 @@ describe("SettingsScreen", () => {
         const copilotButtons = screen.getAllByText("Felix Copilot");
         fireEvent.click(copilotButtons[0]);
 
-        await waitFor(() => {
-          // Find the model dropdown and verify it's disabled
-          const modelSelect = screen.getByDisplayValue("GPT-4o");
-          expect(modelSelect).toBeDisabled();
-        });
+      await waitFor(() => {
+        // Find the model dropdown and verify it's disabled
+        const modelSection = screen.getByText("Model")
+          .parentElement as HTMLElement;
+        const modelSelect = within(modelSection).getByRole("combobox");
+        expect(modelSelect).toBeDisabled();
       });
+    });
     });
 
     describe("Config Persistence", () => {
@@ -1481,17 +1489,10 @@ describe("SettingsScreen", () => {
           expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
         });
 
-        // Find the enable toggle button (it's near "Disabled" text)
-        const toggleButtons = screen.getAllByRole("button");
-        const enableToggle = toggleButtons.find(
-          (btn) =>
-            btn.className.includes("rounded-full") &&
-            btn.className.includes("w-12"),
-        );
-
-        if (enableToggle) {
-          fireEvent.click(enableToggle);
-        }
+        const enableToggle = screen.getByRole("switch", {
+          name: /enable copilot/i,
+        });
+        fireEvent.click(enableToggle);
 
         // Wait for Save Changes to be enabled
         await waitFor(() => {

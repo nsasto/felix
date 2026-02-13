@@ -613,6 +613,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
             checked={showDone}
             onCheckedChange={setShowDone}
             className="data-[state=checked]:bg-[var(--brand-500)]"
+            aria-label="Show Done"
           />
           <span
             className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest cursor-pointer"
@@ -629,6 +630,7 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
             checked={isCompactView}
             onCheckedChange={setIsCompactView}
             className="data-[state=checked]:bg-[var(--brand-500)]"
+            aria-label="Compact View"
           />
           <span
             className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest cursor-pointer"
@@ -718,9 +720,10 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
                         onSelectRequirement?.(requirement);
                       }}
                       className={cn(
-                        "rounded-xl border cursor-grab group transition-all duration-200 bg-[var(--bg-surface-100)] border-[var(--border-muted)]",
+                        "kanban-card rounded-xl border cursor-grab group transition-all duration-200 bg-[var(--bg-surface-100)] border-[var(--border-muted)]",
                         "hover:border-[var(--brand-600)]/40 hover:shadow-md",
                         isCompactView ? "p-3" : "p-4",
+                        isCompactView ? "kanban-card-compact" : "",
                         isDragging ? "opacity-50 scale-95" : "shadow-sm",
                         hasBlockedDeps && requirement.status !== "blocked"
                           ? "border-l-2 border-l-[var(--warning-500)]/50"

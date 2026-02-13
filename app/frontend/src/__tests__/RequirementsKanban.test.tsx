@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import RequirementsKanban from '../../components/RequirementsKanban';
 import { ThemeProvider } from '../../hooks/ThemeProvider';
 import { felixApi, Requirement } from '../../services/felixApi';
@@ -11,6 +11,7 @@ vi.mock('../../services/felixApi', () => ({
     getRequirements: vi.fn(),
     updateRequirementStatus: vi.fn(),
     getRequirementStatus: vi.fn(),
+    getSpec: vi.fn(),
   },
 }));
 
@@ -90,6 +91,9 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       plan_modified_at: null,
       spec_modified_at: null,
     });
+    vi.mocked(felixApi.getSpec).mockResolvedValue({
+      content: '',
+    });
   });
 
   afterEach(() => {
@@ -106,7 +110,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       });
 
       // Find the compact view checkbox
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       expect(compactCheckbox).not.toBeChecked();
     });
 
@@ -122,7 +126,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       });
 
       // Checkbox should be checked
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       expect(compactCheckbox).toBeChecked();
     });
 
@@ -135,7 +139,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
         expect(screen.getByText('S-0001')).toBeInTheDocument();
       });
 
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       expect(compactCheckbox).not.toBeChecked();
     });
   });
@@ -149,7 +153,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       });
 
       // Click the compact view checkbox
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       fireEvent.click(compactCheckbox);
 
       // Checkbox should now be checked
@@ -163,7 +167,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
         expect(screen.getByText('S-0001')).toBeInTheDocument();
       });
 
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       
       // Toggle to compact
       fireEvent.click(compactCheckbox);
@@ -185,7 +189,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       expect(localStorage.getItem(COMPACT_VIEW_STORAGE_KEY)).toBe('false');
 
       // Toggle to compact
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       fireEvent.click(compactCheckbox);
 
       // Verify localStorage was updated
@@ -220,7 +224,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       });
 
       // Toggle to compact
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       fireEvent.click(compactCheckbox);
 
       // Cards should now have compact class
@@ -243,7 +247,7 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       expect(compactCards.length).toBeGreaterThan(0);
 
       // Toggle off compact mode
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
       fireEvent.click(compactCheckbox);
 
       // Cards should no longer have compact class
@@ -314,15 +318,8 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
         expect(screen.getByText('S-0001')).toBeInTheDocument();
       });
 
-      // View Spec buttons should exist but be in hideable sections
-      const viewSpecButtons = screen.getAllByText('View Spec');
-      expect(viewSpecButtons.length).toBeGreaterThan(0);
-      
-      // Each should be within a hideable section
-      viewSpecButtons.forEach(button => {
-        const section = button.closest('.kanban-card-section-hideable');
-        expect(section).toBeInTheDocument();
-      });
+      // View Spec buttons are not rendered in compact mode
+      expect(screen.queryByText('View Spec')).not.toBeInTheDocument();
     });
   });
 
@@ -466,8 +463,8 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
       });
 
       // Both toggles should exist in the filter bar
-      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
-      const compactCheckbox = screen.getByRole('checkbox', { name: /compact/i });
+      const showDoneCheckbox = screen.getByRole('switch', { name: /show done/i });
+      const compactCheckbox = screen.getByRole('switch', { name: /compact/i });
 
       expect(showDoneCheckbox).toBeInTheDocument();
       expect(compactCheckbox).toBeInTheDocument();
@@ -577,7 +574,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       });
 
       // Verify showDone checkbox is unchecked (default)
-      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      const showDoneCheckbox = screen.getByRole('switch', { name: /show done/i });
       expect(showDoneCheckbox).not.toBeChecked();
 
       // Start dragging the planned requirement card
@@ -611,7 +608,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       });
 
       // Verify showDone is unchecked
-      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      const showDoneCheckbox = screen.getByRole('switch', { name: /show done/i });
       expect(showDoneCheckbox).not.toBeChecked();
 
       // Main kanban should NOT have Done column header (there are column headers with text matching tags)
@@ -636,7 +633,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       });
 
       // Check the showDone checkbox
-      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      const showDoneCheckbox = screen.getByRole('switch', { name: /show done/i });
       fireEvent.click(showDoneCheckbox);
       expect(showDoneCheckbox).toBeChecked();
 
@@ -645,11 +642,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       expect(kanbanContainer).toBeInTheDocument();
 
       // Check that Done column header EXISTS in main kanban area
-      const columnHeaders = kanbanContainer!.querySelectorAll('h3');
-      const doneHeaders = Array.from(columnHeaders).filter(h => h.textContent?.toUpperCase() === 'DONE');
-      
-      // Should have Done column in main kanban when showDone is true
-      expect(doneHeaders.length).toBe(1);
+      expect(within(kanbanContainer!).getByText('Done')).toBeInTheDocument();
     });
 
     it('StickyDropZones shows all columns including Done regardless of showDone filter', async () => {
@@ -660,7 +653,7 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
       });
 
       // Verify showDone is unchecked (Done column hidden in main kanban)
-      const showDoneCheckbox = screen.getByRole('checkbox', { name: /show done/i });
+      const showDoneCheckbox = screen.getByRole('switch', { name: /show done/i });
       expect(showDoneCheckbox).not.toBeChecked();
 
       // Start dragging a card
@@ -681,13 +674,14 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
         const fixedContainer = document.querySelector('.fixed');
         expect(fixedContainer).toBeInTheDocument();
 
+        const fixedScope = within(fixedContainer as HTMLElement);
         // All expected column tags should be present
-        expect(screen.getByText('Draft', { selector: '.fixed h3' })).toBeInTheDocument();
-        expect(screen.getByText('Planned', { selector: '.fixed h3' })).toBeInTheDocument();
-        expect(screen.getByText('In Progress', { selector: '.fixed h3' })).toBeInTheDocument();
-        expect(screen.getByText('Complete', { selector: '.fixed h3' })).toBeInTheDocument();
-        expect(screen.getByText('Blocked', { selector: '.fixed h3' })).toBeInTheDocument();
-        expect(screen.getByText('Done', { selector: '.fixed h3' })).toBeInTheDocument();
+        expect(fixedScope.getByText('Draft')).toBeInTheDocument();
+        expect(fixedScope.getByText('Planned')).toBeInTheDocument();
+        expect(fixedScope.getByText('In Progress')).toBeInTheDocument();
+        expect(fixedScope.getByText('Complete')).toBeInTheDocument();
+        expect(fixedScope.getByText('Blocked')).toBeInTheDocument();
+        expect(fixedScope.getByText('Done')).toBeInTheDocument();
       });
     });
   });

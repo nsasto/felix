@@ -298,7 +298,7 @@ def path_matches_pattern(file_path: str, pattern: str) -> bool:
 
     Supports patterns like:
     - "specs/**" - matches any file under specs/
-    - "felix/requirements.json" - exact match
+    - "felix/requirements" - exact match
     - "*.md" - matches any .md file
     """
     # Normalize path separators to forward slashes
@@ -576,15 +576,14 @@ async def update_requirements(
     """
     Update the project's requirements.
 
-    NOTE: Stubbed for Phase 0 database migration (S-0032).
-    Returns 501 Not Implemented until database-driven state management is implemented.
+    Deprecated: requirements are database-driven.
     """
     # Validate project exists (preserves existing behavior for 404 on invalid project)
     get_project_path(project_id)
 
     raise HTTPException(
-        status_code=501,
-        detail="Requirements update not implemented. Database migration pending (S-0032).",
+        status_code=410,
+        detail="Requirements update has been removed. Use database-backed endpoints.",
     )
 
 

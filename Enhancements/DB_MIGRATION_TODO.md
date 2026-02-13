@@ -46,12 +46,13 @@
 - [x] Spec saves create new `requirement_versions` and update `requirement_content`.
 
 ## Phase 4: Deprecate File-Based Requirements
-- Replace requirements.json read paths with DB queries.
-- Keep `.felix/requirements.json` as fallback until verified, then remove.
-- Remove file-based update logic in `routers/requirements.py`.
+- [x] Replace requirements.json read paths with DB queries.
+- [x] Keep `.felix/requirements.json` as fallback until verified, then remove.
+- [x] Remove file-based update logic in `routers/requirements.py`.
 
 ## Phase 5: Validation + Rollout
 - Validate counts and referential integrity.
-- Validate dependency mapping vs previous JSON.
-- Validate content load and save paths.
+- Validate dependency mapping vs previous JSON. (Done: no mismatches)
+- Validate content load and save paths. (Done: DB transaction insert/update/rollback check)
+- Note: frontend test runs can emit expected stderr logs (simulated error paths, act warnings) even when green.
 - Update docs/runbook for new data flow.

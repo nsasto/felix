@@ -564,19 +564,6 @@ class FelixApiService {
     );
   }
 
-  async updateRequirements(
-    projectId: string,
-    requirements: Requirement[],
-  ): Promise<RequirementsData> {
-    return this.request<RequirementsData>(
-      `/projects/${projectId}/requirements`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ requirements }),
-      },
-    );
-  }
-
   async updateRequirementMetadata(
     projectId: string,
     requirementId: string,
