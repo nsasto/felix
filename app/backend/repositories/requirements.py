@@ -124,7 +124,7 @@ class PostgresRequirementRepository:
             SET metadata = jsonb_set(
                 COALESCE(metadata, '{}'::jsonb),
                 '{tags}',
-                :tags::jsonb,
+                CAST(:tags AS jsonb),
                 true
             )
             WHERE id = :id
