@@ -51,8 +51,8 @@
 - [x] Remove file-based update logic in `routers/requirements.py`.
 
 ## Phase 5: Validation + Rollout
-- Validate counts and referential integrity.
-- Validate dependency mapping vs previous JSON. (Done: no mismatches)
-- Validate content load and save paths. (Done: DB transaction insert/update/rollback check)
+- [x] Validate counts and referential integrity.
+- [x] Validate dependency mapping vs previous JSON. (Done: no mismatches)
+- [x] Validate content load and save paths. (Done: DB transaction insert/update/rollback check)
 - Note: frontend test runs can emit expected stderr logs (simulated error paths, act warnings) even when green.
-- Update docs/runbook for new data flow.
+- [x] Update docs/runbook for new data flow.
