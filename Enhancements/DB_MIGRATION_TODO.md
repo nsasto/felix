@@ -18,23 +18,25 @@
   - [x] `requirements.metadata.commit_on_complete` only where present.
 
 ## Phase 2: Backend Data Access Layer
-- Add repo interfaces:
+- [x] Add repo interfaces:
   - `IRequirementRepository`
   - `IRequirementContentRepository`
   - `IRequirementDependencyRepository`
-- Implement Postgres repos using `databases.Database`.
-- Add `RequirementService` to orchestrate:
+- [x] Implement Postgres repos using `databases.Database`.
+- [x] Add `RequirementService` to orchestrate:
   - requirement updates
   - content + version writes
   - dependency diff + writes
   - metadata updates
-- Update requirements endpoints to use service:
+- [x] Update requirements endpoints to use service:
   - list returns `code`, `depends_on`, `tags`, `commit_on_complete`
   - PATCH writes version + content + deps
-- Add tests:
+- [x] Add tests:
   - repo CRUD coverage
   - dependency diff logic
   - version insert + content update
+- [x] Wire spec updates to write content + version history.
+- [x] Implement requirement status endpoints.
 
 ## Phase 3: API Contract + Frontend Integration
 - Update frontend models to include `code`.

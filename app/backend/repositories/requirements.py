@@ -29,6 +29,14 @@ class IRequirementRepository(Protocol):
     async def update_tags(self, requirement_id: str, tags: List[str]) -> None:
         ...
 
+    async def touch_updated_at(self, requirement_id: str) -> None:
+        ...
+
+    async def get_by_spec_path(
+        self, project_id: str, spec_path: str
+    ) -> Optional[Dict[str, Any]]:
+        ...
+
     async def resolve_codes(
         self, project_id: str, codes: List[str]
     ) -> Dict[str, str]:
@@ -57,6 +65,9 @@ class IRequirementContentRepository(Protocol):
         content: str,
         current_version_id: str,
     ) -> None:
+        ...
+
+    async def get_current_version_id(self, requirement_id: str) -> Optional[str]:
         ...
 
 
@@ -120,6 +131,24 @@ class PostgresRequirementRepository:
             """,
             values={"id": requirement_id, "tags": tags_json},
         )
+
+    async def touch_updated_at(self, requirement_id: str) -> None:
+        await self.db.execute(
+            "UPDATE requirements SET updated_at = NOW() WHERE id = :id",
+            values={"id": requirement_id},
+        )
+
+    async def get_by_spec_path(
+        self, project_id: str, spec_path: str
+    ) -> Optional[Dict[str, Any]]:
+        row = await self.db.fetch_one(
+            """
+            SELECT * FROM requirements
+            WHERE project_id = :project_id AND spec_path = :spec_path
+            """,
+            values={"project_id": project_id, "spec_path": spec_path},
+        )
+        return dict(row) if row else None
 
     async def resolve_codes(
         self, project_id: str, codes: List[str]
@@ -205,6 +234,17 @@ class PostgresRequirementContentRepository:
                 "current_version_id": current_version_id,
             },
         )
+
+    async def get_current_version_id(self, requirement_id: str) -> Optional[str]:
+        row = await self.db.fetch_one(
+            """
+            SELECT current_version_id
+            FROM requirement_content
+            WHERE requirement_id = :requirement_id
+            """,
+            values={"requirement_id": requirement_id},
+        )
+        return row["current_version_id"] if row else None
 
 
 class PostgresRequirementDependencyRepository:

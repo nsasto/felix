@@ -158,3 +158,35 @@ async def test_requirement_service_updates_dependencies_with_ids_and_codes():
         "req-1", ["dep-2", dep_uuid]
     )
     assert result["id"] == "S-0001"
+
+
+@pytest.mark.asyncio
+async def test_requirement_service_updates_content_from_spec():
+    db = FakeDatabase()
+    service = RequirementService(db)
+    service.requirements.get_by_spec_path = AsyncMock(
+        return_value={"id": "req-1"}
+    )
+    service.content.get_current_version_id = AsyncMock(return_value=None)
+    service.content.create_version = AsyncMock(return_value="ver-1")
+    service.content.upsert_content = AsyncMock()
+    service.requirements.touch_updated_at = AsyncMock()
+
+    updated = await service.update_content_from_spec(
+        "proj-1", "specs/S-0001-test.md", "# Title"
+    )
+
+    assert updated is True
+    service.content.create_version.assert_awaited_with(
+        requirement_id="req-1",
+        content="# Title",
+        author_id=None,
+        source="spec_file",
+        diff_from_id=None,
+    )
+    service.content.upsert_content.assert_awaited_with(
+        requirement_id="req-1",
+        content="# Title",
+        current_version_id="ver-1",
+    )
+    service.requirements.touch_updated_at.assert_awaited_with("req-1")

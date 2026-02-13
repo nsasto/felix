@@ -442,6 +442,7 @@ async def update_spec(
     filename: str = PathParam(
         ..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')"
     ),
+    db: Database = Depends(get_db),
 ):
     """
     Update or create a spec file.
@@ -471,6 +472,10 @@ async def update_spec(
 
     try:
         spec_path.write_text(request.content, encoding="utf-8")
+        service = RequirementService(db)
+        await service.update_content_from_spec(
+            project_id, relative_path, request.content
+        )
         return SpecContent(filename=filename, content=request.content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write spec: {str(e)}")
