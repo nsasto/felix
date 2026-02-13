@@ -2,6 +2,14 @@
 Repository interfaces and implementations for database access.
 """
 
+from .agents import (
+    IAgentProfileRepository,
+    IAgentRepository,
+    IMachineRepository,
+    PostgresAgentProfileRepository,
+    PostgresAgentRepository,
+    PostgresMachineRepository,
+)
 from .requirements import (
     IRequirementRepository,
     IRequirementContentRepository,
@@ -12,6 +20,12 @@ from .requirements import (
 )
 
 __all__ = [
+    "IAgentProfileRepository",
+    "IAgentRepository",
+    "IMachineRepository",
+    "PostgresAgentProfileRepository",
+    "PostgresAgentRepository",
+    "PostgresMachineRepository",
     "IRequirementRepository",
     "IRequirementContentRepository",
     "IRequirementDependencyRepository",
