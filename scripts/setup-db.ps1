@@ -271,7 +271,15 @@ else {
 Write-Host ""
 Write-Host "==> Verifying database schema..." -ForegroundColor Cyan
 
-$tables = & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -tAc "\dt" 2>&1 | Select-String -Pattern "^\s*public\s+\|\s+(\w+)" | ForEach-Object { $_.Matches.Groups[1].Value }
+$tables = & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -tAc "\dt" 2>&1 |
+    ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line) { return }
+        $parts = $line -split "\|"
+        if ($parts.Length -lt 2) { return }
+        if ($parts[0] -ne "public") { return }
+        $parts[1]
+    }
 
 $expectedTables = @("organizations", "organization_members", "projects", "requirements", "agents", "agent_states", "runs", "run_artifacts")
 $missingTables = $expectedTables | Where-Object { $_ -notin $tables }

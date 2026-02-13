@@ -405,7 +405,7 @@ Global configuration for agent behavior, plugins, backpressure, and paths.
 
 ### agents.json
 
-Agent preset definitions (stored in `~/.felix/agents.json`):
+Agent preset definitions (stored in .felix/agents.json in the repo):
 
 - **felix-primary** - droid exec
 - **codex-cli** - codex CLI with workspace-write

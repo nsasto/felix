@@ -111,6 +111,7 @@ For production environments, always write explicit rollback scripts.
 | 005_requirement_content_versions.sql | Requirement content snapshot + version history                      | Auto-tracked |
 | 006_add_requirement_code.sql | Add human-readable requirement code                                     | Auto-tracked |
 | 007_requirement_content_updated_at_trigger.sql | Add updated_at trigger for requirement_content        | Auto-tracked |
+| 008_agent_profiles_and_machines.sql | Add agent profiles, machines, and agent allocation fields | Auto-tracked |
 
 ## Dev Seed (Optional)
 
@@ -218,6 +219,18 @@ Dry run:
 
 ```powershell
 .\scripts\migrate-requirements.ps1 -ProjectId "00000000-0000-0000-0000-000000000001" -DryRun
+```
+
+### 3b) Migrate agent profiles (one-time import)
+
+```powershell
+.\scripts\migrate-agent-profiles.ps1 -OrgId "00000000-0000-0000-0000-000000000001"
+```
+
+Dry run:
+
+```powershell
+.\scripts\migrate-agent-profiles.ps1 -OrgId "00000000-0000-0000-0000-000000000001" -DryRun
 ```
 
 ### 4) Validate data integrity

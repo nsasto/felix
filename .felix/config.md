@@ -7,7 +7,7 @@ This file documents the configuration options in `felix/config.json` for customi
 ## How Agent Selection Works
 
 - `felix/config.json` selects an agent by ID: `agent.agent_id`
-- The agent preset (executable/args/etc) lives in `~/.felix/agents.json`
+- The agent preset (executable/args/etc) lives in **.felix/agents.json** in the repo
 
 ```json
 {
@@ -17,7 +17,7 @@ This file documents the configuration options in `felix/config.json` for customi
 }
 ```
 
-## Agent Presets (`~/.felix/agents.json`)
+## Agent Presets (**.felix/agents.json**)
 
 Each preset is an entry under `agents`:
 

@@ -105,10 +105,10 @@ function Get-FelixConfig {
 function Get-AgentsConfiguration {
     <#
     .SYNOPSIS
-    Loads agents configuration from a project or user agents.json
+    Loads agents configuration from a project agents.json
     
     .PARAMETER FelixHome
-    Path to Felix home directory (defaults to ~/.felix)
+    Path to Felix home directory
 
     .PARAMETER AgentsJsonFile
     Optional explicit path to agents.json (e.g., <project>/.felix/agents.json). If provided, takes precedence.
@@ -126,7 +126,8 @@ function Get-AgentsConfiguration {
     
     if (-not $AgentsJsonFile) {
         if (-not $FelixHome) {
-            $FelixHome = if ($env:FELIX_HOME) { $env:FELIX_HOME } else { Join-Path $env:USERPROFILE ".felix" }
+            Emit-Error -ErrorType "AgentsConfigPathMissing" -Message "AgentsJsonFile or FelixHome must be provided" -Severity "fatal"
+            return $null
         }
         $AgentsJsonFile = Join-Path $FelixHome "agents.json"
     }

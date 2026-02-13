@@ -41,6 +41,8 @@ async def verify_schema() -> None:
         "requirements",
         "agents",
         "agent_states",
+        "agent_profiles",
+        "machines",
         "runs",
         "run_artifacts",
     ]

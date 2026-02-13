@@ -71,6 +71,13 @@ Run the agent locally with PowerShell (examples):
 .\felix\felix-loop.ps1 C:\dev\Felix
 ```
 
+### Agent Profiles (Local vs Remote)
+
+- Local CLI runs use **.felix/agents.json** in the repo as the source of agent profiles.
+- User profile **%USERPROFILE%\.felix\agents.json** is no longer used.
+- Remote agents use DB-managed profiles and runtime registrations; local file profiles are only for local execution.
+- Agent registration happens via the app/backend and persists in the database.
+
 ### Production Mode
 
 ```bash
