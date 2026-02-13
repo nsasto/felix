@@ -1,21 +1,21 @@
 # DB Migration Detailed Todo
 
 ## Phase 1: Schema Validation + DB Hygiene
-- Verify migrations 002–006 applied in `schema_migrations`.
-- Confirm tables exist: `requirement_dependencies`, `requirement_content`, `requirement_versions`.
-- Validate constraints:
-  - `requirements.code` unique per project.
-  - `requirements.status` check includes UI statuses.
-  - `agents.status` check includes UI + backend statuses.
-- Validate content/version integrity:
-  - Every requirement has a `requirement_content` row.
-  - `requirement_content.current_version_id` points to a valid `requirement_versions` row.
-- Validate dependencies:
-  - No self-dependencies.
-  - No missing dependency codes.
-- Validate metadata:
-  - `requirements.metadata.tags` exists (empty array ok).
-  - `requirements.metadata.commit_on_complete` only where present.
+- [x] Verify migrations 002-007 applied in `schema_migrations`.
+- [x] Confirm tables exist: `requirement_dependencies`, `requirement_content`, `requirement_versions`.
+- [x] Validate constraints:
+  - [x] `requirements.code` unique per project.
+  - [x] `requirements.status` check includes UI statuses.
+  - [x] `agents.status` check includes UI + backend statuses.
+- [x] Validate content/version integrity:
+  - [x] Every requirement has a `requirement_content` row.
+  - [x] `requirement_content.current_version_id` points to a valid `requirement_versions` row.
+- [x] Validate dependencies:
+  - [x] No self-dependencies.
+  - [x] No missing dependency codes.
+- [x] Validate metadata:
+  - [x] `requirements.metadata.tags` exists (empty array ok).
+  - [x] `requirements.metadata.commit_on_complete` only where present.
 
 ## Phase 2: Backend Data Access Layer
 - Add repo interfaces:

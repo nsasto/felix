@@ -3,7 +3,8 @@ Felix Backend - File Operations API
 Handles reading and writing project files (specs, plan, requirements).
 """
 
-from fastapi import APIRouter, HTTPException, Path as PathParam
+from fastapi import APIRouter, Depends, HTTPException, Path as PathParam
+from databases import Database
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 import re
@@ -16,6 +17,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import storage
+from database import get_db
+from services.requirements import RequirementService
 
 router = APIRouter(prefix="/api/projects", tags=["files"])
 
@@ -477,26 +480,20 @@ async def update_spec(
 
 
 @router.get("/{project_id}/requirements", response_model=RequirementsContent)
-async def read_requirements(project_id: str = PathParam(..., description="Project ID")):
+async def read_requirements(
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
     """
     Read the project's requirements and enrich with plan status.
 
     NOTE: Performance optimization for Phase 0.
     Embeds plan status (has_plan, timestamps) in single response to avoid N+1 queries.
-    Will be replaced by database-driven queries in S-0032.
     """
     project_path = get_project_path(project_id)
-    req_file = project_path / ".felix" / "requirements.json"
-
-    if not req_file.exists():
-        raise HTTPException(
-            status_code=404, detail="requirements.json not found in .felix directory"
-        )
-
     try:
-        # Read requirements from file (utf-8-sig handles BOM if present)
-        requirements_data = json.loads(req_file.read_text(encoding="utf-8-sig"))
-        requirements = requirements_data.get("requirements", [])
+        service = RequirementService(db)
+        requirements = await service.list_requirements(project_id)
 
         # Build plan map once (efficient for many run directories)
         plan_map = build_plan_map(project_path)
@@ -529,14 +526,7 @@ async def read_requirements(project_id: str = PathParam(..., description="Projec
             else:
                 req["spec_modified_at"] = None
 
-        return RequirementsContent(
-            requirements=requirements, path=".felix/requirements.json"
-        )
-
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=500, detail=f"Invalid JSON in requirements.json: {str(e)}"
-        )
+        return RequirementsContent(requirements=requirements, path="database")
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to read requirements: {str(e)}"

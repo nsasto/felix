@@ -3,11 +3,14 @@ Felix Backend - Requirements API
 Handles requirement metadata updates.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Any, List
-import json
-from pathlib import Path
+
+from databases import Database
+
+from database import get_db
+from services.requirements import RequirementService
 
 router = APIRouter(prefix="/api/projects", tags=["requirements"])
 
@@ -32,7 +35,10 @@ class Requirement(BaseModel):
 
 @router.patch("/{project_id}/requirements/{requirement_id}", response_model=Requirement)
 async def update_requirement_metadata(
-    project_id: str, requirement_id: str, update: RequirementMetadataUpdate
+    project_id: str,
+    requirement_id: str,
+    update: RequirementMetadataUpdate,
+    db: Database = Depends(get_db),
 ):
     """
     Update a single metadata field for a requirement.
@@ -48,7 +54,14 @@ async def update_requirement_metadata(
 
     # Validate values
     if update.field == "status":
-        valid_statuses = {"planned", "in_progress", "blocked", "complete", "done"}
+        valid_statuses = {
+            "draft",
+            "planned",
+            "in_progress",
+            "blocked",
+            "complete",
+            "done",
+        }
         if update.value not in valid_statuses:
             raise HTTPException(
                 status_code=400,
@@ -77,58 +90,23 @@ async def update_requirement_metadata(
                 status_code=400, detail="title must be a non-empty string"
             )
 
-    # TODO: When moving to database, this will use Supabase
-    # For now, update the requirements.json file
+    service = RequirementService(db)
+
     try:
-        # Find project directory (this is a simplified approach for now)
-        # In production, use proper project storage lookup
-        from datetime import date
-        import storage
-
-        # Get project details to find the path
-        project_details = storage.get_project_details(project_id)
-        if not project_details:
-            raise HTTPException(
-                status_code=404, detail=f"Project not found: {project_id}"
-            )
-
-        project_path = Path(project_details.path)
-        requirements_file = project_path / ".felix" / "requirements.json"
-
-        if not requirements_file.exists():
-            raise HTTPException(status_code=404, detail="requirements.json not found")
-
-        # Read current requirements
-        with open(requirements_file, "r", encoding="utf-8-sig") as f:
-            data = json.load(f)
-
-        # Find and update the requirement
-        requirement_found = False
-        for req in data.get("requirements", []):
-            if req["id"] == requirement_id:
-                requirement_found = True
-                req[update.field] = update.value
-                req["updated_at"] = date.today().isoformat()
-
-                # Return updated requirement
-                updated_requirement = Requirement(**req)
-                break
-
-        if not requirement_found:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Requirement {requirement_id} not found in project {project_id}",
-            )
-
-        # Write back to file
-        with open(requirements_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-
-        return updated_requirement
-
-    except HTTPException:
-        raise
+        updated = await service.update_metadata(
+            project_id, requirement_id, update.field, update.value
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to update requirement metadata: {str(e)}"
         )
+
+    if not updated:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Requirement {requirement_id} not found in project {project_id}",
+        )
+
+    return Requirement(**updated)
