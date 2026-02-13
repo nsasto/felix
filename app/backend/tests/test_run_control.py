@@ -197,14 +197,14 @@ class TestCreateRunEndpoint:
 
     def test_create_run_success(self, client, mock_db, mock_auth, mock_agent_record, mock_run_record):
         """POST /api/agents/runs creates run and returns 201"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter, \
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository, \
              patch('routers.agents.RunWriter') as MockRunWriter, \
              patch('routers.agents.control_manager') as mock_control:
             
             # Setup agent writer mock
             mock_agent_writer = MagicMock()
-            MockAgentWriter.return_value = mock_agent_writer
-            mock_agent_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            MockPostgresAgentRepository.return_value = mock_agent_writer
+            mock_agent_writer.get_by_id = AsyncMock(return_value=mock_agent_record)
             
             # Setup run writer mock
             mock_run_writer = MagicMock()
@@ -235,10 +235,10 @@ class TestCreateRunEndpoint:
 
     def test_create_run_agent_not_found(self, client, mock_db, mock_auth):
         """POST /api/agents/runs returns 404 when agent not found"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_agent_writer = MagicMock()
-            MockAgentWriter.return_value = mock_agent_writer
-            mock_agent_writer.get_agent = AsyncMock(return_value=None)
+            MockPostgresAgentRepository.return_value = mock_agent_writer
+            mock_agent_writer.get_by_id = AsyncMock(return_value=None)
             
             response = client.post(
                 "/api/agents/runs",
@@ -252,13 +252,13 @@ class TestCreateRunEndpoint:
 
     def test_create_run_agent_not_connected(self, client, mock_db, mock_auth, mock_agent_record):
         """POST /api/agents/runs returns 503 when agent not connected"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter, \
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository, \
              patch('routers.agents.control_manager') as mock_control:
             
             # Setup agent writer mock
             mock_agent_writer = MagicMock()
-            MockAgentWriter.return_value = mock_agent_writer
-            mock_agent_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            MockPostgresAgentRepository.return_value = mock_agent_writer
+            mock_agent_writer.get_by_id = AsyncMock(return_value=mock_agent_record)
             
             # Agent not connected
             mock_control.is_connected.return_value = False
@@ -284,14 +284,14 @@ class TestCreateRunEndpoint:
 
     def test_create_run_database_error(self, client, mock_db, mock_auth, mock_agent_record):
         """POST /api/agents/runs returns 500 on database error"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter, \
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository, \
              patch('routers.agents.RunWriter') as MockRunWriter, \
              patch('routers.agents.control_manager') as mock_control:
             
             # Setup agent writer mock
             mock_agent_writer = MagicMock()
-            MockAgentWriter.return_value = mock_agent_writer
-            mock_agent_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            MockPostgresAgentRepository.return_value = mock_agent_writer
+            mock_agent_writer.get_by_id = AsyncMock(return_value=mock_agent_record)
             
             # Setup run writer mock to fail
             mock_run_writer = MagicMock()
@@ -575,7 +575,7 @@ class TestGetRunEndpoint:
     def test_get_run_success(self, client, mock_db, mock_run_record, mock_agent_record):
         """GET /api/agents/runs/{run_id} returns run details"""
         with patch('routers.agents.RunWriter') as MockRunWriter, \
-             patch('routers.agents.AgentWriter') as MockAgentWriter:
+             patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             
             # Setup run writer mock
             mock_run_writer = MagicMock()
@@ -584,8 +584,8 @@ class TestGetRunEndpoint:
             
             # Setup agent writer mock
             mock_agent_writer = MagicMock()
-            MockAgentWriter.return_value = mock_agent_writer
-            mock_agent_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            MockPostgresAgentRepository.return_value = mock_agent_writer
+            mock_agent_writer.get_by_id = AsyncMock(return_value=mock_agent_record)
             
             response = client.get("/api/agents/runs/660e8400-e29b-41d4-a716-446655440000")
             
@@ -625,7 +625,7 @@ class TestGetRunEndpoint:
     def test_get_run_with_missing_agent(self, client, mock_db, mock_run_record):
         """GET /api/agents/runs/{run_id} works when agent is deleted"""
         with patch('routers.agents.RunWriter') as MockRunWriter, \
-             patch('routers.agents.AgentWriter') as MockAgentWriter:
+             patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             
             # Setup run writer mock
             mock_run_writer = MagicMock()
@@ -634,8 +634,8 @@ class TestGetRunEndpoint:
             
             # Setup agent writer mock - agent not found
             mock_agent_writer = MagicMock()
-            MockAgentWriter.return_value = mock_agent_writer
-            mock_agent_writer.get_agent = AsyncMock(return_value=None)
+            MockPostgresAgentRepository.return_value = mock_agent_writer
+            mock_agent_writer.get_by_id = AsyncMock(return_value=None)
             
             response = client.get("/api/agents/runs/660e8400-e29b-41d4-a716-446655440000")
             

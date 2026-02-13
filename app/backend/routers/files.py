@@ -196,7 +196,7 @@ class CopilotConfig(BaseModel):
 
 
 class AgentEntry(BaseModel):
-    """Agent entry for felix/agents.json registry"""
+    """Agent entry for the registry"""
 
     pid: int = Field(..., description="Process ID of the agent")
     hostname: str = Field(..., description="Hostname where agent is running")

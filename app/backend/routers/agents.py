@@ -25,11 +25,18 @@ import storage
 import config
 from auth import get_current_user
 from database.db import get_db
-from database.writers import AgentWriter
-from repositories import PostgresAgentProfileRepository
-from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse, RunCreateRequest, RunResponse, RunListResponse
+from database.writers import RunWriter
+from repositories import PostgresAgentRepository, PostgresMachineRepository, PostgresAgentProfileRepository
+from models import (
+    AgentRegisterRequest,
+    AgentStatusUpdate,
+    AgentResponse,
+    AgentListResponse,
+    RunCreateRequest,
+    RunResponse,
+    RunListResponse,
+)
 from websocket.control import control_manager, CommandType
-from database.writers import AgentWriter, RunWriter
 
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -132,7 +139,7 @@ class AgentConfigEntry(BaseModel):
 
 
 class AgentConfigsListResponse(BaseModel):
-    """Response containing configured agents from agents.json"""
+    """Response containing configured agents from the database"""
     agents: List[AgentConfigEntry]
 
 
@@ -217,13 +224,39 @@ async def register_agent(
         # Get project_id from config (dev mode)
         project_id = config.DEV_PROJECT_ID
         
-        # Create writer and upsert agent
-        writer = AgentWriter(db)
-        agent_record = await writer.upsert_agent(
+        agent_repo = PostgresAgentRepository(db)
+        machine_repo = PostgresMachineRepository(db)
+
+        machine_id = None
+        if request.metadata:
+            machine_payload = (
+                request.metadata.get("machine")
+                if isinstance(request.metadata.get("machine"), dict)
+                else {}
+            )
+            hostname = machine_payload.get("hostname") or request.metadata.get("hostname")
+            fingerprint = machine_payload.get("fingerprint") or request.metadata.get("machine_fingerprint")
+            if hostname and fingerprint:
+                machine = await machine_repo.upsert_machine(
+                    org_id=user["org_id"],
+                    hostname=hostname,
+                    fingerprint=fingerprint,
+                    metadata=machine_payload.get("metadata"),
+                )
+                machine_id = machine["id"]
+
+        agent_record = await agent_repo.create_agent(
             agent_id=request.agent_id,
             project_id=project_id,
             name=request.name,
             type=request.type,
+            profile_id=None,
+            assigned_user_id=None,
+            machine_id=machine_id,
+            registered_by_user_id=user.get("user_id"),
+            registered_by_machine_id=None,
+            override_executable=None,
+            override_model=None,
             metadata=request.metadata,
         )
         
@@ -269,10 +302,9 @@ async def agent_heartbeat(
         HTTPException 500: On database error
     """
     try:
-        writer = AgentWriter(db)
-        
+        agent_repo = PostgresAgentRepository(db)
         # Verify agent exists
-        agent = await writer.get_agent(agent_id)
+        agent = await agent_repo.get_by_id(agent_id)
         if not agent:
             raise HTTPException(
                 status_code=404,
@@ -280,7 +312,7 @@ async def agent_heartbeat(
             )
         
         # Update heartbeat timestamp
-        await writer.update_heartbeat(agent_id)
+        await agent_repo.update_heartbeat(agent_id)
         
         return {"status": "ok", "agent_id": agent_id}
     except HTTPException:
@@ -330,10 +362,9 @@ async def update_agent_status(
                 detail=f"Invalid status '{request.status}'. Must be one of: {', '.join(sorted(VALID_AGENT_STATUSES))}"
             )
         
-        writer = AgentWriter(db)
-        
+        agent_repo = PostgresAgentRepository(db)
         # Verify agent exists
-        agent = await writer.get_agent(agent_id)
+        agent = await agent_repo.get_by_id(agent_id)
         if not agent:
             raise HTTPException(
                 status_code=404,
@@ -341,7 +372,7 @@ async def update_agent_status(
             )
         
         # Update agent status
-        await writer.update_status(agent_id, request.status)
+        await agent_repo.update_status(agent_id, request.status)
         
         return {"status": "ok", "agent_id": agent_id, "new_status": request.status}
     except HTTPException:
@@ -377,8 +408,8 @@ async def get_agents(
         project_id = config.DEV_PROJECT_ID
         
         # Fetch agents from database
-        writer = AgentWriter(db)
-        agent_records = await writer.list_agents(project_id)
+        agent_repo = PostgresAgentRepository(db)
+        agent_records = await agent_repo.list_by_project(project_id)
         
         # Transform database records to AgentResponse objects
         agents = [
@@ -548,8 +579,8 @@ async def create_run(
         project_id = config.DEV_PROJECT_ID
         
         # Verify agent exists
-        agent_writer = AgentWriter(db)
-        agent = await agent_writer.get_agent(request.agent_id)
+        agent_repo = PostgresAgentRepository(db)
+        agent = await agent_repo.get_by_id(request.agent_id)
         if not agent:
             raise HTTPException(
                 status_code=404,
@@ -773,8 +804,8 @@ async def get_run(
             )
         
         # Fetch agent name for the response
-        agent_writer = AgentWriter(db)
-        agent = await agent_writer.get_agent(str(run["agent_id"]))
+        agent_repo = PostgresAgentRepository(db)
+        agent = await agent_repo.get_by_id(str(run["agent_id"]))
         agent_name = agent.get("name") if agent else None
         
         # Transform to RunResponse
@@ -826,10 +857,9 @@ async def get_agent(
         HTTPException 500: On database error
     """
     try:
-        writer = AgentWriter(db)
-        
+        agent_repo = PostgresAgentRepository(db)
         # Fetch agent from database
-        agent = await writer.get_agent(agent_id)
+        agent = await agent_repo.get_by_id(agent_id)
         if not agent:
             raise HTTPException(
                 status_code=404,
@@ -1107,8 +1137,8 @@ async def agent_control_websocket(
     await control_manager.connect(agent_id, websocket)
     
     try:
-        # Create writer for database operations
-        writer = AgentWriter(db)
+        # Create repository for database operations
+        agent_repo = PostgresAgentRepository(db)
         
         # Receive loop for incoming messages from agent
         while True:
@@ -1119,7 +1149,7 @@ async def agent_control_websocket(
             if message_type == "heartbeat":
                 # Update heartbeat timestamp in database
                 try:
-                    await writer.update_heartbeat(agent_id)
+                    await agent_repo.update_heartbeat(agent_id)
                     _control_logger.debug(f"Agent {agent_id}: heartbeat received")
                 except Exception as e:
                     _control_logger.error(f"Agent {agent_id}: failed to update heartbeat: {e}")
@@ -1131,7 +1161,7 @@ async def agent_control_websocket(
                 
                 if status_value:
                     try:
-                        await writer.update_status(agent_id, status_value)
+                        await agent_repo.update_status(agent_id, status_value)
                         _control_logger.info(f"Agent {agent_id}: status updated to {status_value}")
                         
                         # Broadcast status for future Supabase Realtime integration

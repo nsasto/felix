@@ -42,7 +42,7 @@ const renderWithTheme = (ui: React.ReactElement) => {
 describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
   const mockProjectId = 'test-project';
 
-  // Mock configured agents from agents.json
+  // Mock configured agents from the database
   const mockConfiguredAgents = {
     agents: [
       {

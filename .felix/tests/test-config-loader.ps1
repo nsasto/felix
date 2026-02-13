@@ -99,7 +99,7 @@ Describe "Get-AgentsConfiguration" {
             )
         } | ConvertTo-Json -Depth 10 | Set-Content $agentsFile
         
-        $agentsData = Get-AgentsConfiguration -FelixHome $tempHome
+        $agentsData = Get-AgentsConfiguration -AgentsJsonFile $agentsFile
         
         Assert-NotNull $agentsData
         Assert-Equal 1 $agentsData.agents.Count
@@ -111,7 +111,8 @@ Describe "Get-AgentsConfiguration" {
     It "should create default agents.json if missing" {
         $tempHome = New-Item -ItemType Directory -Path "$env:TEMP/test-felix-home-$(Get-Random)" -Force
         
-        $agentsData = Get-AgentsConfiguration -FelixHome $tempHome
+        $agentsFile = Join-Path $tempHome "agents.json"
+        $agentsData = Get-AgentsConfiguration -AgentsJsonFile $agentsFile
         
         Assert-NotNull $agentsData
         Assert-True ($agentsData.agents.Count -ge 1)

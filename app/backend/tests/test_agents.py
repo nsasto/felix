@@ -10,7 +10,7 @@ Database-backed endpoints implemented in S-0038:
 - GET /api/agents -> Returns {"agents": {}}
 
 The following functionality is preserved:
-- GET /api/agents/config -> Returns agent configurations from global ~/.felix/agents.json
+- GET /api/agents/config -> Returns agent configuration profiles from the database
 - GET /api/agents/workflow-config -> Returns workflow configuration
 - WebSocket /api/agents/{id}/console -> Console streaming from runs/ directory
 """
@@ -39,13 +39,13 @@ class TestRegisterAgentEndpoint:
 
     @pytest.fixture
     def mock_agent_writer(self):
-        """Create a mock AgentWriter that returns a valid agent record"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        """Create a mock PostgresAgentRepository that returns a valid agent record"""
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             # Create mock instance
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
+            MockPostgresAgentRepository.return_value = mock_writer
             
-            # Mock upsert_agent to return a valid agent record
+            # Mock create_agent to return a valid agent record
             mock_agent_record = {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "project_id": "dev-project-id",
@@ -57,7 +57,7 @@ class TestRegisterAgentEndpoint:
                 "created_at": "2026-01-01T00:00:00Z",
                 "updated_at": "2026-01-01T00:00:00Z",
             }
-            mock_writer.upsert_agent = AsyncMock(return_value=mock_agent_record)
+            mock_writer.create_agent = AsyncMock(return_value=mock_agent_record)
             
             yield mock_writer
 
@@ -71,7 +71,7 @@ class TestRegisterAgentEndpoint:
     @pytest.fixture
     def mock_auth(self):
         """Mock authentication dependency"""
-        with patch('routers.agents.get_current_user', return_value={"user_id": "dev-user"}):
+        with patch('routers.agents.get_current_user', return_value={"user_id": "dev-user", "org_id": "dev-org"}):
             yield
 
     def test_register_agent_success(self, client, mock_agent_writer, mock_db, mock_auth):
@@ -119,10 +119,10 @@ class TestRegisterAgentEndpoint:
 
     def test_register_agent_database_error(self, client, mock_db, mock_auth):
         """POST /api/agents/register returns 500 on database error"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.upsert_agent = AsyncMock(side_effect=Exception("Database connection failed"))
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.create_agent = AsyncMock(side_effect=Exception("Database connection failed"))
             
             response = client.post(
                 "/api/agents/register",
@@ -141,12 +141,12 @@ class TestHeartbeatEndpoint:
 
     @pytest.fixture
     def mock_agent_writer_heartbeat(self):
-        """Create a mock AgentWriter for heartbeat operations"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        """Create a mock PostgresAgentRepository for heartbeat operations"""
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
+            MockPostgresAgentRepository.return_value = mock_writer
             
-            # Mock get_agent to return a valid agent (agent exists)
+            # Mock get_by_id to return a valid agent (agent exists)
             mock_agent_record = {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "project_id": "dev-project-id",
@@ -158,7 +158,7 @@ class TestHeartbeatEndpoint:
                 "created_at": "2026-01-01T00:00:00Z",
                 "updated_at": "2026-01-01T00:00:00Z",
             }
-            mock_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            mock_writer.get_by_id = AsyncMock(return_value=mock_agent_record)
             mock_writer.update_heartbeat = AsyncMock(return_value=None)
             
             yield mock_writer
@@ -183,10 +183,10 @@ class TestHeartbeatEndpoint:
 
     def test_heartbeat_agent_not_found(self, client, mock_db_heartbeat):
         """POST /api/agents/{agent_id}/heartbeat returns 404 for nonexistent agent"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.get_agent = AsyncMock(return_value=None)
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.get_by_id = AsyncMock(return_value=None)
             
             response = client.post(
                 "/api/agents/nonexistent-agent-id/heartbeat"
@@ -197,10 +197,10 @@ class TestHeartbeatEndpoint:
 
     def test_heartbeat_database_error(self, client, mock_db_heartbeat):
         """POST /api/agents/{agent_id}/heartbeat returns 500 on database error"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.get_agent = AsyncMock(side_effect=Exception("Database connection failed"))
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.get_by_id = AsyncMock(side_effect=Exception("Database connection failed"))
             
             response = client.post(
                 "/api/agents/550e8400-e29b-41d4-a716-446655440000/heartbeat"
@@ -215,12 +215,12 @@ class TestStatusUpdateEndpoint:
 
     @pytest.fixture
     def mock_agent_writer_status(self):
-        """Create a mock AgentWriter for status update operations"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        """Create a mock PostgresAgentRepository for status update operations"""
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
+            MockPostgresAgentRepository.return_value = mock_writer
             
-            # Mock get_agent to return a valid agent (agent exists)
+            # Mock get_by_id to return a valid agent (agent exists)
             mock_agent_record = {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "project_id": "dev-project-id",
@@ -232,7 +232,7 @@ class TestStatusUpdateEndpoint:
                 "created_at": "2026-01-01T00:00:00Z",
                 "updated_at": "2026-01-01T00:00:00Z",
             }
-            mock_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            mock_writer.get_by_id = AsyncMock(return_value=mock_agent_record)
             mock_writer.update_status = AsyncMock(return_value=None)
             
             yield mock_writer
@@ -259,10 +259,10 @@ class TestStatusUpdateEndpoint:
 
     def test_status_update_agent_not_found(self, client, mock_db_status):
         """POST /api/agents/{agent_id}/status returns 404 for nonexistent agent"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.get_agent = AsyncMock(return_value=None)
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.get_by_id = AsyncMock(return_value=None)
             
             response = client.post(
                 "/api/agents/nonexistent-agent-id/status",
@@ -284,10 +284,10 @@ class TestStatusUpdateEndpoint:
 
     def test_status_update_database_error(self, client, mock_db_status):
         """POST /api/agents/{agent_id}/status returns 500 on database error"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.get_agent = AsyncMock(side_effect=Exception("Database connection failed"))
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.get_by_id = AsyncMock(side_effect=Exception("Database connection failed"))
             
             response = client.post(
                 "/api/agents/550e8400-e29b-41d4-a716-446655440000/status",
@@ -303,12 +303,12 @@ class TestListAgentsEndpoint:
 
     @pytest.fixture
     def mock_agent_writer_list(self):
-        """Create a mock AgentWriter for list operations"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        """Create a mock PostgresAgentRepository for list operations"""
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
+            MockPostgresAgentRepository.return_value = mock_writer
             
-            # Mock list_agents to return a list of agents
+            # Mock list_by_project to return a list of agents
             mock_agents_list = [
                 {
                     "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -333,17 +333,17 @@ class TestListAgentsEndpoint:
                     "updated_at": "2026-01-01T00:00:00Z",
                 },
             ]
-            mock_writer.list_agents = AsyncMock(return_value=mock_agents_list)
+            mock_writer.list_by_project = AsyncMock(return_value=mock_agents_list)
             
             yield mock_writer
 
     @pytest.fixture
     def mock_agent_writer_list_empty(self):
-        """Create a mock AgentWriter that returns empty list"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        """Create a mock PostgresAgentRepository that returns empty list"""
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.list_agents = AsyncMock(return_value=[])
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.list_by_project = AsyncMock(return_value=[])
             
             yield mock_writer
 
@@ -354,7 +354,7 @@ class TestListAgentsEndpoint:
         with patch('routers.agents.get_db', return_value=mock_database):
             yield mock_database
 
-    def test_list_agents_success(self, client, mock_agent_writer_list, mock_db_list):
+    def test_list_by_project_success(self, client, mock_agent_writer_list, mock_db_list):
         """GET /api/agents returns list of agents with count"""
         response = client.get("/api/agents")
         
@@ -372,7 +372,7 @@ class TestListAgentsEndpoint:
         assert agent_1["type"] == "ralph"
         assert agent_1["status"] == "idle"
 
-    def test_list_agents_empty(self, client, mock_agent_writer_list_empty, mock_db_list):
+    def test_list_by_project_empty(self, client, mock_agent_writer_list_empty, mock_db_list):
         """GET /api/agents returns empty list when no agents"""
         response = client.get("/api/agents")
         
@@ -381,12 +381,12 @@ class TestListAgentsEndpoint:
         assert data["agents"] == []
         assert data["count"] == 0
 
-    def test_list_agents_database_error(self, client, mock_db_list):
+    def test_list_by_project_database_error(self, client, mock_db_list):
         """GET /api/agents returns 500 on database error"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.list_agents = AsyncMock(side_effect=Exception("Database connection failed"))
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.list_by_project = AsyncMock(side_effect=Exception("Database connection failed"))
             
             response = client.get("/api/agents")
             
@@ -399,12 +399,12 @@ class TestGetAgentEndpoint:
 
     @pytest.fixture
     def mock_agent_writer_get(self):
-        """Create a mock AgentWriter for get agent operations"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        """Create a mock PostgresAgentRepository for get agent operations"""
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
+            MockPostgresAgentRepository.return_value = mock_writer
             
-            # Mock get_agent to return a valid agent
+            # Mock get_by_id to return a valid agent
             mock_agent_record = {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "project_id": "dev-project-id",
@@ -416,7 +416,7 @@ class TestGetAgentEndpoint:
                 "created_at": "2026-01-01T00:00:00Z",
                 "updated_at": "2026-01-01T00:00:00Z",
             }
-            mock_writer.get_agent = AsyncMock(return_value=mock_agent_record)
+            mock_writer.get_by_id = AsyncMock(return_value=mock_agent_record)
             
             yield mock_writer
 
@@ -427,7 +427,7 @@ class TestGetAgentEndpoint:
         with patch('routers.agents.get_db', return_value=mock_database):
             yield mock_database
 
-    def test_get_agent_success(self, client, mock_agent_writer_get, mock_db_get):
+    def test_get_by_id_success(self, client, mock_agent_writer_get, mock_db_get):
         """GET /api/agents/{agent_id} returns agent data"""
         response = client.get("/api/agents/550e8400-e29b-41d4-a716-446655440000")
         
@@ -440,24 +440,24 @@ class TestGetAgentEndpoint:
         assert data["project_id"] == "dev-project-id"
         assert data["metadata"] == {"version": "1.0"}
 
-    def test_get_agent_not_found(self, client, mock_db_get):
+    def test_get_by_id_not_found(self, client, mock_db_get):
         """GET /api/agents/{agent_id} returns 404 for nonexistent agent"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.get_agent = AsyncMock(return_value=None)
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.get_by_id = AsyncMock(return_value=None)
             
             response = client.get("/api/agents/nonexistent-agent-id")
             
             assert response.status_code == 404
             assert "Agent not found" in response.json()["detail"]
 
-    def test_get_agent_database_error(self, client, mock_db_get):
+    def test_get_by_id_database_error(self, client, mock_db_get):
         """GET /api/agents/{agent_id} returns 500 on database error"""
-        with patch('routers.agents.AgentWriter') as MockAgentWriter:
+        with patch('routers.agents.PostgresAgentRepository') as MockPostgresAgentRepository:
             mock_writer = MagicMock()
-            MockAgentWriter.return_value = mock_writer
-            mock_writer.get_agent = AsyncMock(side_effect=Exception("Database connection failed"))
+            MockPostgresAgentRepository.return_value = mock_writer
+            mock_writer.get_by_id = AsyncMock(side_effect=Exception("Database connection failed"))
             
             response = client.get("/api/agents/550e8400-e29b-41d4-a716-446655440000")
             
@@ -531,113 +531,64 @@ class TestGetAgentsConfig:
     """Tests for GET /api/agents/config endpoint (S-0021: Agent Orchestration Enhancement)"""
 
     @pytest.fixture
-    def mock_felix_home_with_agents(self, tmp_path):
-        """Create a temporary felix home directory with agents.json"""
-        felix_home = tmp_path / ".felix"
-        felix_home.mkdir(parents=True, exist_ok=True)
-        
-        agents_file = felix_home / "agents.json"
-        agents_data = {
-            "agents": [
+    def mock_agent_profiles_repo(self):
+        with patch('routers.agents.PostgresAgentProfileRepository') as MockRepo:
+            mock_repo = MagicMock()
+            MockRepo.return_value = mock_repo
+            mock_repo.list_by_org = AsyncMock(return_value=[
                 {
-                    "id": 0,
+                    "id": "profile-1",
                     "name": "felix-primary",
+                    "adapter": "droid",
                     "executable": "droid",
                     "args": ["exec", "--skip-permissions-unsafe"],
                     "working_directory": ".",
-                    "environment": {}
+                    "environment": {},
                 },
                 {
-                    "id": 1,
+                    "id": "profile-2",
                     "name": "test-agent",
+                    "adapter": "claude",
                     "executable": "claude",
                     "args": ["--model", "opus"],
                     "working_directory": "/custom/path",
-                    "environment": {"API_KEY": "test123"}
-                }
-            ]
-        }
-        agents_file.write_text(json.dumps(agents_data, indent=2), encoding='utf-8')
-        
-        return felix_home
+                    "environment": {"API_KEY": "test123"},
+                },
+            ])
+            yield mock_repo
 
     @pytest.fixture
-    def mock_storage_felix_home(self, mock_felix_home_with_agents):
-        """Patch storage.get_felix_home to use temporary directory"""
-        with patch('storage.get_felix_home', return_value=mock_felix_home_with_agents):
-            with patch('routers.agents.storage.get_felix_home', return_value=mock_felix_home_with_agents):
-                yield mock_felix_home_with_agents
+    def mock_auth(self):
+        with patch('routers.agents.get_current_user', return_value={"user_id": "dev-user", "org_id": "dev-org"}):
+            yield
 
-    def test_get_agents_config_returns_all_configured_agents(self, client, mock_storage_felix_home):
-        """Get agents config returns all configured agents from agents.json"""
+    def test_get_agents_config_returns_all_configured_agents(self, client, mock_agent_profiles_repo, mock_auth):
+        """Get agents config returns all configured agents from database"""
         response = client.get("/api/agents/config")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "agents" in data
         assert len(data["agents"]) == 2
-        
-        # Verify first agent (system default)
-        agent_0 = next(a for a in data["agents"] if a["id"] == 0)
+
+        agent_0 = next(a for a in data["agents"] if a["id"] == "profile-1")
         assert agent_0["name"] == "felix-primary"
         assert agent_0["executable"] == "droid"
         assert "exec" in agent_0["args"]
-        
-        # Verify second agent
-        agent_1 = next(a for a in data["agents"] if a["id"] == 1)
+
+        agent_1 = next(a for a in data["agents"] if a["id"] == "profile-2")
         assert agent_1["name"] == "test-agent"
         assert agent_1["executable"] == "claude"
         assert agent_1["args"] == ["--model", "opus"]
         assert agent_1["working_directory"] == "/custom/path"
         assert agent_1["environment"]["API_KEY"] == "test123"
 
-    def test_get_agents_config_returns_default_when_file_missing(self, client, tmp_path):
-        """Returns default agent when agents.json doesn't exist"""
-        # Create empty felix home without agents.json
-        felix_home = tmp_path / ".felix_empty"
-        felix_home.mkdir(parents=True, exist_ok=True)
-        
-        with patch('storage.get_felix_home', return_value=felix_home):
-            with patch('routers.agents.storage.get_felix_home', return_value=felix_home):
-                response = client.get("/api/agents/config")
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        # Should return default agent
-        assert len(data["agents"]) == 1
-        assert data["agents"][0]["id"] == 0
-        assert data["agents"][0]["name"] == "felix-primary"
-        assert data["agents"][0]["executable"] == "droid"
-
-    def test_get_agents_config_handles_malformed_json(self, client, tmp_path):
-        """Returns default agent when agents.json is malformed"""
-        felix_home = tmp_path / ".felix_malformed"
-        felix_home.mkdir(parents=True, exist_ok=True)
-        
-        agents_file = felix_home / "agents.json"
-        agents_file.write_text("not valid json {{{", encoding='utf-8')
-        
-        with patch('storage.get_felix_home', return_value=felix_home):
-            with patch('routers.agents.storage.get_felix_home', return_value=felix_home):
-                response = client.get("/api/agents/config")
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        # Should return default agent on parse error
-        assert len(data["agents"]) == 1
-        assert data["agents"][0]["id"] == 0
-        assert data["agents"][0]["name"] == "felix-primary"
-
-    def test_get_agents_config_response_schema(self, client, mock_storage_felix_home):
+    def test_get_agents_config_response_schema(self, client, mock_agent_profiles_repo, mock_auth):
         """Verify response matches expected schema for frontend merge"""
         response = client.get("/api/agents/config")
         assert response.status_code == 200
-        
+
         data = response.json()
-        
-        # Verify schema for each agent matches MergedAgent requirements
         for agent in data["agents"]:
             assert "id" in agent
             assert "name" in agent
@@ -645,7 +596,7 @@ class TestGetAgentsConfig:
             assert "args" in agent
             assert "working_directory" in agent
             assert "environment" in agent
-            assert isinstance(agent["id"], int)
+            assert isinstance(agent["id"], str)
             assert isinstance(agent["name"], str)
             assert isinstance(agent["executable"], str)
             assert isinstance(agent["args"], list)
@@ -654,6 +605,7 @@ class TestGetAgentsConfig:
 
 
 class TestGetWorkflowConfig:
+
     """Tests for GET /api/agents/workflow-config endpoint (S-0030: Agent Workflow Visualization)"""
 
     @pytest.fixture

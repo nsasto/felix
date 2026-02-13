@@ -107,30 +107,16 @@ function Get-AgentsConfiguration {
     .SYNOPSIS
     Loads agents configuration from a project agents.json
     
-    .PARAMETER FelixHome
-    Path to Felix home directory
-
     .PARAMETER AgentsJsonFile
-    Optional explicit path to agents.json (e.g., <project>/.felix/agents.json). If provided, takes precedence.
+    Path to agents.json (e.g., <project>/.felix/agents.json).
     
     .OUTPUTS
     PSCustomObject containing agents configuration
     #>
     param(
-        [Parameter(Mandatory = $false)]
-        [string]$FelixHome = $null,
-
-        [Parameter(Mandatory = $false)]
-        [string]$AgentsJsonFile = $null
+        [Parameter(Mandatory = $true)]
+        [string]$AgentsJsonFile
     )
-    
-    if (-not $AgentsJsonFile) {
-        if (-not $FelixHome) {
-            Emit-Error -ErrorType "AgentsConfigPathMissing" -Message "AgentsJsonFile or FelixHome must be provided" -Severity "fatal"
-            return $null
-        }
-        $AgentsJsonFile = Join-Path $FelixHome "agents.json"
-    }
     
     # Create default agents.json if it doesn't exist
     if (-not (Test-Path $AgentsJsonFile)) {

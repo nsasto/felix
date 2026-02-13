@@ -1590,7 +1590,7 @@ describe("SettingsScreen", () => {
     });
 
     describe("Agent List Display", () => {
-      it("displays all agent configurations from agents.json", async () => {
+      it("displays all agent configurations from the database", async () => {
         vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
           mockConfigResponse(createMockConfig()),
         );

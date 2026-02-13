@@ -911,10 +911,8 @@ class TestCopilotConfigSaveLoad:
             },
         }
 
-        # Mock validate_agent_id_exists to return True for ID 0
         with patch("routers.settings.get_global_config_path", return_value=config_file):
-            with patch("routers.settings.validate_agent_id_exists", return_value=True):
-                response = client.put("/api/settings", json={"config": config_data})
+            response = client.put("/api/settings", json={"config": config_data})
 
         assert response.status_code == 200
 
