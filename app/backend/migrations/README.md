@@ -189,6 +189,89 @@ Read flow:
 - Default reads use `requirement_content` (single row).
 - History/rollback uses `requirement_versions` ordered by `created_at DESC`.
 
+## Runbook: DB Migration + Validation
+
+### 1) Prep
+
+- Confirm `DATABASE_URL` points to the target database.
+- Verify Postgres is running and `psql` is available.
+
+### 2) Apply schema migrations
+
+```powershell
+.\scripts\setup-db.ps1
+```
+
+Optional seed data (dev only):
+
+```powershell
+.\scripts\setup-db.ps1 -Seed
+```
+
+### 3) Migrate requirements.json (one-time import)
+
+```powershell
+.\scripts\migrate-requirements.ps1 -ProjectId "00000000-0000-0000-0000-000000000001"
+```
+
+Dry run:
+
+```powershell
+.\scripts\migrate-requirements.ps1 -ProjectId "00000000-0000-0000-0000-000000000001" -DryRun
+```
+
+### 4) Validate data integrity
+
+Run these checks:
+
+```sql
+-- counts
+select 'requirements' as table, count(*) from requirements;
+select 'requirement_content' as table, count(*) from requirement_content;
+select 'requirement_versions' as table, count(*) from requirement_versions;
+select 'requirement_dependencies' as table, count(*) from requirement_dependencies;
+
+-- content/version integrity
+select count(*) as missing_content
+  from requirements r
+  left join requirement_content c on c.requirement_id = r.id
+ where c.requirement_id is null;
+
+select count(*) as broken_current_version
+  from requirement_content c
+  left join requirement_versions v on v.id = c.current_version_id
+ where c.current_version_id is not null
+   and v.id is null;
+
+-- dependency integrity
+select count(*) as self_dependencies
+  from requirement_dependencies d
+ where d.requirement_id = d.depends_on_id;
+
+select count(*) as missing_dependencies
+  from requirement_dependencies d
+  left join requirements r on r.id = d.depends_on_id
+ where r.id is null;
+
+-- code uniqueness per project
+select project_id, code, count(*) as dupes
+  from requirements
+ group by project_id, code
+having count(*) > 1;
+```
+
+### 5) Validate app read/write paths
+
+- Load a spec in the UI to ensure content is read from `requirement_content`.
+- Save a spec and confirm a new row appears in `requirement_versions` and
+  `requirement_content.current_version_id` updates.
+
+### 6) Rollback (dev only)
+
+```powershell
+.\scripts\setup-db.ps1 -Force
+```
+
 ## Requirements.json Migration Script
 
 Use the PowerShell helper to migrate `.felix/requirements.json` into the DB:
