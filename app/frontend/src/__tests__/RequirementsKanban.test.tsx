@@ -9,7 +9,7 @@ import { felixApi, Requirement } from '../../services/felixApi';
 vi.mock('../../services/felixApi', () => ({
   felixApi: {
     getRequirements: vi.fn(),
-    updateRequirements: vi.fn(),
+    updateRequirementStatus: vi.fn(),
     getRequirementStatus: vi.fn(),
   },
 }));
@@ -72,7 +72,15 @@ describe('RequirementsKanban (S-0025: Compact View Toggle)', () => {
     vi.mocked(felixApi.getRequirements).mockResolvedValue({
       requirements: mockRequirements,
     });
-    vi.mocked(felixApi.updateRequirements).mockResolvedValue(undefined);
+    vi.mocked(felixApi.updateRequirementStatus).mockResolvedValue({
+      id: 'S-0001',
+      status: 'planned',
+      title: 'Test Requirement 1',
+      has_plan: false,
+      plan_path: null,
+      plan_modified_at: null,
+      spec_modified_at: null,
+    });
     vi.mocked(felixApi.getRequirementStatus).mockResolvedValue({
       id: 'S-0001',
       status: 'planned',
@@ -535,7 +543,15 @@ describe('RequirementsKanban (S-0028: Show Done In Dropzone)', () => {
     vi.mocked(felixApi.getRequirements).mockResolvedValue({
       requirements: mockRequirementsWithDone,
     });
-    vi.mocked(felixApi.updateRequirements).mockResolvedValue(undefined);
+    vi.mocked(felixApi.updateRequirementStatus).mockResolvedValue({
+      id: 'S-0001',
+      status: 'planned',
+      title: 'Test Requirement 1',
+      has_plan: false,
+      plan_path: null,
+      plan_modified_at: null,
+      spec_modified_at: null,
+    });
     vi.mocked(felixApi.getRequirementStatus).mockResolvedValue({
       id: 'S-0001',
       status: 'planned',

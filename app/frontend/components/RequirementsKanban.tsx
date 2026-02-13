@@ -427,11 +427,15 @@ const RequirementsKanban: React.FC<RequirementsKanbanProps> = ({
     setRequirements(updatedRequirements);
     setDraggedItem(null);
 
-    // Persist the change to the backend
-    try {
-      await felixApi.updateRequirements(projectId, updatedRequirements);
-    } catch (err) {
-      console.error("Failed to update requirements:", err);
+      // Persist the change to the backend
+      try {
+        await felixApi.updateRequirementStatus(
+          projectId,
+          draggedItem.id,
+          newStatus,
+        );
+      } catch (err) {
+        console.error("Failed to update requirements:", err);
       // Revert on error - refetch from server
       try {
         const data = await felixApi.getRequirements(projectId);
