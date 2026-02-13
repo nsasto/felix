@@ -88,6 +88,11 @@ class RequirementService:
             "has_plan": False,
         }
 
+    async def get_requirement_record(
+        self, project_id: str, requirement_id_or_code: str
+    ) -> Optional[Dict[str, Any]]:
+        return await self._resolve_requirement(project_id, requirement_id_or_code)
+
     async def list_requirements(self, project_id: str) -> List[Dict[str, Any]]:
         rows = await self.db.fetch_all(
             """

@@ -906,19 +906,45 @@ def build_plan_map(project_path: Path) -> dict[str, tuple[Path, str]]:
 async def get_requirement_status(
     project_id: str = PathParam(..., description="Project ID"),
     requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
+    db: Database = Depends(get_db),
 ):
     """
     Get the status of a specific requirement.
-
-    NOTE: Stubbed for Phase 0 database migration (S-0032).
-    Returns 501 Not Implemented until database-driven state management is implemented.
     """
-    # Validate project exists (preserves existing behavior for 404 on invalid project)
-    get_project_path(project_id)
+    project_path = get_project_path(project_id)
+    service = RequirementService(db)
 
-    raise HTTPException(
-        status_code=501,
-        detail="Requirement status retrieval not implemented. Database migration pending (S-0032).",
+    requirement = await service.get_requirement_record(project_id, requirement_id)
+    if not requirement:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Requirement {requirement_id} not found in project {project_id}",
+        )
+
+    plan_info = find_plan_for_requirement(project_path, requirement_id)
+    has_plan = plan_info is not None
+    plan_path = None
+    plan_modified_at = None
+    if plan_info:
+        plan_file, _run_id = plan_info
+        plan_path = str(plan_file.relative_to(project_path))
+        plan_modified_at = str(plan_file.stat().st_mtime)
+
+    spec_modified_at = None
+    spec_path = requirement.get("spec_path")
+    if spec_path:
+        spec_file = project_path / spec_path
+        if spec_file.exists():
+            spec_modified_at = str(spec_file.stat().st_mtime)
+
+    return RequirementStatusResponse(
+        id=requirement.get("code") or requirement["id"],
+        status=requirement["status"],
+        title=requirement["title"],
+        has_plan=has_plan,
+        plan_path=plan_path,
+        plan_modified_at=plan_modified_at,
+        spec_modified_at=spec_modified_at,
     )
 
 
@@ -930,19 +956,69 @@ async def update_requirement_status(
     request: RequirementStatusUpdate,
     project_id: str = PathParam(..., description="Project ID"),
     requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
+    db: Database = Depends(get_db),
 ):
     """
     Update the status of a specific requirement.
-
-    NOTE: Stubbed for Phase 0 database migration (S-0032).
-    Returns 501 Not Implemented until database-driven state management is implemented.
     """
-    # Validate project exists (preserves existing behavior for 404 on invalid project)
-    get_project_path(project_id)
+    valid_statuses = {
+        "draft",
+        "planned",
+        "in_progress",
+        "complete",
+        "blocked",
+        "done",
+    }
+    if request.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{request.status}'. Must be one of: {', '.join(valid_statuses)}",
+        )
 
-    raise HTTPException(
-        status_code=501,
-        detail="Requirement status update not implemented. Database migration pending (S-0032).",
+    project_path = get_project_path(project_id)
+    service = RequirementService(db)
+
+    try:
+        updated = await service.update_metadata(
+            project_id, requirement_id, "status", request.status
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update requirement status: {str(e)}"
+        )
+
+    if not updated:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Requirement {requirement_id} not found in project {project_id}",
+        )
+
+    plan_info = find_plan_for_requirement(project_path, requirement_id)
+    has_plan = plan_info is not None
+    plan_path = None
+    plan_modified_at = None
+    if plan_info:
+        plan_file, _run_id = plan_info
+        plan_path = str(plan_file.relative_to(project_path))
+        plan_modified_at = str(plan_file.stat().st_mtime)
+
+    spec_modified_at = None
+    spec_path = updated.get("spec_path")
+    if spec_path:
+        spec_file = project_path / spec_path
+        if spec_file.exists():
+            spec_modified_at = str(spec_file.stat().st_mtime)
+
+    return RequirementStatusResponse(
+        id=updated["id"],
+        status=updated["status"],
+        title=updated["title"],
+        has_plan=has_plan,
+        plan_path=plan_path,
+        plan_modified_at=plan_modified_at,
+        spec_modified_at=spec_modified_at,
     )
 
 
