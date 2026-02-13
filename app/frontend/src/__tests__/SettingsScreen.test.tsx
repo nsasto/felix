@@ -1517,7 +1517,7 @@ describe("SettingsScreen", () => {
     const mockAgentConfigurations = {
       agents: [
         {
-          id: 0,
+          id: "agent-0",
           name: "felix-primary",
           executable: "droid",
           args: ["exec", "--skip-permissions-unsafe"],
@@ -1525,7 +1525,7 @@ describe("SettingsScreen", () => {
           environment: {},
         },
         {
-          id: 1,
+          id: "agent-1",
           name: "claude-agent",
           executable: "claude",
           args: ["--model", "sonnet"],
@@ -1533,7 +1533,7 @@ describe("SettingsScreen", () => {
           environment: { API_KEY: "test-key" },
         },
       ],
-      active_agent_id: 0,
+      active_agent_id: "agent-0",
     };
 
     // Mock agent registry response
@@ -1616,30 +1616,6 @@ describe("SettingsScreen", () => {
         });
       });
 
-      it("shows System Default badge for agent ID 0", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
-
-        await waitFor(() => {
-          // System default badge should be visible
-          expect(screen.getByText(/system default/i)).toBeInTheDocument();
-        });
-      });
-
       it("shows Active badge for the currently active agent", async () => {
         vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
           mockConfigResponse(createMockConfig()),
@@ -1707,7 +1683,7 @@ describe("SettingsScreen", () => {
           mockConfigResponse(createMockConfig()),
         );
         vi.mocked(felixApi.setActiveAgent).mockResolvedValue({
-          agent_id: 1,
+          agent_id: "agent-1",
           message: "Active agent set",
         });
 
@@ -1894,7 +1870,7 @@ describe("SettingsScreen", () => {
         );
         vi.mocked(felixApi.updateAgentConfiguration).mockResolvedValue({
           agent: {
-            id: 0,
+            id: "agent-0",
             name: "updated-name",
             executable: "droid",
             args: [],
@@ -1993,7 +1969,7 @@ describe("SettingsScreen", () => {
         );
         vi.mocked(felixApi.deleteAgentConfiguration).mockResolvedValue({
           status: "deleted",
-          agent_id: 1,
+          agent_id: "agent-1",
           message: "Agent deleted",
         });
 

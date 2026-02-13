@@ -153,26 +153,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     string | null
   >(null);
 
-  // Agent configurations state (from agents.json)
+  // Agent configurations state (from database)
   const [agentConfigurations, setAgentConfigurations] = useState<
     AgentConfiguration[]
   >([]);
-  const [activeAgentId, setActiveAgentId] = useState<number>(0);
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [agentConfigsLoading, setAgentConfigsLoading] = useState(false);
   const [agentConfigsError, setAgentConfigsError] = useState<string | null>(
     null,
   );
-  const [settingActiveAgent, setSettingActiveAgent] = useState<number | null>(
+  const [settingActiveAgent, setSettingActiveAgent] = useState<string | null>(
     null,
   );
-  const [deletingAgentId, setDeletingAgentId] = useState<number | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
     null,
   );
 
   // Agent form state (for add/edit)
   const [showAgentForm, setShowAgentForm] = useState(false);
-  const [editingAgentId, setEditingAgentId] = useState<number | null>(null);
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [agentFormName, setAgentFormName] = useState("");
   const [agentFormExecutable, setAgentFormExecutable] = useState("");
   const [agentFormArgs, setAgentFormArgs] = useState("");
@@ -247,7 +247,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   }, []);
 
-  // Fetch agent configurations from agents.json
+  // Fetch agent configurations from database
   const fetchAgentConfigurations = useCallback(async () => {
     setAgentConfigsLoading(true);
     setAgentConfigsError(null);
@@ -1286,7 +1286,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     if (!config) return null;
 
     // Handle setting active agent
-    const handleSetActiveAgent = async (agentId: number) => {
+    const handleSetActiveAgent = async (agentId: string) => {
       setSettingActiveAgent(agentId);
       try {
         await felixApi.setActiveAgent(agentId);
@@ -1303,7 +1303,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     };
 
     // Handle deleting agent
-    const handleDeleteAgent = async (agentId: number) => {
+    const handleDeleteAgent = async (agentId: string) => {
       setDeletingAgentId(agentId);
       try {
         await felixApi.deleteAgentConfiguration(agentId);
@@ -1399,7 +1399,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <div>
             <h3 className="text-lg font-semibold">Agent Configurations</h3>
             <p className="text-xs theme-text-muted mt-1">
-              Manage saved agent presets from agents.json
+              Manage saved agent presets for this organization
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1618,9 +1618,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {agentConfigurations.length > 0 && (
             <div className="space-y-3">
               {agentConfigurations
-                .sort((a, b) => a.id - b.id)
+                .sort((a, b) => a.name.localeCompare(b.name))
                 .map((agent) => {
-                  const isSystemDefault = agent.id === 0;
                   const isActive = agent.id === activeAgentId;
 
                   return (
@@ -1641,11 +1640,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                             <span className="text-[9px] font-mono theme-text-muted">
                               ID: {agent.id}
                             </span>
-                            {isSystemDefault && (
-                              <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--status-warning)]/20 text-[var(--status-warning)] rounded-full flex items-center gap-1">
-                                🔒 System Default
-                              </span>
-                            )}
                             {isActive && (
                               <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full flex items-center gap-1">
                                 ✓ Active
@@ -1705,26 +1699,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           >
                             Edit
                           </Button>
-                          {isSystemDefault ? (
-                            <Button
-                              disabled
-                              variant="secondary"
-                              size="sm"
-                              className="text-[10px] font-bold"
-                              title="System default cannot be deleted"
-                            >
-                              Delete
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={() => setShowDeleteConfirm(agent.id)}
-                              variant="destructive"
-                              size="sm"
-                              className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
-                            >
-                              Delete
-                            </Button>
-                          )}
+                          <Button
+                            onClick={() => setShowDeleteConfirm(agent.id)}
+                            variant="destructive"
+                            size="sm"
+                            className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
+                          >
+                            Delete
+                          </Button>
                         </div>
                       </div>
 
@@ -1914,7 +1896,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div className="text-xs text-[var(--status-info)]/80">
               <p>
                 <strong>Agent Configurations</strong> are saved presets (from
-                agents.json). The <strong>active</strong> agent is used when
+                agent profiles). The <strong>active</strong> agent is used when
                 starting new runs.
               </p>
               <p className="mt-1">

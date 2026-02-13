@@ -26,6 +26,7 @@ import config
 from auth import get_current_user
 from database.db import get_db
 from database.writers import AgentWriter
+from repositories import PostgresAgentProfileRepository
 from models import AgentRegisterRequest, AgentStatusUpdate, AgentResponse, AgentListResponse, RunCreateRequest, RunResponse, RunListResponse
 from websocket.control import control_manager, CommandType
 from database.writers import AgentWriter, RunWriter
@@ -118,13 +119,16 @@ class StopMode(str):
 # --- Agent Configuration Models (for S-0021: Agent Orchestration Enhancement) ---
 
 class AgentConfigEntry(BaseModel):
-    """Agent configuration entry from agents.json"""
-    id: int = Field(..., description="Unique agent ID (0 = system default)")
+    """Agent configuration entry from the database"""
+    id: str = Field(..., description="Unique agent profile ID (UUID)")
     name: str = Field(..., description="Display name for the agent")
+    adapter: str = Field(default="droid", description="Agent adapter type")
     executable: str = Field(default="droid", description="Agent executable path")
     args: List[str] = Field(default_factory=list, description="Command line arguments")
+    model: Optional[str] = Field(None, description="Optional model override")
     working_directory: str = Field(default=".", description="Working directory")
     environment: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+    description: Optional[str] = Field(None, description="Optional description")
 
 
 class AgentConfigsListResponse(BaseModel):
@@ -401,13 +405,16 @@ async def get_agents(
 
 
 @router.get("/config", response_model=AgentConfigsListResponse)
-async def get_agents_config():
+async def get_agents_config(
+    db: Database = Depends(get_db),
+    user: Dict[str, Any] = Depends(get_current_user),
+):
     """
-    Get all configured agents from felix/agents.json.
+    Get all configured agents from the database.
     
-    This endpoint returns agent configurations (templates/presets) from the
-    global Felix home directory. These are distinct from the runtime registry
-    which tracks currently running agent instances.
+    This endpoint returns agent configuration profiles (templates/presets).
+    These are distinct from the runtime registry which tracks currently
+    running agent instances.
     
     Used by the Agent Orchestration Dashboard (S-0021) to display all available
     agents regardless of whether they've been started yet.
@@ -415,45 +422,23 @@ async def get_agents_config():
     Returns:
         AgentConfigsListResponse with list of configured agents
     """
-    # Load agents config from the global Felix home agents.json
-    agents_config_path = storage.get_felix_home() / "agents.json"
-    
-    if not agents_config_path.exists():
-        # Return default agent configuration
-        default_agents = [
-            AgentConfigEntry(
-                id=0,
-                name="felix-primary",
-                executable="droid",
-                args=["exec", "--skip-permissions-unsafe"],
-                working_directory=".",
-                environment={}
-            )
-        ]
-        return AgentConfigsListResponse(agents=default_agents)
-    
-    try:
-        data = json.loads(agents_config_path.read_text(encoding='utf-8'))
-        agents_list = data.get("agents", [])
-        
-        # Convert to AgentConfigEntry objects
-        agents = [AgentConfigEntry(**agent) for agent in agents_list]
-        
-        return AgentConfigsListResponse(agents=agents)
-    except (json.JSONDecodeError, ValueError) as e:
-        # Return default on parse error
-        print(f"Warning: Failed to parse global agents.json: {e}")
-        default_agents = [
-            AgentConfigEntry(
-                id=0,
-                name="felix-primary",
-                executable="droid",
-                args=["exec", "--skip-permissions-unsafe"],
-                working_directory=".",
-                environment={}
-            )
-        ]
-        return AgentConfigsListResponse(agents=default_agents)
+    repo = PostgresAgentProfileRepository(db)
+    agents_list = await repo.list_by_org(user["org_id"])
+    agents = [
+        AgentConfigEntry(
+            id=str(agent["id"]),
+            name=agent["name"],
+            adapter=agent["adapter"],
+            executable=agent["executable"],
+            args=agent.get("args") or [],
+            model=agent.get("model"),
+            working_directory=agent.get("working_directory") or ".",
+            environment=agent.get("environment") or {},
+            description=agent.get("description"),
+        )
+        for agent in agents_list
+    ]
+    return AgentConfigsListResponse(agents=agents)
 
 
 @router.get("/workflow-config", response_model=WorkflowConfigResponse)

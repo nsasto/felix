@@ -46,7 +46,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
   const mockConfiguredAgents = {
     agents: [
       {
-        id: 0,
+        id: "agent-0",
         name: 'felix-primary',
         executable: 'droid',
         args: ['exec', '--skip-permissions-unsafe'],
@@ -54,7 +54,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
         environment: {},
       },
       {
-        id: 1,
+        id: "agent-1",
         name: 'test-agent',
         executable: 'claude',
         args: ['--model', 'opus'],
@@ -67,8 +67,8 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
   // Mock runtime agents registry - keyed by agent ID (number), not name
   const mockRuntimeAgents = {
     agents: {
-      0: {
-        agent_id: 0,
+      "agent-0": {
+        agent_id: "agent-0",
         agent_name: 'felix-primary',
         pid: 12345,
         hostname: 'localhost',
@@ -164,7 +164,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
       renderWithTheme(<AgentDashboard projectId={mockProjectId} />);
 
       await waitFor(() => {
-        // test-agent (id: 1) has no runtime entry, should show "Ready to start" text
+        // test-agent (id: "agent-1") has no runtime entry, should show "Ready to start" text
         // Only one agent (test-agent) should show this since felix-primary has runtime entry
         const readyElements = screen.getAllByText('Ready to start');
         expect(readyElements.length).toBe(1);
@@ -198,7 +198,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
 
       await waitFor(() => {
         // Should show the gray dot (⚫) for not-started status
-        // Only test-agent (id: 1) should show this, so expect exactly one
+        // Only test-agent (id: "agent-1") should show this, so expect exactly one
         const notStartedIcons = screen.getAllByTitle('not-started');
         expect(notStartedIcons.length).toBe(1);
       });
@@ -209,7 +209,7 @@ describe('AgentDashboard (S-0021: Agent Orchestration Enhancement)', () => {
 
       await waitFor(() => {
         // Should show the green dot (🟢) for active status
-        // Only felix-primary (id: 0) should show this, so expect exactly one
+        // Only felix-primary (id: "agent-0") should show this, so expect exactly one
         const activeIcons = screen.getAllByTitle('active');
         expect(activeIcons.length).toBe(1);
       });

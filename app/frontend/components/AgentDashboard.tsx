@@ -70,7 +70,7 @@ interface AgentDashboardProps {
 }
 
 interface SelectedAgent {
-  id: number;
+  id: string;
   agent: MergedAgent;
 }
 
@@ -982,7 +982,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 
 interface RunHistoryPanelProps {
   projectId: string;
-  selectedAgentId: number | null;
+  selectedAgentId: string | null;
   onSelectRun: (runId: string) => void;
   dbRuns: Run[]; // Database-backed runs from new API (S-0042)
   loading?: boolean;
@@ -1413,7 +1413,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     setActionInProgress("start");
     try {
       // Try to use the new database-backed API first
-      // The agent_id for the new API is a string UUID, but we have numeric IDs from legacy
+      // The agent_id for the new API is a string UUID; legacy endpoints still power start/stop.
       // For now, use the legacy API which starts the configured agent process
       await felixApi.startAgentWithRequirement(selectedAgent.id, requirementId);
       await fetchAgents();

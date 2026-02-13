@@ -114,7 +114,7 @@ export interface UserProfile {
 // --- Agent Registry Types (for S-0013: Agent Settings Registry) ---
 
 export interface AgentEntry {
-  agent_id: number;
+  agent_id: string;
   agent_name: string;
   pid: number;
   hostname: string;
@@ -129,11 +129,11 @@ export interface AgentEntry {
 }
 
 export interface AgentRegistryResponse {
-  agents: Record<number, AgentEntry>;
+  agents: Record<string, AgentEntry>;
 }
 
 export interface AgentRegistration {
-  agent_id: number;
+  agent_id: string;
   agent_name: string;
   pid: number;
   hostname: string;
@@ -141,7 +141,7 @@ export interface AgentRegistration {
 }
 
 export interface AgentStatusResponse {
-  agent_id: number;
+  agent_id: string;
   agent_name: string;
   status: string;
   pid: number;
@@ -263,12 +263,15 @@ export interface CopilotStatus {
  * Different from AgentEntry which represents a running/registered agent instance.
  */
 export interface AgentConfiguration {
-  id: number;
+  id: string;
   name: string;
   executable: string;
   args: string[];
   working_directory: string;
   environment: Record<string, string>;
+  adapter?: string;
+  model?: string | null;
+  description?: string | null;
 }
 
 export interface AgentConfigurationCreate {
@@ -289,7 +292,7 @@ export interface AgentConfigurationUpdate {
 
 export interface AgentConfigurationsResponse {
   agents: AgentConfiguration[];
-  active_agent_id: number;
+  active_agent_id: string | null;
 }
 
 export interface AgentConfigurationResponse {
@@ -298,27 +301,30 @@ export interface AgentConfigurationResponse {
 }
 
 export interface SetActiveAgentRequest {
-  agent_id: number;
+  agent_id: string;
 }
 
 export interface SetActiveAgentResponse {
-  agent_id: number;
+  agent_id: string;
   message: string;
 }
 
 // --- Agent Config List Types (for S-0021: Agent Orchestration Enhancement) ---
 
 /**
- * Agent configuration entry from agents.json as returned by /api/agents/config.
+ * Agent configuration entry from the database as returned by /api/agents/config.
  * Used by the Agent Orchestration Dashboard to display all available agents.
  */
 export interface AgentConfigEntry {
-  id: number;
+  id: string;
   name: string;
   executable: string;
   args: string[];
   working_directory: string;
   environment: Record<string, string>;
+  adapter?: string;
+  model?: string | null;
+  description?: string | null;
 }
 
 export interface AgentConfigsListResponse {
@@ -349,17 +355,20 @@ export interface WorkflowConfigResponse {
 }
 
 /**
- * Merged agent combining configuration from agents.json with runtime status from the registry.
+ * Merged agent combining configuration from the database with runtime status from the registry.
  * Used by the Agent Orchestration Dashboard to display complete agent information.
  */
 export interface MergedAgent {
-  // From agents.json (configuration)
-  id: number;
+  // From agent profiles (configuration)
+  id: string;
   name: string;
   executable: string;
   args: string[];
   working_directory: string;
   environment: Record<string, string>;
+  adapter?: string;
+  model?: string | null;
+  description?: string | null;
   // From runtime registry (or derived status)
   status: "not-started" | "active" | "stale" | "inactive" | "stopped";
   // Runtime data (optional - only present if agent has been started)
@@ -732,7 +741,7 @@ class FelixApiService {
   }
 
   async agentHeartbeat(
-    agentId: number,
+    agentId: string,
     currentRunId?: string,
   ): Promise<AgentStatusResponse> {
     return this.request<AgentStatusResponse>(`/agents/${agentId}/heartbeat`, {
@@ -742,17 +751,17 @@ class FelixApiService {
   }
 
   async stopAgent(
-    agentId: number,
+    agentId: string,
     mode: "graceful" | "force" = "graceful",
   ): Promise<{
     message: string;
-    agent_id: number;
+    agent_id: string;
     agent_name: string;
     status: string;
   }> {
     return this.request<{
       message: string;
-      agent_id: number;
+      agent_id: string;
       agent_name: string;
       status: string;
     }>(`/agents/${agentId}/stop?mode=${mode}`, {
@@ -761,18 +770,18 @@ class FelixApiService {
   }
 
   async startAgentWithRequirement(
-    agentId: number,
+    agentId: string,
     requirementId: string,
   ): Promise<{
     message: string;
-    agent_id: number;
+    agent_id: string;
     agent_name: string;
     requirement_id: string;
     status: string;
   }> {
     return this.request<{
       message: string;
-      agent_id: number;
+      agent_id: string;
       agent_name: string;
       requirement_id: string;
       status: string;
@@ -785,7 +794,7 @@ class FelixApiService {
   // --- Agent Config Endpoints (for S-0021: Agent Orchestration Enhancement) ---
 
   /**
-   * Get all configured agents from agents.json.
+   * Get all configured agents from the database.
    * Returns the list of agent configurations for display in the Agent Orchestration Dashboard.
    * This is different from getAgents() which returns runtime registry (running/stopped agents).
    */
@@ -1026,7 +1035,7 @@ class FelixApiService {
   // --- Agent Configuration Endpoints (for S-0020: Consolidate Agent Settings) ---
 
   /**
-   * Get all agent configurations from agents.json.
+   * Get all agent configurations from the database.
    * Returns the list of agent configurations along with the currently active agent ID.
    */
   async getAgentConfigurations(): Promise<AgentConfigurationsResponse> {
@@ -1037,7 +1046,7 @@ class FelixApiService {
    * Get a specific agent configuration by ID.
    */
   async getAgentConfiguration(
-    agentId: number,
+    agentId: string,
   ): Promise<AgentConfigurationResponse> {
     return this.request<AgentConfigurationResponse>(
       `/agent-configs/${agentId}`,
@@ -1062,7 +1071,7 @@ class FelixApiService {
    * All fields are optional - only provided fields are updated.
    */
   async updateAgentConfiguration(
-    agentId: number,
+    agentId: string,
     config: AgentConfigurationUpdate,
   ): Promise<AgentConfigurationResponse> {
     return this.request<AgentConfigurationResponse>(
@@ -1080,9 +1089,9 @@ class FelixApiService {
    * If deleting the currently active agent, switches to agent ID 0.
    */
   async deleteAgentConfiguration(
-    agentId: number,
-  ): Promise<{ status: string; agent_id: number; message: string }> {
-    return this.request<{ status: string; agent_id: number; message: string }>(
+    agentId: string,
+  ): Promise<{ status: string; agent_id: string; message: string }> {
+    return this.request<{ status: string; agent_id: string; message: string }>(
       `/agent-configs/${agentId}`,
       {
         method: "DELETE",
@@ -1094,7 +1103,7 @@ class FelixApiService {
    * Set the active agent by ID.
    * Updates config.json to use the specified agent_id.
    */
-  async setActiveAgent(agentId: number): Promise<SetActiveAgentResponse> {
+  async setActiveAgent(agentId: string): Promise<SetActiveAgentResponse> {
     return this.request<SetActiveAgentResponse>("/agent-configs/active", {
       method: "POST",
       body: JSON.stringify({ agent_id: agentId }),
