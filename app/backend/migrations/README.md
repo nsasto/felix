@@ -110,6 +110,7 @@ For production environments, always write explicit rollback scripts.
 | 004_requirement_dependencies.sql | Join table for requirement dependencies                               | Auto-tracked |
 | 005_requirement_content_versions.sql | Requirement content snapshot + version history                      | Auto-tracked |
 | 006_add_requirement_code.sql | Add human-readable requirement code                                     | Auto-tracked |
+| 007_requirement_content_updated_at_trigger.sql | Add updated_at trigger for requirement_content        | Auto-tracked |
 
 ## Dev Seed (Optional)
 
@@ -134,9 +135,10 @@ Output:
   2 | 001_seed_dev_data.sql        | 2026-02-02 10:30:01.234567+00  (dev only, when `-Seed` is used)
   3 | 002_enable_pgcrypto_and_status_checks.sql | 2026-02-02 10:30:02.345678+00
   4 | 003_updated_at_triggers.sql  | 2026-02-02 10:30:03.456789+00
-  5 | 004_requirement_dependencies.sql | 2026-02-02 10:30:04.567890+00
-  6 | 005_requirement_content_versions.sql | 2026-02-02 10:30:05.678901+00
-  7 | 006_add_requirement_code.sql | 2026-02-02 10:30:06.789012+00
+ 5 | 004_requirement_dependencies.sql | 2026-02-02 10:30:04.567890+00
+ 6 | 005_requirement_content_versions.sql | 2026-02-02 10:30:05.678901+00
+ 7 | 006_add_requirement_code.sql | 2026-02-02 10:30:06.789012+00
+ 8 | 007_requirement_content_updated_at_trigger.sql | 2026-02-02 10:30:07.890123+00
 ```
 
 ## Quick Setup

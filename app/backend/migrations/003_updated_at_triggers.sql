@@ -30,6 +30,11 @@ CREATE TRIGGER set_updated_at_requirements
 BEFORE UPDATE ON requirements
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_updated_at_requirement_content ON requirement_content;
+CREATE TRIGGER set_updated_at_requirement_content
+BEFORE UPDATE ON requirement_content
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 DROP TRIGGER IF EXISTS set_updated_at_agents ON agents;
 CREATE TRIGGER set_updated_at_agents
 BEFORE UPDATE ON agents
@@ -45,6 +50,7 @@ FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 -- ====================================================================
 -- DROP TRIGGER IF EXISTS set_updated_at_agent_states ON agent_states;
 -- DROP TRIGGER IF EXISTS set_updated_at_agents ON agents;
+-- DROP TRIGGER IF EXISTS set_updated_at_requirement_content ON requirement_content;
 -- DROP TRIGGER IF EXISTS set_updated_at_requirements ON requirements;
 -- DROP TRIGGER IF EXISTS set_updated_at_projects ON projects;
 -- DROP TRIGGER IF EXISTS set_updated_at_organizations ON organizations;
