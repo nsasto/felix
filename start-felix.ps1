@@ -18,19 +18,20 @@ try {
         Write-Host "Starting PostgreSQL server..." -ForegroundColor Yellow
         $pgCtl = Join-Path $pgBin "pg_ctl.exe"
         if (Test-Path $pgCtl) {
-            # Start with timeout, show output if it fails
-            $startOutput = & $pgCtl -D $pgData start -w -t 10 -l "$pgData\logfile" 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "PostgreSQL started" -ForegroundColor Green
-            } else {
-                Write-Host "Warning: pg_ctl exited with code $LASTEXITCODE" -ForegroundColor Yellow
-                Write-Host "Output: $startOutput" -ForegroundColor Gray
-                Write-Host "Continuing anyway..." -ForegroundColor Gray
-            }
-        } else {
+            # Start in separate process to avoid blocking
+            Write-Host "Starting PostgreSQL server (background process)..." -ForegroundColor Yellow
+            $argList = "-D `"$pgData`" start -l `"$pgData\logfile`""
+            Start-Process -FilePath $pgCtl -ArgumentList $argList -WindowStyle Hidden
+            
+            # Brief pause to allow startup
+            Start-Sleep -Seconds 2
+            Write-Host "PostgreSQL start command issued" -ForegroundColor Green
+        }
+        else {
             Write-Host "Warning: pg_ctl not found at $pgCtl" -ForegroundColor Yellow
         }
-    } else {
+    }
+    else {
         Write-Host "PostgreSQL already running" -ForegroundColor Green
     }
     
