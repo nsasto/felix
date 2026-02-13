@@ -39,9 +39,9 @@
 - [x] Implement requirement status endpoints.
 
 ## Phase 3: API Contract + Frontend Integration
-- Update frontend models to include `code`.
-- Display `code` in UI; keep UUID internal if needed.
-- Dependency selector uses `code` values; backend resolves to UUID.
+- [x] Update frontend models to include `code`.
+- [x] Display `code` in UI; keep UUID internal if needed.
+- [x] Dependency selector uses `code` values; backend resolves to UUID.
 - [x] Spec editor loads from `requirement_content`.
 - [x] Spec saves create new `requirement_versions` and update `requirement_content`.
 

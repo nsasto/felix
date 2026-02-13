@@ -103,7 +103,7 @@ class CopilotContextSourcesConfig(BaseModel):
     )
     prompt_md: bool = Field(default=True, description="Include prompt.md in context")
     requirements: bool = Field(
-        default=True, description="Include requirements.json in context"
+        default=True, description="Include requirements in context"
     )
     other_specs: bool = Field(
         default=True, description="Include other spec files in context"

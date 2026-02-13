@@ -49,7 +49,7 @@ class SpecUpdate(BaseModel):
 
 
 class Requirement(BaseModel):
-    """Single requirement from requirements.json"""
+    """Single requirement from the database"""
 
     id: str
     code: Optional[str] = None
@@ -69,14 +69,14 @@ class Requirement(BaseModel):
 
 
 class RequirementsContent(BaseModel):
-    """Requirements.json content response"""
+    """Requirements content response"""
 
     requirements: List[Requirement]
     path: str
 
 
 class RequirementsUpdate(BaseModel):
-    """Request body for updating requirements.json"""
+    """Request body for updating requirements"""
 
     requirements: List[Requirement] = Field(..., description="List of requirements")
 
@@ -164,7 +164,7 @@ class CopilotContextSourcesConfig(BaseModel):
     )
     prompt_md: bool = Field(default=True, description="Include prompt.md in context")
     requirements: bool = Field(
-        default=True, description="Include requirements.json in context"
+        default=True, description="Include requirements in context"
     )
     other_specs: bool = Field(
         default=True, description="Include other spec files in context"
@@ -598,8 +598,7 @@ async def create_spec(
     """
     Create a new spec file.
 
-    NOTE: Updated for Phase 0 database migration (S-0032).
-    requirements.json update logic removed - spec file creation preserved.
+    NOTE: Requirement records are database-driven; spec file creation preserved.
 
     Returns 409 Conflict if the file already exists.
     Validates path against project policies (allowlist/denylist).
@@ -636,8 +635,7 @@ async def create_spec(
         # Write the spec file
         spec_path.write_text(request.content, encoding="utf-8")
 
-        # NOTE: requirements.json update removed for Phase 0 database migration (S-0032)
-        # Requirement registration will be handled by database in future phases
+        # NOTE: Requirement registration remains database-driven.
 
         return SpecContent(filename=request.filename, content=request.content)
     except Exception as e:
