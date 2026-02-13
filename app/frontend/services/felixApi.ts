@@ -39,6 +39,8 @@ export interface SpecFile {
 
 export interface Requirement {
   id: string;
+  code?: string | null;
+  uuid?: string | null;
   title: string;
   spec_path: string;
   status: string;

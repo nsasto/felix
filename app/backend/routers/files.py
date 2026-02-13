@@ -52,6 +52,8 @@ class Requirement(BaseModel):
     """Single requirement from requirements.json"""
 
     id: str
+    code: Optional[str] = None
+    uuid: Optional[str] = None
     title: str
     spec_path: Optional[str] = None
     status: str

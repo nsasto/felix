@@ -77,6 +77,8 @@ class RequirementService:
 
         return {
             "id": record.get("code") or record["id"],
+            "code": record.get("code"),
+            "uuid": record["id"],
             "title": record["title"],
             "spec_path": record["spec_path"],
             "status": record["status"],
@@ -134,6 +136,8 @@ class RequirementService:
             results.append(
                 {
                     "id": record.get("code") or req_id,
+                    "code": record.get("code"),
+                    "uuid": req_id,
                     "title": record["title"],
                     "spec_path": record["spec_path"],
                     "status": record["status"],

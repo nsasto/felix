@@ -22,6 +22,8 @@ class RequirementMetadataUpdate(BaseModel):
 
 class Requirement(BaseModel):
     id: str
+    code: str | None = None
+    uuid: str | None = None
     title: str
     spec_path: str
     status: str
