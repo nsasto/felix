@@ -1095,6 +1095,7 @@ function Invoke-SpecCreate {
         Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
         Write-Host "  fix [--fix-duplicates]            Scan specs folder and fix requirements.json alignment"
         Write-Host "  delete <requirement-id>           Delete a specification and remove from requirements.json"
+        Write-Host "  status <requirement-id> <status>  Update a requirement status in requirements.json"
         Write-Host ""
         Write-Host "Flags:"
         Write-Host "  --quick, -q           Quick mode: minimal questions, makes reasonable assumptions"
@@ -1105,6 +1106,7 @@ function Invoke-SpecCreate {
         Write-Host "  felix spec fix"
         Write-Host "  felix spec fix --fix-duplicates"
         Write-Host "  felix spec delete S-0042"
+        Write-Host "  felix spec status S-0042 planned"
         exit 0
     }
 
@@ -1223,6 +1225,19 @@ function Invoke-SpecCreate {
             exit $LASTEXITCODE
         }
         
+        "status" {
+            if ($Args.Count -lt 3) {
+                Write-Error "Usage: felix spec status <requirement-id> <status>"
+                Write-Host "Example: felix spec status S-0042 planned"
+                exit 1
+            }
+            
+            $requirementId = $Args[1]
+            $statusValue = $Args[2]
+            Invoke-SpecStatus -RequirementId $requirementId -Status $statusValue
+            exit $LASTEXITCODE
+        }
+        
         default {
             Write-Error "Unknown spec subcommand: $subcommand"
             Write-Host ""
@@ -1230,6 +1245,7 @@ function Invoke-SpecCreate {
             Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
             Write-Host "  fix [--fix-duplicates]            Scan specs folder and fix requirements.json alignment"
             Write-Host "  delete <requirement-id>           Delete a specification and remove from requirements.json"
+            Write-Host "  status <requirement-id> <status>  Update a requirement status in requirements.json"
             Write-Host ""
             Write-Host "Flags:"
             Write-Host "  --quick, -q           Quick mode: minimal questions, makes reasonable assumptions"
@@ -1240,8 +1256,64 @@ function Invoke-SpecCreate {
             Write-Host "  felix spec fix"
             Write-Host "  felix spec fix --fix-duplicates"
             Write-Host "  felix spec delete S-0042"
+            Write-Host "  felix spec status S-0042 planned"
             exit 1
         }
+    }
+}
+
+function Invoke-SpecStatus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RequirementId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Status
+    )
+
+    if ($RequirementId -notmatch '^S-\d{4}$') {
+        Write-Error 'Invalid requirement ID format. Expected S-NNNN (e.g., S-0001)'
+        exit 1
+    }
+
+    $normalizedStatus = $Status.ToLower()
+    if ($normalizedStatus -eq "in-progress") {
+        $normalizedStatus = "in_progress"
+    }
+
+    $allowedStatuses = @("draft", "planned", "in_progress", "blocked", "complete", "done")
+    if ($allowedStatuses -notcontains $normalizedStatus) {
+        Write-Error "Invalid status '$Status'. Allowed: $($allowedStatuses -join ', ')"
+        exit 1
+    }
+
+    . "$PSScriptRoot\core\state-manager.ps1"
+
+    $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
+    if (-not (Test-Path $requirementsFile)) {
+        Write-Error "requirements.json not found at $requirementsFile"
+        exit 1
+    }
+
+    try {
+        $state = Get-RequirementsState -RequirementsFile $requirementsFile
+        $requirement = $state.requirements | Where-Object { $_.id -eq $RequirementId }
+        if (-not $requirement) {
+            Write-Error "Requirement $RequirementId not found in requirements.json"
+            exit 1
+        }
+
+        $requirement.status = $normalizedStatus
+        $requirement.updated_at = Get-Date -Format "yyyy-MM-dd"
+        Save-RequirementsState -RequirementsFile $requirementsFile -State $state
+
+        Write-Host ""
+        Write-Host "[OK] Updated $RequirementId status to '$normalizedStatus'" -ForegroundColor Green
+        Write-Host ""
+    }
+    catch {
+        Write-Error "Failed to update requirement status: $_"
+        exit 1
     }
 }
 
@@ -1894,11 +1966,13 @@ function Show-Help {
                 Write-Host "  create <description>   Create a new requirement spec"
                 Write-Host "  fix <req-id>           Fix an existing spec"
                 Write-Host "  delete <req-id>        Delete a requirement spec"
+                Write-Host "  status <req-id> <status>  Update a requirement status"
                 Write-Host ""
                 Write-Host "Examples:"
                 Write-Host "  felix spec create ""Add user authentication"""
                 Write-Host "  felix spec fix S-0001"
                 Write-Host "  felix spec delete S-0001"
+                Write-Host "  felix spec status S-0001 planned"
                 Write-Host ""
             }
             "context" {

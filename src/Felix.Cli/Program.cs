@@ -288,9 +288,25 @@ class Program
             await ExecutePowerShell(felixPs1, "spec", "delete", reqId);
         }, delReqIdArg);
 
+        // spec status
+        var statusReqIdArg = new Argument<string>("requirement-id", "Requirement ID to update");
+        var statusArg = new Argument<string>("status", "New status (draft, planned, in_progress, blocked, complete, done)");
+
+        var statusCmd = new Command("status", "Update a requirement status in requirements.json")
+        {
+            statusReqIdArg,
+            statusArg
+        };
+
+        statusCmd.SetHandler(async (reqId, status) =>
+        {
+            await ExecutePowerShell(felixPs1, "spec", "status", reqId, status);
+        }, statusReqIdArg, statusArg);
+
         cmd.AddCommand(createCmd);
         cmd.AddCommand(fixCmd);
         cmd.AddCommand(deleteCmd);
+        cmd.AddCommand(statusCmd);
 
         return cmd;
     }
