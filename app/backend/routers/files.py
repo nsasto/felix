@@ -414,6 +414,7 @@ async def read_spec(
     filename: str = PathParam(
         ..., description="Spec filename (e.g., 'S-0001-felix-agent-executor.md')"
     ),
+    db: Database = Depends(get_db),
 ):
     """
     Read content of a specific spec file.
@@ -423,6 +424,15 @@ async def read_spec(
 
     project_path = get_project_path(project_id)
     spec_path = project_path / "specs" / filename
+    relative_path = f"specs/{filename}"
+
+    try:
+        service = RequirementService(db)
+        content = await service.get_content_by_spec_path(project_id, relative_path)
+        if content is not None:
+            return SpecContent(filename=filename, content=content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read spec: {str(e)}")
 
     if not spec_path.exists():
         raise HTTPException(status_code=404, detail=f"Spec file not found: {filename}")

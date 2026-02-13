@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+import os
+import json
 
 from databases import Database
 
@@ -24,6 +26,31 @@ def _is_uuid(value: str) -> bool:
         return False
 
 
+def _resolve_project_id(project_id: str) -> str:
+    if _is_uuid(project_id):
+        return project_id
+    dev_project_id = os.getenv("DEV_PROJECT_ID")
+    if dev_project_id and _is_uuid(dev_project_id):
+        return dev_project_id
+    raise ValueError(
+        f"Invalid project_id '{project_id}'. Expected UUID or DEV_PROJECT_ID env var."
+    )
+
+
+def _normalize_tags(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError:
+            return []
+    return []
+
+
 class RequirementService:
     def __init__(self, db: Database) -> None:
         self.db = db
@@ -38,8 +65,9 @@ class RequirementService:
         field: str,
         value: Any,
     ) -> Dict[str, Any]:
+        resolved_project_id = _resolve_project_id(project_id)
         requirement = await self._resolve_requirement(
-            project_id, requirement_id_or_code
+            resolved_project_id, requirement_id_or_code
         )
         if not requirement:
             return {}
@@ -51,7 +79,7 @@ class RequirementService:
         elif field == "tags":
             await self.requirements.update_tags(requirement_id, value)
         elif field == "depends_on":
-            await self._replace_dependencies(project_id, requirement_id, value)
+            await self._replace_dependencies(resolved_project_id, requirement_id, value)
         else:
             raise ValueError(f"Unsupported metadata field: {field}")
 
@@ -74,18 +102,19 @@ class RequirementService:
 
         depends_on_codes = await self.dependencies.list_depends_on_codes(requirement_id)
         record = dict(row)
+        updated_at = record.get("updated_at")
 
         return {
             "id": record.get("code") or record["id"],
             "code": record.get("code"),
-            "uuid": record["id"],
+            "uuid": str(record["id"]),
             "title": record["title"],
             "spec_path": record["spec_path"],
             "status": record["status"],
             "priority": record["priority"],
-            "tags": record["tags"] or [],
+            "tags": _normalize_tags(record.get("tags")),
             "depends_on": depends_on_codes,
-            "updated_at": record["updated_at"],
+            "updated_at": updated_at.isoformat() if updated_at else None,
             "commit_on_complete": record["commit_on_complete"],
             "has_plan": False,
         }
@@ -96,6 +125,7 @@ class RequirementService:
         return await self._resolve_requirement(project_id, requirement_id_or_code)
 
     async def list_requirements(self, project_id: str) -> List[Dict[str, Any]]:
+        resolved_project_id = _resolve_project_id(project_id)
         rows = await self.db.fetch_all(
             """
             SELECT
@@ -106,7 +136,7 @@ class RequirementService:
             WHERE r.project_id = :project_id
             ORDER BY r.code NULLS LAST, r.created_at
             """,
-            values={"project_id": project_id},
+            values={"project_id": resolved_project_id},
         )
         if not rows:
             return []
@@ -133,18 +163,19 @@ class RequirementService:
         for row in rows:
             record = dict(row)
             req_id = record["id"]
+            updated_at = record.get("updated_at")
             results.append(
                 {
                     "id": record.get("code") or req_id,
                     "code": record.get("code"),
-                    "uuid": req_id,
+                    "uuid": str(req_id),
                     "title": record["title"],
                     "spec_path": record["spec_path"],
                     "status": record["status"],
                     "priority": record["priority"],
-                    "tags": record["tags"] or [],
+                    "tags": _normalize_tags(record.get("tags")),
                     "depends_on": deps_by_requirement.get(req_id, []),
-                    "updated_at": record["updated_at"],
+                    "updated_at": updated_at.isoformat() if updated_at else None,
                     "commit_on_complete": record["commit_on_complete"],
                     "has_plan": False,
                 }
@@ -160,7 +191,10 @@ class RequirementService:
         author_id: Optional[str] = None,
         source: str = "spec_file",
     ) -> bool:
-        requirement = await self.requirements.get_by_spec_path(project_id, spec_path)
+        resolved_project_id = _resolve_project_id(project_id)
+        requirement = await self.requirements.get_by_spec_path(
+            resolved_project_id, spec_path
+        )
         if not requirement:
             return False
 
@@ -184,8 +218,29 @@ class RequirementService:
     async def get_content(
         self, project_id: str, requirement_id_or_code: str
     ) -> Optional[str]:
+        resolved_project_id = _resolve_project_id(project_id)
         requirement = await self._resolve_requirement(
-            project_id, requirement_id_or_code
+            resolved_project_id, requirement_id_or_code
+        )
+        if not requirement:
+            return None
+
+        row = await self.db.fetch_one(
+            """
+            SELECT content
+            FROM requirement_content
+            WHERE requirement_id = :requirement_id
+            """,
+            values={"requirement_id": requirement["id"]},
+        )
+        return row["content"] if row else None
+
+    async def get_content_by_spec_path(
+        self, project_id: str, spec_path: str
+    ) -> Optional[str]:
+        resolved_project_id = _resolve_project_id(project_id)
+        requirement = await self.requirements.get_by_spec_path(
+            resolved_project_id, spec_path
         )
         if not requirement:
             return None
@@ -203,6 +258,7 @@ class RequirementService:
     async def _resolve_requirement(
         self, project_id: str, requirement_id_or_code: str
     ) -> Optional[Dict[str, Any]]:
+        project_id = _resolve_project_id(project_id)
         if _is_uuid(requirement_id_or_code):
             return await self.requirements.get_by_id(
                 project_id, requirement_id_or_code
@@ -215,6 +271,7 @@ class RequirementService:
         requirement_id: str,
         depends_on: List[str],
     ) -> None:
+        project_id = _resolve_project_id(project_id)
         depends_on = depends_on or []
         if not depends_on:
             await self.dependencies.replace_dependencies(requirement_id, [])
