@@ -181,6 +181,25 @@ class RequirementService:
         await self.requirements.touch_updated_at(requirement_id)
         return True
 
+    async def get_content(
+        self, project_id: str, requirement_id_or_code: str
+    ) -> Optional[str]:
+        requirement = await self._resolve_requirement(
+            project_id, requirement_id_or_code
+        )
+        if not requirement:
+            return None
+
+        row = await self.db.fetch_one(
+            """
+            SELECT content
+            FROM requirement_content
+            WHERE requirement_id = :requirement_id
+            """,
+            values={"requirement_id": requirement["id"]},
+        )
+        return row["content"] if row else None
+
     async def _resolve_requirement(
         self, project_id: str, requirement_id_or_code: str
     ) -> Optional[Dict[str, Any]]:

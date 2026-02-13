@@ -35,6 +35,10 @@ class Requirement(BaseModel):
     has_plan: bool = False
 
 
+class RequirementContentResponse(BaseModel):
+    content: str
+
+
 @router.patch("/{project_id}/requirements/{requirement_id}", response_model=Requirement)
 async def update_requirement_metadata(
     project_id: str,
@@ -112,3 +116,22 @@ async def update_requirement_metadata(
         )
 
     return Requirement(**updated)
+
+
+@router.get(
+    "/{project_id}/requirements/{requirement_id}/content",
+    response_model=RequirementContentResponse,
+)
+async def get_requirement_content(
+    project_id: str,
+    requirement_id: str,
+    db: Database = Depends(get_db),
+):
+    service = RequirementService(db)
+    content = await service.get_content(project_id, requirement_id)
+    if content is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Requirement {requirement_id} not found in project {project_id}",
+        )
+    return RequirementContentResponse(content=content)

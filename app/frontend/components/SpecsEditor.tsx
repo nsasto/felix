@@ -160,10 +160,22 @@ export default function SpecsEditor({
     const fetchContent = async () => {
       setContentLoading(true);
       try {
-        const result = await felixApi.getSpec(projectId, selectedFilename);
-        setSpecContent(result.content);
-        setOriginalContent(result.content);
-        setOriginalCriteria(extractCriteriaSections(result.content));
+        const requirementId =
+          selectedRequirement?.uuid || selectedRequirement?.id || null;
+        if (requirementId) {
+          const result = await felixApi.getRequirementContent(
+            projectId,
+            requirementId,
+          );
+          setSpecContent(result.content);
+          setOriginalContent(result.content);
+          setOriginalCriteria(extractCriteriaSections(result.content));
+        } else {
+          const result = await felixApi.getSpec(projectId, selectedFilename);
+          setSpecContent(result.content);
+          setOriginalContent(result.content);
+          setOriginalCriteria(extractCriteriaSections(result.content));
+        }
       } catch (err) {
         console.error("Failed to fetch spec content:", err);
         setSpecContent("");
@@ -175,7 +187,7 @@ export default function SpecsEditor({
     };
 
     fetchContent();
-  }, [projectId, selectedFilename, viewMode]);
+  }, [projectId, selectedFilename, viewMode, selectedRequirement]);
 
   // Handle spec selection from table
   const handleSpecClick = useCallback((specPath: string) => {

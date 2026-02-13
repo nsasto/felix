@@ -164,6 +164,10 @@ export interface RequirementStatusResponse {
   spec_modified_at: string | null;
 }
 
+export interface RequirementContentResponse {
+  content: string;
+}
+
 export interface PlanInfo {
   requirement_id: string;
   exists: boolean;
@@ -692,6 +696,15 @@ class FelixApiService {
         method: "PUT",
         body: JSON.stringify({ status }),
       },
+    );
+  }
+
+  async getRequirementContent(
+    projectId: string,
+    requirementId: string,
+  ): Promise<RequirementContentResponse> {
+    return this.request<RequirementContentResponse>(
+      `/projects/${projectId}/requirements/${requirementId}/content`,
     );
   }
 

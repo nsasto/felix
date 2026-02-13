@@ -42,8 +42,8 @@
 - Update frontend models to include `code`.
 - Display `code` in UI; keep UUID internal if needed.
 - Dependency selector uses `code` values; backend resolves to UUID.
-- Spec editor loads from `requirement_content`.
-- Spec saves create new `requirement_versions` and update `requirement_content`.
+- [x] Spec editor loads from `requirement_content`.
+- [x] Spec saves create new `requirement_versions` and update `requirement_content`.
 
 ## Phase 4: Deprecate File-Based Requirements
 - Replace requirements.json read paths with DB queries.
