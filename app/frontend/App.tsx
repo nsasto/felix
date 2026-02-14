@@ -100,6 +100,50 @@ const clearLastProjectId = (): void => {
   }
 };
 
+const toSlug = (value: string): string => {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+};
+
+type RouteInfo =
+  | { kind: "personal-settings" }
+  | { kind: "org-settings"; orgSlug: string }
+  | { kind: "project"; orgSlug: string; projectId: string; section?: string }
+  | { kind: "org-projects"; orgSlug: string }
+  | { kind: "unknown" };
+
+const parseRoute = (pathname: string): RouteInfo => {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] === "me" && segments[1] === "settings") {
+    return { kind: "personal-settings" };
+  }
+  if (segments[0] === "org") {
+    const orgSlug = segments[1];
+    if (!orgSlug) {
+      return { kind: "unknown" };
+    }
+    if (segments[2] === "settings") {
+      return { kind: "org-settings", orgSlug };
+    }
+    if (segments[2] === "projects") {
+      const projectId = segments[3];
+      if (projectId) {
+        return {
+          kind: "project",
+          orgSlug,
+          projectId,
+          section: segments[4],
+        };
+      }
+      return { kind: "org-projects", orgSlug };
+    }
+    return { kind: "org-projects", orgSlug };
+  }
+  return { kind: "unknown" };
+};
+
 const formatRoleLabel = (role: string): string => {
   return role
     .replace(/[_-]+/g, " ")
@@ -144,6 +188,12 @@ const INITIAL_TASKS: Task[] = [
   },
 ];
 
+const ORG_OPTIONS = [
+  { id: "untrueaxioms", label: "UntrueAxioms", type: "org" },
+  { id: "all", label: "All Organizations", type: "org" },
+  { id: "new", label: "New organization", type: "action" },
+] as const;
+
 // Extended UI state to include projects, plan, settings, and orchestration views
 type ExtendedUIState =
   | UIState
@@ -153,6 +203,45 @@ type ExtendedUIState =
   | "orchestration"
   | "personal-settings"
   | "org-settings";
+
+const mapSectionToUiState = (section?: string): ExtendedUIState => {
+  switch (section) {
+    case "overview":
+      return "projects";
+    case "settings":
+      return "settings";
+    case "kanban":
+      return "kanban";
+    case "specs":
+    case "specifications":
+      return "assets";
+    case "orchestration":
+      return "orchestration";
+    case "plan":
+    case "readme":
+      return "plan";
+    default:
+      return "projects";
+  }
+};
+
+const mapUiStateToSection = (uiState: ExtendedUIState): string => {
+  switch (uiState) {
+    case "settings":
+      return "settings";
+    case "kanban":
+      return "kanban";
+    case "assets":
+      return "specifications";
+    case "orchestration":
+      return "orchestration";
+    case "plan":
+      return "plan";
+    case "projects":
+    default:
+      return "overview";
+  }
+};
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
@@ -177,6 +266,11 @@ const App: React.FC = () => {
   const [isLogoHovered, setLogoHovered] = useState(false);
   const [isOrgMenuOpen, setOrgMenuOpen] = useState(false);
   const orgMenuRef = useRef<HTMLElement | null>(null);
+  const lastPathRef = useRef<string | null>(null);
+  const hasSyncedRouteRef = useRef(false);
+  const isApplyingRouteRef = useRef(false);
+  const hasUrlRouteRef = useRef(false);
+  const pendingPathRef = useRef<string | null>(null);
   const [orgSearch, setOrgSearch] = useState("");
   const [selectedOrg, setSelectedOrg] = useState("UntrueAxioms");
   const [userProfile, setUserProfile] = useState<{
@@ -254,10 +348,9 @@ const App: React.FC = () => {
     { label: "System", value: "system" },
   ];
   const orgOptions = [
-    { id: "untrueaxioms", label: "UntrueAxioms", type: "org" },
-    { id: "all", label: "All Organizations", type: "org" },
-    { id: "new", label: "New organization", type: "action" },
+    ...ORG_OPTIONS,
   ];
+  const currentOrgSlug = userProfile?.org_slug || toSlug(selectedOrg) || "org";
   const normalizedRole = userProfile?.role?.toLowerCase() ?? "";
   const isOrgAdmin = normalizedRole.includes("admin") ||
     normalizedRole.includes("owner");
@@ -309,6 +402,133 @@ const App: React.FC = () => {
     fetchUserProfile();
   }, []);
 
+  const applyRoute = React.useCallback(
+    async (pathname: string) => {
+      isApplyingRouteRef.current = true;
+      try {
+        const route = parseRoute(pathname);
+        if (route.kind !== "unknown") {
+          hasUrlRouteRef.current = true;
+        }
+
+        if (route.kind === "personal-settings") {
+          setUiState("personal-settings");
+          return;
+        }
+
+        if (route.kind === "org-settings") {
+          const orgMatch = ORG_OPTIONS.find(
+            (option) => option.id === route.orgSlug,
+          );
+          if (orgMatch) {
+            setSelectedOrg(orgMatch.label);
+          }
+          clearSelectedProject();
+          setUiState("org-settings");
+          return;
+        }
+
+        if (route.kind === "project") {
+          const orgMatch = ORG_OPTIONS.find(
+            (option) => option.id === route.orgSlug,
+          );
+          if (orgMatch) {
+            setSelectedOrg(orgMatch.label);
+          }
+          hasUserInteracted.current = true;
+          setUiState(mapSectionToUiState(route.section));
+          setSelectedProjectId(route.projectId);
+          try {
+            const projectDetails = await felixApi.getProject(route.projectId);
+            setSelectedProject(projectDetails);
+            saveLastProjectId(route.projectId);
+          } catch (error) {
+            console.warn("Failed to load project from URL:", error);
+            clearSelectedProject();
+            setUiState("projects");
+          }
+          return;
+        }
+
+        if (route.kind === "org-projects") {
+          const orgMatch = ORG_OPTIONS.find(
+            (option) => option.id === route.orgSlug,
+          );
+          if (orgMatch) {
+            setSelectedOrg(orgMatch.label);
+          }
+          clearSelectedProject();
+          setUiState("projects");
+          return;
+        }
+
+        setUiState("projects");
+      } finally {
+        isApplyingRouteRef.current = false;
+        if (pendingPathRef.current) {
+          const pendingPath = pendingPathRef.current;
+          pendingPathRef.current = null;
+          if (pendingPath !== window.location.pathname) {
+            if (hasSyncedRouteRef.current) {
+              window.history.pushState({}, "", pendingPath);
+            } else {
+              window.history.replaceState({}, "", pendingPath);
+              hasSyncedRouteRef.current = true;
+            }
+          }
+          lastPathRef.current = pendingPath;
+        }
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    applyRoute(window.location.pathname);
+    const handlePopState = () => {
+      applyRoute(window.location.pathname);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [applyRoute]);
+
+  const buildRoutePath = React.useCallback(() => {
+    if (uiState === "personal-settings") {
+      return "/me/settings";
+    }
+    if (uiState === "org-settings") {
+      return `/org/${currentOrgSlug}/settings`;
+    }
+    if (!selectedProjectId) {
+      return `/org/${currentOrgSlug}`;
+    }
+    const section = mapUiStateToSection(uiState);
+    return `/org/${currentOrgSlug}/projects/${selectedProjectId}/${section}`;
+  }, [currentOrgSlug, selectedProjectId, uiState]);
+
+  useEffect(() => {
+    const nextPath = buildRoutePath();
+    if (!nextPath) {
+      return;
+    }
+    if (isApplyingRouteRef.current) {
+      pendingPathRef.current = nextPath;
+      return;
+    }
+    if (lastPathRef.current === nextPath) {
+      return;
+    }
+    if (hasSyncedRouteRef.current) {
+      window.history.pushState({}, "", nextPath);
+    } else {
+      window.history.replaceState({}, "", nextPath);
+      hasSyncedRouteRef.current = true;
+    }
+    lastPathRef.current = nextPath;
+  }, [buildRoutePath]);
+
   // Auto-load last selected project on app startup
   useEffect(() => {
     // Only attempt auto-load once on initial mount
@@ -318,6 +538,9 @@ const App: React.FC = () => {
     hasAttemptedAutoLoad.current = true;
 
     const autoLoadLastProject = async () => {
+      if (hasUrlRouteRef.current) {
+        return;
+      }
       const savedProjectId = getLastProjectId();
       if (!savedProjectId) {
         return;
@@ -359,6 +582,10 @@ const App: React.FC = () => {
 
   const handleReturnToProjects = () => {
     clearSelectedProject();
+    setUiState("projects");
+  };
+
+  const handleProjectCrumbClick = () => {
     setUiState("projects");
   };
 
@@ -1008,14 +1235,14 @@ export const executeTask = (taskId: string) => {
                 </BreadcrumbItem>
               )}
               {showOrgMenu && hasProjectCrumb && (
-                <BreadcrumbSeparator className="text-[var(--text-muted)] mx-0">
+                <BreadcrumbSeparator className="text-[var(--text-faint)] mx-0">
                   /
                 </BreadcrumbSeparator>
               )}
               {hasProjectCrumb && (
                 <BreadcrumbItem>
                   <Button
-                    onClick={handleReturnToProjects}
+                    onClick={handleProjectCrumbClick}
                     variant="ghost"
                     size="sm"
                     className="flex items-center gap-2 px-0 py-0 h-auto text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] text-[var(--text-secondary)]"
@@ -1031,7 +1258,7 @@ export const executeTask = (taskId: string) => {
               {showViewCrumb && (
                 <>
                   {showViewSeparator && (
-                    <BreadcrumbSeparator className="text-[var(--text-muted)] mx-0">
+                    <BreadcrumbSeparator className="text-[var(--text-faint)] mx-0">
                       /
                     </BreadcrumbSeparator>
                   )}
