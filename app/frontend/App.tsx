@@ -27,7 +27,6 @@ import ProjectsView from "./components/views/ProjectsView";
 import KanbanView from "./components/views/KanbanView";
 import OrchestrationView from "./components/views/OrchestrationView";
 import SpecsView from "./components/views/SpecsView";
-import ConfigView from "./components/views/ConfigView";
 import PlanView from "./components/views/PlanView";
 import SettingsView from "./components/views/SettingsView";
 import { marked } from "marked";
@@ -125,11 +124,10 @@ const INITIAL_TASKS: Task[] = [
   },
 ];
 
-// Extended UI state to include projects, config, plan, settings, and orchestration views
+// Extended UI state to include projects, plan, settings, and orchestration views
 type ExtendedUIState =
   | UIState
   | "projects"
-  | "config"
   | "plan"
   | "settings"
   | "orchestration";
@@ -172,7 +170,6 @@ const App: React.FC = () => {
     "kanban",
     "assets",
     "orchestration",
-    "config",
     "plan",
     "settings",
   ];
@@ -205,11 +202,6 @@ const App: React.FC = () => {
       label: "Agent Dashboard",
       tag: "Runtime Control",
       colorClass: "bg-[#22d3ee]",
-    },
-    config: {
-      label: "Configuration",
-      tag: "Project Settings",
-      colorClass: "bg-[var(--text-muted)]",
     },
     plan: {
       label: "Project README",
@@ -1161,11 +1153,6 @@ export const executeTask = (taskId: string) => {
               onSelectSpec={(filename) => {
                 console.log("Selected spec:", filename);
               }}
-            />
-          ) : uiState === "config" ? (
-            <ConfigView
-              projectId={selectedProjectId}
-              onGoToProjects={() => setUiState("projects")}
             />
           ) : uiState === "plan" ? (
             <PlanView

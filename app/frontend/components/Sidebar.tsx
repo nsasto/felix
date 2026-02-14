@@ -14,7 +14,6 @@ export type SidebarView =
   | "kanban"
   | "assets"
   | "orchestration"
-  | "config"
   | "plan"
   | "settings";
 
@@ -57,12 +56,6 @@ const NAV_ITEMS: Array<{
     label: "Orchestration",
     icon: <IconPulse />,
     subtitle: "Agent views",
-  },
-  {
-    id: "config",
-    label: "Config",
-    icon: <IconSettings />,
-    subtitle: "Settings",
   },
   {
     id: "plan",

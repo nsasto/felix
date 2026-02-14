@@ -14,7 +14,6 @@ import {
 import {
   AlertTriangle,
   Check,
-  ChevronLeft,
   Copy,
   FolderOpen,
   Info,
@@ -28,12 +27,12 @@ import {
   Code as IconCode,
   Briefcase as IconBriefcase,
   Cpu as IconCpu,
-  FileCode as IconFileCode,
 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { PageLoading } from "./ui/page-loading";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import {
   Select,
   SelectContent,
@@ -42,7 +41,6 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Switch } from "./ui/switch";
-import { useTheme, ThemeValue } from "../hooks/ThemeProvider";
 
 interface SettingsScreenProps {
   projectId?: string; // Optional - when undefined, uses global settings API
@@ -69,37 +67,37 @@ const CATEGORIES: CategoryInfo[] = [
     id: "general",
     label: "General",
     description: "Basic Felix configuration",
-    icon: <IconSettings className="w-5 h-5" />,
+    icon: <IconSettings className="w-4 h-4" />,
   },
   {
     id: "paths",
     label: "Paths",
     description: "File and directory locations",
-    icon: <IconFolder className="w-5 h-5" />,
+    icon: <IconFolder className="w-4 h-4" />,
   },
   {
     id: "copilot",
     label: "Felix Copilot",
     description: "AI-powered spec writing assistant",
-    icon: <IconSparkles className="w-5 h-5" />,
+    icon: <IconSparkles className="w-4 h-4" />,
   },
   {
     id: "advanced",
     label: "Advanced",
     description: "Developer and debug options",
-    icon: <IconCode className="w-5 h-5" />,
+    icon: <IconCode className="w-4 h-4" />,
   },
   {
     id: "projects",
     label: "Projects",
     description: "Manage registered projects",
-    icon: <IconBriefcase className="w-5 h-5" />,
+    icon: <IconBriefcase className="w-4 h-4" />,
   },
   {
     id: "agents",
     label: "Agents",
     description: "Agent registry and status",
-    icon: <IconCpu className="w-5 h-5" />,
+    icon: <IconCpu className="w-4 h-4" />,
   },
 ];
 
@@ -107,7 +105,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   projectId,
   onBack,
 }) => {
-  const { theme, setTheme } = useTheme();
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>("general");
   const [config, setConfig] = useState<FelixConfig | null>(null);
@@ -205,7 +202,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     };
 
     fetchConfig();
-  }, [projectId, setTheme]);
+  }, [projectId]);
 
   // Fetch projects when Projects category is selected
   const fetchProjects = useCallback(async () => {
@@ -514,38 +511,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           >
             Reset to Defaults
           </Button>
-        </div>
-
-        {/* Appearance Section - Theme (Local Only, not saved to backend config) */}
-        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">🎨</span>
-            <div>
-              <label className="block text-sm font-bold theme-text-secondary">
-                Appearance
-              </label>
-              <p className="text-[10px] theme-text-muted">
-                This setting is saved locally and not synced across devices
-              </p>
-            </div>
-          </div>
-          <Select
-            value={theme}
-            onValueChange={(value) => setTheme(value as ThemeValue)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="dark">Dark</SelectItem>
-              <SelectItem value="light">Light</SelectItem>
-              <SelectItem value="system">System (Auto)</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="mt-2 text-[11px] theme-text-muted">
-            Choose your preferred color theme. "System" automatically follows
-            your operating system preference.
-          </p>
         </div>
 
         {/* Max Iterations */}
@@ -2562,122 +2527,102 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   }
 
   return (
-    <div className="flex-1 flex theme-bg-base overflow-hidden">
-      {/* Left Sidebar - Categories Navigation */}
-      <div className="w-64 border-r border-[var(--border-default)] flex flex-col theme-bg-deep flex-shrink-0 bg-[var(--bg-deep)]">
-        {/* Sidebar Header */}
-        <div className="h-14 border-b border-[var(--border-default)] flex items-center px-5">
-          <Button
-            onClick={onBack}
-            variant="ghost"
-            size="icon"
-            className="mr-3 h-8 w-8"
-            title="Back to Projects"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-xs font-bold theme-text-tertiary uppercase tracking-widest">
-            Settings
-          </span>
-        </div>
-
-        {/* Categories List */}
-        <div className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
-          {CATEGORIES.map((category) => (
-            <Button
-              key={category.id}
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveCategory(category.id)}
-              className={`sidebar-nav-item ${activeCategory === category.id ? "active" : ""} w-full justify-start text-left`}
+    <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
+      {/* Header and Tabs */}
+      <div className="bg-[var(--bg-base)] px-6 pt-8 pb-2">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h1 className="text-2xl font-semibold theme-text-primary">
+                Organization Settings
+              </h1>
+              {hasChanges && (
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--status-warning)]">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--status-warning)] animate-pulse" />
+                  <span className="font-mono uppercase">Unsaved changes</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {hasChanges && (
+                <Button
+                  onClick={handleReset}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] font-bold"
+                >
+                  Discard
+                </Button>
+              )}
+              <Button
+                onClick={handleSave}
+                disabled={
+                  saving ||
+                  !hasChanges ||
+                  Object.keys(validationErrors).length > 0
+                }
+                size="sm"
+                className="text-[10px] font-bold uppercase"
+              >
+                {saving ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="mt-6 border-b border-[var(--border-default)]">
+            <Tabs
+              value={activeCategory}
+              onValueChange={(value) =>
+                setActiveCategory(value as SettingsCategory)
+              }
             >
-              <span className="sidebar-icon">{category.icon}</span>
-              <div className="sidebar-labels">
-                <span className="sidebar-label">{category.label}</span>
-                <span className="sidebar-sublabel">{category.description}</span>
-              </div>
-            </Button>
-          ))}
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-[var(--border-default)]">
-          <div className="flex items-center gap-2 text-[10px] theme-text-muted">
-            <IconFileCode className="w-4 h-4 text-[var(--accent-primary)]/50" />
-            <span className="font-mono">felix/config.json</span>
+              <TabsList
+                variant="line"
+                className="w-full justify-start overflow-x-auto gap-6"
+              >
+                {CATEGORIES.map((category) => (
+                  <TabsTrigger
+                    key={category.id}
+                    value={category.id}
+                    variant="line"
+                    className="text-sm font-medium"
+                  >
+                    {category.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Settings Content */}
-      <div className="flex-1 flex flex-col min-w-0 theme-bg-base">
-        {/* Top Bar with Save Controls */}
-        <div className="h-14 border-b border-[var(--border-default)] flex items-center px-6 justify-between backdrop-blur flex-shrink-0 bg-[var(--bg-base)]/95">
-          <div className="flex items-center gap-3">
-            {hasChanges && (
-              <div className="flex items-center gap-2 text-[10px] text-[var(--status-warning)]">
-                <div className="w-1.5 h-1.5 rounded-full bg-[var(--status-warning)] animate-pulse" />
-                <span className="font-mono uppercase">Unsaved changes</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {hasChanges && (
-              <Button
-                onClick={handleReset}
-                variant="ghost"
-                size="sm"
-                className="text-[10px] font-bold"
-              >
-                Discard
-              </Button>
-            )}
-            <Button
-              onClick={handleSave}
-              disabled={
-                saving ||
-                !hasChanges ||
-                Object.keys(validationErrors).length > 0
-              }
-              size="sm"
-              className="text-[10px] font-bold uppercase"
-            >
-              {saving ? (
-                <>
-                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </div>
+      {/* Success/Error Messages */}
+      {(successMessage || error) && (
+        <div
+          className={`px-6 py-3 text-xs flex items-center gap-2 ${
+            successMessage
+              ? "bg-[var(--status-success)]/10 text-[var(--status-success)]"
+              : "bg-[var(--status-error)]/10 text-[var(--status-error)]"
+          }`}
+        >
+          {successMessage ? (
+            <Check className="w-4 h-4" />
+          ) : (
+            <X className="w-4 h-4" />
+          )}
+          {successMessage || error}
         </div>
+      )}
 
-        {/* Success/Error Messages */}
-        {(successMessage || error) && (
-          <div
-            className={`px-6 py-3 text-xs flex items-center gap-2 ${
-              successMessage
-                ? "bg-[var(--status-success)]/10 text-[var(--status-success)]"
-                : "bg-[var(--status-error)]/10 text-[var(--status-error)]"
-            }`}
-          >
-            {successMessage ? (
-              <Check className="w-4 h-4" />
-            ) : (
-              <X className="w-4 h-4" />
-            )}
-            {successMessage || error}
-          </div>
-        )}
-
-        {/* Settings Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 theme-bg-base">
-          <div className="max-w-2xl">{renderActiveSettings()}</div>
-        </div>
+      {/* Settings Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-8 theme-bg-base">
+        <div className="max-w-3xl mx-auto">{renderActiveSettings()}</div>
       </div>
     </div>
   );

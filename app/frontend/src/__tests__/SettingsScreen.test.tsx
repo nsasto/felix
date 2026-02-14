@@ -693,9 +693,9 @@ describe("SettingsScreen", () => {
   });
 
   describe("Navigation", () => {
-    it("calls onBack when back button is clicked", async () => {
-      vi.mocked(felixApi.getConfig).mockResolvedValue(
-        mockConfigResponse(createMockConfig()),
+    it("calls onBack when back button is clicked in error state", async () => {
+      vi.mocked(felixApi.getConfig).mockRejectedValue(
+        new Error("Failed to load"),
       );
 
       renderWithTheme(
@@ -703,11 +703,10 @@ describe("SettingsScreen", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText("General Settings")).toBeInTheDocument();
+        expect(screen.getByText("Failed to Load Settings")).toBeInTheDocument();
       });
 
-      // Find the back button (it's the arrow icon button in the sidebar header)
-      const backButton = screen.getByTitle("Back to Projects");
+      const backButton = screen.getByText("← Back to Projects");
       fireEvent.click(backButton);
 
       expect(mockOnBack).toHaveBeenCalledTimes(1);
@@ -1030,7 +1029,7 @@ describe("SettingsScreen", () => {
     });
 
     describe("Category Navigation", () => {
-      it("displays Felix Copilot category in sidebar", async () => {
+      it("displays Felix Copilot category in tabs", async () => {
         vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
           mockConfigResponse(createMockConfigWithCopilot()),
         );
@@ -1053,20 +1052,7 @@ describe("SettingsScreen", () => {
           expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
         });
 
-        // Get all category buttons in the sidebar
-        const categories = screen
-          .getAllByRole("button")
-          .filter((btn) =>
-            [
-              "General",
-              "Agent",
-              "Paths",
-              "Felix Copilot",
-              "Advanced",
-              "Projects",
-              "Agents",
-            ].some((cat) => btn.textContent?.includes(cat)),
-          );
+        const categories = screen.getAllByRole("tab");
 
         // Find indices
         const pathsIndex = categories.findIndex((cat) =>
@@ -1084,20 +1070,6 @@ describe("SettingsScreen", () => {
         expect(copilotIndex).toBeLessThan(advancedIndex);
       });
 
-      it("shows copilot description in category", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(
-            screen.getByText("AI-powered spec writing assistant"),
-          ).toBeInTheDocument();
-        });
-      });
-
       it("navigates to copilot settings when category is clicked", async () => {
         vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
           mockConfigResponse(createMockConfigWithCopilot()),
@@ -1110,8 +1082,10 @@ describe("SettingsScreen", () => {
         });
 
         // Click on Felix Copilot category
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
+        const copilotTab = screen.getByRole("tab", {
+          name: "Felix Copilot",
+        });
+        fireEvent.click(copilotTab);
 
         await waitFor(() => {
           // The component shows "Felix Copilot" as the heading with "Enable Copilot" as a label
@@ -1575,12 +1549,8 @@ describe("SettingsScreen", () => {
         });
 
         // Click on Agents category
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         // Wait for agent configurations to load
         await waitFor(() => {
@@ -1602,12 +1572,8 @@ describe("SettingsScreen", () => {
         });
 
         // Navigate to Agents category
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           // Both agents should be displayed
@@ -1626,13 +1592,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           // Active badge should be visible (agent 0 is active by default)
@@ -1650,13 +1611,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         // First wait for agent configurations to be fetched
         await waitFor(() => {
@@ -1692,13 +1648,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText("claude-agent")).toBeInTheDocument();
@@ -1727,13 +1678,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText(/add agent/i)).toBeInTheDocument();
@@ -1750,13 +1696,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText(/add agent/i)).toBeInTheDocument();
@@ -1793,13 +1734,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText(/add agent/i)).toBeInTheDocument();
@@ -1849,13 +1785,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           // Edit buttons should be visible on agent cards
@@ -1885,13 +1816,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText("felix-primary")).toBeInTheDocument();
@@ -1937,13 +1863,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText("felix-primary")).toBeInTheDocument();
@@ -1978,13 +1899,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText("claude-agent")).toBeInTheDocument();
@@ -2028,13 +1944,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           // Error message should be displayed
@@ -2055,13 +1966,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         await waitFor(() => {
           expect(screen.getByText(/try again/i)).toBeInTheDocument();
@@ -2080,13 +1986,8 @@ describe("SettingsScreen", () => {
         await waitFor(() => {
           expect(screen.getByText("Agents")).toBeInTheDocument();
         });
-
-        const agentsButton = screen
-          .getAllByText("Agents")
-          .find((el) => el.closest("button")?.classList.contains("w-full"));
-        if (agentsButton) {
-          fireEvent.click(agentsButton);
-        }
+        const agentsTab = screen.getByRole("tab", { name: "Agents" });
+        fireEvent.click(agentsTab);
 
         // Wait for initial load
         await waitFor(() => {

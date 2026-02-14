@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
 const Tabs = TabsPrimitive.Root;
 
 const tabsListVariants = cva(
-  "inline-flex items-center justify-center text-[var(--text-muted)] gap-2",
+  "inline-flex items-center justify-center text-[var(--text-muted)] gap-2 border-b-0",
   {
     variants: {
       variant: {
