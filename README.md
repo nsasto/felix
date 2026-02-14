@@ -98,7 +98,7 @@ your-project/
 ├── .felix/                          # Felix configuration & state
 │   ├── requirements.json          # Requirement registry with status
 │   ├── config.json                # Executor configuration
-│   ├── agents.json                # Agent profiles (S-0020)
+│   ├── agents.json                # CLI agent presets (local only)
 │   ├── state.json                 # Current execution state
 │   └── prompts/                   # Mode-specific LLM prompts
 │       ├── planning.md
@@ -116,6 +116,8 @@ your-project/
 ```
 
 📚 **[Complete artifacts reference →](tuts/FELIX_EXPLAINED.md)**
+
+Note: backend agent profiles are stored in the database; the CLI reads local presets from `.felix/agents.json`.
 
 ---
 

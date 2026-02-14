@@ -10,7 +10,7 @@
 ├── felix-agent.ps1          # Main entry point - orchestrates single requirement
 ├── felix-loop.ps1           # Multi-requirement autonomous loop
 ├── config.json              # Global configuration
-├── agents.json              # Agent presets (droid, codex, etc.)
+├── agents.json              # CLI agent presets (local only)
 ├── requirements.json        # Requirement tracking and status
 ├── state.json               # Runtime execution state
 ├── config.md                # Configuration documentation
@@ -71,7 +71,7 @@
              │
              ├─► config-loader.ps1
              │   └─► Validate project structure (.felix/, specs/)
-             │   └─► Load config.json, agents.json
+             │   └─► Load config.json and local agents.json presets
              │
              ├─► initialization.ps1
              │   └─► Get current requirement (requirements.json)
@@ -405,7 +405,8 @@ Global configuration for agent behavior, plugins, backpressure, and paths.
 
 ### agents.json
 
-Agent preset definitions (stored in .felix/agents.json in the repo):
+Agent preset definitions for the local CLI (stored in .felix/agents.json in the repo).
+Backend agent profiles are stored in the database.
 
 - **felix-primary** - droid exec
 - **codex-cli** - codex CLI with workspace-write
