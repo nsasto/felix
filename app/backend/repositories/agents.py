@@ -176,10 +176,10 @@ class PostgresAgentProfileRepository:
                 :name,
                 :adapter,
                 :executable,
-                :args::jsonb,
+                CAST(:args AS jsonb),
                 :model,
                 :working_directory,
-                :environment::jsonb,
+                CAST(:environment AS jsonb),
                 :description,
                 :source,
                 :created_by_user_id

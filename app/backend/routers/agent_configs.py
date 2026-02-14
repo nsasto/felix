@@ -81,9 +81,14 @@ class SetActiveAgentResponse(BaseModel):
     message: str
 
 
-def _extract_active_agent_id(org_metadata: Optional[Dict[str, Any]]) -> Optional[str]:
+def _extract_active_agent_id(org_metadata: Optional[Dict[str, Any] | str]) -> Optional[str]:
     if not org_metadata:
         return None
+    if isinstance(org_metadata, str):
+        try:
+            org_metadata = json.loads(org_metadata)
+        except json.JSONDecodeError:
+            return None
     value = org_metadata.get("active_agent_profile_id")
     return str(value) if value else None
 
@@ -106,7 +111,7 @@ async def set_active_agent_id(db: Database, org_id: str, agent_id: Optional[str]
         SET metadata = jsonb_set(
             COALESCE(metadata, '{}'::jsonb),
             '{active_agent_profile_id}',
-            :payload::jsonb,
+            CAST(:payload AS jsonb),
             true
         )
         WHERE id = :id

@@ -27,10 +27,15 @@ async def test_agent_profiles_round_trip_integration():
     try:
         await db.execute(
             """
-            INSERT INTO organizations (id, name, created_at, updated_at)
-            VALUES (:id, :name, NOW(), NOW())
+            INSERT INTO organizations (id, name, slug, owner_id, created_at, updated_at)
+            VALUES (:id, :name, :slug, :owner_id, NOW(), NOW())
             """,
-            values={"id": org_id, "name": "integration-org"},
+            values={
+                "id": org_id,
+                "name": "integration-org",
+                "slug": f"integration-{org_id[:8]}",
+                "owner_id": config.DEV_USER_ID,
+            },
         )
 
         repo = PostgresAgentProfileRepository(db)
