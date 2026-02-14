@@ -50,7 +50,7 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
             >
               <TabsList
                 variant="line"
-                className="w-full justify-start overflow-x-auto gap-6"
+                className="w-full justify-start flex-wrap gap-6"
               >
                 {PERSONAL_TABS.map((tab) => (
                   <TabsTrigger

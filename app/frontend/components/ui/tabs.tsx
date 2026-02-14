@@ -12,7 +12,7 @@ const tabsListVariants = cva(
     variants: {
       variant: {
         default: "h-10 bg-transparent",
-        line: "h-10 bg-transparent",
+        line: "relative h-10 bg-transparent after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-[var(--border-muted)]/60 after:z-0",
       },
     },
     defaultVariants: {
@@ -28,7 +28,7 @@ const tabsTriggerVariants = cva(
       variant: {
         default:
           "rounded-md data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--text)] data-[state=active]:shadow",
-        line: "rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--primary-500)] data-[state=active]:text-[var(--text)] data-[state=active]:bg-transparent",
+        line: "relative z-10 h-10 rounded-none data-[state=active]:text-[var(--text)] data-[state=active]:bg-transparent pb-2 after:absolute after:inset-x-0 after:bottom-[-1px] after:h-[2px] after:bg-transparent data-[state=active]:after:bg-[var(--text-secondary)]",
       },
     },
     defaultVariants: {

@@ -2534,7 +2534,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <div className="flex items-start justify-between gap-6">
             <div>
               <h1 className="text-2xl font-semibold theme-text-primary">
-                Organization Settings
+                {projectId ? "Project Settings" : "Organization Settings"}
               </h1>
               {hasChanges && (
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--status-warning)]">
@@ -2584,7 +2584,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             >
               <TabsList
                 variant="line"
-                className="w-full justify-start overflow-x-auto gap-6"
+                className="w-full justify-start flex-wrap gap-6"
               >
                 {CATEGORIES.map((category) => (
                   <TabsTrigger
