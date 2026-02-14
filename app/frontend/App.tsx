@@ -15,7 +15,9 @@ import {
   Plus as IconPlus,
   Activity as IconPulse,
   LayoutGrid as IconOrganization,
+  Box as IconProject,
   ChevronDown as IconChevronDown,
+  ChevronsUpDown as IconChevronsUpDown,
   CircleHelp as IconHelpCircle,
   CheckCircle as IconCheckCircle,
 } from "lucide-react";
@@ -36,6 +38,13 @@ import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
 import { Toaster } from "./components/ui/sonner";
 import { Button } from "./components/ui/button";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/ui/breadcrumb";
 import { Input } from "./components/ui/input";
 import { Textarea } from "./components/ui/textarea";
 
@@ -167,7 +176,7 @@ const App: React.FC = () => {
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const [isLogoHovered, setLogoHovered] = useState(false);
   const [isOrgMenuOpen, setOrgMenuOpen] = useState(false);
-  const orgMenuRef = useRef<HTMLDivElement | null>(null);
+  const orgMenuRef = useRef<HTMLElement | null>(null);
   const [orgSearch, setOrgSearch] = useState("");
   const [selectedOrg, setSelectedOrg] = useState("UntrueAxioms");
   const [userProfile, setUserProfile] = useState<{
@@ -192,39 +201,30 @@ const App: React.FC = () => {
     ? (uiState as SidebarView)
     : "projects";
 
-  const viewMetadata: Record<
-    SidebarView,
-    { label: string; tag: string; colorClass: string }
-  > = {
+  const viewMetadata: Record<SidebarView, { label: string; tag: string }> = {
     projects: {
-      label: "Projects",
-      tag: "Workspace List",
-      colorClass: "bg-[var(--brand-500)]",
+      label: "Project Overview",
+      tag: "Workspace",
     },
     kanban: {
       label: "System Board",
       tag: "Requirement Flow",
-      colorClass: "bg-[#fb923c]",
     },
     assets: {
       label: "Specifications",
       tag: "Resource Docs",
-      colorClass: "bg-[#34d399]",
     },
     orchestration: {
       label: "Agent Dashboard",
       tag: "Runtime Control",
-      colorClass: "bg-[#22d3ee]",
     },
     plan: {
       label: "Project README",
       tag: "Planning",
-      colorClass: "bg-[#38bdf8]",
     },
     settings: {
       label: "Settings",
       tag: "Preferences",
-      colorClass: "bg-[#c084fc]",
     },
   };
   const activeViewMeta =
@@ -232,13 +232,11 @@ const App: React.FC = () => {
       ? {
           label: "Personal Settings",
           tag: "Account",
-          colorClass: "bg-[#38bdf8]",
         }
       : uiState === "org-settings"
         ? {
             label: "Organization Settings",
             tag: "Admin",
-            colorClass: "bg-[#f97316]",
           }
         : viewMetadata[activeSidebarView];
   const projectHeaderLabel = selectedProject
@@ -265,8 +263,14 @@ const App: React.FC = () => {
     normalizedRole.includes("owner");
   const isPersonalSettings = uiState === "personal-settings";
   const isOrgSettings = uiState === "org-settings";
+  const shouldHideSidebar =
+    isPersonalSettings || isOrgSettings || !selectedProjectId;
   const showOrgMenu = !isPersonalSettings;
   const showProjectCrumb = !isPersonalSettings && !isOrgSettings;
+  const hasProjectCrumb = showProjectCrumb && Boolean(selectedProject);
+  const isProjectList = uiState === "projects" && !selectedProjectId;
+  const showViewCrumb = !isProjectList;
+  const showViewSeparator = showViewCrumb && (showOrgMenu || hasProjectCrumb);
 
   // Ref to ensure auto-load only happens once on initial app load
   const hasAttemptedAutoLoad = useRef<boolean>(false);
@@ -354,6 +358,12 @@ const App: React.FC = () => {
   };
 
   const handleReturnToProjects = () => {
+    clearSelectedProject();
+    setUiState("projects");
+  };
+
+  const handleOrgCrumbClick = () => {
+    setOrgMenuOpen(false);
     clearSelectedProject();
     setUiState("projects");
   };
@@ -883,14 +893,14 @@ export const executeTask = (taskId: string) => {
   }, [isUserMenuOpen, isOrgMenuOpen]);
 
   useEffect(() => {
-    if (isPersonalSettings || isOrgSettings) {
+    if (shouldHideSidebar) {
       document.documentElement.style.setProperty("--sidebar-offset", "0px");
       return () => {
         document.documentElement.style.removeProperty("--sidebar-offset");
       };
     }
     return undefined;
-  }, [isPersonalSettings, isOrgSettings]);
+  }, [shouldHideSidebar]);
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30 bg-[var(--bg-base)] text-[var(--text-secondary)]">
@@ -909,131 +919,134 @@ export const executeTask = (taskId: string) => {
               className="w-full h-full object-cover"
             />
           </div>
-          {showOrgMenu && (
-            <span
-              className="text-sm font-semibold text-[var(--text-secondary)]"
-            >
-              /
-            </span>
-          )}
-          {showOrgMenu && (
-            <div className="org-menu-group" ref={orgMenuRef}>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors text-[var(--text-secondary)] bg-transparent border-0"
-                  onClick={() => setOrgMenuOpen((prev) => !prev)}
-                  aria-haspopup="true"
-                  aria-expanded={isOrgMenuOpen}
-                >
-                  <IconOrganization className="w-4 h-4 text-[var(--text-muted)]" />
-                  <span>{selectedOrg}</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="org-menu-trigger"
-                  onClick={() => setOrgMenuOpen((prev) => !prev)}
-                  aria-label="Organization menu"
-                >
-                  <IconChevronDown className="w-4 h-4" />
-                </Button>
-                <span
-                  className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border border-[var(--border-muted)] px-2 py-0.5 text-[var(--text-muted)]"
-                >
-                  FREE
-                </span>
-              </div>
-              {isOrgMenuOpen && (
-                <div className="org-menu-panel">
-                  <div className="org-menu-search">
-                    <IconSearch className="w-4 h-4" />
-                    <Input
-                      type="text"
-                      placeholder="Search organizations"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck={false}
-                      value={orgSearch}
-                      onChange={(event) => setOrgSearch(event.target.value)}
-                      className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  </div>
-                  <div className="org-menu-list">
-                    {orgOptions
-                      .filter((option) =>
-                        option.label
-                          .toLowerCase()
-                          .includes(orgSearch.toLowerCase()),
-                      )
-                      .map((option) => {
-                        const isSelected = option.label === selectedOrg;
-                        return (
-                          <Button
-                            key={option.id}
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
-                            onClick={() => {
-                              if (option.type === "org") {
-                                setSelectedOrg(option.label);
-                              }
-                              setOrgMenuOpen(false);
-                            }}
-                          >
-                            <span>{option.label}</span>
-                            {isSelected && (
-                              <IconCheckCircle className="w-4 h-4" />
-                            )}
-                            {option.type === "action" && !isSelected && (
-                              <IconPlus className="w-4 h-4" />
-                            )}
-                          </Button>
-                        );
-                      })}
-                  </div>
-                </div>
+          <span className="text-sm font-semibold text-[var(--text-muted)]">
+            /
+          </span>
+          <Breadcrumb>
+            <BreadcrumbList className="flex items-center gap-2.5 text-sm font-semibold text-[var(--text-secondary)]">
+              {showOrgMenu && (
+                <BreadcrumbItem className="org-menu-group" ref={orgMenuRef}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-2 px-0 py-0 h-auto rounded-full text-sm font-semibold transition-colors text-[var(--text-secondary)] bg-transparent border-0"
+                    onClick={handleOrgCrumbClick}
+                  >
+                    <IconOrganization className="w-4 h-4 text-[var(--text-muted)]" />
+                    <span className="flex items-center gap-2">
+                      {selectedOrg}
+                      <span className="text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] border border-[var(--border-muted)] px-1.5 py-0 rounded-full translate-y-[1px]">
+                        FREE
+                      </span>
+                    </span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="org-menu-trigger w-6"
+                    onClick={() => setOrgMenuOpen((prev) => !prev)}
+                    aria-label="Organization menu"
+                    aria-haspopup="true"
+                    aria-expanded={isOrgMenuOpen}
+                  >
+                    <IconChevronsUpDown className="w-4 h-4" />
+                  </Button>
+                  {isOrgMenuOpen && (
+                    <div className="org-menu-panel">
+                      <div className="org-menu-search">
+                        <IconSearch className="w-4 h-4" />
+                        <Input
+                          type="text"
+                          placeholder="Search organizations"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
+                          value={orgSearch}
+                          onChange={(event) => setOrgSearch(event.target.value)}
+                          className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                      </div>
+                      <div className="org-menu-list">
+                        {orgOptions
+                          .filter((option) =>
+                            option.label
+                              .toLowerCase()
+                              .includes(orgSearch.toLowerCase()),
+                          )
+                          .map((option) => {
+                            const isSelected = option.label === selectedOrg;
+                            return (
+                              <Button
+                                key={option.id}
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
+                                onClick={() => {
+                                  if (option.type === "org") {
+                                    setSelectedOrg(option.label);
+                                  }
+                                  setOrgMenuOpen(false);
+                                }}
+                              >
+                                <span>{option.label}</span>
+                                {isSelected && (
+                                  <IconCheckCircle className="w-4 h-4" />
+                                )}
+                                {option.type === "action" && !isSelected && (
+                                  <IconPlus className="w-4 h-4" />
+                                )}
+                              </Button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </BreadcrumbItem>
               )}
-            </div>
-          )}
-          <div
-            className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]"
-          >
-            {showProjectCrumb && selectedProject && (
-              <>
-                <Button
-                  onClick={handleReturnToProjects}
-                  variant="ghost"
-                  size="sm"
-                  className="text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] cursor-pointer px-1 text-[var(--text-secondary)]"
-                >
-                  {selectedProject.name ||
-                    selectedProject.path.split(/[\\/]/).pop()}
-                </Button>
-                <span>/</span>
-              </>
-            )}
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full shadow ${activeViewMeta.colorClass}`}
-              />
-              <span
-                className="text-sm font-semibold text-[var(--text-secondary)]"
-              >
-                {activeViewMeta.label}
-              </span>
-            </div>
-            <span
-              className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-[var(--border-muted)] text-[var(--text-muted)]"
-            >
-              {activeViewMeta.tag}
-            </span>
-          </div>
+              {showOrgMenu && hasProjectCrumb && (
+                <BreadcrumbSeparator className="text-[var(--text-muted)] mx-0">
+                  /
+                </BreadcrumbSeparator>
+              )}
+              {hasProjectCrumb && (
+                <BreadcrumbItem>
+                  <Button
+                    onClick={handleReturnToProjects}
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-2 px-0 py-0 h-auto text-sm font-semibold transition-colors hover:text-[var(--accent-primary)] text-[var(--text-secondary)]"
+                  >
+                    <IconProject className="w-4 h-4 text-[var(--text-muted)]" />
+                    <span>
+                      {selectedProject?.name ||
+                        selectedProject?.path.split(/[\\/]/).pop()}
+                    </span>
+                  </Button>
+                </BreadcrumbItem>
+              )}
+              {showViewCrumb && (
+                <>
+                  {showViewSeparator && (
+                    <BreadcrumbSeparator className="text-[var(--text-muted)] mx-0">
+                      /
+                    </BreadcrumbSeparator>
+                  )}
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
+                      <span>{activeViewMeta.label}</span>
+                      <span className="text-[8px] font-bold px-1.5 py-0 rounded-full border border-[var(--border-muted)] text-[var(--text-muted)] uppercase tracking-[0.18em] translate-y-[1px]">
+                        {activeViewMeta.tag}
+                      </span>
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
+                </>
+              )}
+            </BreadcrumbList>
+          </Breadcrumb>
         </div>
 
         <div className="flex items-center gap-3 justify-end flex-1" />
@@ -1164,7 +1177,7 @@ export const executeTask = (taskId: string) => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {!(isPersonalSettings || isOrgSettings) && (
+        {!shouldHideSidebar && (
           <Sidebar
             activeView={activeSidebarView}
             onChangeView={(view) => setUiState(view)}

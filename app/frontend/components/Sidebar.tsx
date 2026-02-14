@@ -35,9 +35,9 @@ const NAV_ITEMS: Array<{
 }> = [
   {
     id: "projects",
-    label: "Projects",
+    label: "Project Overview",
     icon: <IconFileText />,
-    subtitle: "Workspace list",
+    subtitle: "Workspace",
   },
   {
     id: "kanban",

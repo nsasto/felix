@@ -27,11 +27,13 @@ export default function ProjectsView({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-base)]">
-      <ProjectSelector
-        selectedProjectId={selectedProjectId}
-        onSelectProject={onSelectProject}
-      />
+    <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-base)] items-center">
+      <div className="w-full max-w-6xl h-full px-6">
+        <ProjectSelector
+          selectedProjectId={selectedProjectId}
+          onSelectProject={onSelectProject}
+        />
+      </div>
     </div>
   );
 }
