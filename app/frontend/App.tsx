@@ -29,6 +29,8 @@ import OrchestrationView from "./components/views/OrchestrationView";
 import SpecsView from "./components/views/SpecsView";
 import PlanView from "./components/views/PlanView";
 import SettingsView from "./components/views/SettingsView";
+import PersonalSettingsScreen from "./components/PersonalSettingsScreen";
+import OrganizationSettingsScreen from "./components/OrganizationSettingsScreen";
 import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
@@ -89,6 +91,15 @@ const clearLastProjectId = (): void => {
   }
 };
 
+const formatRoleLabel = (role: string): string => {
+  return role
+    .replace(/[_-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
+    .join(" ");
+};
+
 const INITIAL_TASKS: Task[] = [
   {
     id: "t1",
@@ -130,7 +141,9 @@ type ExtendedUIState =
   | "projects"
   | "plan"
   | "settings"
-  | "orchestration";
+  | "orchestration"
+  | "personal-settings"
+  | "org-settings";
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
@@ -214,7 +227,20 @@ const App: React.FC = () => {
       colorClass: "bg-[#c084fc]",
     },
   };
-  const activeViewMeta = viewMetadata[activeSidebarView];
+  const activeViewMeta =
+    uiState === "personal-settings"
+      ? {
+          label: "Personal Settings",
+          tag: "Account",
+          colorClass: "bg-[#38bdf8]",
+        }
+      : uiState === "org-settings"
+        ? {
+            label: "Organization Settings",
+            tag: "Admin",
+            colorClass: "bg-[#f97316]",
+          }
+        : viewMetadata[activeSidebarView];
   const projectHeaderLabel = selectedProject
     ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
     : "No project selected";
@@ -234,6 +260,13 @@ const App: React.FC = () => {
     { id: "all", label: "All Organizations", type: "org" },
     { id: "new", label: "New organization", type: "action" },
   ];
+  const normalizedRole = userProfile?.role?.toLowerCase() ?? "";
+  const isOrgAdmin = normalizedRole.includes("admin") ||
+    normalizedRole.includes("owner");
+  const isPersonalSettings = uiState === "personal-settings";
+  const isOrgSettings = uiState === "org-settings";
+  const showOrgMenu = !isPersonalSettings;
+  const showProjectCrumb = !isPersonalSettings && !isOrgSettings;
 
   // Ref to ensure auto-load only happens once on initial app load
   const hasAttemptedAutoLoad = useRef<boolean>(false);
@@ -849,6 +882,16 @@ export const executeTask = (taskId: string) => {
     };
   }, [isUserMenuOpen, isOrgMenuOpen]);
 
+  useEffect(() => {
+    if (isPersonalSettings || isOrgSettings) {
+      document.documentElement.style.setProperty("--sidebar-offset", "0px");
+      return () => {
+        document.documentElement.style.removeProperty("--sidebar-offset");
+      };
+    }
+    return undefined;
+  }, [isPersonalSettings, isOrgSettings]);
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30 bg-[var(--bg-base)] text-[var(--text-secondary)]">
       <header
@@ -866,99 +909,102 @@ export const executeTask = (taskId: string) => {
               className="w-full h-full object-cover"
             />
           </div>
-          <span
-            className="text-sm font-semibold text-[var(--text-secondary)]"
-          >
-            /
-          </span>
-          <div className="org-menu-group" ref={orgMenuRef}>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors text-[var(--text-secondary)] bg-transparent border-0"
-                onClick={() => setOrgMenuOpen((prev) => !prev)}
-                aria-haspopup="true"
-                aria-expanded={isOrgMenuOpen}
-              >
-                <IconOrganization className="w-4 h-4 text-[var(--text-muted)]" />
-                <span>{selectedOrg}</span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="org-menu-trigger"
-                onClick={() => setOrgMenuOpen((prev) => !prev)}
-                aria-label="Organization menu"
-              >
-                <IconChevronDown className="w-4 h-4" />
-              </Button>
-              <span
-                className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border border-[var(--border-muted)] px-2 py-0.5 text-[var(--text-muted)]"
-              >
-                FREE
-              </span>
-            </div>
-            {isOrgMenuOpen && (
-              <div className="org-menu-panel">
-                <div className="org-menu-search">
-                  <IconSearch className="w-4 h-4" />
-                  <Input
-                    type="text"
-                    placeholder="Search organizations"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    value={orgSearch}
-                    onChange={(event) => setOrgSearch(event.target.value)}
-                    className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                </div>
-                <div className="org-menu-list">
-                  {orgOptions
-                    .filter((option) =>
-                      option.label
-                        .toLowerCase()
-                        .includes(orgSearch.toLowerCase()),
-                    )
-                    .map((option) => {
-                      const isSelected = option.label === selectedOrg;
-                      return (
-                        <Button
-                          key={option.id}
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
-                          onClick={() => {
-                            if (option.type === "org") {
-                              setSelectedOrg(option.label);
-                            }
-                            setOrgMenuOpen(false);
-                          }}
-                        >
-                          <span>{option.label}</span>
-                          {isSelected && (
-                            <IconCheckCircle className="w-4 h-4" />
-                          )}
-                          {option.type === "action" && !isSelected && (
-                            <IconPlus className="w-4 h-4" />
-                          )}
-                        </Button>
-                      );
-                    })}
-                </div>
+          {showOrgMenu && (
+            <span
+              className="text-sm font-semibold text-[var(--text-secondary)]"
+            >
+              /
+            </span>
+          )}
+          {showOrgMenu && (
+            <div className="org-menu-group" ref={orgMenuRef}>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors text-[var(--text-secondary)] bg-transparent border-0"
+                  onClick={() => setOrgMenuOpen((prev) => !prev)}
+                  aria-haspopup="true"
+                  aria-expanded={isOrgMenuOpen}
+                >
+                  <IconOrganization className="w-4 h-4 text-[var(--text-muted)]" />
+                  <span>{selectedOrg}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="org-menu-trigger"
+                  onClick={() => setOrgMenuOpen((prev) => !prev)}
+                  aria-label="Organization menu"
+                >
+                  <IconChevronDown className="w-4 h-4" />
+                </Button>
+                <span
+                  className="text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full border border-[var(--border-muted)] px-2 py-0.5 text-[var(--text-muted)]"
+                >
+                  FREE
+                </span>
               </div>
-            )}
-          </div>
+              {isOrgMenuOpen && (
+                <div className="org-menu-panel">
+                  <div className="org-menu-search">
+                    <IconSearch className="w-4 h-4" />
+                    <Input
+                      type="text"
+                      placeholder="Search organizations"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      value={orgSearch}
+                      onChange={(event) => setOrgSearch(event.target.value)}
+                      className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                  </div>
+                  <div className="org-menu-list">
+                    {orgOptions
+                      .filter((option) =>
+                        option.label
+                          .toLowerCase()
+                          .includes(orgSearch.toLowerCase()),
+                      )
+                      .map((option) => {
+                        const isSelected = option.label === selectedOrg;
+                        return (
+                          <Button
+                            key={option.id}
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
+                            onClick={() => {
+                              if (option.type === "org") {
+                                setSelectedOrg(option.label);
+                              }
+                              setOrgMenuOpen(false);
+                            }}
+                          >
+                            <span>{option.label}</span>
+                            {isSelected && (
+                              <IconCheckCircle className="w-4 h-4" />
+                            )}
+                            {option.type === "action" && !isSelected && (
+                              <IconPlus className="w-4 h-4" />
+                            )}
+                          </Button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <div
             className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]"
           >
-            <span>/</span>
-            {selectedProject && (
+            {showProjectCrumb && selectedProject && (
               <>
                 <Button
                   onClick={handleReturnToProjects}
@@ -1059,19 +1105,27 @@ export const executeTask = (taskId: string) => {
                   variant="ghost"
                   size="sm"
                   className="user-menu-item justify-start text-left"
-                  onClick={() => setUserMenuOpen(false)}
+                  onClick={() => {
+                    setUiState("personal-settings");
+                    setUserMenuOpen(false);
+                  }}
                 >
-                  Account preferences
+                  Personal Settings
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="user-menu-item justify-start text-left"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Feature previews
-                </Button>
+                {isOrgAdmin && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="user-menu-item justify-start text-left"
+                    onClick={() => {
+                      setUiState("org-settings");
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    Organization Settings
+                  </Button>
+                )}
                 <div className="user-menu-divider" />
                 <p className="user-menu-divider-label">Theme</p>
                 {themeOptions.map((option) => {
@@ -1110,18 +1164,20 @@ export const executeTask = (taskId: string) => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          activeView={activeSidebarView}
-          onChangeView={(view) => setUiState(view)}
-          backendStatus={backendStatus}
-          projectName={
-            selectedProject
-              ? selectedProject.name ||
-                selectedProject.path.split(/[\\/]/).pop()
-              : null
-          }
-          onModeChange={setSidebarMode}
-        />
+        {!(isPersonalSettings || isOrgSettings) && (
+          <Sidebar
+            activeView={activeSidebarView}
+            onChangeView={(view) => setUiState(view)}
+            backendStatus={backendStatus}
+            projectName={
+              selectedProject
+                ? selectedProject.name ||
+                  selectedProject.path.split(/[\\/]/).pop()
+                : null
+            }
+            onModeChange={setSidebarMode}
+          />
+        )}
         {/* Main View Container */}
         <div className="main-view flex-1 flex flex-col relative min-w-0 mb-8">
           {uiState === "projects" ? (
@@ -1158,6 +1214,16 @@ export const executeTask = (taskId: string) => {
             <PlanView
               projectId={selectedProjectId}
               onGoToProjects={() => setUiState("projects")}
+            />
+          ) : uiState === "personal-settings" ? (
+            <PersonalSettingsScreen onBack={() => setUiState("projects")} />
+          ) : uiState === "org-settings" ? (
+            <OrganizationSettingsScreen
+              organizationName={userProfile?.organization ?? selectedOrg}
+              roleLabel={
+                userProfile?.role ? formatRoleLabel(userProfile.role) : null
+              }
+              onBack={() => setUiState("projects")}
             />
           ) : uiState === "settings" ? (
             <SettingsView
