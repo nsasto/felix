@@ -1,20 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  felixApi,
-  AgentEntry,
-  AgentRegistryResponse,
-  RunHistoryEntry,
-  Requirement,
-  MergedAgent,
-  AgentConfigEntry,
-} from "../services/felixApi";
-import {
-  listAgents as apiListAgents,
-  listRuns as apiListRuns,
-  createRun as apiCreateRun,
-  stopRun as apiStopRun,
-} from "../src/api/client";
-import type { Agent, Run } from "../src/api/types";
+import { felixApi, Requirement, MergedAgent } from "../services/felixApi";
+import { listRuns as apiListRuns } from "../src/api/client";
+import type { Run } from "../src/api/types";
 import { PageLoading } from "./ui/page-loading";
 import {
   Bot as IconFelix,
@@ -23,10 +10,6 @@ import {
   Terminal as IconTerminal,
   Play as IconPlay,
   Square as IconStop,
-  Settings as IconSettings,
-  RefreshCw as IconRefresh,
-  Pause as IconPause,
-  Zap as IconZap,
   Lock as IconLock,
   Trash2 as IconTrash,
   Filter,
@@ -39,17 +22,20 @@ import {
   AlertTriangle as IconAlertTriangle,
   StopCircle as IconStopCircle,
 } from "lucide-react";
-import { marked } from "marked";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
 import { cn } from "../lib/utils";
-import { getRequirementStatusBadgeClass, getRunStatusVariant } from "../lib/status";
+import {
+  getRequirementStatusBadgeClass,
+  getRunStatusVariant,
+} from "../lib/status";
 import WorkflowVisualization from "./WorkflowVisualization";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 import { EmptyState } from "./ui/empty-state";
+import DataTable from "./DataTable";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +47,6 @@ import {
 
 // --- Constants ---
 const POLLING_INTERVAL_MS = 3000; // 3-second polling interval
-const HEARTBEAT_TIMEOUT_MS = 60000; // 60 seconds to consider agent "connected"
 
 // --- Types ---
 
@@ -73,6 +58,8 @@ interface SelectedAgent {
   id: string;
   agent: MergedAgent;
 }
+
+type AgentStatus = MergedAgent["status"];
 
 // --- Status Icon Component Removed (Integrated into Badge/Dot) ---
 
@@ -101,330 +88,6 @@ const RunStatusBadge: React.FC<{ status: string }> = ({ status }) => {
       <Icon className={cn("w-3 h-3", status === "running" && "animate-spin")} />
       <span className="text-[9px] font-bold uppercase">{status}</span>
     </Badge>
-  );
-};
-
-// --- Toolbar Component ---
-
-interface ToolbarProps {
-  selectedAgent: SelectedAgent | null;
-  requirements: Requirement[];
-  onStart: (requirementId: string) => void;
-  onStop: (mode: "graceful" | "force") => void;
-  onRefresh: () => void;
-  onSettings: () => void;
-  actionInProgress: string | null;
-}
-
-const DashboardToolbar: React.FC<ToolbarProps> = ({
-  selectedAgent,
-  requirements,
-  onStart,
-  onStop,
-  onRefresh,
-  onSettings,
-  actionInProgress,
-}) => {
-  const [showStartDropdown, setShowStartDropdown] = useState(false);
-  const [showStopDropdown, setShowStopDropdown] = useState(false);
-
-  // Calculate uptime
-  const getUptime = () => {
-    if (!selectedAgent?.agent.started_at) return null;
-    try {
-      const started = new Date(selectedAgent.agent.started_at);
-      const now = new Date();
-      const diff = now.getTime() - started.getTime();
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      if (hours > 0) return `${hours}h ${minutes}m`;
-      return `${minutes}m`;
-    } catch {
-      return null;
-    }
-  };
-
-  const availableRequirements = requirements.filter(
-    (r) => r.status === "planned" || r.status === "blocked",
-  );
-
-  const isAgentActive = selectedAgent?.agent.status === "active";
-
-  // Start button should be enabled for not-started and stopped agents (can be restarted)
-  const canStartAgent =
-    selectedAgent &&
-    (selectedAgent.agent.status === "not-started" ||
-      selectedAgent.agent.status === "stopped");
-  const canStopAgent = selectedAgent && isAgentActive;
-
-  return (
-    <div className="h-14 border-b flex items-center justify-between px-6 bg-[var(--bg-base)] border-[var(--border-default)]">
-      {/* Left section - Agent info */}
-      <div className="flex items-center gap-6">
-        {selectedAgent ? (
-          <>
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isAgentActive ? "bg-brand-500/20" : "bg-[var(--bg-surface)]"
-                }`}
-              >
-                <IconFelix
-                  className={`w-5 h-5 ${isAgentActive ? "text-brand-400 animate-pulse" : "theme-text-muted"}`}
-                />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold theme-text-secondary">
-                  {selectedAgent.name}
-                </h3>
-                <p className="text-[10px] font-mono theme-text-muted">
-                  {selectedAgent.agent.hostname ||
-                    selectedAgent.agent.executable}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 text-[10px] font-mono theme-text-faint">
-              {selectedAgent.agent.pid && (
-                <span>PID: {selectedAgent.agent.pid}</span>
-              )}
-              {getUptime() && <span>Uptime: {getUptime()}</span>}
-              {selectedAgent.agent.current_run_id && (
-                <span className="px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
-                  {selectedAgent.agent.current_run_id}
-                </span>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--bg-surface)]">
-              <IconFelix className="w-5 h-5 theme-text-muted" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold theme-text-tertiary">
-                No Agent Selected
-              </h3>
-              <p className="text-[10px] font-mono theme-text-muted">
-                Select an agent from the list
-              </p>
-            </div>
-          </div>
-        )}
-        {/* Live Polling Indicator - Restored in S-0042 */}
-        <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-default)]"
-          title="Auto-refresh every 3 seconds"
-        >
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] font-bold uppercase theme-text-muted">
-            Live
-          </span>
-        </div>
-      </div>
-
-      {/* Right section - Controls */}
-      <div className="flex items-center gap-3">
-        {/* Live indicator */}
-        {selectedAgent?.agent.status === "active" && (
-          <div className="flex items-center gap-2 mr-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50" />
-            <span className="text-[10px] font-mono text-emerald-400 uppercase">
-              Live
-            </span>
-          </div>
-        )}
-
-        {/* Start button with dropdown */}
-        <div className="relative">
-          <Button
-            onClick={() => setShowStartDropdown(true)}
-            disabled={!canStartAgent || actionInProgress !== null}
-            size="sm"
-            className="gap-2"
-          >
-            {actionInProgress === "start" ? (
-              <>
-                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Starting
-              </>
-            ) : (
-              <>
-                <IconPlay className="w-3 h-3" />
-                Start
-              </>
-            )}
-          </Button>
-
-          <Dialog open={showStartDropdown} onOpenChange={setShowStartDropdown}>
-            <DialogContent className="max-w-sm">
-              <DialogHeader>
-                <DialogTitle>Select Requirement</DialogTitle>
-                <DialogDescription>
-                  Choose a requirement to start the agent with.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 py-2">
-                {availableRequirements.length === 0 ? (
-                  <div className="text-center py-4 text-xs theme-text-muted">
-                    No available requirements.
-                  </div>
-                ) : (
-                  availableRequirements.map((req) => (
-                    <Button
-                      key={req.id}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        onStart(req.id);
-                        setShowStartDropdown(false);
-                      }}
-                      className="w-full h-auto px-3 py-2 text-left justify-between rounded-md border border-transparent hover:border-[var(--brand-500)]/20 hover:bg-[var(--brand-500)]/10"
-                    >
-                      <div>
-                        <span className="text-xs font-mono text-[var(--brand-400)]">
-                          {req.id}
-                        </span>
-                        <p className="text-[10px] truncate theme-text-muted">
-                          {req.title}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={
-                          req.status === "blocked" ? "destructive" : "default"
-                        }
-                        className={cn(
-                          "text-[9px] px-1.5 py-0.5",
-                          getRequirementStatusBadgeClass(req.status),
-                        )}
-                      >
-                        {req.status}
-                      </Badge>
-                    </Button>
-                  ))
-                )}
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowStartDropdown(false)}
-                >
-                  Cancel
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Stop button with dropdown */}
-        <div className="relative">
-          <Button
-            onClick={() => setShowStopDropdown(true)}
-            disabled={!canStopAgent || actionInProgress !== null}
-            variant="destructive"
-            size="sm"
-            className="bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20 border border-[var(--destructive-500)]/20 gap-2"
-          >
-            {actionInProgress === "stop" ? (
-              <>
-                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                Stopping
-              </>
-            ) : (
-              <>
-                <IconStop className="w-3 h-3" />
-                Stop
-              </>
-            )}
-          </Button>
-
-          <Dialog open={showStopDropdown} onOpenChange={setShowStopDropdown}>
-            <DialogContent className="max-w-sm">
-              <DialogHeader>
-                <DialogTitle>Stop Agent</DialogTitle>
-                <DialogDescription>
-                  Select how you want to stop the agent.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2 py-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    onStop("graceful");
-                    setShowStopDropdown(false);
-                  }}
-                  className="w-full h-auto px-4 py-3 text-left text-xs justify-start gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--warning-500)]/30 hover:bg-[var(--warning-500)]/10"
-                >
-                  <div className="w-7 h-7 rounded-md bg-[var(--warning-500)]/10 flex items-center justify-center flex-shrink-0">
-                    <IconPause className="w-3.5 h-3.5 text-[var(--warning-500)]" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-[var(--warning-500)]">
-                      Graceful Stop
-                    </span>
-                    <p className="text-[9px] theme-text-muted">
-                      Wait for current task
-                    </p>
-                  </div>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    onStop("force");
-                    setShowStopDropdown(false);
-                  }}
-                  className="w-full h-auto px-4 py-3 text-left text-xs justify-start gap-3 rounded-md border border-[var(--border-default)] hover:border-[var(--destructive-500)]/30 hover:bg-[var(--destructive-500)]/10"
-                >
-                  <div className="w-7 h-7 rounded-md bg-[var(--destructive-500)]/10 flex items-center justify-center flex-shrink-0">
-                    <IconZap className="w-3.5 h-3.5 text-[var(--destructive-500)]" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-[var(--destructive-500)]">
-                      Force Kill
-                    </span>
-                    <p className="text-[9px] theme-text-muted">
-                      Terminate immediately
-                    </p>
-                  </div>
-                </Button>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowStopDropdown(false)}
-                >
-                  Cancel
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Settings button */}
-        <Button
-          onClick={onSettings}
-          variant="outline"
-          size="icon"
-          title="Settings"
-        >
-          <IconSettings className="w-4 h-4 theme-text-muted" />
-        </Button>
-
-        {/* Refresh button */}
-        <Button
-          onClick={onRefresh}
-          variant="outline"
-          size="icon"
-          title="Refresh"
-        >
-          <IconRefresh className="w-4 h-4 theme-text-muted" />
-        </Button>
-      </div>
-    </div>
   );
 };
 
@@ -1247,7 +910,6 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
 
 const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [agents, setAgents] = useState<MergedAgent[]>([]);
-  const [dbAgents, setDbAgents] = useState<Agent[]>([]); // Database-backed agents from new API
   const [dbRuns, setDbRuns] = useState<Run[]>([]); // Database-backed runs from new API
   const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
     null,
@@ -1257,23 +919,14 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [agentSearch, setAgentSearch] = useState("");
+  const [showStartDialog, setShowStartDialog] = useState(false);
 
   // Refs to track current selectedAgent for polling without recreating fetchAgents
   const selectedAgentRef = useRef(selectedAgent);
   useEffect(() => {
     selectedAgentRef.current = selectedAgent;
   }, [selectedAgent]);
-
-  // Fetch agents from database-backed API (S-0042)
-  const fetchDbAgents = useCallback(async () => {
-    try {
-      const response = await apiListAgents();
-      setDbAgents(response.agents);
-    } catch (err) {
-      console.error("Failed to fetch database agents:", err);
-      // Don't set error for db agents - fallback to legacy agents
-    }
-  }, []);
 
   // Fetch runs from database-backed API (S-0042)
   const fetchDbRuns = useCallback(async () => {
@@ -1373,7 +1026,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   useEffect(() => {
     fetchAgents();
     fetchRequirements();
-    fetchDbAgents();
     fetchDbRuns();
   }, []); // Empty deps - run once on mount
 
@@ -1381,7 +1033,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   useEffect(() => {
     const agentPollInterval = setInterval(() => {
       fetchAgents();
-      fetchDbAgents();
     }, POLLING_INTERVAL_MS);
 
     const runsPollInterval = setInterval(() => {
@@ -1393,19 +1044,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       clearInterval(agentPollInterval);
       clearInterval(runsPollInterval);
     };
-  }, [fetchAgents, fetchDbAgents, fetchDbRuns]);
-
-  // Helper: Check if agent is "connected" based on heartbeat_at (within 60 seconds)
-  const isAgentConnected = useCallback((agent: Agent): boolean => {
-    if (!agent.heartbeat_at) return false;
-    try {
-      const heartbeatTime = new Date(agent.heartbeat_at).getTime();
-      const now = Date.now();
-      return now - heartbeatTime < HEARTBEAT_TIMEOUT_MS;
-    } catch {
-      return false;
-    }
-  }, []);
+  }, [fetchAgents, fetchDbRuns]);
 
   // Handle start run using new API client (S-0042)
   const handleStart = async (requirementId: string) => {
@@ -1417,7 +1056,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       // For now, use the legacy API which starts the configured agent process
       await felixApi.startAgentWithRequirement(selectedAgent.id, requirementId);
       await fetchAgents();
-      await fetchDbAgents();
       await fetchDbRuns();
     } catch (err) {
       console.error("Failed to start agent:", err);
@@ -1435,7 +1073,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       // Use the legacy API for stopping (which signals the running process)
       await felixApi.stopAgent(selectedAgent.id, mode);
       await fetchAgents();
-      await fetchDbAgents();
       await fetchDbRuns();
     } catch (err) {
       console.error("Failed to stop agent:", err);
@@ -1449,15 +1086,118 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const handleRefresh = () => {
     fetchAgents();
     fetchRequirements();
-    fetchDbAgents();
     fetchDbRuns();
   };
 
-  // Handle settings (placeholder)
-  const handleSettings = () => {
-    // This would navigate to settings or open a settings modal
-    console.log("Open settings");
+  const statusTone: Record<AgentStatus, string> = {
+    active: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    stale: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    inactive: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+    stopped: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+    "not-started": "bg-slate-500/10 text-slate-300 border-slate-500/20",
   };
+
+  const statusDot: Record<AgentStatus, string> = {
+    active: "bg-emerald-500",
+    stale: "bg-amber-400",
+    inactive: "bg-slate-400",
+    stopped: "bg-rose-500",
+    "not-started": "bg-slate-500",
+  };
+
+  const filteredAgents = agents.filter((agent) => {
+    const query = agentSearch.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      agent.name.toLowerCase().includes(query) ||
+      agent.executable.toLowerCase().includes(query) ||
+      (agent.hostname || "").toLowerCase().includes(query)
+    );
+  });
+
+  const activeCount = agents.filter(
+    (agent) => agent.status === "active" || agent.status === "stale",
+  ).length;
+  const idleCount = agents.filter(
+    (agent) => agent.status === "inactive" || agent.status === "not-started",
+  ).length;
+  const stoppedCount = agents.filter((agent) => agent.status === "stopped")
+    .length;
+  const runningRuns = dbRuns.filter((run) => run.status === "running").length;
+  const failedRuns = dbRuns.filter((run) => run.status === "failed").length;
+  const availableRequirements = requirements.filter(
+    (req) => req.status === "planned" || req.status === "blocked",
+  );
+  const isAgentActive = selectedAgent?.agent.status === "active";
+  const canStartAgent =
+    selectedAgent &&
+    (selectedAgent.agent.status === "not-started" ||
+      selectedAgent.agent.status === "stopped");
+  const canStopAgent = selectedAgent && isAgentActive;
+
+  const workflowStages = [
+    "draft",
+    "planned",
+    "in_progress",
+    "blocked",
+    "completed",
+  ] as const;
+  const workflowCounts = workflowStages.map((status) => ({
+    status,
+    count: requirements.filter((req) => req.status === status).length,
+  }));
+
+  const velocityBuckets = (() => {
+    const now = new Date();
+    const buckets = Array.from({ length: 6 }, (_, idx) => {
+      const hour = (now.getHours() - (5 - idx) + 24) % 24;
+      return {
+        label: `${hour.toString().padStart(2, "0")}:00`,
+        value: 0,
+      };
+    });
+    dbRuns.forEach((run) => {
+      if (!run.started_at) return;
+      const started = new Date(run.started_at);
+      const diffHours = Math.floor(
+        (now.getTime() - started.getTime()) / (1000 * 60 * 60),
+      );
+      if (diffHours < 0 || diffHours > 5) return;
+      const index = 5 - diffHours;
+      if (buckets[index]) buckets[index].value += 1;
+    });
+    return buckets;
+  })();
+  const maxVelocity = Math.max(
+    1,
+    ...velocityBuckets.map((bucket) => bucket.value),
+  );
+
+  const matrixSlots = Math.max(24, agents.length);
+  const matrixAgents = Array.from({ length: matrixSlots }, (_, idx) =>
+    agents[idx] ? agents[idx] : null,
+  );
+
+  const formatRelativeTime = (isoString: string | null | undefined) => {
+    if (!isoString) return "--";
+    try {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+      if (diff < 60) return `${diff}s ago`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    } catch {
+      return "--";
+    }
+  };
+
+  const recentRunsForSelected = selectedAgent
+    ? dbRuns
+        .filter((run) => run.agent_name === selectedAgent.agent.name)
+        .slice(0, 5)
+    : [];
 
   return (
     <div className="h-full flex flex-col bg-[var(--bg-base)]">
@@ -1480,50 +1220,464 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         </div>
       )}
 
-      {/* Toolbar */}
-      <DashboardToolbar
-        selectedAgent={selectedAgent}
-        requirements={requirements}
-        onStart={handleStart}
-        onStop={handleStop}
-        onRefresh={handleRefresh}
-        onSettings={handleSettings}
-        actionInProgress={actionInProgress}
-      />
-
-      {/* Three-Column Layout */}
-      <div className="flex-1 flex min-h-0">
-        {/* Agent List Panel - Left Sidebar */}
-        <div className="w-80 flex-shrink-0 border-r overflow-hidden border-[var(--border)]">
-          <AgentListPanel
-            agents={agents}
-            selectedAgent={selectedAgent}
-            onSelectAgent={setSelectedAgent}
-            loading={loading}
-          />
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
+        {/* Metric tiles */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+              Active Agents
+            </p>
+            <div className="mt-3 flex items-end justify-between">
+              <span className="text-3xl font-semibold theme-text-secondary">
+                {activeCount}
+              </span>
+              <span className="text-[11px] theme-text-muted">
+                {agents.length} total
+              </span>
+            </div>
+          </Card>
+          <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+              Idle / Ready
+            </p>
+            <div className="mt-3 flex items-end justify-between">
+              <span className="text-3xl font-semibold theme-text-secondary">
+                {idleCount}
+              </span>
+              <span className="text-[11px] theme-text-muted">
+                {stoppedCount} stopped
+              </span>
+            </div>
+          </Card>
+          <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+              Runs In Flight
+            </p>
+            <div className="mt-3 flex items-end justify-between">
+              <span className="text-3xl font-semibold theme-text-secondary">
+                {runningRuns}
+              </span>
+              <span className="text-[11px] theme-text-muted">
+                {failedRuns} failed
+              </span>
+            </div>
+          </Card>
         </div>
 
-        {/* Middle and Right Panels - Split View */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Live Console Panel - Takes more space */}
-          <div className="flex-1 flex flex-col border-r overflow-hidden border-[var(--border)]">
-            <LiveConsolePanel
-              selectedAgent={selectedAgent}
-              projectId={projectId}
-            />
-          </div>
+        {/* Widgets row */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <Card className="xl:col-span-2 p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-text-muted">
+                  Live Fleet Health
+                </p>
+                <p className="text-xs theme-text-muted mt-1">
+                  Status snapshot of registered agents.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] theme-text-muted">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Active
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  Stale
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                  Idle
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  Stopped
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-12 gap-2">
+              {matrixAgents.map((agent, idx) => (
+                <div
+                  key={agent?.id || `slot-${idx}`}
+                  className={`h-6 rounded-md ${
+                    agent ? statusDot[agent.status] : "bg-[var(--bg-surface-200)]"
+                  }`}
+                  title={agent ? `${agent.name} (${agent.status})` : "Empty"}
+                />
+              ))}
+            </div>
+            <div className="mt-6 border-t border-[var(--border-muted)] pt-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+                Workflow Congestion
+              </p>
+              <div className="mt-3 grid grid-cols-5 gap-3">
+                {workflowCounts.map((stage) => (
+                  <div key={stage.status} className="text-center">
+                    <div className="h-16 rounded-lg bg-[var(--bg-surface-200)] flex items-end justify-center overflow-hidden">
+                      <div
+                        className="w-full bg-[var(--accent-primary)]/60"
+                        style={{
+                          height: `${Math.min(100, stage.count * 10)}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="mt-2 text-[10px] uppercase tracking-[0.18em] theme-text-muted">
+                      {stage.status.replace("_", " ")}
+                    </p>
+                    <p className="text-xs font-semibold theme-text-secondary">
+                      {stage.count}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
 
-          {/* Run History Panel - Right Side */}
-          <div className="w-96 flex-shrink-0 overflow-hidden">
-            <RunHistoryPanel
-              projectId={projectId}
-              selectedAgentId={selectedAgent?.id ?? null}
-              onSelectRun={setSelectedRunId}
-              dbRuns={dbRuns}
-              loading={loading}
-            />
-          </div>
+          <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-text-muted">
+                  Performance Velocity
+                </p>
+                <p className="text-xs theme-text-muted mt-1">
+                  Runs started per hour.
+                </p>
+              </div>
+              <span className="text-[10px] theme-text-muted">Last 6 hours</span>
+            </div>
+            <div className="flex items-end gap-3 h-40">
+              {velocityBuckets.map((bucket) => (
+                <div key={bucket.label} className="flex-1 flex flex-col items-center gap-2">
+                  <div className="w-full bg-[var(--bg-surface-200)] rounded-md flex items-end overflow-hidden h-28">
+                    <div
+                      className="w-full bg-[var(--accent-primary)]/70"
+                      style={{
+                        height: `${(bucket.value / maxVelocity) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[9px] theme-text-muted">
+                    {bucket.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
+
+        {/* Agents table */}
+        <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-sm font-semibold theme-text-secondary">
+                Agent Fleet
+              </h2>
+              <p className="text-xs theme-text-muted">
+                Select an agent to drill into details.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={agentSearch}
+                onChange={(event) => setAgentSearch(event.target.value)}
+                placeholder="Search agents..."
+                className="h-9 w-64 text-xs"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                className="text-[10px] font-bold"
+              >
+                Refresh
+              </Button>
+            </div>
+          </div>
+          {loading ? (
+            <PageLoading message="Loading agents..." size="sm" fullPage={false} />
+          ) : filteredAgents.length === 0 ? (
+            <EmptyState
+              title="No agents found"
+              description="Try adjusting your search."
+              icon={<IconCpu className="w-6 h-6 text-[var(--text-faint)]" />}
+            />
+          ) : (
+            <div className="border border-[var(--border-default)] rounded-xl overflow-hidden">
+              <DataTable
+                data={filteredAgents}
+                rowKey={(row) => row.id}
+                onRowClick={(row) => setSelectedAgent({ id: row.id, agent: row })}
+                rowClassName={(row) =>
+                  selectedAgent?.id === row.id
+                    ? "bg-[var(--brand-500)]/5"
+                    : ""
+                }
+                columns={[
+                  {
+                    key: "agent",
+                    header: "Agent",
+                    cell: (row) => (
+                      <div>
+                        <p className="text-sm font-semibold theme-text-secondary">
+                          {row.name}
+                        </p>
+                        <p className="text-[10px] theme-text-muted">
+                          {row.hostname || row.executable}
+                        </p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "status",
+                    header: "Status",
+                    cell: (row) => (
+                      <span
+                        className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border ${statusTone[row.status]}`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${statusDot[row.status]}`} />
+                        {row.status.replace("-", " ")}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "heartbeat",
+                    header: "Last heartbeat",
+                    cell: (row) => (
+                      <span className="text-xs theme-text-muted">
+                        {formatRelativeTime(row.last_heartbeat)}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "run",
+                    header: "Current run",
+                    cell: (row) => (
+                      <span className="text-xs font-mono theme-text-secondary">
+                        {row.current_run_id || "--"}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "workflow",
+                    header: "Workflow",
+                    cell: (row) => (
+                      <span className="text-xs theme-text-muted">
+                        {row.current_workflow_stage || "--"}
+                      </span>
+                    ),
+                  },
+                ]}
+                actions={(row) => (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-[10px]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedAgent({ id: row.id, agent: row });
+                    }}
+                  >
+                    View
+                  </Button>
+                )}
+              />
+            </div>
+          )}
+        </Card>
+
+        {selectedAgent && (
+          <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] theme-text-muted">
+                  Agent Detail
+                </p>
+                <h3 className="text-lg font-semibold theme-text-secondary mt-2">
+                  {selectedAgent.agent.name}
+                </h3>
+                <p className="text-xs theme-text-muted">
+                  {selectedAgent.agent.hostname || selectedAgent.agent.executable}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setShowStartDialog(true)}
+                  disabled={!canStartAgent || actionInProgress !== null}
+                  size="sm"
+                  className="text-[10px] font-bold gap-2"
+                >
+                  {actionInProgress === "start" ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Starting
+                    </>
+                  ) : (
+                    <>
+                      <IconPlay className="w-3 h-3" />
+                      Start
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => handleStop("graceful")}
+                  disabled={!canStopAgent || actionInProgress !== null}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] font-bold text-[var(--destructive-500)] gap-2"
+                >
+                  {actionInProgress === "stop" ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Stopping
+                    </>
+                  ) : (
+                    <>
+                      <IconStop className="w-3 h-3" />
+                      Stop
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setSelectedAgent(null)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] font-bold"
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+            <Dialog open={showStartDialog} onOpenChange={setShowStartDialog}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Select Requirement</DialogTitle>
+                  <DialogDescription>
+                    Choose a requirement to start the agent with.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 py-2">
+                  {availableRequirements.length === 0 ? (
+                    <div className="text-center py-4 text-xs theme-text-muted">
+                      No available requirements.
+                    </div>
+                  ) : (
+                    availableRequirements.map((req) => (
+                      <Button
+                        key={req.id}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          handleStart(req.id);
+                          setShowStartDialog(false);
+                        }}
+                        className="w-full h-auto px-3 py-2 text-left justify-between rounded-md border border-transparent hover:border-[var(--brand-500)]/20 hover:bg-[var(--brand-500)]/10"
+                      >
+                        <div>
+                          <span className="text-xs font-mono text-[var(--brand-400)]">
+                            {req.id}
+                          </span>
+                          <p className="text-[10px] truncate theme-text-muted">
+                            {req.title}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            req.status === "blocked" ? "destructive" : "default"
+                          }
+                          className={cn(
+                            "text-[9px] px-1.5 py-0.5",
+                            getRequirementStatusBadgeClass(req.status),
+                          )}
+                        >
+                          {req.status}
+                        </Badge>
+                      </Button>
+                    ))
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowStartDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+                  Status
+                </p>
+                <span
+                  className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-semibold border ${statusTone[selectedAgent.agent.status]}`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${statusDot[selectedAgent.agent.status]}`}
+                  />
+                  {selectedAgent.agent.status.replace("-", " ")}
+                </span>
+              </div>
+              <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+                  Last heartbeat
+                </p>
+                <p className="mt-2 text-sm font-semibold theme-text-secondary">
+                  {formatRelativeTime(selectedAgent.agent.last_heartbeat)}
+                </p>
+              </div>
+              <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+                  Current run
+                </p>
+                <p className="mt-2 text-sm font-mono theme-text-secondary">
+                  {selectedAgent.agent.current_run_id || "--"}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6">
+              <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted mb-3">
+                Recent runs
+              </p>
+              {recentRunsForSelected.length === 0 ? (
+                <p className="text-xs theme-text-muted">
+                  No recent runs for this agent yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {recentRunsForSelected.map((run) => (
+                    <Button
+                      key={run.id}
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setSelectedRunId(run.id)}
+                      className="w-full h-auto p-3 rounded-xl text-left border border-[var(--border-muted)] hover:border-[var(--accent-primary)]/40"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-mono theme-text-secondary">
+                          {run.id.slice(0, 8)}...
+                        </span>
+                        <Badge
+                          variant={getRunStatusVariant(run.status)}
+                          className="text-[9px] uppercase"
+                        >
+                          {run.status}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] theme-text-muted">
+                        {run.requirement_id || "No requirement"}
+                      </p>
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* Run Detail Slide-Out */}

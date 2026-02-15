@@ -147,6 +147,17 @@ class AgentConfigsListResponse(BaseModel):
     agents: List[AgentConfigEntry]
 
 
+def _parse_json_field(value: Any, fallback: Any) -> Any:
+    if value is None:
+        return fallback
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return fallback
+    return value
+
+
 # --- Workflow Configuration Models (for S-0030: Agent Workflow Visualization) ---
 
 class WorkflowStage(BaseModel):
@@ -465,10 +476,10 @@ async def get_agents_config(
             name=agent["name"],
             adapter=agent["adapter"],
             executable=agent["executable"],
-            args=agent.get("args") or [],
+            args=_parse_json_field(agent.get("args"), []),
             model=agent.get("model"),
             working_directory=agent.get("working_directory") or ".",
-            environment=agent.get("environment") or {},
+            environment=_parse_json_field(agent.get("environment"), {}),
             description=agent.get("description"),
         )
         for agent in agents_list

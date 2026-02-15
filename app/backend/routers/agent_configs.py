@@ -93,6 +93,17 @@ def _extract_active_agent_id(org_metadata: Optional[Dict[str, Any] | str]) -> Op
     return str(value) if value else None
 
 
+def _parse_json_field(value: Any, fallback: Any) -> Any:
+    if value is None:
+        return fallback
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return fallback
+    return value
+
+
 async def get_active_agent_id(db: Database, org_id: str) -> Optional[str]:
     row = await db.fetch_one(
         "SELECT metadata FROM organizations WHERE id = :id",
@@ -126,10 +137,10 @@ def _to_entry(row: Dict[str, Any]) -> AgentConfigEntry:
         name=row["name"],
         adapter=row["adapter"],
         executable=row["executable"],
-        args=row.get("args") or [],
+        args=_parse_json_field(row.get("args"), []),
         model=row.get("model"),
         working_directory=row.get("working_directory") or ".",
-        environment=row.get("environment") or {},
+        environment=_parse_json_field(row.get("environment"), {}),
         description=row.get("description"),
     )
 
