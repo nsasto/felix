@@ -21,6 +21,7 @@ import {
   Settings as IconSettings,
   Folder as IconFolder,
   Code as IconCode,
+  FileText as IconFileText,
   Briefcase as IconBriefcase,
   Cpu as IconCpu,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Switch } from "./ui/switch";
+import MarkdownEditor from "./MarkdownEditor";
 
 interface SettingsScreenProps {
   projectId?: string; // Optional - when undefined, uses global settings API
@@ -48,7 +50,10 @@ type SettingsCategory =
   | "paths"
   | "advanced"
   | "projects"
-  | "agents";
+  | "agents"
+  | "docs";
+
+type DocFileName = "README.md" | "CONTEXT.md" | "AGENTS.md";
 
 interface CategoryInfo {
   id: SettingsCategory;
@@ -87,6 +92,12 @@ const CATEGORIES: CategoryInfo[] = [
     label: "Agents",
     description: "Agent registry and status",
     icon: <IconCpu className="w-4 h-4" />,
+  },
+  {
+    id: "docs",
+    label: "Docs",
+    description: "Project documentation files",
+    icon: <IconFileText className="w-4 h-4" />,
   },
 ];
 
@@ -165,6 +176,34 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [agentFormWorkingDir, setAgentFormWorkingDir] = useState(".");
   const [agentFormSaving, setAgentFormSaving] = useState(false);
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
+
+  const [activeDoc, setActiveDoc] = useState<DocFileName>("README.md");
+  const [docContents, setDocContents] = useState<
+    Record<DocFileName, string>
+  >({
+    "README.md": "",
+    "CONTEXT.md": "",
+    "AGENTS.md": "",
+  });
+  const [docOriginals, setDocOriginals] = useState<
+    Record<DocFileName, string>
+  >({
+    "README.md": "",
+    "CONTEXT.md": "",
+    "AGENTS.md": "",
+  });
+  const [docsLoaded, setDocsLoaded] = useState<Record<DocFileName, boolean>>({
+    "README.md": false,
+    "CONTEXT.md": false,
+    "AGENTS.md": false,
+  });
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
+  const [docsSaving, setDocsSaving] = useState(false);
+  const [docsSaveMessage, setDocsSaveMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Fetch config on mount and sync theme
   // Uses global settings API when no projectId is provided
@@ -268,6 +307,71 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     fetchAgentConfigurations,
     config?.agent?.name,
   ]);
+
+  useEffect(() => {
+    if (!projectId) {
+      return;
+    }
+    setActiveDoc("README.md");
+    setDocContents({
+      "README.md": "",
+      "CONTEXT.md": "",
+      "AGENTS.md": "",
+    });
+    setDocOriginals({
+      "README.md": "",
+      "CONTEXT.md": "",
+      "AGENTS.md": "",
+    });
+    setDocsLoaded({
+      "README.md": false,
+      "CONTEXT.md": false,
+      "AGENTS.md": false,
+    });
+    setDocsError(null);
+    setDocsSaveMessage(null);
+  }, [projectId]);
+
+  const fetchDoc = useCallback(
+    async (docName: DocFileName) => {
+      if (!projectId) return;
+      setDocsLoading(true);
+      setDocsError(null);
+
+      try {
+        const response = await felixApi.getProjectFile(projectId, docName);
+        const content = response.content || "";
+        setDocContents((prev) => ({ ...prev, [docName]: content }));
+        setDocOriginals((prev) => ({ ...prev, [docName]: content }));
+        setDocsLoaded((prev) => ({ ...prev, [docName]: true }));
+      } catch (err) {
+        console.error("Failed to fetch project file:", err);
+        setDocsError(
+          err instanceof Error ? err.message : "Failed to load project file",
+        );
+        setDocContents((prev) => ({ ...prev, [docName]: "" }));
+        setDocOriginals((prev) => ({ ...prev, [docName]: "" }));
+        setDocsLoaded((prev) => ({ ...prev, [docName]: true }));
+      } finally {
+        setDocsLoading(false);
+      }
+    },
+    [projectId],
+  );
+
+  useEffect(() => {
+    if (activeCategory !== "docs" || !projectId) return;
+    if (!docsLoaded[activeDoc]) {
+      fetchDoc(activeDoc);
+    }
+  }, [activeCategory, activeDoc, docsLoaded, fetchDoc, projectId]);
+
+  useEffect(() => {
+    if (docsSaveMessage) {
+      const timeout = setTimeout(() => setDocsSaveMessage(null), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [docsSaveMessage]);
 
   // Clear success message after 3 seconds
   useEffect(() => {
@@ -1891,9 +1995,179 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         return renderProjectsSettings();
       case "agents":
         return renderAgentsSettings();
+      case "docs":
+        return renderDocsSettings();
       default:
         return null;
     }
+  };
+
+  const availableCategories = projectId
+    ? CATEGORIES
+    : CATEGORIES.filter((category) => category.id !== "docs");
+
+  useEffect(() => {
+    if (!availableCategories.some((category) => category.id === activeCategory)) {
+      setActiveCategory("general");
+    }
+  }, [activeCategory, availableCategories]);
+
+  const DOC_OPTIONS: Array<{
+    id: DocFileName;
+    label: string;
+    description: string;
+  }> = [
+    {
+      id: "README.md",
+      label: "README.md",
+      description: "Project overview and onboarding details.",
+    },
+    {
+      id: "CONTEXT.md",
+      label: "CONTEXT.md",
+      description: "Core background and context for Felix.",
+    },
+    {
+      id: "AGENTS.md",
+      label: "AGENTS.md",
+      description: "Agent instructions and execution guidance.",
+    },
+  ];
+
+  const renderDocsSettings = () => {
+    if (!projectId) {
+      return (
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6">
+          <h3 className="text-lg font-semibold">Docs</h3>
+          <p className="text-xs theme-text-muted mt-2">
+            Select a project to edit README.md, CONTEXT.md, or AGENTS.md.
+          </p>
+        </div>
+      );
+    }
+
+    const hasDocChanges =
+      docContents[activeDoc] !== docOriginals[activeDoc];
+
+    const handleDocSave = async () => {
+      if (!hasDocChanges) return;
+      setDocsSaving(true);
+      setDocsError(null);
+      setDocsSaveMessage(null);
+      try {
+        await felixApi.updateProjectFile(
+          projectId,
+          activeDoc,
+          docContents[activeDoc],
+        );
+        setDocOriginals((prev) => ({
+          ...prev,
+          [activeDoc]: docContents[activeDoc],
+        }));
+        setDocsSaveMessage({
+          type: "success",
+          text: `${activeDoc} saved`,
+        });
+      } catch (err) {
+        console.error("Failed to save project file:", err);
+        setDocsSaveMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "Failed to save file",
+        });
+      } finally {
+        setDocsSaving(false);
+      }
+    };
+
+    const handleDocDiscard = () => {
+      setDocContents((prev) => ({
+        ...prev,
+        [activeDoc]: docOriginals[activeDoc],
+      }));
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold">Documentation Files</h3>
+            <p className="text-xs theme-text-muted mt-1">
+              Edit project-level README, CONTEXT, and AGENTS files.
+            </p>
+          </div>
+          <Button
+            onClick={() => fetchDoc(activeDoc)}
+            variant="ghost"
+            size="sm"
+            className="text-[10px] font-bold"
+          >
+            Refresh
+          </Button>
+        </div>
+
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+          <Tabs
+            value={activeDoc}
+            onValueChange={(value) => setActiveDoc(value as DocFileName)}
+          >
+            <TabsList className="flex flex-wrap justify-start gap-2">
+              {DOC_OPTIONS.map((doc) => (
+                <TabsTrigger key={doc.id} value={doc.id}>
+                  {doc.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <p className="mt-3 text-[11px] theme-text-muted">
+            {DOC_OPTIONS.find((doc) => doc.id === activeDoc)?.description}
+          </p>
+        </div>
+
+        {docsError && (
+          <Alert className="border-[var(--status-warning)]/30 bg-[var(--status-warning)]/10 text-[var(--status-warning)]">
+            <AlertDescription className="flex items-start gap-3 text-[var(--status-warning)]">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs">{docsError}</p>
+                <p className="text-[10px] mt-1 opacity-80">
+                  You can still save to create the file.
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {docsLoading ? (
+          <PageLoading
+            message={`Loading ${activeDoc}...`}
+            size="sm"
+            fullPage={false}
+          />
+        ) : (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl overflow-hidden h-[620px]">
+            <MarkdownEditor
+              content={docContents[activeDoc]}
+              onContentChange={(content) =>
+                setDocContents((prev) => ({ ...prev, [activeDoc]: content }))
+              }
+              viewModes={["edit", "split", "preview"]}
+              initialViewMode="preview"
+              onSave={handleDocSave}
+              onDiscard={handleDocDiscard}
+              hasChanges={hasDocChanges}
+              saving={docsSaving}
+              saveMessage={docsSaveMessage}
+              fileName={activeDoc}
+              showFormatting={true}
+              showCopy={true}
+              showSave={true}
+              placeholder={`# ${activeDoc}\n`}
+              className="h-full"
+            />
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Loading state
@@ -1992,7 +2266,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 variant="line"
                 className="w-full justify-start flex-wrap gap-6"
               >
-                {CATEGORIES.map((category) => (
+                {availableCategories.map((category) => (
                   <TabsTrigger
                     key={category.id}
                     value={category.id}

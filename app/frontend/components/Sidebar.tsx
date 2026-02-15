@@ -58,12 +58,6 @@ const NAV_ITEMS: Array<{
     subtitle: "Agent views",
   },
   {
-    id: "plan",
-    label: "README",
-    icon: <IconFileCode />,
-    subtitle: "Project plan",
-  },
-  {
     id: "settings",
     label: "Settings",
     icon: <IconSettings />,

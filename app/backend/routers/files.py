@@ -575,6 +575,131 @@ async def read_readme(
         )
 
 
+@router.put("/{project_id}/files/README.md")
+async def update_readme(
+    payload: dict,
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
+    """
+    Update the project's README.md file in the root directory.
+    """
+    content = payload.get("content")
+    if content is None:
+        raise HTTPException(status_code=400, detail="Missing content")
+
+    project_path = await get_project_path(db, project_id)
+    readme_path = project_path / "README.md"
+
+    try:
+        readme_path.write_text(str(content), encoding="utf-8")
+        return {"message": "README.md updated", "path": "README.md"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to write README.md: {str(e)}"
+        )
+
+
+@router.get("/{project_id}/files/CONTEXT.md")
+async def read_context(
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
+    """
+    Read the project's CONTEXT.md file from the root directory.
+    """
+    project_path = await get_project_path(db, project_id)
+    context_path = project_path / "CONTEXT.md"
+
+    if not context_path.exists():
+        raise HTTPException(
+            status_code=404, detail="CONTEXT.md not found in project root"
+        )
+
+    try:
+        content = context_path.read_text(encoding="utf-8")
+        return {"content": content, "path": "CONTEXT.md"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read CONTEXT.md: {str(e)}"
+        )
+
+
+@router.put("/{project_id}/files/CONTEXT.md")
+async def update_context(
+    payload: dict,
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
+    """
+    Update the project's CONTEXT.md file in the root directory.
+    """
+    content = payload.get("content")
+    if content is None:
+        raise HTTPException(status_code=400, detail="Missing content")
+
+    project_path = await get_project_path(db, project_id)
+    context_path = project_path / "CONTEXT.md"
+
+    try:
+        context_path.write_text(str(content), encoding="utf-8")
+        return {"message": "CONTEXT.md updated", "path": "CONTEXT.md"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to write CONTEXT.md: {str(e)}"
+        )
+
+
+@router.get("/{project_id}/files/AGENTS.md")
+async def read_agents(
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
+    """
+    Read the project's AGENTS.md file from the root directory.
+    """
+    project_path = await get_project_path(db, project_id)
+    agents_path = project_path / "AGENTS.md"
+
+    if not agents_path.exists():
+        raise HTTPException(
+            status_code=404, detail="AGENTS.md not found in project root"
+        )
+
+    try:
+        content = agents_path.read_text(encoding="utf-8")
+        return {"content": content, "path": "AGENTS.md"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read AGENTS.md: {str(e)}"
+        )
+
+
+@router.put("/{project_id}/files/AGENTS.md")
+async def update_agents(
+    payload: dict,
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
+    """
+    Update the project's AGENTS.md file in the root directory.
+    """
+    content = payload.get("content")
+    if content is None:
+        raise HTTPException(status_code=400, detail="Missing content")
+
+    project_path = await get_project_path(db, project_id)
+    agents_path = project_path / "AGENTS.md"
+
+    try:
+        agents_path.write_text(str(content), encoding="utf-8")
+        return {"message": "AGENTS.md updated", "path": "AGENTS.md"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to write AGENTS.md: {str(e)}"
+        )
+
+
 # --- Requirements Endpoints ---
 
 

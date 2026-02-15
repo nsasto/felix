@@ -177,6 +177,11 @@ export interface RequirementContentResponse {
   content: string;
 }
 
+export interface FileContentResponse {
+  content: string;
+  path: string;
+}
+
 export interface PlanInfo {
   requirement_id: string;
   exists: boolean;
@@ -748,6 +753,31 @@ class FelixApiService {
       `/projects/${projectId}/plans/${requirementId}`,
       {
         method: "DELETE",
+      },
+    );
+  }
+
+  // --- File Endpoints ---
+
+  async getProjectFile(
+    projectId: string,
+    filename: "README.md" | "CONTEXT.md" | "AGENTS.md",
+  ): Promise<FileContentResponse> {
+    return this.request<FileContentResponse>(
+      `/projects/${projectId}/files/${filename}`,
+    );
+  }
+
+  async updateProjectFile(
+    projectId: string,
+    filename: "README.md" | "CONTEXT.md" | "AGENTS.md",
+    content: string,
+  ): Promise<{ message: string; path: string }> {
+    return this.request<{ message: string; path: string }>(
+      `/projects/${projectId}/files/${filename}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
       },
     );
   }
