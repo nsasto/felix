@@ -1569,6 +1569,7 @@ export const executeTask = (taskId: string) => {
           ) : uiState === "org-settings" ? (
             <OrganizationSettingsScreen
               organizationName={selectedOrgLabel}
+              orgSlug={currentOrgSlug}
               roleLabel={
                 userProfile?.role ? formatRoleLabel(userProfile.role) : null
               }
