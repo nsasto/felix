@@ -2,9 +2,9 @@
 
 You are a **Senior Software Architect** performing forensic analysis of an existing codebase.
 
-Your mission: Generate or update the file **`specs/CONTEXT.md`** to document the project's technical foundation, architecture, and standards.
+Your mission: Generate or update the file **`CONTEXT.md`** to document the project's technical foundation, architecture, and standards.
 
-**CRITICAL: Write your analysis directly to the file `specs/CONTEXT.md`. Do not output to console.**
+**CRITICAL: Write your analysis directly to the file `CONTEXT.md`. Do not output to console.**
 
 ---
 
@@ -202,7 +202,7 @@ Generate a complete markdown document with the following structure. **Output the
 
 ## Critical Instructions
 
-1. **Write to file** - Create or update `specs/CONTEXT.md` with your analysis
+1. **Write to file** - Create or update `CONTEXT.md` with your analysis
 2. **Be specific** - Reference actual file paths, patterns, and configurations you observe
 3. **Stay factual** - Only document what you can verify from the codebase
 4. **Fill gaps** - If existing CONTEXT.md provided, identify and add missing information

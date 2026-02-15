@@ -86,7 +86,7 @@ Here's the codebase as a map you can keep in your head:
 ### Methodology + specs
 
 - `specs/` - requirements/spec documents (what should exist).
-- `specs/CONTEXT.md` - design/stack/UX invariants and rules of the game.
+- `CONTEXT.md` - design/stack/UX invariants and rules of the game.
 - `README.md`, `HOW_TO_USE.md`, `RALPH_EXPLAINED.md` - the "why" and "how to operate" docs.
 
 ---

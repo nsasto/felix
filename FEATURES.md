@@ -923,7 +923,7 @@ felix tui
 - **[HOW_TO_USE.md](HOW_TO_USE.md)** - Complete setup guide
 - **[AGENTS.md](AGENTS.md)** - Operational procedures
 - **[LEARNINGS.md](LEARNINGS.md)** - Anti-patterns and gotchas
-- **[specs/CONTEXT.md](specs/CONTEXT.md)** - Project architecture (auto-generated)
+- **[CONTEXT.md](CONTEXT.md)** - Project architecture (auto-generated)
 
 ### Architecture & Planning
 

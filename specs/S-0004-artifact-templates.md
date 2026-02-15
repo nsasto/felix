@@ -56,7 +56,7 @@ As a developer starting a new Felix-enabled project, I need templates and scaffo
 - [ ] Placeholder commands with TODOs
 - [ ] Explanation comment at top about keeping it operational
 
-**specs/CONTEXT.md template:**
+**CONTEXT.md template:**
 
 - [ ] Sections: Tech Stack, Design Standards, UX Rules, Architectural Invariants
 - [ ] Placeholder content with examples

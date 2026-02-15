@@ -4,7 +4,7 @@
 function Invoke-ContextBuilder {
     <#
     .SYNOPSIS
-    Analyzes project and generates/updates specs/CONTEXT.md
+    Analyzes project and generates/updates CONTEXT.md
     
     .DESCRIPTION
     Performs autonomous analysis of project structure, tech stack, and architecture
@@ -52,7 +52,7 @@ function Invoke-ContextBuilder {
     Emit-Log -Level "info" -Message "Starting context builder" -Component "context-builder"
     
     # Check if CONTEXT.md exists
-    $contextPath = Join-Path $Paths.SpecsDir "CONTEXT.md"
+    $contextPath = Join-Path $ProjectPath "CONTEXT.md"
     $existingContext = $null
     
     if (Test-Path $contextPath) {
@@ -63,7 +63,7 @@ function Invoke-ContextBuilder {
             
             # Create timestamped backup
             $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-            $backupPath = Join-Path $Paths.SpecsDir "CONTEXT.md.bak-$timestamp"
+            $backupPath = Join-Path $ProjectPath "CONTEXT.md.bak-$timestamp"
             
             try {
                 Copy-Item $contextPath $backupPath -Force
@@ -189,7 +189,7 @@ function Invoke-ContextBuilder {
     
     # Verify the file was created/updated
     if (-not (Test-Path $contextPath)) {
-        Emit-Error -ErrorType "NoContextGenerated" -Message "Agent did not create specs/CONTEXT.md" -Severity "fatal"
+        Emit-Error -ErrorType "NoContextGenerated" -Message "Agent did not create CONTEXT.md" -Severity "fatal"
         return @{ ExitCode = 1 }
     }
     

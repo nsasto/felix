@@ -710,7 +710,7 @@ Example file start:
 As a user, I want...
 ```
 
-### `specs/CONTEXT.md`
+### `CONTEXT.md`
 
 Special file for product and system context:
 

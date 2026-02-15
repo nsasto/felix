@@ -96,7 +96,7 @@ The agent constructs a comprehensive context for the LLM:
 
 - `AGENTS.md` - How to run/test the project
 - `specs/S-XXXX-requirement.md` - Current requirement specification
-- `specs/CONTEXT.md` - Product context, tech stack, standards
+- `CONTEXT.md` - Product context, tech stack, standards
 - `..felix/requirements.json` - Status of all requirements
 - `runs/*/plan-S-XXXX.md` - Plan for current requirement (if in building mode)
 - Current requirement ID and output path for artifacts

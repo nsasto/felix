@@ -149,7 +149,7 @@ function New-MockHookData {
                 }
                 GitDiff = "diff --git a/test.txt b/test.txt"
                 PlanContent = "# Implementation Plan"
-                ContextFiles = [System.Collections.ArrayList]@("AGENTS.md", "specs/CONTEXT.md")
+                ContextFiles = [System.Collections.ArrayList]@("AGENTS.md", "CONTEXT.md")
             }
         }
         "OnPreLLM" {

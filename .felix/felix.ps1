@@ -333,7 +333,7 @@ function Invoke-Context {
         Write-Host "Usage: felix context <build|show> [options]" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "Subcommands:" -ForegroundColor Yellow
-        Write-Host "  build [options]       Analyze project and generate specs/CONTEXT.md"
+        Write-Host "  build [options]       Analyze project and generate CONTEXT.md"
         Write-Host "  show                  Display current CONTEXT.md content"
         Write-Host ""
         Write-Host "Options for 'build':" -ForegroundColor Yellow
@@ -395,7 +395,7 @@ function Invoke-Context {
         }
         
         "show" {
-            $contextPath = Join-Path $RepoRoot "specs\CONTEXT.md"
+            $contextPath = Join-Path $RepoRoot "CONTEXT.md"
             if (-not (Test-Path $contextPath)) {
                 Write-Host ""
                 Write-Host "CONTEXT.md not found" -ForegroundColor Yellow
@@ -1982,7 +1982,7 @@ function Show-Help {
                 Write-Host "Generate or view comprehensive project context documentation."
                 Write-Host ""
                 Write-Host "Subcommands:" -ForegroundColor Yellow
-                Write-Host "  build [options]       Analyze project and generate specs/CONTEXT.md"
+                Write-Host "  build [options]       Analyze project and generate CONTEXT.md"
                 Write-Host "  show                  Display current CONTEXT.md content"
                 Write-Host ""
                 Write-Host "Options for 'build':" -ForegroundColor Yellow
