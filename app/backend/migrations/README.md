@@ -112,6 +112,7 @@ For production environments, always write explicit rollback scripts.
 | 006_add_requirement_code.sql | Add human-readable requirement code                                     | Auto-tracked |
 | 007_requirement_content_updated_at_trigger.sql | Add updated_at trigger for requirement_content        | Auto-tracked |
 | 008_agent_profiles_and_machines.sql | Add agent profiles, machines, and agent allocation fields | Auto-tracked |
+| 009_add_project_path.sql | Add project path column for DB-backed registry | Auto-tracked |
 
 ## Dev Seed (Optional)
 

@@ -647,17 +647,19 @@ class TestGetWorkflowConfig:
 
     @pytest.fixture
     def mock_project_registration(self, mock_project_with_workflow):
-        """Mock storage functions to return our test project"""
-        from models import Project
-        test_project = Project(
-            id="test-project-id",
-            path=str(mock_project_with_workflow),
-            name="Test Project"
-        )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
-            with patch('routers.agents.storage.get_project_by_id', return_value=test_project):
-                yield test_project
+        """Mock project repository to return our test project"""
+        test_project = {
+            "id": "test-project-id",
+            "path": str(mock_project_with_workflow),
+            "name": "Test Project",
+        }
+
+        with patch("routers.agents.PostgresProjectRepository") as MockRepo:
+            repo = MagicMock()
+            MockRepo.return_value = repo
+            repo.get_by_id_any = AsyncMock(return_value=test_project)
+            repo.list_by_org = AsyncMock(return_value=[test_project])
+            yield test_project
 
     def test_get_workflow_config_returns_custom_config(self, client, mock_project_registration):
         """Returns workflow configuration from workflow.json"""
@@ -693,7 +695,10 @@ class TestGetWorkflowConfig:
 
     def test_get_workflow_config_returns_default_when_no_projects(self, client):
         """Returns default workflow config when no projects registered"""
-        with patch('routers.agents.storage.get_all_projects', return_value=[]):
+        with patch("routers.agents.PostgresProjectRepository") as MockRepo:
+            repo = MagicMock()
+            MockRepo.return_value = repo
+            repo.list_by_org = AsyncMock(return_value=[])
             response = client.get("/api/agents/workflow-config")
         
         assert response.status_code == 200
@@ -718,14 +723,16 @@ class TestGetWorkflowConfig:
         (project_path / "felix").mkdir(parents=True)
         (project_path / "specs").mkdir()
         
-        from models import Project
-        test_project = Project(
-            id="no-workflow-id",
-            path=str(project_path),
-            name="No Workflow Project"
-        )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+        test_project = {
+            "id": "no-workflow-id",
+            "path": str(project_path),
+            "name": "No Workflow Project",
+        }
+
+        with patch("routers.agents.PostgresProjectRepository") as MockRepo:
+            repo = MagicMock()
+            MockRepo.return_value = repo
+            repo.list_by_org = AsyncMock(return_value=[test_project])
             response = client.get("/api/agents/workflow-config")
         
         assert response.status_code == 200
@@ -746,14 +753,16 @@ class TestGetWorkflowConfig:
         workflow_file = project_path / "felix" / "workflow.json"
         workflow_file.write_text("not valid json {{{", encoding='utf-8')
         
-        from models import Project
-        test_project = Project(
-            id="malformed-id",
-            path=str(project_path),
-            name="Malformed Project"
-        )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+        test_project = {
+            "id": "malformed-id",
+            "path": str(project_path),
+            "name": "Malformed Project",
+        }
+
+        with patch("routers.agents.PostgresProjectRepository") as MockRepo:
+            repo = MagicMock()
+            MockRepo.return_value = repo
+            repo.list_by_org = AsyncMock(return_value=[test_project])
             response = client.get("/api/agents/workflow-config")
         
         assert response.status_code == 200
@@ -773,14 +782,16 @@ class TestGetWorkflowConfig:
         workflow_file = project_path / "felix" / "workflow.json"
         workflow_file.write_text(json.dumps({"version": "1.0", "stages": []}), encoding='utf-8')
         
-        from models import Project
-        test_project = Project(
-            id="empty-stages-id",
-            path=str(project_path),
-            name="Empty Stages Project"
-        )
-        
-        with patch('routers.agents.storage.get_all_projects', return_value=[test_project]):
+        test_project = {
+            "id": "empty-stages-id",
+            "path": str(project_path),
+            "name": "Empty Stages Project",
+        }
+
+        with patch("routers.agents.PostgresProjectRepository") as MockRepo:
+            repo = MagicMock()
+            MockRepo.return_value = repo
+            repo.list_by_org = AsyncMock(return_value=[test_project])
             response = client.get("/api/agents/workflow-config")
         
         assert response.status_code == 200

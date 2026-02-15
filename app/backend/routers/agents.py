@@ -21,12 +21,16 @@ import aiofiles
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import storage
 import config
 from auth import get_current_user
 from database.db import get_db
 from database.writers import RunWriter
-from repositories import PostgresAgentRepository, PostgresMachineRepository, PostgresAgentProfileRepository
+from repositories import (
+    PostgresAgentRepository,
+    PostgresMachineRepository,
+    PostgresAgentProfileRepository,
+    PostgresProjectRepository,
+)
 from models import (
     AgentRegisterRequest,
     AgentStatusUpdate,
@@ -473,7 +477,10 @@ async def get_agents_config(
 
 
 @router.get("/workflow-config", response_model=WorkflowConfigResponse)
-async def get_workflow_config(project_id: Optional[str] = None):
+async def get_workflow_config(
+    project_id: Optional[str] = None,
+    db: Database = Depends(get_db),
+):
     """
     Get workflow configuration for the agent workflow visualization.
     
@@ -496,15 +503,13 @@ async def get_workflow_config(project_id: Optional[str] = None):
     project_path: Optional[Path] = None
     
     if project_id:
-        # Load specific project
-        project = storage.get_project_by_id(project_id)
-        if project:
-            project_path = Path(project.path)
+        project = await PostgresProjectRepository(db).get_by_id_any(project_id)
+        if project and project.get("path"):
+            project_path = Path(project["path"])
     else:
-        # Use first registered project
-        projects = storage.get_all_projects()
-        if projects:
-            project_path = Path(projects[0].path)
+        projects = await PostgresProjectRepository(db).list_by_org(config.DEV_ORG_ID)
+        if projects and projects[0].get("path"):
+            project_path = Path(projects[0]["path"])
     
     if not project_path:
         # No project available, return default
@@ -918,15 +923,17 @@ async def start_agent(agent_id: str, request: AgentStartRequest):
 
 # --- Console Streaming WebSocket ---
 
-def _get_project_path_for_agent() -> Optional[Path]:
+async def _get_project_path_for_agent(db: Database) -> Optional[Path]:
     """
     Get the project path from registered projects.
     For now, we assume the first registered project is the active one.
     In the future, this could be extended to track which project each agent is working on.
     """
-    projects = storage.list_projects()
-    if projects:
-        return Path(projects[0].path)
+    projects = await PostgresProjectRepository(db).list_by_org(config.DEV_ORG_ID)
+    if projects and projects[0].get("path"):
+        project_path = Path(projects[0]["path"])
+        if project_path.exists():
+            return project_path
     return None
 
 
@@ -990,6 +997,7 @@ async def agent_console_stream(
     agent_id: int,
     run_id: str = None,
     from_start: bool = False,
+    db: Database = Depends(get_db),
 ):
     """
     WebSocket endpoint for streaming agent console output.
@@ -1018,7 +1026,7 @@ async def agent_console_stream(
         return
     
     # Get project path
-    project_path = _get_project_path_for_agent()
+    project_path = await _get_project_path_for_agent(db)
     if not project_path:
         await websocket.send_json({"error": "No project registered. Cannot stream console output."})
         await websocket.close()

@@ -18,6 +18,10 @@ from .requirements import (
     PostgresRequirementContentRepository,
     PostgresRequirementDependencyRepository,
 )
+from .projects import (
+    IProjectRepository,
+    PostgresProjectRepository,
+)
 
 __all__ = [
     "IAgentProfileRepository",
@@ -32,4 +36,6 @@ __all__ = [
     "PostgresRequirementRepository",
     "PostgresRequirementContentRepository",
     "PostgresRequirementDependencyRepository",
+    "IProjectRepository",
+    "PostgresProjectRepository",
 ]

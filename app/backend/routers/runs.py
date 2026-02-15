@@ -13,16 +13,30 @@ from typing import Dict, Optional, List
 from pathlib import Path
 from enum import Enum
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
+from databases import Database
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import storage
+from database import get_db
+from services.projects import (
+    get_project_path as get_db_project_path,
+    fetch_project_row,
+)
 
 
 router = APIRouter(prefix="/api/projects", tags=["runs"])
+
+
+async def get_project_path(db: Database, project_id: str) -> Path:
+    try:
+        return await get_db_project_path(db, project_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 class RunStatus(str, Enum):
@@ -235,7 +249,10 @@ def _cleanup_dead_agents():
 
 
 @router.post("/{project_id}/runs/start", response_model=RunStartResponse)
-async def start_agent_run(project_id: str):
+async def start_agent_run(
+    project_id: str,
+    db: Database = Depends(get_db),
+):
     """
     Spawn a Felix agent process for the specified project.
 
@@ -259,16 +276,9 @@ async def start_agent_run(project_id: str):
             # Process died, remove stale entry
             del _running_agents[project_id]
 
-    # Get project details
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-
-    project_path = Path(project.path)
-    if not project_path.exists():
-        raise HTTPException(
-            status_code=400, detail=f"Project directory does not exist: {project.path}"
-        )
+    await get_project_path(db, project_id)
+    project = await fetch_project_row(db, project_id)
+    project_name = project.get("name") if project else project_id
 
     # Agent script is always at the project root
     agent_script = project_path / "felix-agent.ps1"
@@ -333,7 +343,7 @@ async def start_agent_run(project_id: str):
         _add_to_history(history_entry)
 
         return RunStartResponse(
-            message=f"Agent started for project {project.name}",
+            message=f"Agent started for project {project_name}",
             project_id=project_id,
             run_id=run_id,
             pid=process.pid,
@@ -347,7 +357,10 @@ async def start_agent_run(project_id: str):
 
 
 @router.get("/{project_id}/runs/status", response_model=RunStatusResponse)
-async def get_agent_status(project_id: str):
+async def get_agent_status(
+    project_id: str,
+    db: Database = Depends(get_db),
+):
     """
     Get the current status of the agent for a project.
 
@@ -356,10 +369,9 @@ async def get_agent_status(project_id: str):
     # Clean up any dead agents first
     _cleanup_dead_agents()
 
-    # Check if project exists
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    project_path = await get_project_path(db, project_id)
+    project = await fetch_project_row(db, project_id)
+    project_name = project.get("name") if project else project_id
 
     if project_id in _running_agents:
         info = _running_agents[project_id]
@@ -394,7 +406,10 @@ class RunStopResponse(BaseModel):
 
 
 @router.post("/{project_id}/runs/stop", response_model=RunStopResponse)
-async def stop_agent_run(project_id: str):
+async def stop_agent_run(
+    project_id: str,
+    db: Database = Depends(get_db),
+):
     """
     Stop a running Felix agent for the specified project.
 
@@ -406,10 +421,7 @@ async def stop_agent_run(project_id: str):
     # Clean up any dead agents first
     _cleanup_dead_agents()
 
-    # Check if project exists
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    await get_project_path(db, project_id)
 
     # Check if agent is running for this project
     if project_id not in _running_agents:
@@ -480,7 +492,7 @@ async def stop_agent_run(project_id: str):
         del _running_agents[project_id]
 
         return RunStopResponse(
-            message=f"Agent stopped for project {project.name}",
+            message=f"Agent stopped for project {project_name}",
             project_id=project_id,
             run_id=run_id,
             pid=info.pid,
@@ -505,6 +517,7 @@ async def get_run_history(
     status: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    db: Database = Depends(get_db),
 ):
     """
     Get the run history for a project.
@@ -523,16 +536,10 @@ async def get_run_history(
     # Clean up any dead agents first
     _cleanup_dead_agents()
 
-    # Check if project exists
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    project_path = await get_project_path(db, project_id)
 
     # Start with in-memory history
     runs = _run_history.get(project_id, []).copy()
-
-    # Scan runs/ directory on disk to find historical runs not in memory
-    project_path = Path(project.path)
     runs_dir = project_path / "runs"
 
     if runs_dir.exists():
@@ -669,16 +676,17 @@ async def get_run_history(
 
 
 @router.get("/{project_id}/runs/{run_id}", response_model=RunDetailResponse)
-async def get_run_detail(project_id: str, run_id: str):
+async def get_run_detail(
+    project_id: str,
+    run_id: str,
+    db: Database = Depends(get_db),
+):
     """
     Get detailed information about a specific run, including available artifacts.
 
     Artifacts are read from the runs/ directory in the project.
     """
-    # Check if project exists
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    project_path = await get_project_path(db, project_id)
 
     # Find the run in history
     run_entry = None
@@ -693,7 +701,7 @@ async def get_run_detail(project_id: str, run_id: str):
 
     # Scan for artifacts in the project's runs directory
     artifacts = []
-    runs_dir = Path(project.path) / "runs"
+    runs_dir = project_path / "runs"
     if runs_dir.exists():
         # Look for directories that might match this run
         # The agent creates directories like runs/<timestamp>/
@@ -714,7 +722,12 @@ async def get_run_detail(project_id: str, run_id: str):
     "/{project_id}/runs/{run_id}/artifacts/{filename:path}",
     response_model=RunArtifactContent,
 )
-async def get_run_artifact(project_id: str, run_id: str, filename: str):
+async def get_run_artifact(
+    project_id: str,
+    run_id: str,
+    filename: str,
+    db: Database = Depends(get_db),
+):
     """
     Read the content of a specific run artifact file.
 
@@ -729,10 +742,7 @@ async def get_run_artifact(project_id: str, run_id: str, filename: str):
     Returns 404 if the artifact file doesn't exist.
     Returns 400 for invalid filenames (path traversal attempts).
     """
-    # Check if project exists
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    project_path = await get_project_path(db, project_id)
 
     # Validate filename - prevent path traversal
     if ".." in filename or filename.startswith("/") or filename.startswith("\\"):
@@ -743,7 +753,6 @@ async def get_run_artifact(project_id: str, run_id: str, filename: str):
     # Normalize path separators
     filename = filename.replace("\\", "/")
 
-    project_path = Path(project.path)
     runs_dir = project_path / "runs"
 
     if not runs_dir.exists():

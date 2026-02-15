@@ -16,9 +16,9 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import storage
 from database import get_db
 from services.requirements import RequirementService
+from services.projects import get_project_path as get_db_project_path
 
 router = APIRouter(prefix="/api/projects", tags=["files"])
 
@@ -362,31 +362,28 @@ def validate_path_against_policies(
     return True, None
 
 
-def get_project_path(project_id: str) -> Path:
+async def get_project_path(db: Database, project_id: str) -> Path:
     """Get validated project path by ID"""
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-
-    project_path = Path(project.path)
-    if not project_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Project directory no longer exists: {project.path}",
-        )
-
-    return project_path
+    try:
+        return await get_db_project_path(db, project_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # --- Specs Endpoints ---
 
 
 @router.get("/{project_id}/specs", response_model=List[SpecFile])
-async def list_specs(project_id: str = PathParam(..., description="Project ID")):
+async def list_specs(
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
     """
     List all spec files in the project's specs/ directory.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     specs_dir = project_path / "specs"
 
     if not specs_dir.exists():
@@ -422,7 +419,7 @@ async def read_spec(
     if not validate_filename(filename):
         raise HTTPException(status_code=400, detail=f"Invalid filename: {filename}")
 
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     spec_path = project_path / "specs" / filename
     relative_path = f"specs/{filename}"
 
@@ -465,7 +462,7 @@ async def update_spec(
     if not validate_filename(filename):
         raise HTTPException(status_code=400, detail=f"Invalid filename: {filename}")
 
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     specs_dir = project_path / "specs"
 
     # Ensure specs directory exists
@@ -507,7 +504,7 @@ async def read_requirements(
     NOTE: Performance optimization for Phase 0.
     Embeds plan status (has_plan, timestamps) in single response to avoid N+1 queries.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     try:
         service = RequirementService(db)
         requirements = await service.list_requirements(project_id)
@@ -554,11 +551,14 @@ async def read_requirements(
 
 
 @router.get("/{project_id}/files/README.md")
-async def read_readme(project_id: str = PathParam(..., description="Project ID")):
+async def read_readme(
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
     """
     Read the project's README.md file from the root directory.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     readme_path = project_path / "README.md"
 
     if not readme_path.exists():
@@ -582,6 +582,7 @@ async def read_readme(project_id: str = PathParam(..., description="Project ID")
 async def update_requirements(
     request: RequirementsUpdate,
     project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
 ):
     """
     Update the project's requirements.
@@ -589,7 +590,7 @@ async def update_requirements(
     Deprecated: requirements are database-driven.
     """
     # Validate project exists (preserves existing behavior for 404 on invalid project)
-    get_project_path(project_id)
+    await get_project_path(db, project_id)
 
     raise HTTPException(
         status_code=410,
@@ -602,7 +603,9 @@ async def update_requirements(
 
 @router.post("/{project_id}/specs", response_model=SpecContent, status_code=201)
 async def create_spec(
-    request: SpecCreate, project_id: str = PathParam(..., description="Project ID")
+    request: SpecCreate,
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
 ):
     """
     Create a new spec file.
@@ -617,7 +620,7 @@ async def create_spec(
             status_code=400, detail=f"Invalid filename: {request.filename}"
         )
 
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     specs_dir = project_path / "specs"
 
     # Ensure specs directory exists
@@ -655,11 +658,14 @@ async def create_spec(
 
 
 @router.get("/{project_id}/agents-md", response_model=AgentsMdContent)
-async def read_agents_md(project_id: str = PathParam(..., description="Project ID")):
+async def read_agents_md(
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
     """
     Read the project's AGENTS.md operations guide.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     agents_path = project_path / "AGENTS.md"
 
     if not agents_path.exists():
@@ -678,14 +684,17 @@ async def read_agents_md(project_id: str = PathParam(..., description="Project I
 
 
 @router.get("/{project_id}/config", response_model=ConfigContent)
-async def read_config(project_id: str = PathParam(..., description="Project ID")):
+async def read_config(
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
+):
     """
     Read the project's felix/config.json configuration.
 
     Returns the configuration with all sections (executor, agent, paths, backpressure).
     If the config file doesn't exist, returns default values.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     config_path = project_path / ".felix" / "config.json"
 
     if not config_path.exists():
@@ -751,7 +760,9 @@ async def read_config(project_id: str = PathParam(..., description="Project ID")
 
 @router.put("/{project_id}/config", response_model=ConfigContent)
 async def update_config(
-    request: ConfigUpdate, project_id: str = PathParam(..., description="Project ID")
+    request: ConfigUpdate,
+    project_id: str = PathParam(..., description="Project ID"),
+    db: Database = Depends(get_db),
 ):
     """
     Update the project's felix/config.json configuration.
@@ -764,7 +775,7 @@ async def update_config(
     - max_iterations must be a positive integer
     - default_mode must be 'planning' or 'building'
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     config_path = project_path / ".felix" / "config.json"
 
     # Ensure .felix directory exists
@@ -925,7 +936,7 @@ async def get_requirement_status(
     """
     Get the status of a specific requirement.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     service = RequirementService(db)
 
     requirement = await service.get_requirement_record(project_id, requirement_id)
@@ -989,7 +1000,7 @@ async def update_requirement_status(
             detail=f"Invalid status '{request.status}'. Must be one of: {', '.join(valid_statuses)}",
         )
 
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     service = RequirementService(db)
 
     try:
@@ -1040,12 +1051,13 @@ async def update_requirement_status(
 async def get_plan_info(
     project_id: str = PathParam(..., description="Project ID"),
     requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
+    db: Database = Depends(get_db),
 ):
     """
     Get information about a requirement's plan, including whether it exists
     and its metadata.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
 
     plan_info = find_plan_for_requirement(project_path, requirement_id)
 
@@ -1078,6 +1090,7 @@ async def get_plan_info(
 async def delete_plan(
     project_id: str = PathParam(..., description="Project ID"),
     requirement_id: str = PathParam(..., description="Requirement ID (e.g., 'S-0006')"),
+    db: Database = Depends(get_db),
 ):
     """
     Delete all plan files for a specific requirement.
@@ -1087,7 +1100,7 @@ async def delete_plan(
 
     Deletes plan-<requirement-id>.md from all run directories.
     """
-    project_path = get_project_path(project_id)
+    project_path = await get_project_path(db, project_id)
     runs_dir = project_path / "runs"
 
     if not runs_dir.exists():

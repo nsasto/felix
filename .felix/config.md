@@ -8,6 +8,7 @@ This file documents the configuration options in `felix/config.json` for customi
 
 - `felix/config.json` selects a local CLI agent by ID: `agent.agent_id`
 - Local CLI presets (executable/args/etc) live in **.felix/agents.json** in the repo
+- Felix CLI configuration and execution are always local to the machine running it.
 - Backend agent profiles are stored in the database and managed via the API
 
 ```json

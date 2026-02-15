@@ -150,3 +150,7 @@ The validation script executes anything in backticks as a shell command. If it's
 - No long explanations
 - If it wouldn't help a new engineer run the repo, it doesn't belong here
 
+## CLI Scope
+
+Felix CLI configuration and execution are always local to the machine running it.
+

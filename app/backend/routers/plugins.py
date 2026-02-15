@@ -8,16 +8,27 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from databases import Database
 from pydantic import BaseModel
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import storage
+from database import get_db
+from services.projects import get_project_path as get_db_project_path
 
 
 router = APIRouter(prefix="/plugins", tags=["plugins"])
+
+
+async def get_project_path(db: Database, project_id: str) -> Path:
+    try:
+        return await get_db_project_path(db, project_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 class Plugin(BaseModel):
@@ -43,17 +54,16 @@ class PluginState(BaseModel):
 
 
 @router.get("/", response_model=List[Plugin])
-async def list_plugins(project_id: str):
+async def list_plugins(
+    project_id: str,
+    db: Database = Depends(get_db),
+):
     """
     List all plugins for a project
     
     Returns plugin manifests and their current status (enabled/disabled, circuit breaker state).
     """
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    project_path = Path(project.path)
+    project_path = await get_project_path(db, project_id)
     plugins_dir = project_path / "felix" / "plugins"
     
     if not plugins_dir.exists():
@@ -104,13 +114,13 @@ async def list_plugins(project_id: str):
 
 
 @router.get("/{plugin_name}", response_model=Plugin)
-async def get_plugin(project_id: str, plugin_name: str):
+async def get_plugin(
+    project_id: str,
+    plugin_name: str,
+    db: Database = Depends(get_db),
+):
     """Get details for a specific plugin"""
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    project_path = Path(project.path)
+    project_path = await get_project_path(db, project_id)
     plugin_dir = project_path / "felix" / "plugins" / plugin_name
     
     if not plugin_dir.exists():
@@ -152,13 +162,13 @@ async def get_plugin(project_id: str, plugin_name: str):
 
 
 @router.post("/{plugin_name}/enable")
-async def enable_plugin(project_id: str, plugin_name: str):
+async def enable_plugin(
+    project_id: str,
+    plugin_name: str,
+    db: Database = Depends(get_db),
+):
     """Enable a plugin by removing it from the disabled list"""
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    project_path = Path(project.path)
+    project_path = await get_project_path(db, project_id)
     config_file = project_path / "felix" / "config.json"
     
     if not config_file.exists():
@@ -184,13 +194,13 @@ async def enable_plugin(project_id: str, plugin_name: str):
 
 
 @router.post("/{plugin_name}/disable")
-async def disable_plugin(project_id: str, plugin_name: str):
+async def disable_plugin(
+    project_id: str,
+    plugin_name: str,
+    db: Database = Depends(get_db),
+):
     """Disable a plugin by adding it to the disabled list"""
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    project_path = Path(project.path)
+    project_path = await get_project_path(db, project_id)
     config_file = project_path / "felix" / "config.json"
     
     if not config_file.exists():
@@ -216,7 +226,11 @@ async def disable_plugin(project_id: str, plugin_name: str):
 
 
 @router.post("/{plugin_name}/reset-circuit-breaker")
-async def reset_circuit_breaker(project_id: str, plugin_name: str):
+async def reset_circuit_breaker(
+    project_id: str,
+    plugin_name: str,
+    db: Database = Depends(get_db),
+):
     """
     Reset circuit breaker for a plugin
     
@@ -224,12 +238,7 @@ async def reset_circuit_breaker(project_id: str, plugin_name: str):
     is managed in memory by felix-agent.ps1 and resets on agent restart.
     Consider adding persistent circuit breaker state if needed.
     """
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    # For now, just verify plugin exists
-    project_path = Path(project.path)
+    project_path = await get_project_path(db, project_id)
     plugin_dir = project_path / "felix" / "plugins" / plugin_name
     
     if not plugin_dir.exists():
@@ -243,13 +252,13 @@ async def reset_circuit_breaker(project_id: str, plugin_name: str):
 
 
 @router.get("/{plugin_name}/state", response_model=PluginState)
-async def get_plugin_state(project_id: str, plugin_name: str):
+async def get_plugin_state(
+    project_id: str,
+    plugin_name: str,
+    db: Database = Depends(get_db),
+):
     """Get persistent state for a plugin"""
-    project = storage.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    project_path = Path(project.path)
+    project_path = await get_project_path(db, project_id)
     state_file = project_path / "felix" / "plugins" / plugin_name / "persistent-state.json"
     
     if not state_file.exists():

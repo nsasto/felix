@@ -120,7 +120,10 @@ class TestConsoleWebSocketEndpoint:
     @pytest.fixture
     def mock_project_path(self, tmp_path):
         """Mock _get_project_path_for_agent to return temp path"""
-        with patch("routers.agents._get_project_path_for_agent", return_value=tmp_path):
+        with patch(
+            "routers.agents._get_project_path_for_agent",
+            new=AsyncMock(return_value=tmp_path),
+        ):
             yield tmp_path
 
     def test_websocket_endpoint_exists_in_router(self):
@@ -233,7 +236,10 @@ class TestConsoleWebSocketNoProjectRegistered:
 
     def test_websocket_rejects_when_no_project_registered(self, client):
         """WebSocket returns error when no project is registered"""
-        with patch("routers.agents._get_project_path_for_agent", return_value=None):
+        with patch(
+            "routers.agents._get_project_path_for_agent",
+            new=AsyncMock(return_value=None),
+        ):
             with client.websocket_connect("/api/agents/1/console?run_id=test-run") as websocket:
                 data = websocket.receive_json()
                 assert "error" in data
@@ -251,7 +257,10 @@ class TestConsoleWebSocketMessageFormat:
     @pytest.fixture
     def mock_project_path(self, tmp_path):
         """Mock _get_project_path_for_agent to return temp path"""
-        with patch("routers.agents._get_project_path_for_agent", return_value=tmp_path):
+        with patch(
+            "routers.agents._get_project_path_for_agent",
+            new=AsyncMock(return_value=tmp_path),
+        ):
             yield tmp_path
 
     def test_connected_message_format(self, client, mock_project_path):
