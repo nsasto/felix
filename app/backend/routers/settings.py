@@ -5,11 +5,12 @@ Settings are stored in ~/.felix/config.json (Felix home directory).
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from pathlib import Path
 import json
+from databases import Database
 
 import sys
 
@@ -19,6 +20,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logger = logging.getLogger(__name__)
 
 import storage
+from auth import get_current_user
+from database import get_db
+from repositories import PostgresSettingsRepository
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -139,6 +143,14 @@ class ConfigContent(BaseModel):
     )
 
 
+class ScopedConfigContent(BaseModel):
+    """Config content scoped to org/user/project."""
+
+    scope_type: str
+    scope_id: str
+    config: FelixConfig
+
+
 class ConfigUpdate(BaseModel):
     """Request body for updating config"""
 
@@ -252,6 +264,22 @@ def save_global_config(config: FelixConfig) -> None:
         raise HTTPException(status_code=500, detail=f"Failed to write config: {str(e)}")
 
 
+def _parse_scoped_config(payload: object) -> tuple[FelixConfig, Optional[str]]:
+    warning_message = None
+    if not payload:
+        return FelixConfig(), None
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError as e:
+            return FelixConfig(), f"Invalid settings JSON: {str(e)}"
+    try:
+        return FelixConfig(**payload), None
+    except Exception as e:
+        warning_message = f"Failed to parse settings, using defaults: {str(e)}"
+        return FelixConfig(), warning_message
+
+
 # --- Settings Endpoints ---
 
 
@@ -298,3 +326,77 @@ async def update_global_settings(request: ConfigUpdate):
     save_global_config(config)
 
     return ConfigContent(config=config, path=str(get_global_config_path()))
+
+
+@router.get("/settings/org", response_model=ScopedConfigContent)
+async def get_org_settings(
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    repo = PostgresSettingsRepository(db)
+    record = await repo.get("org", str(user["org_id"]))
+    config, warning = _parse_scoped_config(record["config"] if record else None)
+    if warning:
+        logger.warning("Org settings warning: %s", warning)
+    return ScopedConfigContent(
+        scope_type="org", scope_id=str(user["org_id"]), config=config
+    )
+
+
+@router.put("/settings/org", response_model=ScopedConfigContent)
+async def update_org_settings(
+    request: ConfigUpdate,
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    config = request.config
+    if config.executor.max_iterations <= 0:
+        raise HTTPException(
+            status_code=400, detail="max_iterations must be a positive integer"
+        )
+    if config.executor.default_mode not in ("planning", "building"):
+        raise HTTPException(
+            status_code=400, detail="default_mode must be 'planning' or 'building'"
+        )
+    repo = PostgresSettingsRepository(db)
+    await repo.upsert("org", str(user["org_id"]), config.model_dump())
+    return ScopedConfigContent(
+        scope_type="org", scope_id=str(user["org_id"]), config=config
+    )
+
+
+@router.get("/settings/user", response_model=ScopedConfigContent)
+async def get_user_settings(
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    repo = PostgresSettingsRepository(db)
+    record = await repo.get("user", str(user["user_id"]))
+    config, warning = _parse_scoped_config(record["config"] if record else None)
+    if warning:
+        logger.warning("User settings warning: %s", warning)
+    return ScopedConfigContent(
+        scope_type="user", scope_id=str(user["user_id"]), config=config
+    )
+
+
+@router.put("/settings/user", response_model=ScopedConfigContent)
+async def update_user_settings(
+    request: ConfigUpdate,
+    user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    config = request.config
+    if config.executor.max_iterations <= 0:
+        raise HTTPException(
+            status_code=400, detail="max_iterations must be a positive integer"
+        )
+    if config.executor.default_mode not in ("planning", "building"):
+        raise HTTPException(
+            status_code=400, detail="default_mode must be 'planning' or 'building'"
+        )
+    repo = PostgresSettingsRepository(db)
+    await repo.upsert("user", str(user["user_id"]), config.model_dump())
+    return ScopedConfigContent(
+        scope_type="user", scope_id=str(user["user_id"]), config=config
+    )

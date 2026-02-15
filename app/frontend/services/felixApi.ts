@@ -450,6 +450,12 @@ export interface ConfigContent {
   path: string;
 }
 
+export interface ScopedConfigContent {
+  scope_type: "org" | "user" | "project";
+  scope_id: string;
+  config: FelixConfig;
+}
+
 // --- API Functions ---
 
 // Copilot API Key localStorage key (for S-0022: Copilot API Key Storage)
@@ -847,6 +853,28 @@ class FelixApiService {
 
   async updateGlobalConfig(config: FelixConfig): Promise<ConfigContent> {
     return this.request<ConfigContent>("/settings", {
+      method: "PUT",
+      body: JSON.stringify({ config }),
+    });
+  }
+
+  async getOrgConfig(): Promise<ScopedConfigContent> {
+    return this.request<ScopedConfigContent>("/settings/org");
+  }
+
+  async updateOrgConfig(config: FelixConfig): Promise<ScopedConfigContent> {
+    return this.request<ScopedConfigContent>("/settings/org", {
+      method: "PUT",
+      body: JSON.stringify({ config }),
+    });
+  }
+
+  async getUserConfig(): Promise<ScopedConfigContent> {
+    return this.request<ScopedConfigContent>("/settings/user");
+  }
+
+  async updateUserConfig(config: FelixConfig): Promise<ScopedConfigContent> {
+    return this.request<ScopedConfigContent>("/settings/user", {
       method: "PUT",
       body: JSON.stringify({ config }),
     });

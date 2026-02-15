@@ -104,7 +104,7 @@ export default function SpecEditorPage({
   useEffect(() => {
     const checkCopilotEnabled = async () => {
       try {
-        const result = await felixApi.getGlobalConfig();
+        const result = await felixApi.getUserConfig();
         const copilotConfig = result.config.copilot as
           | CopilotConfig
           | undefined;

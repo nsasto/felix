@@ -101,7 +101,7 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
     }
     const fetchConfig = async () => {
       try {
-        const result = await felixApi.getGlobalConfig();
+        const result = await felixApi.getUserConfig();
         setGlobalConfig(result.config);
       } catch (err) {
         setCopilotConfigError(
@@ -220,7 +220,7 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
     setCopilotConfigSaving(true);
     setCopilotConfigError(null);
     try {
-      const result = await felixApi.updateGlobalConfig(globalConfig);
+      const result = await felixApi.updateUserConfig(globalConfig);
       setGlobalConfig(result.config);
     } catch (err) {
       setCopilotConfigError(
@@ -252,6 +252,9 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
                 <p className="text-[11px] theme-text-muted">
                   Personal defaults for provider and model.
                 </p>
+                <span className="inline-flex mt-2 text-[9px] font-bold px-2 py-1 rounded-full border border-[var(--border-muted)] text-[var(--text-muted)] uppercase tracking-[0.18em]">
+                  User Scope
+                </span>
               </div>
               <Button
                 onClick={handleSaveCopilotConfig}
@@ -468,6 +471,9 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
               <h4 className="text-sm font-semibold">Felix Copilot</h4>
               <p className="mt-1 text-[11px] theme-text-muted">
                 Stored locally in your browser. This key is never sent to Felix.
+              </p>
+              <p className="mt-2 text-[10px] theme-text-muted">
+                These defaults only affect Copilot behavior on this device.
               </p>
             </div>
 

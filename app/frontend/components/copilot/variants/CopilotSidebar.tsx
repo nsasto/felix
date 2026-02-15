@@ -150,7 +150,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
   useEffect(() => {
     const loadContextSourceCount = async () => {
       try {
-        const configResult = await felixApi.getGlobalConfig();
+        const configResult = await felixApi.getUserConfig();
         const copilotConfig = configResult.config.copilot;
         if (copilotConfig?.context_sources) {
           const sources = copilotConfig.context_sources;

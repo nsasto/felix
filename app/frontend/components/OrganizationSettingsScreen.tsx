@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { felixApi, Project } from "../services/felixApi";
+import { felixApi, FelixConfig, Project } from "../services/felixApi";
 import {
   AlertTriangle,
   Folder,
@@ -21,8 +21,16 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { PageLoading } from "./ui/page-loading";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import { Switch } from "./ui/switch";
 import { cn } from "../lib/utils";
 
 type OrgTab =
@@ -78,6 +86,16 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const [registerName, setRegisterName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [orgConfig, setOrgConfig] = useState<FelixConfig | null>(null);
+  const [orgConfigOriginal, setOrgConfigOriginal] = useState<FelixConfig | null>(
+    null,
+  );
+  const [orgConfigLoading, setOrgConfigLoading] = useState(false);
+  const [orgConfigSaving, setOrgConfigSaving] = useState(false);
+  const [orgConfigError, setOrgConfigError] = useState<string | null>(null);
+  const [orgValidationErrors, setOrgValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   const fetchProjects = useCallback(async () => {
     setProjectsLoading(true);
@@ -102,6 +120,28 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
       fetchProjects();
     }
   }, [activeTab, fetchProjects]);
+
+  const fetchOrgConfig = useCallback(async () => {
+    setOrgConfigLoading(true);
+    setOrgConfigError(null);
+    try {
+      const result = await felixApi.getOrgConfig();
+      setOrgConfig(result.config);
+      setOrgConfigOriginal(result.config);
+    } catch (err) {
+      setOrgConfigError(
+        err instanceof Error ? err.message : "Failed to load org settings",
+      );
+    } finally {
+      setOrgConfigLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "policies") {
+      fetchOrgConfig();
+    }
+  }, [activeTab, fetchOrgConfig]);
 
   const fetchProjectDetails = useCallback(async (projectId: string) => {
     setProjectDetailsLoading(true);
@@ -138,6 +178,83 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     () => projects.find((project) => project.id === activeProjectId) || null,
     [projects, activeProjectId],
   );
+
+  const handleOrgExecutorChange = (
+    field: keyof FelixConfig["executor"],
+    value: any,
+  ) => {
+    if (!orgConfig) return;
+    const updated = {
+      ...orgConfig,
+      executor: {
+        ...orgConfig.executor,
+        [field]: value,
+      },
+    };
+    setOrgConfig(updated);
+    setOrgValidationErrors(validateOrgConfig(updated));
+  };
+
+  const handleOrgBackpressureChange = (
+    field: keyof FelixConfig["backpressure"],
+    value: any,
+  ) => {
+    if (!orgConfig) return;
+    const updated = {
+      ...orgConfig,
+      backpressure: {
+        ...orgConfig.backpressure,
+        [field]: value,
+      },
+    };
+    setOrgConfig(updated);
+    setOrgValidationErrors(validateOrgConfig(updated));
+  };
+
+  const validateOrgConfig = (config: FelixConfig): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    if (
+      !Number.isInteger(config.executor.max_iterations) ||
+      config.executor.max_iterations <= 0
+    ) {
+      errors.max_iterations = "Must be a positive integer";
+    }
+    if (!["planning", "building"].includes(config.executor.default_mode)) {
+      errors.default_mode = 'Must be "planning" or "building"';
+    }
+    if (config.backpressure.max_retries !== undefined) {
+      if (
+        !Number.isInteger(config.backpressure.max_retries) ||
+        config.backpressure.max_retries < 0
+      ) {
+        errors.max_retries = "Must be a non-negative integer";
+      }
+    }
+    return errors;
+  };
+
+  const saveOrgConfig = async () => {
+    if (!orgConfig) return;
+    const errors = validateOrgConfig(orgConfig);
+    if (Object.keys(errors).length > 0) {
+      setOrgValidationErrors(errors);
+      return;
+    }
+    setOrgConfigSaving(true);
+    setOrgConfigError(null);
+    try {
+      const result = await felixApi.updateOrgConfig(orgConfig);
+      setOrgConfig(result.config);
+      setOrgConfigOriginal(result.config);
+      setOrgValidationErrors({});
+    } catch (err) {
+      setOrgConfigError(
+        err instanceof Error ? err.message : "Failed to save org settings",
+      );
+    } finally {
+      setOrgConfigSaving(false);
+    }
+  };
 
   const renderProjectsTab = () => {
     if (projectsLoading) {
@@ -432,6 +549,22 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                           {activeProjectMeta.status || "Unknown"}
                         </span>
                       </div>
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wide">
+                          Created
+                        </span>
+                        <span className="text-sm font-semibold theme-text-secondary">
+                          {new Date(activeProject.registered_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wide">
+                          Owner
+                        </span>
+                        <span className="text-sm font-semibold theme-text-secondary">
+                          —
+                        </span>
+                      </div>
                     </div>
                   )}
                   <div className="flex flex-col gap-2">
@@ -536,6 +669,211 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const renderActiveTab = () => {
     if (activeTab === "projects") {
       return renderProjectsTab();
+    }
+    if (activeTab === "policies") {
+      const hasChanges =
+        orgConfig &&
+        orgConfigOriginal &&
+        JSON.stringify(orgConfig) !== JSON.stringify(orgConfigOriginal);
+      const hasValidationErrors =
+        Object.keys(orgValidationErrors).length > 0;
+
+      if (orgConfigLoading) {
+        return (
+          <div className="flex justify-center py-8">
+            <PageLoading message="Loading org policies..." size="md" fullPage={false} />
+          </div>
+        );
+      }
+
+      if (!orgConfig) {
+        return renderPlaceholder("Policies");
+      }
+
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Policies</h3>
+              <p className="text-xs theme-text-muted mt-1">
+                Organization defaults for execution behavior.
+              </p>
+              <span className="inline-flex mt-2 text-[9px] font-bold px-2 py-1 rounded-full border border-[var(--border-muted)] text-[var(--text-muted)] uppercase tracking-[0.18em]">
+                Org Scope
+              </span>
+              {hasChanges && (
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--status-warning)]">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--status-warning)] animate-pulse" />
+                  <span className="font-mono uppercase">Unsaved changes</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  if (orgConfigOriginal) {
+                    setOrgConfig(orgConfigOriginal);
+                    setOrgValidationErrors({});
+                  }
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-[10px] font-bold"
+                disabled={!hasChanges}
+              >
+                Reset to Defaults
+              </Button>
+              <Button
+                onClick={saveOrgConfig}
+                disabled={!hasChanges || orgConfigSaving || hasValidationErrors}
+                size="sm"
+                className="text-[10px] font-bold uppercase"
+              >
+                {orgConfigSaving ? "Saving..." : "Save Defaults"}
+              </Button>
+            </div>
+          </div>
+
+          {orgConfigError && (
+            <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+              <AlertDescription className="text-xs text-[var(--destructive-500)]">
+                {orgConfigError}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+            <h4 className="text-sm font-bold theme-text-secondary mb-4">
+              Executor Defaults
+            </h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Max Iterations
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={orgConfig.executor.max_iterations}
+                  onChange={(e) =>
+                    handleOrgExecutorChange(
+                      "max_iterations",
+                      parseInt(e.target.value) || 0,
+                    )
+                  }
+                  className={
+                    orgValidationErrors.max_iterations
+                      ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                      : ""
+                  }
+                />
+                {orgValidationErrors.max_iterations && (
+                  <p className="mt-1.5 text-[10px] text-[var(--destructive-500)]">
+                    {orgValidationErrors.max_iterations}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Default Mode
+                </label>
+                <Select
+                  value={orgConfig.executor.default_mode}
+                  onValueChange={(value) =>
+                    handleOrgExecutorChange("default_mode", value)
+                  }
+                >
+                  <SelectTrigger
+                    aria-label="Default Mode"
+                    className={
+                      orgValidationErrors.default_mode
+                        ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                        : ""
+                    }
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="building">Building</SelectItem>
+                  </SelectContent>
+                </Select>
+                {orgValidationErrors.default_mode && (
+                  <p className="mt-1.5 text-[10px] text-[var(--destructive-500)]">
+                    {orgValidationErrors.default_mode}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary">
+                    Auto Transition
+                  </label>
+                  <p className="text-[10px] theme-text-muted mt-1">
+                    Switch from planning to building automatically
+                  </p>
+                </div>
+                <Switch
+                  checked={orgConfig.executor.auto_transition}
+                  onCheckedChange={(checked) =>
+                    handleOrgExecutorChange("auto_transition", checked)
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+            <h4 className="text-sm font-bold theme-text-secondary mb-4">
+              Backpressure Defaults
+            </h4>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary">
+                    Enable Backpressure
+                  </label>
+                  <p className="text-[10px] theme-text-muted mt-1">
+                    Run validation between iterations
+                  </p>
+                </div>
+                <Switch
+                  checked={orgConfig.backpressure.enabled}
+                  onCheckedChange={(checked) =>
+                    handleOrgBackpressureChange("enabled", checked)
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Max Retries
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={(orgConfig.backpressure as any).max_retries || 0}
+                  onChange={(e) =>
+                    handleOrgBackpressureChange(
+                      "max_retries",
+                      parseInt(e.target.value) || 0,
+                    )
+                  }
+                  className={
+                    orgValidationErrors.max_retries
+                      ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                      : ""
+                  }
+                />
+                {orgValidationErrors.max_retries && (
+                  <p className="mt-1.5 text-[10px] text-[var(--destructive-500)]">
+                    {orgValidationErrors.max_retries}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     }
     const tab = ORG_TABS.find((entry) => entry.id === activeTab);
     return renderPlaceholder(tab?.label || "Settings");
