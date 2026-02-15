@@ -21,6 +21,7 @@ import {
   XCircle as IconXCircle,
   AlertTriangle as IconAlertTriangle,
   StopCircle as IconStopCircle,
+  ChevronLeft as IconChevronLeft,
 } from "lucide-react";
 import Ansi from "ansi-to-react";
 import RunArtifactViewer from "./RunArtifactViewer";
@@ -60,6 +61,7 @@ interface SelectedAgent {
 }
 
 type AgentStatus = MergedAgent["status"];
+type DashboardView = "dashboard" | "detail";
 
 // --- Status Icon Component Removed (Integrated into Badge/Dot) ---
 
@@ -301,6 +303,7 @@ const AgentListPanel: React.FC<AgentListPanelProps> = ({
 interface LiveConsolePanelProps {
   selectedAgent: SelectedAgent | null;
   projectId: string;
+  showWorkflow?: boolean;
 }
 
 // WebSocket message types
@@ -316,6 +319,7 @@ interface ConsoleWebSocketMessage {
 const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
   selectedAgent,
   projectId,
+  showWorkflow = true,
 }) => {
   const [consoleOutput, setConsoleOutput] = useState<string>("");
   const [scrollLocked, setScrollLocked] = useState(false);
@@ -628,7 +632,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
           )}
 
           {/* Agent selected - always show workflow visualization */}
-          {selectedAgent && (
+          {selectedAgent && showWorkflow && (
             <WorkflowVisualization
               projectId={projectId}
               currentStage={selectedAgent?.agent?.current_workflow_stage}
@@ -914,6 +918,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
     null,
   );
+  const [viewMode, setViewMode] = useState<DashboardView>("dashboard");
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
@@ -1135,6 +1140,15 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
       selectedAgent.agent.status === "stopped");
   const canStopAgent = selectedAgent && isAgentActive;
 
+  const enterDetailView = (agent: MergedAgent) => {
+    setSelectedAgent({ id: agent.id, agent });
+    setViewMode("detail");
+  };
+
+  const exitDetailView = () => {
+    setViewMode("dashboard");
+  };
+
   const workflowStages = [
     "draft",
     "planned",
@@ -1193,33 +1207,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     }
   };
 
-  const recentRunsForSelected = selectedAgent
-    ? dbRuns
-        .filter((run) => run.agent_name === selectedAgent.agent.name)
-        .slice(0, 5)
+  const selectedAgentRuns = selectedAgent
+    ? dbRuns.filter((run) => run.agent_name === selectedAgent.agent.name)
     : [];
 
-  return (
-    <div className="h-full flex flex-col bg-[var(--bg-base)]">
-      {/* Error banner */}
-      {error && (
-        <div className="px-6 py-2 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-red-400">
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-xs">{error}</span>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={fetchAgents}
-            className="h-auto px-2 py-1 text-[10px] font-bold text-red-400 hover:text-red-300"
-          >
-            Retry
-          </Button>
-        </div>
-      )}
-
+  const renderDashboard = () => (
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
         {/* Metric tiles */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1407,7 +1399,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               <DataTable
                 data={filteredAgents}
                 rowKey={(row) => row.id}
-                onRowClick={(row) => setSelectedAgent({ id: row.id, agent: row })}
+                onRowClick={(row) => enterDetailView(row)}
                 rowClassName={(row) =>
                   selectedAgent?.id === row.id
                     ? "bg-[var(--brand-500)]/5"
@@ -1476,7 +1468,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
                     className="text-[10px]"
                     onClick={(event) => {
                       event.stopPropagation();
-                      setSelectedAgent({ id: row.id, agent: row });
+                      enterDetailView(row);
                     }}
                   >
                     View
@@ -1486,199 +1478,210 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
             </div>
           )}
         </Card>
+      </div>
+  );
 
-        {selectedAgent && (
-          <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
-            <div className="flex items-start justify-between gap-4 mb-4">
+  const renderDetail = () => {
+    if (!selectedAgent) {
+      return null;
+    }
+
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="border-b border-[var(--border-default)] bg-[var(--bg-base)] px-6 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={exitDetailView}
+                className="h-9 w-9 text-[var(--text-muted)]"
+                aria-label="Back to dashboard"
+              >
+                <IconChevronLeft className="w-4 h-4" />
+              </Button>
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] theme-text-muted">
-                  Agent Detail
-                </p>
-                <h3 className="text-lg font-semibold theme-text-secondary mt-2">
-                  {selectedAgent.agent.name}
-                </h3>
-                <p className="text-xs theme-text-muted">
-                  {selectedAgent.agent.hostname || selectedAgent.agent.executable}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => setShowStartDialog(true)}
-                  disabled={!canStartAgent || actionInProgress !== null}
-                  size="sm"
-                  className="text-[10px] font-bold gap-2"
-                >
-                  {actionInProgress === "start" ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Starting
-                    </>
-                  ) : (
-                    <>
-                      <IconPlay className="w-3 h-3" />
-                      Start
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={() => handleStop("graceful")}
-                  disabled={!canStopAgent || actionInProgress !== null}
-                  variant="ghost"
-                  size="sm"
-                  className="text-[10px] font-bold text-[var(--destructive-500)] gap-2"
-                >
-                  {actionInProgress === "stop" ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Stopping
-                    </>
-                  ) : (
-                    <>
-                      <IconStop className="w-3 h-3" />
-                      Stop
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={() => setSelectedAgent(null)}
-                  variant="ghost"
-                  size="sm"
-                  className="text-[10px] font-bold"
-                >
-                  Clear
-                </Button>
-              </div>
-            </div>
-            <Dialog open={showStartDialog} onOpenChange={setShowStartDialog}>
-              <DialogContent className="max-w-sm">
-                <DialogHeader>
-                  <DialogTitle>Select Requirement</DialogTitle>
-                  <DialogDescription>
-                    Choose a requirement to start the agent with.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 py-2">
-                  {availableRequirements.length === 0 ? (
-                    <div className="text-center py-4 text-xs theme-text-muted">
-                      No available requirements.
-                    </div>
-                  ) : (
-                    availableRequirements.map((req) => (
-                      <Button
-                        key={req.id}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          handleStart(req.id);
-                          setShowStartDialog(false);
-                        }}
-                        className="w-full h-auto px-3 py-2 text-left justify-between rounded-md border border-transparent hover:border-[var(--brand-500)]/20 hover:bg-[var(--brand-500)]/10"
-                      >
-                        <div>
-                          <span className="text-xs font-mono text-[var(--brand-400)]">
-                            {req.id}
-                          </span>
-                          <p className="text-[10px] truncate theme-text-muted">
-                            {req.title}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            req.status === "blocked" ? "destructive" : "default"
-                          }
-                          className={cn(
-                            "text-[9px] px-1.5 py-0.5",
-                            getRequirementStatusBadgeClass(req.status),
-                          )}
-                        >
-                          {req.status}
-                        </Badge>
-                      </Button>
-                    ))
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowStartDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-4">
-                <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-                  Status
-                </p>
-                <span
-                  className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-semibold border ${statusTone[selectedAgent.agent.status]}`}
-                >
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold theme-text-secondary">
+                    {selectedAgent.agent.name}
+                  </h2>
                   <span
-                    className={`w-2 h-2 rounded-full ${statusDot[selectedAgent.agent.status]}`}
-                  />
-                  {selectedAgent.agent.status.replace("-", " ")}
-                </span>
-              </div>
-              <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-4">
-                <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-                  Last heartbeat
-                </p>
-                <p className="mt-2 text-sm font-semibold theme-text-secondary">
-                  {formatRelativeTime(selectedAgent.agent.last_heartbeat)}
-                </p>
-              </div>
-              <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-4">
-                <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-                  Current run
-                </p>
-                <p className="mt-2 text-sm font-mono theme-text-secondary">
-                  {selectedAgent.agent.current_run_id || "--"}
-                </p>
+                    className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border ${statusTone[selectedAgent.agent.status]}`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${statusDot[selectedAgent.agent.status]}`}
+                    />
+                    {selectedAgent.agent.status.replace("-", " ")}
+                  </span>
+                </div>
+                <div className="text-[10px] theme-text-muted mt-1">
+                  <span className="font-mono">
+                    {selectedAgent.agent.hostname ||
+                      selectedAgent.agent.executable}
+                  </span>
+                  <span className="mx-2 text-[var(--text-faint)]">·</span>
+                  <span className="font-mono">
+                    Heartbeat {formatRelativeTime(selectedAgent.agent.last_heartbeat)}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="mt-6">
-              <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted mb-3">
-                Recent runs
-              </p>
-              {recentRunsForSelected.length === 0 ? (
-                <p className="text-xs theme-text-muted">
-                  No recent runs for this agent yet.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {recentRunsForSelected.map((run) => (
-                    <Button
-                      key={run.id}
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setSelectedRunId(run.id)}
-                      className="w-full h-auto p-3 rounded-xl text-left border border-[var(--border-muted)] hover:border-[var(--accent-primary)]/40"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-mono theme-text-secondary">
-                          {run.id.slice(0, 8)}...
-                        </span>
-                        <Badge
-                          variant={getRunStatusVariant(run.status)}
-                          className="text-[9px] uppercase"
-                        >
-                          {run.status}
-                        </Badge>
-                      </div>
-                      <p className="text-[10px] theme-text-muted">
-                        {run.requirement_id || "No requirement"}
-                      </p>
-                    </Button>
-                  ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={() => setShowStartDialog(true)}
+                disabled={!canStartAgent || actionInProgress !== null}
+                size="sm"
+                className="text-[10px] font-bold gap-2"
+              >
+                {actionInProgress === "start" ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Starting
+                  </>
+                ) : (
+                  <>
+                    <IconPlay className="w-3 h-3" />
+                    Start
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => handleStop("graceful")}
+                disabled={!canStopAgent || actionInProgress !== null}
+                variant="ghost"
+                size="sm"
+                className="text-[10px] font-bold text-[var(--destructive-500)] gap-2"
+              >
+                {actionInProgress === "stop" ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Stopping
+                  </>
+                ) : (
+                  <>
+                    <IconStop className="w-3 h-3" />
+                    Stop
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                className="text-[10px] font-bold"
+              >
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 p-6 overflow-hidden">
+          <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface)] overflow-hidden">
+            <LiveConsolePanel
+              selectedAgent={selectedAgent}
+              projectId={projectId}
+              showWorkflow={false}
+            />
+          </div>
+          <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface)] overflow-hidden">
+            <RunHistoryPanel
+              projectId={projectId}
+              selectedAgentId={selectedAgent.id}
+              onSelectRun={setSelectedRunId}
+              dbRuns={selectedAgentRuns}
+              loading={loading}
+            />
+          </div>
+        </div>
+
+        <Dialog open={showStartDialog} onOpenChange={setShowStartDialog}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Select Requirement</DialogTitle>
+              <DialogDescription>
+                Choose a requirement to start the agent with.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 py-2">
+              {availableRequirements.length === 0 ? (
+                <div className="text-center py-4 text-xs theme-text-muted">
+                  No available requirements.
                 </div>
+              ) : (
+                availableRequirements.map((req) => (
+                  <Button
+                    key={req.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      handleStart(req.id);
+                      setShowStartDialog(false);
+                    }}
+                    className="w-full h-auto px-3 py-2 text-left justify-between rounded-md border border-transparent hover:border-[var(--brand-500)]/20 hover:bg-[var(--brand-500)]/10"
+                  >
+                    <div>
+                      <span className="text-xs font-mono text-[var(--brand-400)]">
+                        {req.id}
+                      </span>
+                      <p className="text-[10px] truncate theme-text-muted">
+                        {req.title}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={
+                        req.status === "blocked" ? "destructive" : "default"
+                      }
+                      className={cn(
+                        "text-[9px] px-1.5 py-0.5",
+                        getRequirementStatusBadgeClass(req.status),
+                      )}
+                    >
+                      {req.status}
+                    </Badge>
+                  </Button>
+                ))
               )}
             </div>
-          </Card>
-        )}
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => setShowStartDialog(false)}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+    );
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-[var(--bg-base)]">
+      {/* Error banner */}
+      {error && (
+        <div className="px-6 py-2 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-xs">{error}</span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={fetchAgents}
+            className="h-auto px-2 py-1 text-[10px] font-bold text-red-400 hover:text-red-300"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {viewMode === "detail" ? renderDetail() : renderDashboard()}
 
       {/* Run Detail Slide-Out */}
       <RunDetailSlideOut
