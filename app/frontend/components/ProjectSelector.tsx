@@ -51,12 +51,14 @@ type ViewMode = "cards" | "table";
 
 interface ProjectSelectorProps {
   selectedProjectId: string | null;
+  orgId: string | null;
   onSelectProject: (projectId: string, details: ProjectDetails) => void;
   onProjectsChange?: () => void;
 }
 
 export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   selectedProjectId,
+  orgId,
   onSelectProject,
   onProjectsChange,
 }) => {
@@ -80,10 +82,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   });
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  // Load projects on mount
+  // Load projects on mount and when org changes
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [orgId]);
 
   const loadProjects = async () => {
     setIsLoading(true);

@@ -7,10 +7,12 @@ When AUTH_MODE=enabled, Supabase Auth will be required (Phase 2).
 """
 
 from typing import Any, Dict
+import uuid
+from fastapi import Request
 import config
 
 
-async def get_current_user() -> Dict[str, Any]:
+async def get_current_user(request: Request) -> Dict[str, Any]:
     """
     Get the current authenticated user as a FastAPI dependency.
 
@@ -32,9 +34,17 @@ async def get_current_user() -> Dict[str, Any]:
             return {"user_id": user["user_id"]}
     """
     if config.AUTH_MODE == "disabled":
+        org_id = config.DEV_ORG_ID
+        header_org_id = request.headers.get("X-Felix-Org-Id")
+        if header_org_id:
+            try:
+                uuid.UUID(header_org_id)
+                org_id = header_org_id
+            except ValueError:
+                pass
         return {
             "user_id": config.DEV_USER_ID,
-            "org_id": config.DEV_ORG_ID,
+            "org_id": org_id,
             "role": "owner",
         }
     else:

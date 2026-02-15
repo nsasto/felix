@@ -7,6 +7,7 @@ Tests for:
 - database/db.py - Database module imports
 """
 import pytest
+from starlette.requests import Request
 from pathlib import Path
 from unittest.mock import patch
 import sys
@@ -63,6 +64,9 @@ class TestConfig:
 class TestAuth:
     """Tests for auth.py module"""
 
+    def _make_request(self):
+        return Request({"type": "http", "headers": []})
+
     @pytest.mark.asyncio
     async def test_get_current_user_returns_dict_in_dev_mode(self):
         """get_current_user returns user dict when AUTH_MODE=disabled"""
@@ -76,7 +80,7 @@ class TestAuth:
             auth.config.DEV_USER_ID = "test-user"
             auth.config.DEV_ORG_ID = "test-org-id"
 
-            user = await auth.get_current_user()
+            user = await auth.get_current_user(self._make_request())
 
             assert isinstance(user, dict)
             assert "user_id" in user
@@ -96,7 +100,7 @@ class TestAuth:
             auth.config.AUTH_MODE = "enabled"
             
             with pytest.raises(NotImplementedError) as exc_info:
-                await auth.get_current_user()
+                await auth.get_current_user(self._make_request())
             
             assert "Supabase Auth" in str(exc_info.value)
         finally:

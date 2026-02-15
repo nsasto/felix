@@ -4,6 +4,7 @@
  */
 
 const API_BASE_URL = "http://localhost:8080/api";
+const ACTIVE_ORG_STORAGE_KEY = "felix_active_org_id";
 
 // --- Types matching backend models ---
 
@@ -108,6 +109,14 @@ export interface UserProfile {
   email: string | null;
   organization: string | null;
   org_slug: string | null;
+  org_id: string | null;
+  role: string;
+}
+
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
   role: string;
 }
 
@@ -448,9 +457,15 @@ const COPILOT_API_KEY_STORAGE_KEY = "felix_copilot_api_key";
 
 class FelixApiService {
   private baseUrl: string;
+  private orgId: string | null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    try {
+      this.orgId = localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+    } catch {
+      this.orgId = null;
+    }
   }
 
   private async request<T>(
@@ -458,10 +473,16 @@ class FelixApiService {
     options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const baseHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this.orgId) {
+      baseHeaders["X-Felix-Org-Id"] = this.orgId;
+    }
     const response = await fetch(url, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...baseHeaders,
         ...options.headers,
       },
     });
@@ -1124,11 +1145,28 @@ class FelixApiService {
   // --- Health Check ---
 
   async getUserProfile(): Promise<UserProfile> {
-    const response = await fetch(`${this.baseUrl}/user/me`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch user profile: ${response.statusText}`);
+    return this.request<UserProfile>("/user/me");
+  }
+
+  async listOrganizations(): Promise<OrganizationSummary[]> {
+    return this.request<OrganizationSummary[]>("/user/orgs");
+  }
+
+  setActiveOrgId(orgId: string | null): void {
+    this.orgId = orgId;
+    try {
+      if (orgId) {
+        localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, orgId);
+      } else {
+        localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage issues (e.g. private browsing)
     }
-    return response.json();
+  }
+
+  getActiveOrgId(): string | null {
+    return this.orgId;
   }
 
   async healthCheck(): Promise<{

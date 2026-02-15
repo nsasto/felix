@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Task, UIState, MarkdownAsset } from "./types";
-import { felixApi, ProjectDetails } from "./services/felixApi";
+import {
+  felixApi,
+  ProjectDetails,
+  OrganizationSummary,
+  UserProfile,
+} from "./services/felixApi";
 import {
   Bot as IconFelix,
   Search as IconSearch,
@@ -188,12 +193,6 @@ const INITIAL_TASKS: Task[] = [
   },
 ];
 
-const ORG_OPTIONS = [
-  { id: "untrueaxioms", label: "UntrueAxioms", type: "org" },
-  { id: "all", label: "All Organizations", type: "org" },
-  { id: "new", label: "New organization", type: "action" },
-] as const;
-
 // Extended UI state to include projects, plan, settings, and orchestration views
 type ExtendedUIState =
   | UIState
@@ -271,15 +270,13 @@ const App: React.FC = () => {
   const isApplyingRouteRef = useRef(false);
   const hasUrlRouteRef = useRef(false);
   const pendingPathRef = useRef<string | null>(null);
+  const pendingOrgSlugRef = useRef<string | null>(null);
   const [orgSearch, setOrgSearch] = useState("");
-  const [selectedOrg, setSelectedOrg] = useState("UntrueAxioms");
-  const [userProfile, setUserProfile] = useState<{
-    user_id: string;
-    email: string | null;
-    organization: string | null;
-    org_slug: string | null;
-    role: string;
-  } | null>(null);
+  const [orgs, setOrgs] = useState<OrganizationSummary[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
+    felixApi.getActiveOrgId(),
+  );
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const recognizedSidebarStates: SidebarView[] = [
     "projects",
@@ -347,10 +344,28 @@ const App: React.FC = () => {
     { label: "Classic Dark", value: "dark", isVariant: true },
     { label: "System", value: "system" },
   ];
-  const orgOptions = [
-    ...ORG_OPTIONS,
-  ];
-  const currentOrgSlug = userProfile?.org_slug || toSlug(selectedOrg) || "org";
+  const selectedOrg = useMemo(
+    () => orgs.find((org) => org.id === selectedOrgId) || null,
+    [orgs, selectedOrgId],
+  );
+  const selectedOrgLabel =
+    selectedOrg?.name || userProfile?.organization || "Organization";
+  const currentOrgSlug =
+    selectedOrg?.slug || userProfile?.org_slug || toSlug(selectedOrgLabel) || "org";
+  const orgOptions = orgs.map((org) => ({
+    id: org.id,
+    label: org.name,
+    slug: org.slug,
+    role: org.role,
+    type: "org" as const,
+  }));
+  const filteredOrgOptions = useMemo(
+    () =>
+      orgOptions.filter((option) =>
+        option.label.toLowerCase().includes(orgSearch.toLowerCase()),
+      ),
+    [orgOptions, orgSearch],
+  );
   const normalizedRole = userProfile?.role?.toLowerCase() ?? "";
   const isOrgAdmin = normalizedRole.includes("admin") ||
     normalizedRole.includes("owner");
@@ -386,21 +401,113 @@ const App: React.FC = () => {
   }, []);
 
   // Fetch user profile from backend
+  const applyUserProfile = React.useCallback((profile: UserProfile) => {
+    setUserProfile(profile);
+    if (profile.org_id) {
+      setSelectedOrgId(profile.org_id);
+      if (felixApi.getActiveOrgId() !== profile.org_id) {
+        felixApi.setActiveOrgId(profile.org_id);
+      }
+    }
+    if (profile.org_id && profile.organization) {
+      setOrgs((prev) => {
+        const exists = prev.some((org) => org.id === profile.org_id);
+        if (exists) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            id: profile.org_id,
+            name: profile.organization,
+            slug: profile.org_slug || toSlug(profile.organization),
+            role: profile.role || "member",
+          },
+        ];
+      });
+    }
+  }, []);
+
+  const refreshUserProfile = React.useCallback(async () => {
+    try {
+      const profile = await felixApi.getUserProfile();
+      applyUserProfile(profile);
+    } catch (e) {
+      console.warn("Failed to fetch user profile:", e);
+    }
+  }, [applyUserProfile]);
+
   useEffect(() => {
-    const fetchUserProfile = async () => {
+    refreshUserProfile();
+  }, [refreshUserProfile]);
+
+  const selectOrgBySlug = React.useCallback(
+    (orgSlug: string) => {
+      const match = orgs.find((org) => org.slug === orgSlug);
+      if (match) {
+        setSelectedOrgId(match.id);
+        felixApi.setActiveOrgId(match.id);
+        return match;
+      }
+      return null;
+    },
+    [orgs],
+  );
+
+  useEffect(() => {
+    const fetchOrgs = async () => {
       try {
-        const profile = await felixApi.getUserProfile();
-        setUserProfile(profile);
-        // Update organization name if available
-        if (profile.organization) {
-          setSelectedOrg(profile.organization);
+        const orgList = await felixApi.listOrganizations();
+        if (orgList.length > 0) {
+          setOrgs(orgList);
+          return;
+        }
+        if (userProfile?.org_id && userProfile.organization) {
+          setOrgs([
+            {
+              id: userProfile.org_id,
+              name: userProfile.organization,
+              slug:
+                userProfile.org_slug ||
+                toSlug(userProfile.organization),
+              role: userProfile.role || "member",
+            },
+          ]);
         }
       } catch (e) {
-        console.warn("Failed to fetch user profile:", e);
+        console.warn("Failed to fetch organizations:", e);
+        if (userProfile?.org_id && userProfile.organization) {
+          setOrgs([
+            {
+              id: userProfile.org_id,
+              name: userProfile.organization,
+              slug:
+                userProfile.org_slug || toSlug(userProfile.organization),
+              role: userProfile.role || "member",
+            },
+          ]);
+        }
       }
     };
-    fetchUserProfile();
-  }, []);
+    fetchOrgs();
+  }, [userProfile?.org_id, userProfile?.org_slug, userProfile?.organization, userProfile?.role]);
+
+  useEffect(() => {
+    if (!pendingOrgSlugRef.current || orgs.length === 0) {
+      return;
+    }
+    const pendingSlug = pendingOrgSlugRef.current;
+    if (selectOrgBySlug(pendingSlug)) {
+      refreshUserProfile();
+      pendingOrgSlugRef.current = null;
+    }
+  }, [orgs, refreshUserProfile, selectOrgBySlug]);
+
+  useEffect(() => {
+    if (!selectedOrgId && userProfile?.org_id) {
+      setSelectedOrgId(userProfile.org_id);
+    }
+  }, [selectedOrgId, userProfile?.org_id]);
 
   const applyRoute = React.useCallback(
     async (pathname: string) => {
@@ -417,11 +524,11 @@ const App: React.FC = () => {
         }
 
         if (route.kind === "org-settings") {
-          const orgMatch = ORG_OPTIONS.find(
-            (option) => option.id === route.orgSlug,
-          );
-          if (orgMatch) {
-            setSelectedOrg(orgMatch.label);
+          const orgMatch = selectOrgBySlug(route.orgSlug);
+          if (!orgMatch) {
+            pendingOrgSlugRef.current = route.orgSlug;
+          } else {
+            await refreshUserProfile();
           }
           clearSelectedProject();
           setUiState("org-settings");
@@ -429,11 +536,11 @@ const App: React.FC = () => {
         }
 
         if (route.kind === "project") {
-          const orgMatch = ORG_OPTIONS.find(
-            (option) => option.id === route.orgSlug,
-          );
-          if (orgMatch) {
-            setSelectedOrg(orgMatch.label);
+          const orgMatch = selectOrgBySlug(route.orgSlug);
+          if (!orgMatch) {
+            pendingOrgSlugRef.current = route.orgSlug;
+          } else {
+            await refreshUserProfile();
           }
           hasUserInteracted.current = true;
           setUiState(mapSectionToUiState(route.section));
@@ -451,11 +558,11 @@ const App: React.FC = () => {
         }
 
         if (route.kind === "org-projects") {
-          const orgMatch = ORG_OPTIONS.find(
-            (option) => option.id === route.orgSlug,
-          );
-          if (orgMatch) {
-            setSelectedOrg(orgMatch.label);
+          const orgMatch = selectOrgBySlug(route.orgSlug);
+          if (!orgMatch) {
+            pendingOrgSlugRef.current = route.orgSlug;
+          } else {
+            await refreshUserProfile();
           }
           clearSelectedProject();
           setUiState("projects");
@@ -480,7 +587,7 @@ const App: React.FC = () => {
         }
       }
     },
-    [],
+    [refreshUserProfile, selectOrgBySlug],
   );
 
   useEffect(() => {
@@ -1162,7 +1269,7 @@ export const executeTask = (taskId: string) => {
                   >
                     <IconOrganization className="w-4 h-4 text-[var(--text-muted)]" />
                     <span className="flex items-center gap-2">
-                      {selectedOrg}
+                      {selectedOrgLabel}
                       <span className="text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] border border-[var(--border-muted)] px-1.5 py-0 rounded-full translate-y-[1px]">
                         FREE
                       </span>
@@ -1197,14 +1304,8 @@ export const executeTask = (taskId: string) => {
                         />
                       </div>
                       <div className="org-menu-list">
-                        {orgOptions
-                          .filter((option) =>
-                            option.label
-                              .toLowerCase()
-                              .includes(orgSearch.toLowerCase()),
-                          )
-                          .map((option) => {
-                            const isSelected = option.label === selectedOrg;
+                        {filteredOrgOptions.map((option) => {
+                            const isSelected = option.id === selectedOrgId;
                             return (
                               <Button
                                 key={option.id}
@@ -1213,8 +1314,13 @@ export const executeTask = (taskId: string) => {
                                 size="sm"
                                 className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
                                 onClick={() => {
-                                  if (option.type === "org") {
-                                    setSelectedOrg(option.label);
+                                  if (option.id !== selectedOrgId) {
+                                    hasUserInteracted.current = true;
+                                    felixApi.setActiveOrgId(option.id);
+                                    setSelectedOrgId(option.id);
+                                    clearSelectedProject();
+                                    setUiState("projects");
+                                    refreshUserProfile();
                                   }
                                   setOrgMenuOpen(false);
                                 }}
@@ -1223,12 +1329,14 @@ export const executeTask = (taskId: string) => {
                                 {isSelected && (
                                   <IconCheckCircle className="w-4 h-4" />
                                 )}
-                                {option.type === "action" && !isSelected && (
-                                  <IconPlus className="w-4 h-4" />
-                                )}
                               </Button>
                             );
                           })}
+                        {filteredOrgOptions.length === 0 && (
+                          <div className="px-3 py-2 text-xs theme-text-muted">
+                            No organizations found
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1424,6 +1532,7 @@ export const executeTask = (taskId: string) => {
             <ProjectsView
               selectedProjectId={selectedProjectId}
               selectedProject={selectedProject}
+              orgId={selectedOrgId}
               onSelectProject={handleSelectProject}
               onNavigate={(view) => setUiState(view as ExtendedUIState)}
             />
@@ -1459,7 +1568,7 @@ export const executeTask = (taskId: string) => {
             <PersonalSettingsScreen onBack={() => setUiState("projects")} />
           ) : uiState === "org-settings" ? (
             <OrganizationSettingsScreen
-              organizationName={userProfile?.organization ?? selectedOrg}
+              organizationName={selectedOrgLabel}
               roleLabel={
                 userProfile?.role ? formatRoleLabel(userProfile.role) : null
               }

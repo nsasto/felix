@@ -4,6 +4,7 @@ Project repository interfaces + Postgres implementation.
 
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from typing import Any, Dict, List, Optional, Protocol
@@ -138,10 +139,11 @@ class PostgresProjectRepository:
             return existing
 
         slug = await self._find_unique_slug(org_id, name)
+        metadata_payload = json.dumps(metadata or {})
         row = await self.db.fetch_one(
             """
             INSERT INTO projects (org_id, name, slug, description, metadata, path)
-            VALUES (:org_id, :name, :slug, :description, :metadata::jsonb, :path)
+            VALUES (:org_id, :name, :slug, :description, CAST(:metadata AS JSONB), :path)
             RETURNING *
             """,
             values={
@@ -149,7 +151,7 @@ class PostgresProjectRepository:
                 "name": name,
                 "slug": slug,
                 "description": description,
-                "metadata": metadata or {},
+                "metadata": metadata_payload,
                 "path": path,
             },
         )

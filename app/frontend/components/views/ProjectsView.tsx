@@ -6,6 +6,7 @@ import ProjectDashboard from "../ProjectDashboard";
 interface ProjectsViewProps {
   selectedProjectId: string | null;
   selectedProject: ProjectDetails | null;
+  orgId: string | null;
   onSelectProject: (projectId: string, details: ProjectDetails) => void;
   onNavigate: (view: string) => void;
 }
@@ -13,6 +14,7 @@ interface ProjectsViewProps {
 export default function ProjectsView({
   selectedProjectId,
   selectedProject,
+  orgId,
   onSelectProject,
   onNavigate,
 }: ProjectsViewProps) {
@@ -31,6 +33,7 @@ export default function ProjectsView({
       <div className="w-full max-w-6xl h-full px-6">
         <ProjectSelector
           selectedProjectId={selectedProjectId}
+          orgId={orgId}
           onSelectProject={onSelectProject}
         />
       </div>

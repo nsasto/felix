@@ -10,6 +10,9 @@ vi.mock("../../services/felixApi", () => ({
     healthCheck: vi.fn(),
     getUserProfile: vi.fn(),
     getProject: vi.fn(),
+    listOrganizations: vi.fn(),
+    getActiveOrgId: vi.fn(),
+    setActiveOrgId: vi.fn(),
   },
 }));
 
@@ -71,8 +74,18 @@ describe("App URL routing", () => {
       email: "user@example.com",
       organization: "UntrueAxioms",
       org_slug: "untrueaxioms",
+      org_id: "org-1",
       role: "admin",
     });
+    vi.mocked(felixApi.listOrganizations).mockResolvedValue([
+      {
+        id: "org-1",
+        name: "UntrueAxioms",
+        slug: "untrueaxioms",
+        role: "admin",
+      },
+    ]);
+    vi.mocked(felixApi.getActiveOrgId).mockReturnValue(null);
     vi.mocked(felixApi.getProject).mockResolvedValue(mockProjectDetails);
   });
 
