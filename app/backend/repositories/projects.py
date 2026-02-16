@@ -18,17 +18,15 @@ def _slugify(value: str) -> str:
 
 
 class IProjectRepository(Protocol):
-    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]:
-        ...
+    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]: ...
 
-    async def get_by_id(self, org_id: str, project_id: str) -> Optional[Dict[str, Any]]:
-        ...
+    async def get_by_id(
+        self, org_id: str, project_id: str
+    ) -> Optional[Dict[str, Any]]: ...
 
-    async def get_by_id_any(self, project_id: str) -> Optional[Dict[str, Any]]:
-        ...
+    async def get_by_id_any(self, project_id: str) -> Optional[Dict[str, Any]]: ...
 
-    async def get_by_path(self, org_id: str, path: str) -> Optional[Dict[str, Any]]:
-        ...
+    async def get_by_path(self, org_id: str, path: str) -> Optional[Dict[str, Any]]: ...
 
     async def create_project(
         self,
@@ -37,8 +35,8 @@ class IProjectRepository(Protocol):
         path: str,
         description: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        ...
+        git_repo: Optional[str] = None,
+    ) -> Dict[str, Any]: ...
 
     async def update_project(
         self,
@@ -46,11 +44,10 @@ class IProjectRepository(Protocol):
         project_id: str,
         name: Optional[str],
         path: Optional[str],
-    ) -> Optional[Dict[str, Any]]:
-        ...
+        git_repo: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]: ...
 
-    async def delete_project(self, org_id: str, project_id: str) -> bool:
-        ...
+    async def delete_project(self, org_id: str, project_id: str) -> bool: ...
 
 
 class PostgresProjectRepository:
@@ -142,8 +139,8 @@ class PostgresProjectRepository:
         metadata_payload = json.dumps(metadata or {})
         row = await self.db.fetch_one(
             """
-            INSERT INTO projects (org_id, name, slug, description, metadata, path)
-            VALUES (:org_id, :name, :slug, :description, CAST(:metadata AS JSONB), :path)
+            INSERT INTO projects (org_id, name, slug, description, metadata, path, git_repo)
+            VALUES (:org_id, :name, :slug, :description, CAST(:metadata AS JSONB), :path, :git_repo)
             RETURNING *
             """,
             values={
@@ -153,6 +150,7 @@ class PostgresProjectRepository:
                 "description": description,
                 "metadata": metadata_payload,
                 "path": path,
+                "git_repo": git_repo,
             },
         )
         return dict(row) if row else {}
@@ -163,6 +161,7 @@ class PostgresProjectRepository:
         project_id: str,
         name: Optional[str],
         path: Optional[str],
+        git_repo: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         existing = await self.get_by_id(org_id, project_id)
         if not existing:
@@ -196,6 +195,10 @@ class PostgresProjectRepository:
                 raise ValueError("Path is already registered for another project.")
             updates["path"] = path
             assignments.append("path = :path")
+
+        if git_repo is not None:
+            updates["git_repo"] = git_repo
+            assignments.append("git_repo = :git_repo")
 
         if not assignments:
             return existing
