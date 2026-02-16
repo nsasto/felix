@@ -2,7 +2,10 @@
 import { felixApi, FelixConfig, Project } from "../services/felixApi";
 import { AlertTriangle, Copy, Folder, Plus, Search, X } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import DataSurface from "./DataSurface";
+import FilterPopover from "./FilterPopover";
 import { Input } from "./ui/input";
 import { PageLoading } from "./ui/page-loading";
 import {
@@ -14,6 +17,14 @@ import {
 } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Switch } from "./ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
 
 type OrgTab =
   | "members"
@@ -73,6 +84,50 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const [orgValidationErrors, setOrgValidationErrors] = useState<
     Record<string, string>
   >({});
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [memberFilters, setMemberFilters] = useState<Record<string, Set<string>>>({
+    role: new Set(),
+    status: new Set(),
+  });
+
+  const orgMembers = [
+    {
+      id: "member-1",
+      name: "Ari Nguyen",
+      email: "ari.nguyen@untrueaxioms.io",
+      role: "Owner",
+      status: "Active",
+      lastActive: "2m ago",
+      joinedAt: "2026-01-05",
+    },
+    {
+      id: "member-2",
+      name: "Maya Patel",
+      email: "maya.patel@untrueaxioms.io",
+      role: "Admin",
+      status: "Active",
+      lastActive: "38m ago",
+      joinedAt: "2026-01-22",
+    },
+    {
+      id: "member-3",
+      name: "Sam Ortega",
+      email: "sam.ortega@untrueaxioms.io",
+      role: "Member",
+      status: "Active",
+      lastActive: "3h ago",
+      joinedAt: "2026-02-02",
+    },
+    {
+      id: "member-4",
+      name: "Jess Lin",
+      email: "jess.lin@untrueaxioms.io",
+      role: "Member",
+      status: "Invited",
+      lastActive: "Awaiting",
+      joinedAt: "2026-02-15",
+    },
+  ];
 
   const fetchProjects = useCallback(async () => {
     setProjectsLoading(true);
@@ -194,7 +249,179 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     }
   };
 
-    const renderProjectsTab = () => {
+  const renderMembersTab = () => {
+    const filteredMembers = orgMembers.filter((member) => {
+      const query = memberSearchQuery.trim().toLowerCase();
+      const matchesQuery =
+        !query ||
+        member.name.toLowerCase().includes(query) ||
+        member.email.toLowerCase().includes(query);
+      const matchesRole =
+        memberFilters.role.size === 0 ||
+        memberFilters.role.has(member.role.toLowerCase());
+      const matchesStatus =
+        memberFilters.status.size === 0 ||
+        memberFilters.status.has(member.status.toLowerCase());
+      return matchesQuery && matchesRole && matchesStatus;
+    });
+
+    const roleOptions = Array.from(
+      new Set(orgMembers.map((member) => member.role.toLowerCase())),
+    );
+    const statusOptions = Array.from(
+      new Set(orgMembers.map((member) => member.status.toLowerCase())),
+    );
+
+    const statusVariant =
+      (status: string): React.ComponentProps<typeof Badge>["variant"] => {
+        switch (status.toLowerCase()) {
+          case "active":
+            return "success";
+          case "invited":
+            return "warning";
+          default:
+            return "default";
+        }
+      };
+
+    return (
+      <div className="h-full">
+        <DataSurface
+          title="Members and Roles"
+          search={(
+            <div className="relative w-full max-w-sm">
+              <Input
+                type="text"
+                placeholder="Search members by name or email..."
+                value={memberSearchQuery}
+                onChange={(e) => setMemberSearchQuery(e.target.value)}
+                className="h-9 pl-9 text-sm"
+              />
+              <Search className="w-4 h-4 theme-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+            </div>
+          )}
+          filters={(
+            <FilterPopover
+              groups={[
+                {
+                  key: "role",
+                  label: "Role",
+                  options: roleOptions.map((role) => ({
+                    label: role.charAt(0).toUpperCase() + role.slice(1),
+                    value: role,
+                  })),
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  options: statusOptions.map((status) => ({
+                    label: status.charAt(0).toUpperCase() + status.slice(1),
+                    value: status,
+                  })),
+                },
+              ]}
+              value={memberFilters}
+              onChange={setMemberFilters}
+              label="Filter members"
+            />
+          )}
+          actions={(
+            <Button size="sm" className="uppercase" disabled>
+              <Plus className="w-4 h-4" />
+              Invite Member
+            </Button>
+          )}
+          footer={(
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-semibold theme-text-secondary">
+                  Members summary
+                </h4>
+                <p className="text-[11px] theme-text-muted mt-1">
+                  {orgMembers.length} total, {orgMembers.filter((m) => m.status === "Active").length} active.
+                </p>
+              </div>
+              <Badge variant="default">Org Scope</Badge>
+            </div>
+          )}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Member</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last Active</TableHead>
+                <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMembers.map((member) => (
+                <TableRow key={member.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[var(--bg-surface-200)] flex items-center justify-center text-[11px] font-bold text-[var(--text-muted)]">
+                        {member.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .slice(0, 2)
+                          .join("")}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold theme-text-secondary">
+                          {member.name}
+                        </p>
+                        <p className="text-[11px] theme-text-muted">
+                          {member.email}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-semibold theme-text-secondary">
+                      {member.role}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={statusVariant(member.status)}>
+                      {member.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs theme-text-muted">
+                      {member.lastActive}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs theme-text-muted">
+                      {new Date(member.joinedAt).toLocaleDateString()}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold">
+                      Manage
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredMembers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <div className="py-6 text-center text-xs theme-text-muted">
+                      No members match the current filters.
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </DataSurface>
+      </div>
+    );
+  };
+
+  const renderProjectsTab = () => {
     const filteredProjects = projects.filter((project) => {
       if (!projectSearchQuery.trim()) return true;
       const query = projectSearchQuery.toLowerCase();
@@ -627,6 +854,9 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const renderActiveTab = () => {
     if (activeTab === "projects") {
       return renderProjectsTab();
+    }
+    if (activeTab === "members") {
+      return renderMembersTab();
     }
     if (activeTab === "policies") {
       const hasChanges =
