@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/user", tags=["user"])
 
 MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
+
 class UserProfileDetails(BaseModel):
     user_id: str
     email: Optional[str] = None
@@ -40,6 +41,7 @@ class UserProfileUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=60)
     location: Optional[str] = Field(None, max_length=120)
     website: Optional[str] = Field(None, max_length=200)
+
 
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -141,7 +143,10 @@ async def _ensure_user_default_org(
     email = f"{user_id}@example.com"
     return await _create_personal_org(db, user_id, email)
 
-async def _ensure_user_profile(db: Database, user_id: str, email: Optional[str]) -> Dict[str, Any]:
+
+async def _ensure_user_profile(
+    db: Database, user_id: str, email: Optional[str]
+) -> Dict[str, Any]:
     row = await db.fetch_one(
         """
         INSERT INTO user_profiles (user_id, email)
@@ -168,9 +173,7 @@ def _profile_to_response(row: Dict[str, Any]) -> UserProfileDetails:
         location=row.get("location"),
         website=row.get("website"),
         avatar_url="/api/user/avatar" if has_avatar else None,
-        updated_at=row.get("updated_at").isoformat()
-        if row.get("updated_at")
-        else None,
+        updated_at=row.get("updated_at").isoformat() if row.get("updated_at") else None,
     )
 
 
@@ -183,7 +186,7 @@ async def get_user_profile(
     Get the current user's profile including organization details.
 
     Returns:
-        Dict with user_id, email, organization name, org_slug, and role.
+        Dict with user_id, email, organization name, org_slug, role, and avatar_url.
     """
     user_id = user["user_id"]
     org_id = user.get("org_id")
@@ -204,6 +207,22 @@ async def get_user_profile(
 
     email = metadata.get("email", f"{user_id}@example.com")
 
+    # Check if user has an avatar
+    avatar_url = None
+    try:
+        profile_row = await db.fetch_one(
+            "SELECT CASE WHEN avatar_bytes IS NOT NULL THEN true ELSE false END as has_avatar FROM user_profiles WHERE user_id = :user_id",
+            {"user_id": user_id},
+        )
+        has_avatar = bool(profile_row and profile_row["has_avatar"])
+        avatar_url = "/api/user/avatar" if has_avatar else None
+    except Exception as e:
+        # Log error but don't fail the request
+        print(f"Error fetching avatar for user {user_id}: {e}")
+        import traceback
+
+        traceback.print_exc()
+
     return {
         "user_id": user_id,
         "email": email,
@@ -211,7 +230,9 @@ async def get_user_profile(
         "org_slug": org.get("slug"),
         "org_id": str(org.get("id")),
         "role": role,
+        "avatar_url": avatar_url,
     }
+
 
 @router.get("/profile", response_model=UserProfileDetails)
 async def get_user_profile_details(

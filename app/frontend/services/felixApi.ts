@@ -113,6 +113,7 @@ export interface UserProfile {
   org_slug: string | null;
   org_id: string | null;
   role: string;
+  avatar_url: string | null;
 }
 
 export interface UserProfileDetails {

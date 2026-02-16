@@ -5,6 +5,7 @@ import {
   ProjectDetails,
   OrganizationSummary,
   UserProfile,
+  API_BASE_URL,
 } from "./services/felixApi";
 import {
   Bot as IconFelix,
@@ -42,6 +43,7 @@ import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
 import { Button } from "./components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -277,6 +279,7 @@ const App: React.FC = () => {
     initialOrgId,
   );
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [avatarTimestamp, setAvatarTimestamp] = useState<number>(Date.now());
 
   const recognizedSidebarStates: SidebarView[] = [
     "projects",
@@ -351,6 +354,7 @@ const App: React.FC = () => {
   const selectedOrgLabel =
     selectedOrg?.name || userProfile?.organization || "Organization";
   const currentOrgSlug =
+<<<<<<< HEAD
     selectedOrg?.slug || userProfile?.org_slug || toSlug(selectedOrgLabel) || "org";
   const resolvedOrgs =
     orgs.length > 0
@@ -366,6 +370,13 @@ const App: React.FC = () => {
           ]
         : [];
   const orgOptions = resolvedOrgs.map((org) => ({
+=======
+    selectedOrg?.slug ||
+    userProfile?.org_slug ||
+    toSlug(selectedOrgLabel) ||
+    "org";
+  const orgOptions = orgs.map((org) => ({
+>>>>>>> d6bc4fa (Add user avatar display to toolbar dropdown)
     id: org.id,
     label: org.name,
     slug: org.slug,
@@ -380,8 +391,8 @@ const App: React.FC = () => {
     [orgOptions, orgSearch],
   );
   const normalizedRole = userProfile?.role?.toLowerCase() ?? "";
-  const isOrgAdmin = normalizedRole.includes("admin") ||
-    normalizedRole.includes("owner");
+  const isOrgAdmin =
+    normalizedRole.includes("admin") || normalizedRole.includes("owner");
   const isPersonalSettings = uiState === "personal-settings";
   const isOrgSettings = uiState === "org-settings";
   const shouldHideSidebar =
@@ -480,9 +491,7 @@ const App: React.FC = () => {
             {
               id: userProfile.org_id,
               name: userProfile.organization,
-              slug:
-                userProfile.org_slug ||
-                toSlug(userProfile.organization),
+              slug: userProfile.org_slug || toSlug(userProfile.organization),
               role: userProfile.role || "member",
             },
           ]);
@@ -494,8 +503,7 @@ const App: React.FC = () => {
             {
               id: userProfile.org_id,
               name: userProfile.organization,
-              slug:
-                userProfile.org_slug || toSlug(userProfile.organization),
+              slug: userProfile.org_slug || toSlug(userProfile.organization),
               role: userProfile.role || "member",
             },
           ]);
@@ -503,7 +511,12 @@ const App: React.FC = () => {
       }
     };
     fetchOrgs();
-  }, [userProfile?.org_id, userProfile?.org_slug, userProfile?.organization, userProfile?.role]);
+  }, [
+    userProfile?.org_id,
+    userProfile?.org_slug,
+    userProfile?.organization,
+    userProfile?.role,
+  ]);
 
   useEffect(() => {
     if (!pendingOrgSlugRef.current || orgs.length === 0) {
@@ -845,15 +858,11 @@ const App: React.FC = () => {
                           : "bg-[var(--text-muted)]"
                   }`}
                 />
-                <h3
-                  className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]"
-                >
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
                   {col.label}
                 </h3>
               </div>
-              <span
-                className="text-[10px] font-mono px-1.5 py-0.5 rounded text-[var(--text-muted)] bg-[var(--bg-deep)]"
-              >
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded text-[var(--text-muted)] bg-[var(--bg-deep)]">
                 {tasks.filter((t) => t.status === col.status).length}
               </span>
             </div>
@@ -887,14 +896,10 @@ const App: React.FC = () => {
                         <IconPlus className="w-3 h-3 text-[var(--text-muted)]" />
                       </Button>
                     </div>
-                    <h4
-                      className="text-sm font-semibold mb-1 group-hover:text-brand-400 transition-colors text-[var(--text-secondary)]"
-                    >
+                    <h4 className="text-sm font-semibold mb-1 group-hover:text-brand-400 transition-colors text-[var(--text-secondary)]">
                       {task.title}
                     </h4>
-                    <p
-                      className="text-[11px] leading-relaxed mb-3 line-clamp-2 text-[var(--text-muted)]"
-                    >
+                    <p className="text-[11px] leading-relaxed mb-3 line-clamp-2 text-[var(--text-muted)]">
                       {task.description}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
@@ -928,17 +933,11 @@ const App: React.FC = () => {
   const renderCanvas = () => {
     return (
       <div className="flex-1 flex overflow-hidden bg-[var(--bg-base)]">
-        <div
-          className="flex-1 flex flex-col border-r border-[var(--border-default)]"
-        >
-          <div
-            className="h-12 border-b border-[var(--border-default)] bg-[var(--bg-base)] flex items-center px-6 justify-between backdrop-blur"
-          >
+        <div className="flex-1 flex flex-col border-r border-[var(--border-default)]">
+          <div className="h-12 border-b border-[var(--border-default)] bg-[var(--bg-base)] flex items-center px-6 justify-between backdrop-blur">
             <div className="flex items-center gap-3">
               <IconFileCode className="w-4 h-4 text-[var(--accent-primary)]" />
-              <span
-                className="text-xs font-mono font-bold text-[var(--text-tertiary)]"
-              >
+              <span className="text-xs font-mono font-bold text-[var(--text-tertiary)]">
                 workspace/felix-core/orchestrator.ts
               </span>
             </div>
@@ -979,15 +978,9 @@ export const executeTask = (taskId: string) => {
     return (
       <div className="flex-1 flex overflow-hidden bg-[var(--bg-base)]">
         {/* Sub-nav Panel */}
-        <div
-          className="w-64 border-r border-[var(--border-default)] flex flex-col flex-shrink-0 bg-[var(--bg-deep)]"
-        >
-          <div
-            className="h-12 border-b border-[var(--border-default)] flex items-center px-4"
-          >
-            <span
-              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]"
-            >
+        <div className="w-64 border-r border-[var(--border-default)] flex flex-col flex-shrink-0 bg-[var(--bg-deep)]">
+          <div className="h-12 border-b border-[var(--border-default)] flex items-center px-4">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
               Project Workspace
             </span>
           </div>
@@ -1029,16 +1022,10 @@ export const executeTask = (taskId: string) => {
         </div>
 
         {/* Integrated Orchestration Canvas */}
-        <div
-          className="flex-1 flex flex-col min-w-0 bg-[var(--bg-deep)]"
-        >
-          <div
-            className="h-12 border-b border-[var(--border-default)] bg-[var(--bg-base)] flex items-center px-4 justify-between backdrop-blur z-20 flex-shrink-0"
-          >
+        <div className="flex-1 flex flex-col min-w-0 bg-[var(--bg-deep)]">
+          <div className="h-12 border-b border-[var(--border-default)] bg-[var(--bg-base)] flex items-center px-4 justify-between backdrop-blur z-20 flex-shrink-0">
             <div className="flex items-center gap-4">
-              <div
-                className="flex border border-[var(--border-default)] rounded-lg p-0.5 shadow-inner bg-[var(--bg-deep)]"
-              >
+              <div className="flex border border-[var(--border-default)] rounded-lg p-0.5 shadow-inner bg-[var(--bg-deep)]">
                 <Button
                   onClick={() => setAssetViewMode("edit")}
                   variant="ghost"
@@ -1078,9 +1065,7 @@ export const executeTask = (taskId: string) => {
               </div>
 
               {(assetViewMode === "edit" || assetViewMode === "split") && (
-                <div
-                  className="flex items-center gap-0.5 border-l border-[var(--border-default)] pl-4"
-                >
+                <div className="flex items-center gap-0.5 border-l border-[var(--border-default)] pl-4">
                   <Button
                     onClick={() => insertFormatting("# ")}
                     variant="ghost"
@@ -1154,9 +1139,7 @@ export const executeTask = (taskId: string) => {
               <div className="h-4 w-px bg-[var(--border-default)]"></div>
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span
-                  className="text-[10px] font-mono uppercase text-[var(--text-muted)]"
-                >
+                <span className="text-[10px] font-mono uppercase text-[var(--text-muted)]">
                   {activeAsset.name}
                 </span>
               </div>
@@ -1179,9 +1162,7 @@ export const executeTask = (taskId: string) => {
                   placeholder="# Orchestrate your document content here..."
                 />
                 {assetViewMode === "edit" && (
-                  <div
-                    className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur text-[var(--text-faint)] bg-[var(--bg-deep)]"
-                  >
+                  <div className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur text-[var(--text-faint)] bg-[var(--bg-deep)]">
                     Resource Source Editor
                   </div>
                 )}
@@ -1189,15 +1170,11 @@ export const executeTask = (taskId: string) => {
             )}
 
             {(assetViewMode === "preview" || assetViewMode === "split") && (
-              <div
-                className="flex-1 flex flex-col min-w-0 h-full relative bg-[var(--bg-base)]"
-              >
+              <div className="flex-1 flex flex-col min-w-0 h-full relative bg-[var(--bg-base)]">
                 <div className="flex-1 p-12 overflow-y-auto custom-scrollbar markdown-preview font-sans max-w-4xl mx-auto w-full">
                   <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />
                   {!parsedHtml && (
-                    <div
-                      className="flex flex-col items-center justify-center h-full gap-4 text-[var(--text-faint)]"
-                    >
+                    <div className="flex flex-col items-center justify-center h-full gap-4 text-[var(--text-faint)]">
                       <IconFelix className="w-12 h-12 opacity-10" />
                       <span className="text-xs font-mono uppercase tracking-widest opacity-20">
                         Awaiting content for rendering...
@@ -1206,9 +1183,7 @@ export const executeTask = (taskId: string) => {
                   )}
                 </div>
                 {assetViewMode === "preview" && (
-                  <div
-                    className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur text-[var(--text-faint)] bg-[var(--bg-deep)]"
-                  >
+                  <div className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-[var(--border-muted)] backdrop-blur text-[var(--text-faint)] bg-[var(--bg-deep)]">
                     Live Visualization
                   </div>
                 )}
@@ -1266,9 +1241,7 @@ export const executeTask = (taskId: string) => {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden font-sans selection:bg-brand-500/30 bg-[var(--bg-base)] text-[var(--text-secondary)]">
-      <header
-        className="h-16 flex items-center px-6 justify-between gap-6 shrink-0 border-b border-[var(--border-default)] bg-[var(--bg-base)] backdrop-blur relative z-[var(--z-fixed)]"
-      >
+      <header className="h-16 flex items-center px-6 justify-between gap-6 shrink-0 border-b border-[var(--border-default)] bg-[var(--bg-base)] backdrop-blur relative z-[var(--z-fixed)]">
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm transition-transform duration-150"
@@ -1333,33 +1306,33 @@ export const executeTask = (taskId: string) => {
                       </div>
                       <div className="org-menu-list">
                         {filteredOrgOptions.map((option) => {
-                            const isSelected = option.id === selectedOrgId;
-                            return (
-                              <Button
-                                key={option.id}
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
-                                onClick={() => {
-                                  if (option.id !== selectedOrgId) {
-                                    hasUserInteracted.current = true;
-                                    felixApi.setActiveOrgId(option.id);
-                                    setSelectedOrgId(option.id);
-                                    clearSelectedProject();
-                                    setUiState("projects");
-                                    refreshUserProfile();
-                                  }
-                                  setOrgMenuOpen(false);
-                                }}
-                              >
-                                <span>{option.label}</span>
-                                {isSelected && (
-                                  <IconCheckCircle className="w-4 h-4" />
-                                )}
-                              </Button>
-                            );
-                          })}
+                          const isSelected = option.id === selectedOrgId;
+                          return (
+                            <Button
+                              key={option.id}
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className={`org-menu-item ${isSelected ? "selected" : ""} justify-start text-left`}
+                              onClick={() => {
+                                if (option.id !== selectedOrgId) {
+                                  hasUserInteracted.current = true;
+                                  felixApi.setActiveOrgId(option.id);
+                                  setSelectedOrgId(option.id);
+                                  clearSelectedProject();
+                                  setUiState("projects");
+                                  refreshUserProfile();
+                                }
+                                setOrgMenuOpen(false);
+                              }}
+                            >
+                              <span>{option.label}</span>
+                              {isSelected && (
+                                <IconCheckCircle className="w-4 h-4" />
+                              )}
+                            </Button>
+                          );
+                        })}
                         {filteredOrgOptions.length === 0 && (
                           <div className="px-3 py-2 text-xs theme-text-muted">
                             No organizations found
@@ -1423,9 +1396,7 @@ export const executeTask = (taskId: string) => {
           >
             Feedback
           </Button>
-          <div
-            className="flex items-center gap-3 px-3 py-2 border rounded-full border-[var(--border-muted)] bg-[var(--bg-surface)]"
-          >
+          <div className="flex items-center gap-3 px-3 py-2 border rounded-full border-[var(--border-muted)] bg-[var(--bg-surface)]">
             <IconSearch className="w-4 h-4 text-[var(--text-muted)]" />
             <Input
               type="text"
@@ -1450,20 +1421,30 @@ export const executeTask = (taskId: string) => {
             <Button
               type="button"
               variant="ghost"
-              className="w-11 h-11 rounded-full border border-[var(--border-muted)] shadow-inner flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)]"
+              className="w-11 h-11 rounded-full p-0 border border-[var(--border-muted)] shadow-inner hover:opacity-80"
               onClick={() => setUserMenuOpen((prev) => !prev)}
               aria-haspopup="true"
               aria-expanded={isUserMenuOpen}
               title="User menu"
             >
-              {userProfile?.user_id
-                ? userProfile.user_id
-                    .split(/[^a-zA-Z0-9]/)
-                    .filter((part) => part.length > 0)
-                    .map((part) => part[0].toUpperCase())
-                    .slice(0, 2)
-                    .join("")
-                : "?"}
+              <Avatar className="w-11 h-11 border border-[var(--border-muted)]">
+                {userProfile?.avatar_url && (
+                  <AvatarImage
+                    src={`${API_BASE_URL.replace(/\/api$/, "")}${userProfile.avatar_url}?t=${avatarTimestamp}`}
+                    alt={userProfile.user_id}
+                  />
+                )}
+                <AvatarFallback className="bg-[var(--bg-surface)] text-[10px] font-bold text-[var(--text-muted)]">
+                  {userProfile?.user_id
+                    ? userProfile.user_id
+                        .split(/[^a-zA-Z0-9]/)
+                        .filter((part) => part.length > 0)
+                        .map((part) => part[0].toUpperCase())
+                        .slice(0, 2)
+                        .join("")
+                    : "?"}
+                </AvatarFallback>
+              </Avatar>
             </Button>
             {isUserMenuOpen && (
               <div className="user-menu-panel">
@@ -1593,7 +1574,13 @@ export const executeTask = (taskId: string) => {
               onGoToProjects={() => setUiState("projects")}
             />
           ) : uiState === "personal-settings" ? (
-            <PersonalSettingsScreen onBack={() => setUiState("projects")} />
+            <PersonalSettingsScreen
+              onBack={() => {
+                setUiState("projects");
+                setAvatarTimestamp(Date.now());
+                refreshUserProfile();
+              }}
+            />
           ) : uiState === "org-settings" ? (
             <OrganizationSettingsScreen
               orgId={selectedOrgId}
@@ -1610,9 +1597,7 @@ export const executeTask = (taskId: string) => {
               onBack={() => setUiState("projects")}
             />
           ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center text-center bg-[var(--bg-base)]"
-            >
+            <div className="flex-1 flex flex-col items-center justify-center text-center bg-[var(--bg-base)]">
               <span className="text-sm text-[var(--text-muted)]">
                 Unknown view state
               </span>
@@ -1631,27 +1616,19 @@ export const executeTask = (taskId: string) => {
       </div>
 
       {/* Persistent OS Status Bar */}
-      <footer
-        className="footer-bar h-8 border-t border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-muted)] z-[var(--z-fixed)] flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl"
-      >
+      <footer className="footer-bar h-8 border-t border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-muted)] z-[var(--z-fixed)] flex items-center px-6 justify-between text-[10px] font-mono fixed bottom-0 select-none flex-shrink-0 backdrop-blur-xl">
         <div className="flex items-center gap-6">
-          <div
-            className="flex items-center gap-2 group cursor-default text-[var(--accent-primary)]"
-          >
+          <div className="flex items-center gap-2 group cursor-default text-[var(--accent-primary)]">
             <IconTerminal className="w-3.5 h-3.5 group-hover:animate-pulse" />
             <span className="font-bold uppercase tracking-[0.2em] text-[9px]">
               Felix Kernel: 3.1-STABLE
             </span>
           </div>
           <div className="h-4 w-[1px] opacity-50 bg-[var(--border-default)]"></div>
-          <span
-            className="opacity-60 uppercase tracking-tighter text-[var(--text-faint)]"
-          >
+          <span className="opacity-60 uppercase tracking-tighter text-[var(--text-faint)]">
             ID: FLX-ORCH-8821
           </span>
-          <span
-            className="opacity-60 uppercase text-[var(--text-faint)]"
-          >
+          <span className="opacity-60 uppercase text-[var(--text-faint)]">
             Load: 0.42 / 1.00
           </span>
         </div>
@@ -1677,4 +1654,3 @@ export const executeTask = (taskId: string) => {
   );
 };
 export default App;
-
