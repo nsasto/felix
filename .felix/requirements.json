@@ -518,7 +518,7 @@
             "id": "S-0022",
             "title": "S-0022: Move Copilot API Key to Browser Storage",
             "spec_path": "specs/S-0022-copilot-apikey-storage.md",
-            "status": "planned",
+            "status": "complete",
             "priority": "medium",
             "tags": [],
             "depends_on": [],
