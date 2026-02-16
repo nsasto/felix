@@ -5,12 +5,15 @@ import {
   getCopilotApiKey,
   setCopilotApiKey,
   clearCopilotApiKey,
+  UserProfileDetails,
+  API_BASE_URL,
 } from "../services/felixApi";
 import { AlertTriangle, Check } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
 import {
   Select,
   SelectContent,
@@ -31,7 +34,7 @@ const PERSONAL_TABS: Array<{ id: PersonalTab; label: string }> = [
   { id: "profile", label: "Profile" },
   { id: "preferences", label: "Preferences" },
   { id: "notifications", label: "Notifications" },
-  { id: "api-keys", label: "API Keys" },
+  { id: "api-keys", label: "Felix Copilot" },
   { id: "agent-defaults", label: "Personal Agent Defaults" },
 ];
 
@@ -58,6 +61,25 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
   const [copilotConfigError, setCopilotConfigError] = useState<string | null>(
     null,
   );
+  const [profileDetails, setProfileDetails] =
+    useState<UserProfileDetails | null>(null);
+  const [profileForm, setProfileForm] = useState({
+    display_name: "",
+    full_name: "",
+    title: "",
+    bio: "",
+    phone: "",
+    location: "",
+    website: "",
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const apiHost = API_BASE_URL.replace(/\/api$/, "");
 
   useEffect(() => {
     const savedKey = getCopilotApiKey();
@@ -113,11 +135,152 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
   }, [activeTab]);
 
   useEffect(() => {
+    if (activeTab !== "profile") {
+      return;
+    }
+    const fetchProfile = async () => {
+      setProfileLoading(true);
+      setProfileError(null);
+      try {
+        const result = await felixApi.getUserProfileDetails();
+        setProfileDetails(result);
+        setProfileForm({
+          display_name: result.display_name || "",
+          full_name: result.full_name || "",
+          title: result.title || "",
+          bio: result.bio || "",
+          phone: result.phone || "",
+          location: result.location || "",
+          website: result.website || "",
+        });
+        setAvatarPreviewUrl(
+          result.avatar_url ? `${apiHost}${result.avatar_url}` : null,
+        );
+      } catch (err) {
+        setProfileError(
+          err instanceof Error ? err.message : "Failed to load profile",
+        );
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [activeTab]);
+
+  useEffect(() => {
     if (copilotApiKeySaved) {
       const timeout = setTimeout(() => setCopilotApiKeySaved(false), 3000);
       return () => clearTimeout(timeout);
     }
   }, [copilotApiKeySaved]);
+
+  useEffect(() => {
+    if (profileSaved) {
+      const timeout = setTimeout(() => setProfileSaved(false), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [profileSaved]);
+
+  const handleProfileFieldChange = (field: string, value: string) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      const result = await felixApi.updateUserProfileDetails(profileForm);
+      setProfileDetails(result);
+      setProfileSaved(true);
+    } catch (err) {
+      setProfileError(
+        err instanceof Error ? err.message : "Failed to save profile",
+      );
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    setAvatarError(null);
+    try {
+      const processedFile = await cropAvatarToSquare(file);
+      const result = await felixApi.uploadUserAvatar(processedFile);
+      setProfileDetails(result);
+      setAvatarPreviewUrl(
+        result.avatar_url
+          ? `${apiHost}${result.avatar_url}?t=${Date.now()}`
+          : null,
+      );
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error ? err.message : "Failed to upload avatar",
+      );
+    } finally {
+      setAvatarUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setAvatarUploading(true);
+    setAvatarError(null);
+    try {
+      const result = await felixApi.deleteUserAvatar();
+      setProfileDetails(result);
+      setAvatarPreviewUrl(null);
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error ? err.message : "Failed to remove avatar",
+      );
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const cropAvatarToSquare = async (file: File): Promise<File> => {
+    const imageUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Failed to load image"));
+        image.src = imageUrl;
+      });
+      const size = Math.min(img.width, img.height);
+      const sx = Math.floor((img.width - size) / 2);
+      const sy = Math.floor((img.height - size) / 2);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        return file;
+      }
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(
+          (result) => resolve(result),
+          file.type || "image/png",
+          0.92,
+        );
+      });
+      if (!blob) {
+        return file;
+      }
+      return new File([blob], file.name, { type: file.type || "image/png" });
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  };
 
   const handleSaveCopilotApiKey = () => {
     if (!copilotApiKeyInput.trim()) return;
@@ -583,6 +746,234 @@ const PersonalSettingsScreen: React.FC<PersonalSettingsScreenProps> = ({
                 </AlertDescription>
               </Alert>
             )}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "profile") {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Profile Details</h3>
+              <p className="mt-2 text-xs theme-text-muted">
+                Update your personal information and profile image.
+              </p>
+            </div>
+            <Button
+              onClick={handleSaveProfile}
+              disabled={profileSaving}
+              size="sm"
+              className="text-[10px] font-bold uppercase"
+            >
+              {profileSaving ? "Saving..." : "Save Profile"}
+            </Button>
+          </div>
+
+          {profileError && (
+            <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+              <AlertDescription className="text-xs text-[var(--destructive-500)]">
+                {profileError}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {profileSaved && (
+            <div className="flex items-center gap-2 text-xs text-[var(--status-success)]">
+              <Check className="w-4 h-4" />
+              Profile updated
+            </div>
+          )}
+
+          <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-center">
+                <div className="w-28 h-28 rounded-full overflow-hidden border border-[var(--border-muted)] bg-[var(--bg-surface)]">
+                  {avatarPreviewUrl ? (
+                    <img
+                      src={avatarPreviewUrl}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs theme-text-muted">
+                      No Image
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2 text-center">
+                <label className="inline-flex items-center justify-center">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                    disabled={avatarUploading}
+                  />
+                  <span className="px-3 py-2 text-[10px] font-bold uppercase rounded-md border border-[var(--border-muted)] cursor-pointer">
+                    {avatarUploading ? "Uploading..." : "Upload Photo"}
+                  </span>
+                </label>
+                {avatarPreviewUrl && (
+                  <Button
+                    onClick={handleRemoveAvatar}
+                    variant="ghost"
+                    size="sm"
+                    className="text-[10px] text-[var(--destructive-500)]"
+                    disabled={avatarUploading}
+                  >
+                    Remove
+                  </Button>
+                )}
+                {avatarError && (
+                  <p className="text-[10px] text-[var(--destructive-500)]">
+                    {avatarError}
+                  </p>
+                )}
+                <p className="text-[9px] theme-text-muted">
+                  JPG or PNG, up to 2MB. Auto-cropped to square.
+                </p>
+              </div>
+            </div>
+
+            <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Display Name
+                  </label>
+                  <Input
+                    value={profileForm.display_name}
+                    onChange={(e) =>
+                      handleProfileFieldChange("display_name", e.target.value)
+                    }
+                    placeholder="How you appear in Felix"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Full Name
+                  </label>
+                  <Input
+                    value={profileForm.full_name}
+                    onChange={(e) =>
+                      handleProfileFieldChange("full_name", e.target.value)
+                    }
+                    placeholder="Your full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Title
+                  </label>
+                  <Input
+                    value={profileForm.title}
+                    onChange={(e) =>
+                      handleProfileFieldChange("title", e.target.value)
+                    }
+                    placeholder="Role or title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Email
+                  </label>
+                  <Input
+                    value={profileDetails?.email || ""}
+                    disabled
+                    placeholder="Email"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Phone
+                  </label>
+                  <Input
+                    value={profileForm.phone}
+                    onChange={(e) =>
+                      handleProfileFieldChange("phone", e.target.value)
+                    }
+                    placeholder="+1 555 123 4567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Location
+                  </label>
+                  <Input
+                    value={profileForm.location}
+                    onChange={(e) =>
+                      handleProfileFieldChange("location", e.target.value)
+                    }
+                    placeholder="City, Country"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Website
+                  </label>
+                  <Input
+                    value={profileForm.website}
+                    onChange={(e) =>
+                      handleProfileFieldChange("website", e.target.value)
+                    }
+                    placeholder="https://"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Bio
+                  </label>
+                  <Textarea
+                    value={profileForm.bio}
+                    onChange={(e) =>
+                      handleProfileFieldChange("bio", e.target.value)
+                    }
+                    placeholder="A short introduction"
+                    rows={4}
+                  />
+                </div>
+              </div>
+
+              {profileLoading && (
+                <p className="text-xs theme-text-muted">Loading profile...</p>
+              )}
+            </div>
+          </div>
+
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6 space-y-4">
+            <div>
+              <h4 className="text-sm font-semibold">Password Management</h4>
+              <p className="text-[11px] theme-text-muted mt-1">
+                Managed by your identity provider. Updates are not available in
+                this environment.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Current Password
+                </label>
+                <Input type="password" disabled placeholder="********" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  New Password
+                </label>
+                <Input type="password" disabled placeholder="********" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Confirm Password
+                </label>
+                <Input type="password" disabled placeholder="********" />
+              </div>
+            </div>
+            <Button disabled size="sm" className="text-[10px] font-bold uppercase">
+              Update Password
+            </Button>
           </div>
         </div>
       );

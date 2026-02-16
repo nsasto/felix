@@ -46,6 +46,7 @@ async def verify_schema() -> None:
         "machines",
         "runs",
         "run_artifacts",
+        "user_profiles",
     ]
 
     try:

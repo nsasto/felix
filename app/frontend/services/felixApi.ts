@@ -3,7 +3,7 @@
  * Handles communication with the Felix backend server.
  */
 
-const API_BASE_URL = "http://localhost:8080/api";
+export const API_BASE_URL = "http://localhost:8080/api";
 const ACTIVE_ORG_STORAGE_KEY = "felix_active_org_id";
 
 // --- Types matching backend models ---
@@ -111,6 +111,20 @@ export interface UserProfile {
   org_slug: string | null;
   org_id: string | null;
   role: string;
+}
+
+export interface UserProfileDetails {
+  user_id: string;
+  email: string | null;
+  display_name: string | null;
+  full_name: string | null;
+  title: string | null;
+  bio: string | null;
+  phone: string | null;
+  location: string | null;
+  website: string | null;
+  avatar_url: string | null;
+  updated_at: string | null;
 }
 
 export interface OrganizationSummary {
@@ -1204,6 +1218,50 @@ class FelixApiService {
 
   async getUserProfile(): Promise<UserProfile> {
     return this.request<UserProfile>("/user/me");
+  }
+
+  async getUserProfileDetails(): Promise<UserProfileDetails> {
+    return this.request<UserProfileDetails>("/user/profile");
+  }
+
+  async updateUserProfileDetails(
+    payload: Partial<UserProfileDetails>,
+  ): Promise<UserProfileDetails> {
+    return this.request<UserProfileDetails>("/user/profile", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async uploadUserAvatar(file: File): Promise<UserProfileDetails> {
+    const url = `${this.baseUrl}/user/avatar`;
+    const headers: Record<string, string> = {};
+    if (this.orgId) {
+      headers["X-Felix-Org-Id"] = this.orgId;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.detail || `HTTP ${response.status}: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  async deleteUserAvatar(): Promise<UserProfileDetails> {
+    return this.request<UserProfileDetails>("/user/avatar", {
+      method: "DELETE",
+    });
   }
 
   async listOrganizations(): Promise<OrganizationSummary[]> {
