@@ -13,7 +13,7 @@ try {
     $pgData = Join-Path (Split-Path $pgBin) "data"
     
     # Check if PostgreSQL is running
-    $testConnection = & $psqlPath -U postgres -c "SELECT 1;" -t 2>&1
+    & $psqlPath -U postgres -c "SELECT 1;" -t 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Starting PostgreSQL server..." -ForegroundColor Yellow
         $pgCtl = Join-Path $pgBin "pg_ctl.exe"
