@@ -25,6 +25,24 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 type OrgTab =
   | "members"
@@ -90,7 +108,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     status: new Set(),
   });
 
-  const orgMembers = [
+  const initialMembers = [
     {
       id: "member-1",
       name: "Ari Nguyen",
@@ -128,6 +146,17 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
       joinedAt: "2026-02-15",
     },
   ];
+  const [orgMembers, setOrgMembers] = useState(initialMembers);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [manageMember, setManageMember] = useState<
+    (typeof initialMembers)[number] | null
+  >(null);
+  const [manageRole, setManageRole] = useState("member");
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
     setProjectsLoading(true);
@@ -284,6 +313,76 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
         }
       };
 
+    const formatRoleLabel = (role: string) =>
+      role.charAt(0).toUpperCase() + role.slice(1);
+
+    const parseNameFromEmail = (email: string) => {
+      const handle = email.split("@")[0] || "New member";
+      return handle
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    };
+
+    const handleInviteSubmit = () => {
+      const trimmedEmail = inviteEmail.trim().toLowerCase();
+      if (!trimmedEmail) {
+        setInviteError("Email is required.");
+        return;
+      }
+      if (!/^[^@]+@[^@]+\.[^@]+$/.test(trimmedEmail)) {
+        setInviteError("Enter a valid email address.");
+        return;
+      }
+      if (orgMembers.some((member) => member.email === trimmedEmail)) {
+        setInviteError("This member is already in the organization.");
+        return;
+      }
+      const newMember = {
+        id: `member-${Date.now()}`,
+        name: parseNameFromEmail(trimmedEmail),
+        email: trimmedEmail,
+        role: formatRoleLabel(inviteRole),
+        status: "Invited",
+        lastActive: "Awaiting",
+        joinedAt: new Date().toISOString().slice(0, 10),
+      };
+      setOrgMembers((prev) => [newMember, ...prev]);
+      setInviteEmail("");
+      setInviteRole("member");
+      setInviteError(null);
+      setInviteOpen(false);
+    };
+
+    const openManageMember = (member: (typeof initialMembers)[number]) => {
+      setManageMember(member);
+      setManageRole(member.role.toLowerCase());
+    };
+
+    const handleManageSave = () => {
+      if (!manageMember) return;
+      const updatedRole = formatRoleLabel(manageRole);
+      setOrgMembers((prev) =>
+        prev.map((member) =>
+          member.id === manageMember.id
+            ? { ...member, role: updatedRole }
+            : member,
+        ),
+      );
+      setManageMember(null);
+    };
+
+    const handleRemoveMember = () => {
+      if (!pendingRemoveId) return;
+      setOrgMembers((prev) =>
+        prev.filter((member) => member.id !== pendingRemoveId),
+      );
+      setPendingRemoveId(null);
+      setConfirmRemoveOpen(false);
+      setManageMember(null);
+    };
+
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-2">
@@ -293,7 +392,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               Manage organization access and role assignments.
             </p>
           </div>
-          <Button size="sm" className="uppercase" disabled>
+          <Button size="sm" className="uppercase" onClick={() => setInviteOpen(true)}>
             <Plus className="w-4 h-4" />
             Invite Member
           </Button>
@@ -319,7 +418,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                   key: "role",
                   label: "Role",
                   options: roleOptions.map((role) => ({
-                    label: role.charAt(0).toUpperCase() + role.slice(1),
+                    label: formatRoleLabel(role),
                     value: role,
                   })),
                 },
@@ -327,7 +426,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                   key: "status",
                   label: "Status",
                   options: statusOptions.map((status) => ({
-                    label: status.charAt(0).toUpperCase() + status.slice(1),
+                    label: formatRoleLabel(status),
                     value: status,
                   })),
                 },
@@ -405,7 +504,12 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-[10px] font-bold"
+                      onClick={() => openManageMember(member)}
+                    >
                       Manage
                     </Button>
                   </TableCell>
@@ -423,6 +527,191 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
             </TableBody>
           </Table>
         </DataSurface>
+
+        <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <div>
+                <DialogTitle>Invite Member</DialogTitle>
+                <DialogDescription>
+                  Send an invitation to join this organization.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setInviteOpen(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </DialogHeader>
+            <div className="px-4 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Email Address
+                </label>
+                <Input
+                  type="email"
+                  placeholder="member@company.com"
+                  value={inviteEmail}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value);
+                    if (inviteError) {
+                      setInviteError(null);
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Role
+                </label>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {inviteError && (
+                <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+                  <AlertDescription className="text-xs">
+                    {inviteError}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setInviteOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="uppercase" onClick={handleInviteSubmit}>
+                Send Invite
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!manageMember} onOpenChange={(open) => {
+          if (!open) setManageMember(null);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <div>
+                <DialogTitle>Manage Member</DialogTitle>
+                <DialogDescription>
+                  Adjust access level and manage membership.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setManageMember(null)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </DialogHeader>
+            {manageMember && (
+              <div className="px-4 py-4 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[var(--bg-surface-200)] flex items-center justify-center text-[11px] font-bold text-[var(--text-muted)]">
+                    {manageMember.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .slice(0, 2)
+                      .join("")}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold theme-text-secondary">
+                      {manageMember.name}
+                    </p>
+                    <p className="text-[11px] theme-text-muted">
+                      {manageMember.email}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Role
+                  </label>
+                  <Select value={manageRole} onValueChange={setManageRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {manageMember.status.toLowerCase() === "invited" && (
+                  <div className="flex items-center justify-between rounded-lg border border-[var(--border-muted)] p-3 text-xs">
+                    <span className="theme-text-muted">
+                      Invitation pending. Last sent {manageMember.joinedAt}.
+                    </span>
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold">
+                      Resend
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter className="justify-between">
+              <Button
+                variant="destructive"
+                size="sm"
+                className="bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
+                onClick={() => {
+                  if (!manageMember) return;
+                  setPendingRemoveId(manageMember.id);
+                  setConfirmRemoveOpen(true);
+                }}
+              >
+                Remove Member
+              </Button>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setManageMember(null)}>
+                  Cancel
+                </Button>
+                <Button size="sm" className="uppercase" onClick={handleManageSave}>
+                  Save Changes
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Member</AlertDialogTitle>
+              <AlertDialogDescription>
+                This member will lose access to the organization immediately.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant="ghost" size="sm">
+                  Cancel
+                </Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  size="sm"
+                  className="bg-[var(--destructive-500)] text-white hover:bg-[var(--destructive-600)]"
+                  onClick={handleRemoveMember}
+                >
+                  Remove
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   };
