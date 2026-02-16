@@ -1,0 +1,53 @@
+-- Felix Database Migration 014
+-- Run Artifact Mirroring - Placeholder for S-0057 (Preparation Phase)
+-- 
+-- This migration is a placeholder for the run artifact sync feature.
+-- Actual schema changes (run_events, run_files tables) will be added in S-0058.
+--
+-- Purpose:
+-- - Mark the preparation phase of run artifact syncing
+-- - Reserve migration slot for the sync feature
+-- - Actual table creation follows in subsequent migrations
+--
+-- Related specs:
+-- - S-0057: Run Artifact Sync - Preparation and Foundation (this migration)
+-- - S-0058: Run Artifact Sync - Database Schema Extensions
+-- - S-0059: Run Artifact Sync - Local Write Module
+-- - S-0060: Run Artifact Sync - Sync Client Plugin
+
+-- ============================================================================
+-- PLACEHOLDER - No schema changes in this migration
+-- ============================================================================
+-- This migration establishes the foundation for run artifact syncing.
+-- The following schema changes are planned for migration 015 (S-0058):
+--
+-- 1. run_events table - Stores run lifecycle events
+--    - id UUID PRIMARY KEY
+--    - run_id UUID REFERENCES runs(id)
+--    - event_type TEXT (started, completed, failed, etc.)
+--    - payload JSONB
+--    - created_at TIMESTAMPTZ
+--
+-- 2. run_files table - Stores file references for run artifacts
+--    - id UUID PRIMARY KEY
+--    - run_id UUID REFERENCES runs(id)
+--    - file_type TEXT (plan, log, output, etc.)
+--    - file_path TEXT
+--    - file_hash TEXT (SHA256)
+--    - file_size BIGINT
+--    - storage_backend TEXT (filesystem, s3, etc.)
+--    - synced_at TIMESTAMPTZ
+--    - created_at TIMESTAMPTZ
+--
+-- ============================================================================
+
+-- No-op statement to make this a valid migration file
+SELECT 'Migration 014: Run artifact mirroring placeholder applied' AS status;
+
+-- ============================================================================
+-- ROLLBACK
+-- ============================================================================
+-- No schema changes to rollback in this placeholder migration.
+-- When actual tables are added (migration 015), rollback will be:
+-- DROP TABLE IF EXISTS run_files CASCADE;
+-- DROP TABLE IF EXISTS run_events CASCADE;

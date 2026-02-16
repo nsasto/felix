@@ -258,7 +258,7 @@
                              "id":  "S-0057",
                              "title":  "S-0057: Run Artifact Sync - Preparation and Foundation",
                              "spec_path":  "specs/S-0057-runs-sync-preparation.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "tags":  [
 
@@ -273,7 +273,7 @@
                              "id":  "S-0058",
                              "title":  "S-0058: Run Artifact Sync - Database Schema Extensions",
                              "spec_path":  "specs/S-0058-runs-database-schema-extensions.md",
-                             "status":  "in_progress",
+                             "status":  "planned",
                              "priority":  "medium",
                              "tags":  [
 
