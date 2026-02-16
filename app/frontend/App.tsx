@@ -354,7 +354,6 @@ const App: React.FC = () => {
   const selectedOrgLabel =
     selectedOrg?.name || userProfile?.organization || "Organization";
   const currentOrgSlug =
-<<<<<<< HEAD
     selectedOrg?.slug || userProfile?.org_slug || toSlug(selectedOrgLabel) || "org";
   const resolvedOrgs =
     orgs.length > 0
@@ -370,13 +369,6 @@ const App: React.FC = () => {
           ]
         : [];
   const orgOptions = resolvedOrgs.map((org) => ({
-=======
-    selectedOrg?.slug ||
-    userProfile?.org_slug ||
-    toSlug(selectedOrgLabel) ||
-    "org";
-  const orgOptions = orgs.map((org) => ({
->>>>>>> d6bc4fa (Add user avatar display to toolbar dropdown)
     id: org.id,
     label: org.name,
     slug: org.slug,
