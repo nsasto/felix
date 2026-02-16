@@ -17,7 +17,12 @@ from models import ProjectRegister, ProjectUpdate, Project, ProjectDetails
 from auth import get_current_user
 from database import get_db
 from repositories import PostgresProjectRepository
-from services.projects import normalize_project_path, validate_project_structure, ensure_project_path_exists
+from services.projects import (
+    normalize_project_path,
+    validate_project_structure,
+    ensure_project_path_exists,
+    validate_git_repo,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -54,6 +59,7 @@ async def register_project(
             id=str(project["id"]),
             path=project["path"],
             name=project.get("name"),
+            git_repo=project.get("git_repo"),
             registered_at=project["created_at"],
         )
     except ValueError as e:
@@ -79,6 +85,7 @@ async def list_projects(
             id=str(project["id"]),
             path=project["path"],
             name=project.get("name"),
+            git_repo=project.get("git_repo"),
             registered_at=project["created_at"],
         )
         for project in projects
@@ -102,7 +109,9 @@ async def get_project(
 
     project_path = project.get("path")
     if not project_path:
-        raise HTTPException(status_code=404, detail=f"Project path not set: {project_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Project path not set: {project_id}"
+        )
 
     try:
         project_dir = ensure_project_path_exists(project_path)
@@ -132,7 +141,7 @@ async def update_project(
     user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Update project metadata (name, path).
+    Update project metadata (name, path, git_repo).
     """
     try:
         new_path = None
@@ -147,20 +156,42 @@ async def update_project(
             if not name_value:
                 name_value = ""
 
+        # Validate git repo if provided
+        git_repo_value = None
+        if request.git_repo is not None:
+            git_repo_value = (
+                request.git_repo.strip() if request.git_repo.strip() else None
+            )
+            if git_repo_value:
+                validate_git_repo(git_repo_value)
+
         repo = PostgresProjectRepository(db)
         project = await repo.update_project(
-            user["org_id"], project_id, name=name_value, path=new_path
+            user["org_id"],
+            project_id,
+            name=name_value,
+            path=new_path,
+            git_repo=git_repo_value,
         )
         if project:
             return Project(
                 id=str(project["id"]),
                 path=project["path"],
                 name=project.get("name"),
+                git_repo=project.get("git_repo"),
                 registered_at=project["created_at"],
             )
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error updating project {project_id}: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update project: {str(e)}"
+        )
 
 
 @router.delete("/{project_id}")

@@ -12,6 +12,7 @@ export interface Project {
   id: string;
   path: string;
   name: string | null;
+  git_repo: string | null;
   registered_at: string;
 }
 
@@ -31,6 +32,7 @@ export interface ProjectRegisterRequest {
 export interface ProjectUpdateRequest {
   name?: string;
   path?: string;
+  git_repo?: string | null;
 }
 
 export interface SpecFile {
