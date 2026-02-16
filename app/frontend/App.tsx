@@ -41,7 +41,6 @@ import OrganizationSettingsScreen from "./components/OrganizationSettingsScreen"
 import { marked } from "marked";
 import { ThemeValue, useTheme } from "./hooks/ThemeProvider";
 import Sidebar, { SidebarView, SidebarMode } from "./components/Sidebar";
-import { Toaster } from "./components/ui/sonner";
 import { Button } from "./components/ui/button";
 import {
   Breadcrumb,
@@ -1644,7 +1643,6 @@ export const executeTask = (taskId: string) => {
           </span>
         </div>
       </footer>
-      <Toaster position="top-center" />
     </div>
   );
 };

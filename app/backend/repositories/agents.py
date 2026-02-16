@@ -321,7 +321,7 @@ class PostgresAgentRepository:
                 :name,
                 :type,
                 'idle',
-                :metadata::jsonb,
+                CAST(:metadata_payload AS jsonb),
                 :profile_id,
                 :assigned_user_id,
                 :machine_id,
@@ -349,7 +349,7 @@ class PostgresAgentRepository:
                 "project_id": project_id,
                 "name": name,
                 "type": type,
-                "metadata": json.dumps(metadata) if metadata else "{}",
+                "metadata_payload": json.dumps(metadata) if metadata else "{}",
                 "profile_id": profile_id,
                 "assigned_user_id": assigned_user_id,
                 "machine_id": machine_id,
@@ -443,7 +443,7 @@ class PostgresMachineRepository:
                 :org_id,
                 :hostname,
                 :fingerprint,
-                :metadata::jsonb,
+                CAST(:metadata_payload AS jsonb),
                 NOW()
             )
             ON CONFLICT (org_id, fingerprint) DO UPDATE SET
@@ -457,7 +457,7 @@ class PostgresMachineRepository:
                 "org_id": org_id,
                 "hostname": hostname,
                 "fingerprint": fingerprint,
-                "metadata": json.dumps(metadata) if metadata else "{}",
+                "metadata_payload": json.dumps(metadata) if metadata else "{}",
             },
         )
         return dict(row) if row else {}

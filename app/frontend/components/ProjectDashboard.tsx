@@ -249,7 +249,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
       }));
 
     return [...registry, ...configs].sort((a, b) =>
-      a.name.localeCompare(b.name),
+      (a.name || "").localeCompare(b.name || ""),
     );
   }, [registryAgents, configAgents]);
 

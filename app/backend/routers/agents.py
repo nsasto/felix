@@ -265,7 +265,7 @@ async def register_agent(
             project_id=project_id,
             name=request.name,
             type=request.type,
-            profile_id=None,
+            profile_id=request.profile_id,
             assigned_user_id=None,
             machine_id=machine_id,
             registered_by_user_id=user.get("user_id"),
@@ -277,13 +277,14 @@ async def register_agent(
         
         # Convert to response model
         return AgentResponse(
-            id=agent_record["id"],
-            project_id=agent_record["project_id"],
+            id=str(agent_record["id"]),
+            project_id=str(agent_record["project_id"]),
             name=agent_record["name"],
             type=agent_record["type"],
             status=agent_record["status"],
             heartbeat_at=agent_record.get("heartbeat_at"),
-            metadata=agent_record.get("metadata") or {},
+            metadata=_parse_json_field(agent_record.get("metadata"), {}),
+            profile_id=str(agent_record["profile_id"]) if agent_record.get("profile_id") else None,
             created_at=agent_record["created_at"],
             updated_at=agent_record["updated_at"],
         )
@@ -449,6 +450,7 @@ async def get_agents(
                 status=record["status"],
                 heartbeat_at=record.get("heartbeat_at"),
                 metadata=_parse_json_field(record.get("metadata"), {}),
+                profile_id=str(record["profile_id"]) if record.get("profile_id") else None,
                 created_at=record["created_at"],
                 updated_at=record["updated_at"],
             )
@@ -904,6 +906,7 @@ async def get_agent(
             status=agent["status"],
             heartbeat_at=agent.get("heartbeat_at"),
             metadata=_parse_json_field(agent.get("metadata"), {}),
+            profile_id=str(agent["profile_id"]) if agent.get("profile_id") else None,
             created_at=agent["created_at"],
             updated_at=agent["updated_at"],
         )

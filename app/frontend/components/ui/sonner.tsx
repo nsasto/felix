@@ -6,11 +6,31 @@ type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 export function Toaster(props: ToasterProps) {
   const { theme } = useTheme();
+  const isTopCenter = (props.position ?? "bottom-right") === "top-center";
+  const baseStyle: React.CSSProperties = {
+    position: "fixed",
+    zIndex: "var(--z-toast, 9999)",
+    pointerEvents: "none",
+  };
+  const placementStyle: React.CSSProperties = isTopCenter
+    ? {
+        top: "24px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "356px",
+        maxWidth: "calc(100vw - 32px)",
+      }
+    : {};
 
   return (
     <Sonner
       theme={theme}
       className="toaster group"
+      style={{
+        ...baseStyle,
+        ...placementStyle,
+        ...props.style,
+      }}
       toastOptions={{
         classNames: {
           toast:

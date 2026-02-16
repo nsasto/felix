@@ -112,9 +112,11 @@ describe("App URL routing", () => {
       expect(screen.getAllByText("AuthBase").length).toBeGreaterThan(0);
     });
 
-    expect(window.location.pathname).toBe(
-      "/org/untrueaxioms/projects/proj123/overview",
-    );
+    await waitFor(() => {
+      expect(window.location.pathname).toBe(
+        "/org/untrueaxioms/projects/proj123/overview",
+      );
+    });
   });
 
   it("navigates to overview when the project crumb is clicked", async () => {

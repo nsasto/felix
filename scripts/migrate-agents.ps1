@@ -31,6 +31,7 @@
 
 param(
     [string]$ProjectId = "00000000-0000-0000-0000-000000000001",
+    [string]$OrgId = "00000000-0000-0000-0000-000000000001",
     [string]$PgBin,
     [string]$DatabaseUrl,
     [string]$Source = "migrate_agents.ps1",
@@ -89,6 +90,17 @@ if (-not $psqlExe) {
 $dbUrl = if ($DatabaseUrl) { $DatabaseUrl } elseif ($env:DATABASE_URL) { $env:DATABASE_URL } else { $null }
 $hostname = $env:COMPUTERNAME
 
+$profileQuery = "SELECT id FROM agent_profiles WHERE org_id = $(SqlLiteral $OrgId) AND (adapter = 'droid' OR executable = 'droid') ORDER BY created_at DESC LIMIT 1;"
+$profileId = if ($dbUrl) {
+    & $psqlExe -d $dbUrl -t -A -c $profileQuery
+} else {
+    & $psqlExe -U postgres -d felix -t -A -c $profileQuery
+}
+
+if (-not $profileId) {
+    throw "No droid agent profile found for org $OrgId. Create a droid profile before seeding agents."
+}
+
 $agents = @(
     @{ name = "Andromeda"; type = "ralph" },
     @{ name = "Serenity"; type = "ralph" },
@@ -108,8 +120,8 @@ foreach ($agent in $agents) {
     }
 
     $sqlTemplate = @"
-INSERT INTO agents (id, project_id, name, type, status, heartbeat_at, metadata, created_at, updated_at)
-SELECT gen_random_uuid(), {0}, {1}, {2}, 'idle', NULL, {3}, NOW(), NOW()
+INSERT INTO agents (id, project_id, name, type, status, heartbeat_at, metadata, profile_id, created_at, updated_at)
+SELECT gen_random_uuid(), {0}, {1}, {2}, 'idle', NULL, {3}, {4}, NOW(), NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM agents WHERE project_id = {0} AND name = {1}
 );
@@ -119,7 +131,8 @@ WHERE NOT EXISTS (
         (SqlLiteral $ProjectId),
         (SqlLiteral $agent.name),
         (SqlLiteral $agent.type),
-        (SqlJsonLiteral $metadata)
+        (SqlJsonLiteral $metadata),
+        (SqlLiteral $profileId.Trim())
     ))
 }
 

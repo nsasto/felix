@@ -1,24 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useState } from "react";
 import { felixApi, FelixConfig, Project } from "../services/felixApi";
-import {
-  AlertTriangle,
-  Folder,
-  LayoutGrid,
-  List,
-  Plus,
-  Search,
-} from "lucide-react";
+import { AlertTriangle, Copy, Folder, Plus, Search, X } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
-import { Card, CardContent } from "./ui/card";
-import DataTable from "./DataTable";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
 import { Input } from "./ui/input";
 import { PageLoading } from "./ui/page-loading";
 import {
@@ -29,9 +13,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { Switch } from "./ui/switch";
-import { cn } from "../lib/utils";
 
 type OrgTab =
   | "members"
@@ -52,14 +34,12 @@ const ORG_TABS: Array<{ id: OrgTab; label: string }> = [
 
 interface OrganizationSettingsScreenProps {
   organizationName?: string | null;
-  orgSlug?: string | null;
   roleLabel?: string | null;
   onBack: () => void;
 }
 
 const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   organizationName,
-  orgSlug,
   roleLabel,
   onBack,
 }) => {
@@ -67,25 +47,22 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [activeProjectMeta, setActiveProjectMeta] = useState<{
-    has_specs: boolean;
-    has_plan: boolean;
-    has_requirements: boolean;
-    spec_count: number;
-    status: string | null;
-  } | null>(null);
-  const [projectDetailsLoading, setProjectDetailsLoading] = useState(false);
-  const [projectDetailsError, setProjectDetailsError] = useState<string | null>(
-    null,
-  );
-  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [registerPath, setRegisterPath] = useState("");
   const [registerName, setRegisterName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [unregisteringId, setUnregisteringId] = useState<string | null>(null);
+  const [showUnregisterConfirm, setShowUnregisterConfirm] = useState<
+    string | null
+  >(null);
+  const [configuringProjectId, setConfiguringProjectId] = useState<
+    string | null
+  >(null);
+  const [configProjectName, setConfigProjectName] = useState("");
+  const [configProjectPath, setConfigProjectPath] = useState("");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [orgConfig, setOrgConfig] = useState<FelixConfig | null>(null);
   const [orgConfigOriginal, setOrgConfigOriginal] = useState<FelixConfig | null>(
     null,
@@ -103,9 +80,6 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     try {
       const list = await felixApi.listProjects();
       setProjects(list);
-      if (!activeProjectId && list.length > 0) {
-        setActiveProjectId(list[0].id);
-      }
     } catch (err) {
       setProjectsError(
         err instanceof Error ? err.message : "Failed to load projects",
@@ -113,7 +87,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     } finally {
       setProjectsLoading(false);
     }
-  }, [activeProjectId]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === "projects") {
@@ -142,42 +116,6 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
       fetchOrgConfig();
     }
   }, [activeTab, fetchOrgConfig]);
-
-  const fetchProjectDetails = useCallback(async (projectId: string) => {
-    setProjectDetailsLoading(true);
-    setProjectDetailsError(null);
-    try {
-      const details = await felixApi.getProject(projectId);
-      setActiveProjectMeta({
-        has_specs: details.has_specs,
-        has_plan: details.has_plan,
-        has_requirements: details.has_requirements,
-        spec_count: details.spec_count,
-        status: details.status,
-      });
-    } catch (err) {
-      setActiveProjectMeta(null);
-      setProjectDetailsError(
-        err instanceof Error ? err.message : "Failed to load project details",
-      );
-    } finally {
-      setProjectDetailsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeProjectId) {
-      fetchProjectDetails(activeProjectId);
-    } else {
-      setActiveProjectMeta(null);
-    }
-  }, [activeProjectId, fetchProjectDetails]);
-
-
-  const activeProject = useMemo(
-    () => projects.find((project) => project.id === activeProjectId) || null,
-    [projects, activeProjectId],
-  );
 
   const handleOrgExecutorChange = (
     field: keyof FelixConfig["executor"],
@@ -256,403 +194,423 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     }
   };
 
-  const renderProjectsTab = () => {
-    if (projectsLoading) {
-      return (
-        <div className="flex justify-center py-8">
-          <PageLoading message="Loading projects..." size="md" fullPage={false} />
-        </div>
-      );
-    }
-
-    if (projectsError) {
-      return (
-        <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
-          <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
-            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-xs">{projectsError}</p>
-              <Button
-                onClick={fetchProjects}
-                variant="ghost"
-                size="sm"
-                className="mt-2 text-[10px] text-[var(--destructive-500)]"
-              >
-                Try again
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      );
-    }
-
+    const renderProjectsTab = () => {
     const filteredProjects = projects.filter((project) => {
-      if (!searchQuery.trim()) return true;
-      const query = searchQuery.toLowerCase();
-      const name = (project.name || project.id).toLowerCase();
-      const path = project.path.toLowerCase();
-      return name.includes(query) || path.includes(query);
+      if (!projectSearchQuery.trim()) return true;
+      const query = projectSearchQuery.toLowerCase();
+      return (
+        (project.name || project.id).toLowerCase().includes(query) ||
+        project.path.toLowerCase().includes(query) ||
+        project.id.toLowerCase().includes(query)
+      );
     });
-
-    const handleOpenProjectSettings = (project: Project) => {
-      if (!orgSlug) return;
-      const path = `/org/${orgSlug}/projects/${project.id}/settings`;
-      window.history.pushState({}, "", path);
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    };
-
-    const handleRegister = async () => {
-      if (!registerPath.trim()) return;
-      setIsRegistering(true);
-      setRegisterError(null);
-      try {
-        const created = await felixApi.registerProject({
-          path: registerPath.trim(),
-          name: registerName.trim() || undefined,
-        });
-        setRegisterPath("");
-        setRegisterName("");
-        setIsRegisterOpen(false);
-        setActiveProjectId(created.id);
-        fetchProjects();
-      } catch (err) {
-        setRegisterError(
-          err instanceof Error ? err.message : "Failed to register project",
-        );
-      } finally {
-        setIsRegistering(false);
-      }
-    };
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-lg font-semibold">Projects</h3>
             <p className="text-xs theme-text-muted mt-1">
-              Manage organization projects and open project settings.
+              Manage registered Felix projects
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative w-64 max-w-full">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
-              <Input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search projects"
-                className="h-9 pl-9 text-sm"
-              />
-            </div>
-            <ToggleGroup
-              type="single"
-              value={viewMode}
-              onValueChange={(value) => value && setViewMode(value as "cards" | "table")}
-              className="border border-[var(--border)] rounded-md"
-            >
-              <ToggleGroupItem value="cards" title="Card view" className="h-9 w-9">
-                <LayoutGrid className="w-4 h-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="table" title="Table view" className="h-9 w-9">
-                <List className="w-4 h-4" />
-              </ToggleGroupItem>
-            </ToggleGroup>
-            <Button
-              onClick={() => setIsRegisterOpen(true)}
-              size="sm"
-              className="h-9"
-            >
-              <Plus className="w-4 h-4" />
-              New project
-            </Button>
-          </div>
+          <Button
+            onClick={() => setShowRegisterForm(true)}
+            size="sm"
+            className="uppercase"
+          >
+            <Plus className="w-4 h-4" />
+            Register New Project
+          </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-6">
-          <div className="space-y-4">
-            {projectsLoading && (
-              <div className="flex justify-center py-8">
-                <PageLoading message="Loading projects..." size="md" fullPage={false} />
-              </div>
-            )}
+        <div className="relative">
+          <Input
+            type="text"
+            placeholder="Search projects by name or path..."
+            value={projectSearchQuery}
+            onChange={(e) => setProjectSearchQuery(e.target.value)}
+            className="h-11 pl-10"
+          />
+          <Search className="w-4 h-4 theme-text-muted absolute left-4 top-1/2 -translate-y-1/2" />
+        </div>
 
-            {projectsError && !projectsLoading && (
-              <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
-                <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs">{projectsError}</p>
-                    <Button
-                      onClick={fetchProjects}
-                      variant="ghost"
-                      size="sm"
-                      className="mt-2 text-[10px] text-[var(--destructive-500)]"
-                    >
-                      Try again
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {!projectsLoading && !projectsError && filteredProjects.length === 0 && (
-              <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
-                <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Folder className="w-6 h-6 theme-text-muted" />
-                </div>
-                <h4 className="text-sm font-bold theme-text-tertiary mb-2">
-                  No projects found
-                </h4>
-                <p className="text-xs theme-text-muted max-w-sm mx-auto">
-                  Register a Felix project to get started.
-                </p>
-              </div>
-            )}
-
-            {!projectsLoading && !projectsError && filteredProjects.length > 0 && (
-              <>
-                {viewMode === "cards" ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filteredProjects.map((project) => {
-                      const isSelected = project.id === activeProjectId;
-                      return (
-                        <Card
-                          key={project.id}
-                          selectable
-                          className={cn(
-                            "relative group cursor-pointer",
-                            isSelected
-                              ? "border-2 border-[var(--brand-500)] bg-[var(--bg-surface-200)]"
-                              : "border-[var(--border-default)]",
-                          )}
-                          onClick={() => setActiveProjectId(project.id)}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <Folder className="w-5 h-5 flex-shrink-0 theme-text-muted" />
-                                <h3 className="font-semibold text-sm truncate theme-text-primary">
-                                  {project.name || project.id}
-                                </h3>
-                              </div>
-                            </div>
-                            <p className="text-xs mb-3 truncate font-mono theme-text-muted">
-                              {project.path}
-                            </p>
-                            <p className="text-[10px] theme-text-muted">
-                              Registered {new Date(project.registered_at).toLocaleDateString()}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <DataTable
-                    data={filteredProjects}
-                    rowKey={(project) => project.id}
-                    onRowClick={(project) => setActiveProjectId(project.id)}
-                    rowClassName={(project) =>
-                      cn(
-                        "group cursor-pointer",
-                        project.id === activeProjectId &&
-                          "bg-[var(--bg-surface-200)]",
-                      )
-                    }
-                    columns={[
-                      {
-                        key: "project",
-                        header: "Project",
-                        cell: (project) => (
-                          <div className="flex flex-col">
-                            <span className="font-medium text-sm">
-                              {project.name || project.id}
-                            </span>
-                            <span className="table-secondary text-xs font-mono">
-                              {project.path.length > 40
-                                ? "..." + project.path.slice(-37)
-                                : project.path}
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: "registered",
-                        header: "Registered",
-                        cell: (project) => (
-                          <span className="table-secondary text-xs">
-                            {new Date(project.registered_at).toLocaleDateString()}
-                          </span>
-                        ),
-                      },
-                    ]}
-                  />
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
-              {activeProject ? (
-                <>
-                  <h4 className="text-sm font-bold theme-text-secondary mb-2">
-                    {activeProject.name || activeProject.id}
-                  </h4>
-                  <p className="text-xs theme-text-muted mb-4">
-                    {activeProject.path}
-                  </p>
-                  <div className="text-[10px] theme-text-muted mb-4">
-                    Registered{" "}
-                    {new Date(activeProject.registered_at).toLocaleDateString()}
-                  </div>
-                  {projectDetailsLoading && (
-                    <div className="text-xs theme-text-muted mb-4">
-                      Loading details...
-                    </div>
-                  )}
-                  {projectDetailsError && (
-                    <div className="text-xs text-[var(--destructive-500)] mb-4">
-                      {projectDetailsError}
-                    </div>
-                  )}
-                  {!projectDetailsLoading && activeProjectMeta && (
-                    <div className="grid grid-cols-2 gap-3 text-[11px] theme-text-muted mb-4">
-                      <div>
-                        <span className="block text-[10px] uppercase tracking-wide">
-                          Specs
-                        </span>
-                        <span className="text-sm font-semibold theme-text-secondary">
-                          {activeProjectMeta.spec_count}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] uppercase tracking-wide">
-                          Requirements
-                        </span>
-                        <span className="text-sm font-semibold theme-text-secondary">
-                          {activeProjectMeta.has_requirements ? "Yes" : "No"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] uppercase tracking-wide">
-                          Plan
-                        </span>
-                        <span className="text-sm font-semibold theme-text-secondary">
-                          {activeProjectMeta.has_plan ? "Yes" : "No"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] uppercase tracking-wide">
-                          Status
-                        </span>
-                        <span className="text-sm font-semibold theme-text-secondary">
-                          {activeProjectMeta.status || "Unknown"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] uppercase tracking-wide">
-                          Created
-                        </span>
-                        <span className="text-sm font-semibold theme-text-secondary">
-                          {new Date(activeProject.registered_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] uppercase tracking-wide">
-                          Owner
-                        </span>
-                        <span className="text-sm font-semibold theme-text-secondary">
-                          —
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      onClick={() => handleOpenProjectSettings(activeProject)}
-                      size="sm"
-                      className="uppercase"
-                    >
-                      Open Project Settings
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-xs theme-text-muted">
-                  Select a project to see details.
-                </div>
-              )}
-            </div>
-            <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
-              <h4 className="text-sm font-bold theme-text-secondary mb-2">
-                Register a Project
+        {showRegisterForm && (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-bold theme-text-secondary">
+                Register New Project
               </h4>
-              <p className="text-xs theme-text-muted mb-4">
-                Add a new Felix project to this organization.
-              </p>
               <Button
-                onClick={() => setIsRegisterOpen(true)}
-                size="sm"
-                className="uppercase"
+                onClick={() => {
+                  setShowRegisterForm(false);
+                  setRegisterPath("");
+                  setRegisterName("");
+                  setRegisterError(null);
+                }}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
               >
-                New Project
+                <X className="w-4 h-4" />
               </Button>
             </div>
-          </div>
-        </div>
-
-        <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
-          <DialogContent className="max-w-md p-0">
-            <DialogHeader>
-              <div className="flex items-center gap-2">
-                <Folder className="w-4 h-4 text-[var(--brand-500)]" />
-                <DialogTitle>Register Project</DialogTitle>
-              </div>
-            </DialogHeader>
-            <div className="p-4 space-y-4">
+            <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider mb-2 theme-text-muted">
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Project Path *
                 </label>
                 <Input
+                  type="text"
+                  placeholder="C:\\path\\to\\your\\project"
                   value={registerPath}
                   onChange={(e) => setRegisterPath(e.target.value)}
-                  placeholder="C:\\path\\to\\your\\project"
-                  className="h-10"
+                  className="font-mono"
                 />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Full path to the project directory (must contain specs/ and felix/ directories)
+                  <br />
+                  Tip: Shift+Right-click folder in Explorer to "Copy as path"
+                </p>
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider mb-2 theme-text-muted">
-                  Display Name (optional)
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Project Name (optional)
                 </label>
                 <Input
+                  type="text"
+                  placeholder="My Project"
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
-                  placeholder="My Project"
-                  className="h-10"
                 />
               </div>
               {registerError && (
-                <Alert className="border-[var(--destructive-500)]/20 bg-[var(--destructive-500)]/10">
-                  <AlertDescription className="text-[var(--destructive-500)]">
+                <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+                  <AlertDescription className="text-[var(--destructive-500)] text-xs">
                     {registerError}
                   </AlertDescription>
                 </Alert>
               )}
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  onClick={() => {
+                    setShowRegisterForm(false);
+                    setRegisterPath("");
+                    setRegisterName("");
+                    setRegisterError(null);
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="uppercase"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!registerPath.trim()) return;
+                    setIsRegistering(true);
+                    setRegisterError(null);
+                    try {
+                      await felixApi.registerProject({
+                        path: registerPath.trim(),
+                        name: registerName.trim() || undefined,
+                      });
+                      setShowRegisterForm(false);
+                      setRegisterPath("");
+                      setRegisterName("");
+                      fetchProjects();
+                    } catch (err) {
+                      setRegisterError(
+                        err instanceof Error
+                          ? err.message
+                          : "Failed to register project",
+                      );
+                    } finally {
+                      setIsRegistering(false);
+                    }
+                  }}
+                  disabled={!registerPath.trim() || isRegistering}
+                  size="sm"
+                  className="uppercase"
+                >
+                  {isRegistering ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Registering...
+                    </>
+                  ) : (
+                    "Register Project"
+                  )}
+                </Button>
+              </div>
             </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsRegisterOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleRegister}
-                disabled={!registerPath.trim() || isRegistering}
-              >
-                {isRegistering ? "Registering..." : "Register"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
+
+        {projectsLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <PageLoading message="Loading projects..." fullPage={false} />
+          </div>
+        )}
+
+        {projectsError && !projectsLoading && (
+          <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+            <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs">{projectsError}</p>
+                <Button
+                  onClick={fetchProjects}
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 text-[10px] text-[var(--destructive-500)]"
+                >
+                  Try again
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!projectsLoading && !projectsError && filteredProjects.length === 0 && (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
+            <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+              <Folder className="w-6 h-6 theme-text-muted" />
+            </div>
+            <h4 className="text-sm font-bold theme-text-tertiary mb-2">
+              No Projects Registered
+            </h4>
+            <p className="text-xs theme-text-muted max-w-sm mx-auto">
+              Register a Felix project to get started. Projects must have specs/ and felix/ directories.
+            </p>
+          </div>
+        )}
+
+        {!projectsLoading && !projectsError && filteredProjects.length > 0 && (
+          <div className="space-y-3">
+            {filteredProjects
+              .sort(
+                (a, b) =>
+                  new Date(b.registered_at).getTime() -
+                  new Date(a.registered_at).getTime(),
+              )
+              .map((project) => (
+                <div
+                  key={project.id}
+                  className="theme-bg-elevated border rounded-xl p-5 transition-all border-[var(--border-default)] hover:border-[var(--border-muted)]"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-sm font-bold theme-text-secondary truncate">
+                          {project.name || project.id}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="text-[11px] font-mono theme-text-muted truncate block">
+                          {project.path}
+                        </code>
+                        <Button
+                          onClick={() =>
+                            navigator.clipboard.writeText(project.path)
+                          }
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Copy path"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] theme-text-muted mt-2">
+                        Registered{" "}
+                        {new Date(project.registered_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        onClick={() => {
+                          // TODO: Open project action - requires callback from parent
+                        }}
+                        variant="secondary"
+                        size="sm"
+                        className="text-[10px] font-bold"
+                      >
+                        Open
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setConfiguringProjectId(project.id);
+                          setConfigProjectName(project.name || "");
+                          setConfigProjectPath(project.path);
+                        }}
+                        variant="secondary"
+                        size="sm"
+                        className="text-[10px] font-bold"
+                      >
+                        Configure
+                      </Button>
+                      <Button
+                        onClick={() => setShowUnregisterConfirm(project.id)}
+                        variant="destructive"
+                        size="sm"
+                        className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
+                      >
+                        Unregister
+                      </Button>
+                    </div>
+                  </div>
+
+                  {configuringProjectId === project.id && (
+                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                            Project Name
+                          </label>
+                          <Input
+                            type="text"
+                            value={configProjectName}
+                            onChange={(e) =>
+                              setConfigProjectName(e.target.value)
+                            }
+                            placeholder={
+                              project.path.split(/[/\\]/).pop() ||
+                              "Project name"
+                            }
+                          />
+                          <p className="mt-1.5 text-[10px] theme-text-muted">
+                            Display name for this project (leave empty to use directory name)
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                            Project Folder
+                          </label>
+                          <Input
+                            type="text"
+                            value={configProjectPath}
+                            onChange={(e) =>
+                              setConfigProjectPath(e.target.value)
+                            }
+                            placeholder="C:\\path\\to\\your\\project"
+                            className="font-mono"
+                          />
+                          <p className="mt-1.5 text-[10px] theme-text-muted">
+                            Full path to the project directory (must contain specs/ and felix/ directories)
+                          </p>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <Button
+                            onClick={() => {
+                              setConfiguringProjectId(null);
+                              setConfigProjectName("");
+                              setConfigProjectPath("");
+                            }}
+                            variant="ghost"
+                            size="sm"
+                            className="uppercase"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={async () => {
+                              setIsSavingConfig(true);
+                              try {
+                                const pathChanged =
+                                  configProjectPath.trim() !== project.path;
+                                await felixApi.updateProject(project.id, {
+                                  name: configProjectName.trim() || undefined,
+                                  path: pathChanged
+                                    ? configProjectPath.trim()
+                                    : undefined,
+                                });
+                                setConfiguringProjectId(null);
+                                setConfigProjectName("");
+                                setConfigProjectPath("");
+                                fetchProjects();
+                              } catch (err) {
+                                setProjectsError(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to save project configuration",
+                                );
+                              } finally {
+                                setIsSavingConfig(false);
+                              }
+                            }}
+                            disabled={isSavingConfig}
+                            size="sm"
+                            className="uppercase"
+                          >
+                            {isSavingConfig ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {showUnregisterConfirm === project.id && (
+                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-[var(--status-warning)]">
+                          Remove this project from Felix? Files will remain on disk.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => setShowUnregisterConfirm(null)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] font-bold"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={async () => {
+                              setUnregisteringId(project.id);
+                              try {
+                                await felixApi.unregisterProject(project.id);
+                                setShowUnregisterConfirm(null);
+                                fetchProjects();
+                              } catch (err) {
+                                setProjectsError(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to unregister project",
+                                );
+                              } finally {
+                                setUnregisteringId(null);
+                              }
+                            }}
+                            disabled={unregisteringId === project.id}
+                            variant="destructive"
+                            size="sm"
+                            className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
+                          >
+                            {unregisteringId === project.id ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-[var(--status-error)]/30 border-t-[var(--status-error)] rounded-full animate-spin" />
+                                Removing...
+                              </>
+                            ) : (
+                              "Confirm Unregister"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -934,3 +892,8 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
 };
 
 export default OrganizationSettingsScreen;
+
+
+
+
+

@@ -24,6 +24,8 @@ export interface Agent {
   heartbeat_at: string | null;
   /** Agent metadata as JSON object */
   metadata: Record<string, unknown>;
+  /** Agent profile ID (UUID string or null) */
+  profile_id: string | null;
   /** When the agent was created (ISO string) */
   created_at: string;
   /** When the agent was last updated (ISO string) */

@@ -53,16 +53,18 @@ async function request<T>(
 export async function registerAgent(
   agent_id: string,
   name: string,
-  type: string = 'ralph',
-  metadata?: Record<string, unknown>
+  type?: string,
+  metadata?: Record<string, unknown>,
+  profile_id?: string
 ): Promise<Agent> {
   return request<Agent>('/agents/register', {
     method: 'POST',
     body: JSON.stringify({
       agent_id,
       name,
-      type,
+      type: type || undefined,
       metadata: metadata || {},
+      profile_id: profile_id || null,
     }),
   });
 }

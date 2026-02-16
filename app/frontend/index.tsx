@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ThemeProvider, getStoredTheme } from "./hooks/ThemeProvider";
+import { Toaster } from "./components/ui/sonner";
 import "./styles/app.css";
 
 const rootElement = document.getElementById("root");
@@ -17,6 +18,7 @@ root.render(
   <React.StrictMode>
     <ThemeProvider defaultTheme={storedTheme}>
       <App />
+      <Toaster position="top-center" />
     </ThemeProvider>
   </React.StrictMode>,
 );

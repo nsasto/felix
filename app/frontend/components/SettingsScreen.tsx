@@ -1,22 +1,18 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import {
   felixApi,
   FelixConfig,
-  Project,
-  AgentEntry,
-  AgentRegistryResponse,
+  ProjectDetails,
   AgentConfiguration,
-  AgentConfigurationsResponse,
 } from "../services/felixApi";
+import { listAgents, registerAgent } from "../src/api/client";
+import type { Agent } from "../src/api/types";
 import {
   AlertTriangle,
   Check,
-  Copy,
-  FolderOpen,
   Info,
   Plus,
   RefreshCw,
-  Search,
   X,
   Settings as IconSettings,
   Folder as IconFolder,
@@ -84,7 +80,7 @@ const CATEGORIES: CategoryInfo[] = [
   {
     id: "projects",
     label: "Projects",
-    description: "Manage registered projects",
+    description: "Edit the current project",
     icon: <IconBriefcase className="w-4 h-4" />,
   },
   {
@@ -119,61 +115,48 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     Record<string, string>
   >({});
 
-  // Projects state
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(false);
-  const [projectsError, setProjectsError] = useState<string | null>(null);
-  const [projectSearchQuery, setProjectSearchQuery] = useState("");
-  const [registerPath, setRegisterPath] = useState("");
-  const [registerName, setRegisterName] = useState("");
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [showRegisterForm, setShowRegisterForm] = useState(false);
-  const [unregisteringId, setUnregisteringId] = useState<string | null>(null);
-  const [showUnregisterConfirm, setShowUnregisterConfirm] = useState<
-    string | null
-  >(null);
-  const [configuringProjectId, setConfiguringProjectId] = useState<
-    string | null
-  >(null);
+  // Current project state
+  const [currentProject, setCurrentProject] = useState<ProjectDetails | null>(
+    null,
+  );
+  const [currentProjectLoading, setCurrentProjectLoading] = useState(false);
+  const [currentProjectError, setCurrentProjectError] = useState<string | null>(
+    null,
+  );
   const [configProjectName, setConfigProjectName] = useState("");
   const [configProjectPath, setConfigProjectPath] = useState("");
-  const [isSavingConfig, setIsSavingConfig] = useState(false);
 
-  // Agents state (orchestration - running agents)
-  const [registeredAgents, setRegisteredAgents] = useState<
-    Record<string, AgentEntry>
-  >({});
-  const [agentsLoading, setAgentsLoading] = useState(false);
-  const [agentsError, setAgentsError] = useState<string | null>(null);
-  const [agentNameInput, setAgentNameInput] = useState<string>("");
-  const [agentNameValidationError, setAgentNameValidationError] = useState<
-    string | null
-  >(null);
-
-  // Agent configurations state (from database)
-  const [agentConfigurations, setAgentConfigurations] = useState<
-    AgentConfiguration[]
-  >([]);
-  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
-  const [agentConfigsLoading, setAgentConfigsLoading] = useState(false);
-  const [agentConfigsError, setAgentConfigsError] = useState<string | null>(
+  // Agents state (project agents)
+  const [projectAgents, setProjectAgents] = useState<Agent[]>([]);
+  const [projectAgentsLoading, setProjectAgentsLoading] = useState(false);
+  const [projectAgentsError, setProjectAgentsError] = useState<string | null>(
     null,
   );
-  const [settingActiveAgent, setSettingActiveAgent] = useState<string | null>(
+  const [agentFormType, setAgentFormType] = useState<string>("ralph");
+  const [agentFormProfileId, setAgentFormProfileId] = useState<string>("");
+  const [agentProfiles, setAgentProfiles] = useState<AgentConfiguration[]>([]);
+  const [agentProfilesLoading, setAgentProfilesLoading] = useState(false);
+  const [agentProfilesError, setAgentProfilesError] = useState<string | null>(
     null,
   );
-  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
-    null,
+
+  // Agent configurations state (legacy)
+
+  const getAgentProfileLabel = useCallback(
+    (profileId?: string | null): string => {
+      if (!profileId) {
+        return "No profile";
+      }
+      const match = agentProfiles.find((profile) => profile.id === profileId);
+      return match?.name || "Unknown profile";
+    },
+    [agentProfiles],
   );
 
   // Agent form state (for add/edit)
   const [showAgentForm, setShowAgentForm] = useState(false);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [agentFormName, setAgentFormName] = useState("");
-  const [agentFormExecutable, setAgentFormExecutable] = useState("");
-  const [agentFormArgs, setAgentFormArgs] = useState("");
-  const [agentFormWorkingDir, setAgentFormWorkingDir] = useState(".");
   const [agentFormSaving, setAgentFormSaving] = useState(false);
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
 
@@ -232,81 +215,83 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     fetchConfig();
   }, [projectId]);
 
-  // Fetch projects when Projects category is selected
-  const fetchProjects = useCallback(async () => {
-    setProjectsLoading(true);
-    setProjectsError(null);
+  // Fetch current project when Projects category is selected
+  const fetchCurrentProject = useCallback(async () => {
+    if (!projectId) {
+      setCurrentProject(null);
+      return;
+    }
+    setCurrentProjectLoading(true);
+    setCurrentProjectError(null);
     try {
-      const projectsList = await felixApi.listProjects();
-      setProjects(projectsList);
+      const project = await felixApi.getProject(projectId);
+      setCurrentProject(project);
+      setConfigProjectName(project.name || "");
+      setConfigProjectPath(project.path);
     } catch (err) {
-      console.error("Failed to fetch projects:", err);
-      setProjectsError(
-        err instanceof Error ? err.message : "Failed to load projects",
+      console.error("Failed to fetch project:", err);
+      setCurrentProjectError(
+        err instanceof Error ? err.message : "Failed to load project",
       );
     } finally {
-      setProjectsLoading(false);
+      setCurrentProjectLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     if (activeCategory === "projects") {
-      fetchProjects();
+      fetchCurrentProject();
     }
-  }, [activeCategory, fetchProjects]);
+  }, [activeCategory, fetchCurrentProject]);
 
   // Fetch agents when Agents category is selected
-  const fetchAgents = useCallback(async () => {
-    setAgentsLoading(true);
-    setAgentsError(null);
+  const fetchProjectAgents = useCallback(async () => {
+    if (!projectId) {
+      setProjectAgents([]);
+      return;
+    }
+    setProjectAgentsLoading(true);
+    setProjectAgentsError(null);
     try {
-      const response = await felixApi.getAgents();
-      setRegisteredAgents(response.agents);
+      const response = await listAgents({
+        scope: "project",
+        projectId,
+      });
+      setProjectAgents(response.agents);
     } catch (err) {
-      console.error("Failed to fetch agents:", err);
-      setAgentsError(
+      console.error("Failed to fetch project agents:", err);
+      setProjectAgentsError(
         err instanceof Error ? err.message : "Failed to load agents",
       );
     } finally {
-      setAgentsLoading(false);
+      setProjectAgentsLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
-  // Fetch agent configurations from database
-  const fetchAgentConfigurations = useCallback(async () => {
-    setAgentConfigsLoading(true);
-    setAgentConfigsError(null);
+  const fetchAgentProfiles = useCallback(async () => {
+    setAgentProfilesLoading(true);
+    setAgentProfilesError(null);
     try {
       const response = await felixApi.getAgentConfigurations();
-      setAgentConfigurations(response.agents);
-      setActiveAgentId(response.active_agent_id);
+      setAgentProfiles(response.agents);
     } catch (err) {
-      console.error("Failed to fetch agent configurations:", err);
-      setAgentConfigsError(
+      console.error("Failed to fetch agent profiles:", err);
+      setAgentProfilesError(
         err instanceof Error
           ? err.message
-          : "Failed to load agent configurations",
+          : "Failed to load agent profiles",
       );
     } finally {
-      setAgentConfigsLoading(false);
+      setAgentProfilesLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (activeCategory === "agents") {
-      fetchAgents();
-      fetchAgentConfigurations();
-      // Also initialize agent name input from config
-      if (config?.agent?.name) {
-        setAgentNameInput(config.agent.name);
-      }
+      fetchProjectAgents();
+      fetchAgentProfiles();
     }
-  }, [
-    activeCategory,
-    fetchAgents,
-    fetchAgentConfigurations,
-    config?.agent?.name,
-  ]);
+  }, [activeCategory, fetchProjectAgents, fetchAgentProfiles]);
 
   useEffect(() => {
     if (!projectId) {
@@ -515,11 +500,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Handle save
   // Uses global settings API when no projectId, otherwise uses project-specific API
+  const hasConfigChanges =
+    config &&
+    originalConfig &&
+    JSON.stringify(config) !== JSON.stringify(originalConfig);
+
+  const hasProjectChanges =
+    !!currentProject &&
+    (configProjectName.trim() !== (currentProject.name || "") ||
+      configProjectPath.trim() !== currentProject.path);
+
+  const hasChanges = !!(hasConfigChanges || hasProjectChanges);
+
   const handleSave = async () => {
     if (!config) return;
 
     const errors = validateConfig(config);
-    if (Object.keys(errors).length > 0) {
+    if (hasConfigChanges && Object.keys(errors).length > 0) {
       setValidationErrors(errors);
       return;
     }
@@ -529,34 +526,59 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setSuccessMessage(null);
 
     try {
-      // Use global settings API when no projectId, otherwise use project-specific API
-      const result = projectId
-        ? await felixApi.updateConfig(projectId, config)
-        : await felixApi.updateGlobalConfig(config);
-      setConfig(result.config);
-      setOriginalConfig(result.config);
-      setSuccessMessage("Configuration saved successfully");
+      if (hasConfigChanges) {
+        const result = projectId
+          ? await felixApi.updateConfig(projectId, config)
+          : await felixApi.updateGlobalConfig(config);
+        setConfig(result.config);
+        setOriginalConfig(result.config);
+      }
+
+      if (hasProjectChanges && currentProject) {
+        setCurrentProjectError(null);
+        const pathChanged =
+          configProjectPath.trim() !== currentProject.path;
+        const updated = await felixApi.updateProject(currentProject.id, {
+          name: configProjectName.trim() || undefined,
+          path: pathChanged ? configProjectPath.trim() : undefined,
+        });
+        setCurrentProject({
+          ...currentProject,
+          name: updated.name,
+          path: updated.path,
+        });
+      }
+
+      if (hasConfigChanges && hasProjectChanges) {
+        setSuccessMessage("Settings saved successfully");
+      } else if (hasProjectChanges) {
+        setSuccessMessage("Project updated successfully");
+      } else if (hasConfigChanges) {
+        setSuccessMessage("Configuration saved successfully");
+      }
     } catch (err) {
-      console.error("Failed to save config:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to save configuration",
-      );
+      console.error("Failed to save settings:", err);
+      const message =
+        err instanceof Error ? err.message : "Failed to save settings";
+      setError(message);
+      if (hasProjectChanges) {
+        setCurrentProjectError(message);
+      }
     } finally {
       setSaving(false);
     }
   };
-
-  // Check if config has changes
-  const hasChanges =
-    config &&
-    originalConfig &&
-    JSON.stringify(config) !== JSON.stringify(originalConfig);
 
   // Reset to original config
   const handleReset = () => {
     if (originalConfig) {
       setConfig(originalConfig);
       setValidationErrors({});
+    }
+    if (currentProject) {
+      setConfigProjectName(currentProject.name || "");
+      setConfigProjectPath(currentProject.path);
+      setCurrentProjectError(null);
     }
   };
 
@@ -895,160 +917,52 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     );
   };
 
-  // Render Projects settings
+    // Render Projects settings
   const renderProjectsSettings = () => {
+    if (!projectId) {
+      return (
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6">
+          <h3 className="text-lg font-semibold">Project</h3>
+          <p className="text-xs theme-text-muted mt-2">
+            Select a project to edit its settings.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold">Projects</h3>
+            <h3 className="text-lg font-semibold">Current Project</h3>
             <p className="text-xs theme-text-muted mt-1">
-              Manage registered Felix projects
+              Edit settings for the active project only.
             </p>
           </div>
           <Button
-            onClick={() => setShowRegisterForm(true)}
+            onClick={fetchCurrentProject}
+            variant="ghost"
             size="sm"
-            className="uppercase"
+            className="text-[10px] font-bold"
           >
-            <Plus className="w-4 h-4" />
-            Register New Project
+            Refresh
           </Button>
         </div>
 
-        {/* Search/Filter */}
-        <div className="relative">
-          <Input
-            type="text"
-            placeholder="Search projects by name or path..."
-            value={projectSearchQuery}
-            onChange={(e) => setProjectSearchQuery(e.target.value)}
-            className="h-11 pl-10"
-          />
-          <Search className="w-4 h-4 theme-text-muted absolute left-4 top-1/2 -translate-y-1/2" />
-        </div>
-
-        {/* Register Form Modal */}
-        {showRegisterForm && (
-          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-bold theme-text-secondary">
-                Register New Project
-              </h4>
-              <Button
-                onClick={() => {
-                  setShowRegisterForm(false);
-                  setRegisterPath("");
-                  setRegisterName("");
-                }}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Project Path *
-                </label>
-                <Input
-                  type="text"
-                  placeholder="C:\path\to\your\project"
-                  value={registerPath}
-                  onChange={(e) => setRegisterPath(e.target.value)}
-                  className="font-mono"
-                />
-                <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Full path to the project directory (must contain specs/ and
-                  felix/ directories)
-                  <br />
-                  Tip: Shift+Right-click folder in Explorer → "Copy as path"
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Project Name (optional)
-                </label>
-                <Input
-                  type="text"
-                  placeholder="My Project"
-                  value={registerName}
-                  onChange={(e) => setRegisterName(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  onClick={() => {
-                    setShowRegisterForm(false);
-                    setRegisterPath("");
-                    setRegisterName("");
-                  }}
-                  variant="ghost"
-                  size="sm"
-                  className="uppercase"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={async () => {
-                    if (!registerPath.trim()) return;
-                    setIsRegistering(true);
-                    try {
-                      await felixApi.registerProject({
-                        path: registerPath.trim(),
-                        name: registerName.trim() || undefined,
-                      });
-                      setShowRegisterForm(false);
-                      setRegisterPath("");
-                      setRegisterName("");
-                      setSuccessMessage("Project registered successfully");
-                      fetchProjects();
-                    } catch (err) {
-                      setProjectsError(
-                        err instanceof Error
-                          ? err.message
-                          : "Failed to register project",
-                      );
-                    } finally {
-                      setIsRegistering(false);
-                    }
-                  }}
-                  disabled={!registerPath.trim() || isRegistering}
-                  size="sm"
-                  className="uppercase"
-                >
-                  {isRegistering ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Registering...
-                    </>
-                  ) : (
-                    "Register Project"
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Loading State */}
-        {projectsLoading && (
+        {currentProjectLoading && (
           <div className="flex flex-col items-center justify-center py-12">
-            <PageLoading message="Loading projects..." fullPage={false} />
+            <PageLoading message="Loading project..." fullPage={false} />
           </div>
         )}
 
-        {/* Error State */}
-        {projectsError && !projectsLoading && (
+        {currentProjectError && !currentProjectLoading && (
           <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
             <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
               <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-xs">{projectsError}</p>
+                <p className="text-xs">{currentProjectError}</p>
                 <Button
-                  onClick={fetchProjects}
+                  onClick={fetchCurrentProject}
                   variant="ghost"
                   size="sm"
                   className="mt-2 text-[10px] text-[var(--destructive-500)]"
@@ -1060,279 +974,57 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </Alert>
         )}
 
-        {/* Empty State */}
-          {!projectsLoading && !projectsError && projects.length === 0 && (
-          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
-            <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-              <FolderOpen className="w-6 h-6 theme-text-muted" />
+        {!currentProjectLoading && currentProject && (
+          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5 space-y-5">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+                Project ID
+              </p>
+              <p className="text-xs font-mono theme-text-secondary mt-1">
+                {currentProject.id}
+              </p>
+              <p className="text-[10px] theme-text-muted mt-1">
+                Registered{" "}
+                {new Date(currentProject.registered_at).toLocaleDateString()}
+              </p>
             </div>
-            <h4 className="text-sm font-bold theme-text-tertiary mb-2">
-              No Projects Registered
-            </h4>
-            <p className="text-xs theme-text-muted max-w-sm mx-auto">
-              Register a Felix project to get started. Projects must have specs/
-              and felix/ directories.
-            </p>
-          </div>
-        )}
 
-        {/* Projects List */}
-        {!projectsLoading && !projectsError && projects.length > 0 && (
-          <div className="space-y-3">
-            {projects
-              .filter((project) => {
-                if (!projectSearchQuery.trim()) return true;
-                const query = projectSearchQuery.toLowerCase();
-                return (
-                  project.name?.toLowerCase().includes(query) ||
-                  false ||
-                  project.path.toLowerCase().includes(query) ||
-                  project.id.toLowerCase().includes(query)
-                );
-              })
-              .sort(
-                (a, b) =>
-                  new Date(b.registered_at).getTime() -
-                  new Date(a.registered_at).getTime(),
-              )
-              .map((project) => (
-                <div
-                  key={project.id}
-                  className={`theme-bg-elevated border rounded-xl p-5 transition-all ${
-                    project.id === projectId
-                      ? "border-[var(--accent-primary)]/40 bg-[var(--selected-bg)]"
-                      : "border-[var(--border-default)] hover:border-[var(--border-muted)]"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-sm font-bold theme-text-secondary truncate">
-                          {project.name || project.id}
-                        </h4>
-                        {project.id === projectId && (
-                          <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full uppercase">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <code className="text-[11px] font-mono theme-text-muted truncate block">
-                          {project.path}
-                        </code>
-                        <Button
-                          onClick={() =>
-                            navigator.clipboard.writeText(project.path)
-                          }
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Copy path"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                      <p className="text-[10px] theme-text-muted mt-2">
-                        Registered{" "}
-                        {new Date(project.registered_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        onClick={() => {
-                          // TODO: Open project action - requires callback from parent
-                        }}
-                        variant="secondary"
-                        size="sm"
-                        className="text-[10px] font-bold"
-                      >
-                        Open
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setConfiguringProjectId(project.id);
-                          setConfigProjectName(project.name || "");
-                          setConfigProjectPath(project.path);
-                        }}
-                        variant="secondary"
-                        size="sm"
-                        className="text-[10px] font-bold"
-                      >
-                        Configure
-                      </Button>
-                      {project.id !== projectId && (
-                        <Button
-                          onClick={() => setShowUnregisterConfirm(project.id)}
-                          variant="destructive"
-                          size="sm"
-                          className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
-                        >
-                          Unregister
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Configuration Panel */}
-                  {configuringProjectId === project.id && (
-                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                            Project Name
-                          </label>
-                          <Input
-                            type="text"
-                            value={configProjectName}
-                            onChange={(e) =>
-                              setConfigProjectName(e.target.value)
-                            }
-                            placeholder={
-                              project.path.split(/[/\\]/).pop() ||
-                              "Project name"
-                            }
-                          />
-                          <p className="mt-1.5 text-[10px] theme-text-muted">
-                            Display name for this project (leave empty to use
-                            directory name)
-                          </p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                            Project Folder
-                          </label>
-                          <Input
-                            type="text"
-                            value={configProjectPath}
-                            onChange={(e) =>
-                              setConfigProjectPath(e.target.value)
-                            }
-                            placeholder="C:\path\to\your\project"
-                            className="font-mono"
-                          />
-                          <p className="mt-1.5 text-[10px] theme-text-muted">
-                            Full path to the project directory (must contain
-                            specs/ and felix/ directories)
-                          </p>
-                        </div>
-                        <div className="flex justify-end gap-3">
-                          <Button
-                            onClick={() => {
-                              setConfiguringProjectId(null);
-                              setConfigProjectName("");
-                              setConfigProjectPath("");
-                            }}
-                            variant="ghost"
-                            size="sm"
-                            className="uppercase"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={async () => {
-                              setIsSavingConfig(true);
-                              try {
-                                // Only send path if it changed
-                                const pathChanged =
-                                  configProjectPath.trim() !== project.path;
-                                await felixApi.updateProject(project.id, {
-                                  name: configProjectName.trim() || undefined,
-                                  path: pathChanged
-                                    ? configProjectPath.trim()
-                                    : undefined,
-                                });
-                                setSuccessMessage(
-                                  "Project configuration saved",
-                                );
-                                setConfiguringProjectId(null);
-                                setConfigProjectName("");
-                                setConfigProjectPath("");
-                                fetchProjects();
-                              } catch (err) {
-                                setProjectsError(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Failed to save project configuration",
-                                );
-                              } finally {
-                                setIsSavingConfig(false);
-                              }
-                            }}
-                            disabled={isSavingConfig}
-                            size="sm"
-                            className="uppercase"
-                          >
-                            {isSavingConfig ? (
-                              <>
-                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Saving...
-                              </>
-                            ) : (
-                              "Save"
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Unregister Confirmation */}
-                  {showUnregisterConfirm === project.id && (
-                    <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-[var(--status-warning)]">
-                          Remove this project from Felix? Files will remain on
-                          disk.
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => setShowUnregisterConfirm(null)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-[10px] font-bold"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={async () => {
-                              setUnregisteringId(project.id);
-                              try {
-                                await felixApi.unregisterProject(project.id);
-                                setSuccessMessage(
-                                  "Project unregistered successfully",
-                                );
-                                setShowUnregisterConfirm(null);
-                                fetchProjects();
-                              } catch (err) {
-                                setProjectsError(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Failed to unregister project",
-                                );
-                              } finally {
-                                setUnregisteringId(null);
-                              }
-                            }}
-                            disabled={unregisteringId === project.id}
-                            variant="destructive"
-                            size="sm"
-                            className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
-                          >
-                            {unregisteringId === project.id ? (
-                              <>
-                                <div className="w-3 h-3 border-2 border-[var(--status-error)]/30 border-t-[var(--status-error)] rounded-full animate-spin" />
-                                Removing...
-                              </>
-                            ) : (
-                              "Confirm Unregister"
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Project Name
+                </label>
+                <Input
+                  type="text"
+                  value={configProjectName}
+                  onChange={(e) => setConfigProjectName(e.target.value)}
+                  placeholder={
+                    currentProject.path.split(/[/\\]/).pop() || "Project name"
+                  }
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Display name for this project (leave empty to use directory name)
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Project Folder
+                </label>
+                <Input
+                  type="text"
+                  value={configProjectPath}
+                  onChange={(e) => setConfigProjectPath(e.target.value)}
+                  placeholder="C:\\path\\to\\your\\project"
+                  className="font-mono"
+                />
+                <p className="mt-1.5 text-[10px] theme-text-muted">
+                  Full path to the project directory (must contain specs/ and felix/ directories)
+                </p>
+              </div>
+              <p className="text-[10px] theme-text-muted">
+                Use the Save Changes button above to apply project updates.
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -1341,80 +1033,47 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Render Agents settings
   const renderAgentsSettings = () => {
-    if (!config) return null;
+    if (!projectId) {
+      return (
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6">
+          <h3 className="text-lg font-semibold">Project Agents</h3>
+          <p className="text-xs theme-text-muted mt-2">
+            Select a project to manage its agents.
+          </p>
+        </div>
+      );
+    }
 
-    // Handle setting active agent
-    const handleSetActiveAgent = async (agentId: string) => {
-      setSettingActiveAgent(agentId);
-      try {
-        await felixApi.setActiveAgent(agentId);
-        setActiveAgentId(agentId);
-        setSuccessMessage(`Agent set as active successfully`);
-      } catch (err) {
-        console.error("Failed to set active agent:", err);
-        setAgentConfigsError(
-          err instanceof Error ? err.message : "Failed to set active agent",
-        );
-      } finally {
-        setSettingActiveAgent(null);
-      }
-    };
-
-    // Handle deleting agent
-    const handleDeleteAgent = async (agentId: string) => {
-      setDeletingAgentId(agentId);
-      try {
-        await felixApi.deleteAgentConfiguration(agentId);
-        setSuccessMessage("Agent deleted successfully");
-        setShowDeleteConfirm(null);
-        fetchAgentConfigurations();
-      } catch (err) {
-        console.error("Failed to delete agent:", err);
-        setAgentConfigsError(
-          err instanceof Error ? err.message : "Failed to delete agent",
-        );
-      } finally {
-        setDeletingAgentId(null);
-      }
-    };
-
-    // Reset agent form
     const resetAgentForm = () => {
       setShowAgentForm(false);
       setEditingAgentId(null);
       setAgentFormName("");
-      setAgentFormExecutable("");
-      setAgentFormArgs("");
-      setAgentFormWorkingDir(".");
+      setAgentFormType("");
+      setAgentFormProfileId("");
       setAgentFormError(null);
     };
 
-    // Open add agent form
     const openAddAgentForm = () => {
       resetAgentForm();
       setShowAgentForm(true);
     };
 
-    // Open edit agent form
-    const openEditAgentForm = (agent: AgentConfiguration) => {
+    const openEditAgentForm = (agent: Agent) => {
       setEditingAgentId(agent.id);
       setAgentFormName(agent.name);
-      setAgentFormExecutable(agent.executable);
-      setAgentFormArgs(agent.args.join(" "));
-      setAgentFormWorkingDir(agent.working_directory);
+      setAgentFormType(agent.type || "");
+      setAgentFormProfileId(agent.profile_id || "");
       setAgentFormError(null);
       setShowAgentForm(true);
     };
 
-    // Handle agent form save
     const handleAgentFormSave = async () => {
-      // Validate required fields
       if (!agentFormName.trim()) {
         setAgentFormError("Agent name is required");
         return;
       }
-      if (!agentFormExecutable.trim()) {
-        setAgentFormError("Executable path is required");
+      if (!agentFormProfileId) {
+        setAgentFormError("Agent profile is required");
         return;
       }
 
@@ -1422,25 +1081,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       setAgentFormError(null);
 
       try {
-        const agentData = {
-          name: agentFormName.trim(),
-          executable: agentFormExecutable.trim(),
-          args: agentFormArgs.trim() ? agentFormArgs.trim().split(/\s+/) : [],
-          working_directory: agentFormWorkingDir.trim() || ".",
-        };
-
-        if (editingAgentId !== null) {
-          // Update existing agent
-          await felixApi.updateAgentConfiguration(editingAgentId, agentData);
-          setSuccessMessage("Agent updated successfully");
-        } else {
-          // Create new agent
-          await felixApi.createAgentConfiguration(agentData);
-          setSuccessMessage("Agent created successfully");
-        }
-
+        const agentId = editingAgentId ?? crypto.randomUUID();
+        await registerAgent(
+          agentId,
+          agentFormName.trim(),
+          agentFormType.trim() || undefined,
+          { source: "ui" },
+          agentFormProfileId,
+        );
+        setSuccessMessage(
+          editingAgentId ? "Agent updated successfully" : "Agent created successfully",
+        );
         resetAgentForm();
-        fetchAgentConfigurations();
+        fetchProjectAgents();
       } catch (err) {
         console.error("Failed to save agent:", err);
         setAgentFormError(
@@ -1455,28 +1108,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-semibold">Agent Configurations</h3>
+            <h3 className="text-lg font-semibold">Project Agents</h3>
             <p className="text-xs theme-text-muted mt-1">
-              Manage saved agent presets for this organization
+              Manage agents for the active project.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => {
-                fetchAgentConfigurations();
-                fetchAgents();
-              }}
-              disabled={agentConfigsLoading || agentsLoading}
+              onClick={fetchProjectAgents}
+              disabled={projectAgentsLoading}
               variant="secondary"
               size="sm"
               className="text-xs font-bold"
             >
               <RefreshCw
-                className={`w-4 h-4 ${agentConfigsLoading || agentsLoading ? "animate-spin" : ""}`}
+                className={`w-4 h-4 ${projectAgentsLoading ? "animate-spin" : ""}`}
               />
-              {agentConfigsLoading || agentsLoading
-                ? "Refreshing..."
-                : "Refresh"}
+              {projectAgentsLoading ? "Refreshing..." : "Refresh"}
             </Button>
             <Button onClick={openAddAgentForm} size="sm" className="uppercase">
               <Plus className="w-4 h-4" />
@@ -1485,12 +1133,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </div>
 
-        {/* Agent Form (Add/Edit) */}
         {showAgentForm && (
           <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-bold theme-text-secondary">
-                {editingAgentId !== null ? "Edit Agent" : "Add New Agent"}
+                {editingAgentId ? "Edit Agent" : "Add Agent"}
               </h4>
               <Button
                 onClick={resetAgentForm}
@@ -1502,7 +1149,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </Button>
             </div>
 
-            {/* Form Error */}
             {agentFormError && (
               <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
                 <AlertDescription className="text-[var(--destructive-500)]">
@@ -1512,7 +1158,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             )}
 
             <div className="space-y-4">
-              {/* Name */}
               <div>
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
                   Agent Name *
@@ -1523,65 +1168,48 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   value={agentFormName}
                   onChange={(e) => setAgentFormName(e.target.value)}
                 />
-                <p className="mt-1.5 text-[10px] theme-text-muted">
-                  A unique name for this agent configuration
-                </p>
               </div>
-
-              {/* Executable */}
               <div>
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Executable Path *
+                  Agent Profile *
+                </label>
+                <Select
+                  value={agentFormProfileId}
+                  onValueChange={(value) => setAgentFormProfileId(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an agent profile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agentProfiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {agentProfilesError && (
+                  <p className="mt-1.5 text-[10px] text-[var(--destructive-500)]">
+                    {agentProfilesError}
+                  </p>
+                )}
+                {agentProfilesLoading && (
+                  <p className="mt-1.5 text-[10px] theme-text-muted">
+                    Loading profiles...
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Agent Type (optional)
                 </label>
                 <Input
                   type="text"
-                  placeholder="droid"
-                  value={agentFormExecutable}
-                  onChange={(e) => setAgentFormExecutable(e.target.value)}
-                  className="font-mono"
+                  placeholder="ralph"
+                  value={agentFormType}
+                  onChange={(e) => setAgentFormType(e.target.value)}
                 />
-                <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Path to the agent executable (e.g., droid, python, npx)
-                </p>
               </div>
-
-              {/* Arguments */}
-              <div>
-                <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Arguments
-                </label>
-                <Input
-                  type="text"
-                  placeholder="exec --no-interactive"
-                  value={agentFormArgs}
-                  onChange={(e) => setAgentFormArgs(e.target.value)}
-                  className="font-mono"
-                />
-                <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Command-line arguments passed to the executable
-                  (space-separated)
-                </p>
-              </div>
-
-              {/* Working Directory */}
-              <div>
-                <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Working Directory
-                </label>
-                <Input
-                  type="text"
-                  placeholder="."
-                  value={agentFormWorkingDir}
-                  onChange={(e) => setAgentFormWorkingDir(e.target.value)}
-                  className="font-mono"
-                />
-                <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Working directory for agent execution (use "." for project
-                  root)
-                </p>
-              </div>
-
-              {/* Form Actions */}
               <div className="flex justify-end gap-3 pt-2">
                 <Button
                   onClick={resetAgentForm}
@@ -1596,7 +1224,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   disabled={
                     agentFormSaving ||
                     !agentFormName.trim() ||
-                    !agentFormExecutable.trim()
+                    !agentFormProfileId
                   }
                   size="sm"
                   className="uppercase"
@@ -1606,7 +1234,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Saving...
                     </>
-                  ) : editingAgentId !== null ? (
+                  ) : editingAgentId ? (
                     "Update Agent"
                   ) : (
                     "Create Agent"
@@ -1617,21 +1245,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         )}
 
-        {/* Agent Configurations List */}
         <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <h4 className="text-sm font-bold theme-text-secondary mb-4">
-            Saved Agents
+            Agents
           </h4>
 
-          {/* Error State */}
-          {agentConfigsError && (
+          {projectAgentsError && (
             <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
               <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-xs">{agentConfigsError}</p>
+                  <p className="text-xs">{projectAgentsError}</p>
                   <Button
-                    onClick={fetchAgentConfigurations}
+                    onClick={fetchProjectAgents}
                     variant="ghost"
                     size="sm"
                     className="mt-2 text-[10px] text-[var(--destructive-500)]"
@@ -1643,332 +1269,134 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </Alert>
           )}
 
-          {/* Loading State */}
-          {agentConfigsLoading && agentConfigurations.length === 0 && (
+          {projectAgentsLoading && projectAgents.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <PageLoading
-                message="Loading agent configurations..."
-                size="md"
-                fullPage={false}
-              />
+              <PageLoading message="Loading agents..." size="md" fullPage={false} />
             </div>
           )}
 
-          {/* Empty State */}
-          {!agentConfigsLoading &&
-            !agentConfigsError &&
-            agentConfigurations.length === 0 && (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <IconCpu className="w-6 h-6 theme-text-muted" />
-                </div>
-                <h4 className="text-sm font-bold theme-text-tertiary mb-2">
-                  No Agent Configurations
-                </h4>
-                <p className="text-xs theme-text-muted max-w-sm mx-auto">
-                  No saved agent configurations found. Add an agent to get
-                  started.
-                </p>
-              </div>
-            )}
+          {!projectAgentsLoading && !projectAgentsError && projectAgents.length === 0 && (
+            <div className="text-center py-6">
+              <p className="text-xs theme-text-muted">
+                No agents registered for this project yet.
+              </p>
+            </div>
+          )}
 
-          {/* Agent Configurations List */}
-          {agentConfigurations.length > 0 && (
+          {projectAgents.length > 0 && (
             <div className="space-y-3">
-              {agentConfigurations
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((agent) => {
-                  const isActive = agent.id === activeAgentId;
-
-                  return (
-                    <div
-                      key={agent.id}
-                      className={`theme-bg-base border rounded-lg p-4 transition-all ${
-                        isActive
-                          ? "border-[var(--accent-primary)]/40 bg-[var(--selected-bg)]"
-                          : "border-[var(--border-muted)]"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <h5 className="text-sm font-bold theme-text-secondary truncate">
-                              {agent.name}
-                            </h5>
-                            <span className="text-[9px] font-mono theme-text-muted">
-                              ID: {agent.id}
-                            </span>
-                            {isActive && (
-                              <span className="px-2 py-0.5 text-[9px] font-bold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded-full flex items-center gap-1">
-                                ✓ Active
-                              </span>
-                            )}
-                          </div>
-                          <div className="space-y-1 text-[11px]">
-                            <div className="flex items-center gap-2">
-                              <span className="theme-text-muted">
-                                Executable:
-                              </span>
-                              <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded">
-                                {agent.executable}
-                              </code>
-                            </div>
-                            {agent.args.length > 0 && (
-                              <div className="flex items-start gap-2">
-                                <span className="theme-text-muted">Args:</span>
-                                <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded break-all">
-                                  {agent.args.join(" ")}
-                                </code>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <span className="theme-text-muted">
-                                Working Dir:
-                              </span>
-                              <code className="theme-text-tertiary font-mono bg-[var(--hover-bg)] px-1.5 py-0.5 rounded">
-                                {agent.working_directory}
-                              </code>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {!isActive && (
-                            <Button
-                              onClick={() => handleSetActiveAgent(agent.id)}
-                              disabled={settingActiveAgent === agent.id}
-                              size="sm"
-                              className="text-[10px] font-bold uppercase"
-                            >
-                              {settingActiveAgent === agent.id ? (
-                                <>
-                                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                  Setting...
-                                </>
-                              ) : (
-                                "Set Active"
-                              )}
-                            </Button>
-                          )}
-                          <Button
-                            onClick={() => openEditAgentForm(agent)}
-                            variant="secondary"
-                            size="sm"
-                            className="text-[10px] font-bold"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            onClick={() => setShowDeleteConfirm(agent.id)}
-                            variant="destructive"
-                            size="sm"
-                            className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
-                          >
-                            Delete
-                          </Button>
-                        </div>
+              {projectAgents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h5 className="text-sm font-bold theme-text-secondary">
+                        {agent.name}
+                      </h5>
+                      <div className="text-[11px] theme-text-muted mt-1">
+                        <span className="font-mono">
+                          {getAgentProfileLabel(agent.profile_id)}
+                        </span>
+                        {agent.heartbeat_at && (
+                          <span className="ml-2">
+                            Last seen {getRelativeTime(agent.heartbeat_at)}
+                          </span>
+                        )}
                       </div>
-
-                      {/* Delete Confirmation */}
-                      {showDeleteConfirm === agent.id && (
-                        <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-[var(--status-warning)]">
-                              Delete this agent configuration? This cannot be
-                              undone.
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                onClick={() => setShowDeleteConfirm(null)}
-                                variant="ghost"
-                                size="sm"
-                                className="text-[10px] font-bold"
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                onClick={() => handleDeleteAgent(agent.id)}
-                                disabled={deletingAgentId === agent.id}
-                                variant="destructive"
-                                size="sm"
-                                className="text-[10px] font-bold bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
-                              >
-                                {deletingAgentId === agent.id ? (
-                                  <>
-                                    <div className="w-3 h-3 border-2 border-[var(--status-error)]/30 border-t-[var(--status-error)] rounded-full animate-spin" />
-                                    Deleting...
-                                  </>
-                                ) : (
-                                  "Confirm Delete"
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
+                    <Button
+                      onClick={() => openEditAgentForm(agent)}
+                      variant="secondary"
+                      size="sm"
+                      className="text-[10px] font-bold"
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Running Agents (Orchestration) */}
         <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-5">
           <h4 className="text-sm font-bold theme-text-secondary mb-4">
             Running Agents
           </h4>
 
-          {/* Error State */}
-          {agentsError && (
-            <Alert className="mb-4 border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
-              <AlertDescription className="flex items-start gap-3 text-[var(--destructive-500)]">
-                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs">{agentsError}</p>
-                  <Button
-                    onClick={fetchAgents}
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 text-[10px] text-[var(--destructive-500)]"
-                  >
-                    Try again
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Loading State */}
-          {agentsLoading && Object.keys(registeredAgents).length === 0 && (
+          {projectAgentsLoading && projectAgents.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <PageLoading
-                message="Loading running agents..."
-                size="md"
-                fullPage={false}
-              />
+              <PageLoading message="Loading running agents..." size="md" fullPage={false} />
             </div>
           )}
 
-          {/* Empty State */}
-          {!agentsLoading &&
-            !agentsError &&
-            Object.keys(registeredAgents).length === 0 && (
+          {!projectAgentsLoading &&
+            projectAgents.filter((agent) => agent.status === "running").length === 0 && (
               <div className="text-center py-6">
                 <p className="text-xs theme-text-muted">
-                  No agents are currently running. Start an agent to see it
-                  here.
+                  No agents are currently running. Start an agent to see it here.
                 </p>
               </div>
             )}
 
-          {/* Agents List */}
-          {Object.keys(registeredAgents).length > 0 && (
+          {projectAgents.filter((agent) => agent.status === "running").length > 0 && (
             <div className="space-y-3">
-              {Object.entries(registeredAgents)
-                .sort(([, a], [, b]) => {
-                  const statusOrder = { active: 0, inactive: 1, stopped: 2 };
-                  const agentA = a as AgentEntry;
-                  const agentB = b as AgentEntry;
-                  const aOrder =
-                    statusOrder[agentA.status as keyof typeof statusOrder] ?? 3;
-                  const bOrder =
-                    statusOrder[agentB.status as keyof typeof statusOrder] ?? 3;
-                  if (aOrder !== bOrder) return aOrder - bOrder;
-                  const aTime = agentA.last_heartbeat
-                    ? new Date(agentA.last_heartbeat).getTime()
-                    : 0;
-                  const bTime = agentB.last_heartbeat
-                    ? new Date(agentB.last_heartbeat).getTime()
-                    : 0;
-                  return bTime - aTime;
-                })
-                .map(([agentName, agent]) => {
-                  const agentEntry = agent as AgentEntry;
-                  return (
-                    <div
-                      key={agentName}
-                      className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span
-                          className="flex-shrink-0"
-                          title={`Status: ${agentEntry.status}`}
-                        >
-                          {agentEntry.status === "active" && (
-                            <span className="text-base">🟢</span>
-                          )}
-                          {agentEntry.status === "inactive" && (
-                            <span className="text-base">⚪</span>
-                          )}
-                          {agentEntry.status === "stopped" && (
-                            <span className="text-base">🔴</span>
-                          )}
-                        </span>
-                        <h5 className="text-sm font-bold theme-text-secondary truncate">
-                          {agentName}
+              {projectAgents
+                .filter((agent) => agent.status === "running")
+                .map((agent) => (
+                  <div
+                    key={agent.id}
+                    className="theme-bg-base border border-[var(--border-muted)] rounded-lg p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h5 className="text-sm font-bold theme-text-secondary">
+                          {agent.name}
                         </h5>
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                        <div className="flex items-center gap-2">
-                          <span className="theme-text-muted">Hostname:</span>
-                          <span className="theme-text-tertiary font-mono">
-                            {agentEntry.hostname}
+                        <div className="text-[11px] theme-text-muted mt-1">
+                          <span className="font-mono">
+                            {getAgentProfileLabel(agent.profile_id)}
                           </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="theme-text-muted">PID:</span>
-                          <span className="theme-text-tertiary font-mono">
-                            {agentEntry.pid}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="theme-text-muted">
-                            Last heartbeat:
-                          </span>
-                          <span className="theme-text-tertiary">
-                            {getRelativeTime(agentEntry.last_heartbeat)}
-                          </span>
-                        </div>
-                        {agentEntry.current_run_id && (
-                          <div className="flex items-center gap-2">
-                            <span className="theme-text-muted">
-                              Working on:
+                          {agent.heartbeat_at && (
+                            <span className="ml-2">
+                              Last seen {getRelativeTime(agent.heartbeat_at)}
                             </span>
-                            <span className="theme-text-secondary font-mono">
-                              {agentEntry.current_run_id}
-                            </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
+                      <span className="text-[10px] font-bold uppercase text-[var(--accent-primary)]">
+                        Running
+                      </span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
             </div>
           )}
         </div>
 
-        {/* Info Note */}
         <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <Info className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-[var(--status-info)]/80">
-              <p>
-                <strong>Agent Configurations</strong> are saved presets (from
-                agent profiles). The <strong>active</strong> agent is used when
-                starting new runs.
-              </p>
-              <p className="mt-1">
-                <strong>Running Agents</strong> show currently registered agent
-                instances with heartbeats.
-              </p>
-            </div>
-          </div>
+      <div className="flex items-start gap-3">
+        <Info className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" />
+        <div className="text-xs text-[var(--status-info)]/80">
+          <p>
+            <strong>Project Agents</strong> are registered instances tied to the current project.
+          </p>
+          <p className="mt-1">
+            <strong>Agent Profiles</strong> define defaults and are required when creating agents.
+          </p>
+          <p className="mt-1">
+            <strong>Running Agents</strong> are pulled from the project agent list.
+          </p>
+        </div>
+      </div>
         </div>
       </div>
     );
   };
 
-  // Model options by provider
+  // Model options by provider// Model options by provider
   const modelOptions: Record<string, { value: string; label: string }[]> = {
     openai: [
       { value: "gpt-4o", label: "GPT-4o" },
@@ -2199,7 +1627,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             size="sm"
             className="text-[var(--accent-primary)] border-[var(--accent-primary)]/20 hover:bg-[var(--accent-primary)]/10"
           >
-            ← Back to Projects
+            Back to Projects
           </Button>
         </div>
       </div>
@@ -2234,16 +1662,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   Discard
                 </Button>
               )}
-              <Button
-                onClick={handleSave}
-                disabled={
-                  saving ||
-                  !hasChanges ||
-                  Object.keys(validationErrors).length > 0
-                }
-                size="sm"
-                className="text-[10px] font-bold uppercase"
-              >
+                <Button
+                  onClick={handleSave}
+                  disabled={
+                    saving ||
+                    !hasChanges ||
+                    (hasConfigChanges && Object.keys(validationErrors).length > 0)
+                  }
+                  size="sm"
+                  className="text-[10px] font-bold uppercase"
+                >
                 {saving ? (
                   <>
                     <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -2309,3 +1737,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 };
 
 export default SettingsScreen;
+
+
+
+

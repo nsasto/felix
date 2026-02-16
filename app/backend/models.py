@@ -55,6 +55,7 @@ class AgentRegisterRequest(BaseModel):
     agent_id: str = Field(..., description="Unique agent identifier (UUID string)")
     name: str = Field(..., description="Display name for the agent")
     type: str = Field(default="ralph", description="Agent type (e.g., 'ralph', 'builder', 'planner')")
+    profile_id: Optional[str] = Field(None, description="Agent profile ID (UUID string)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Optional JSON metadata for the agent")
 
 
@@ -72,6 +73,7 @@ class AgentResponse(BaseModel):
     status: str = Field(..., description="Current status (idle, running, stopped, error)")
     heartbeat_at: Optional[datetime] = Field(None, description="Last heartbeat timestamp")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Agent metadata as JSON")
+    profile_id: Optional[str] = Field(None, description="Agent profile ID (UUID string)")
     created_at: datetime = Field(..., description="When the agent was created")
     updated_at: datetime = Field(..., description="When the agent was last updated")
     

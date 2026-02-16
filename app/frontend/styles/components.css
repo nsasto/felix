@@ -780,6 +780,23 @@
   color: var(--text-muted);
 }
 
+/* Sonner toast fallback positioning */
+[data-sonner-toaster] {
+  position: fixed !important;
+  top: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 356px !important;
+  max-width: calc(100vw - 32px) !important;
+  z-index: var(--z-toast, 9999) !important;
+  margin: 0 !important;
+  pointer-events: none;
+}
+
+[data-sonner-toaster] [data-sonner-toast] {
+  pointer-events: auto;
+}
+
 /* ANSI Text Styles */
 .ansi-bold { font-weight: var(--font-bold); }
 .ansi-dim { opacity: 0.7; }

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   render,
@@ -10,6 +10,7 @@ import {
 import SettingsScreen from "../../components/SettingsScreen";
 import { ThemeProvider } from "../../hooks/ThemeProvider";
 import { felixApi, FelixConfig, ConfigContent } from "../../services/felixApi";
+import * as apiClient from "../../src/api/client";
 
 // Mock the felixApi module
 vi.mock("../../services/felixApi", () => ({
@@ -18,21 +19,17 @@ vi.mock("../../services/felixApi", () => ({
     updateConfig: vi.fn(),
     getGlobalConfig: vi.fn(),
     updateGlobalConfig: vi.fn(),
-    // Agent configuration API methods (S-0020)
     getAgentConfigurations: vi.fn(),
-    getAgentConfiguration: vi.fn(),
-    createAgentConfiguration: vi.fn(),
-    updateAgentConfiguration: vi.fn(),
-    deleteAgentConfiguration: vi.fn(),
-    setActiveAgent: vi.fn(),
-    getActiveAgentConfiguration: vi.fn(),
-    // Agent registry API methods (needed for Agents category)
-    getAgents: vi.fn(),
   },
   // Standalone localStorage functions for Copilot API key (S-0022)
   getCopilotApiKey: vi.fn(() => null),
   setCopilotApiKey: vi.fn(),
   clearCopilotApiKey: vi.fn(),
+}));
+
+vi.mock("../../src/api/client", () => ({
+  listAgents: vi.fn(),
+  registerAgent: vi.fn(),
 }));
 
 // Helper to render with ThemeProvider
@@ -170,9 +167,10 @@ describe("SettingsScreen", () => {
       await waitFor(() => {
         expect(screen.getByText("General")).toBeInTheDocument();
         expect(screen.getByText("Paths")).toBeInTheDocument();
-        expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
         expect(screen.getByText("Advanced")).toBeInTheDocument();
+        expect(screen.getByText("Projects")).toBeInTheDocument();
         expect(screen.getByText("Agents")).toBeInTheDocument();
+        expect(screen.getByText("Docs")).toBeInTheDocument();
       });
     });
 
@@ -203,8 +201,9 @@ describe("SettingsScreen", () => {
         expect(screen.getByText("General")).toBeInTheDocument();
       });
 
-      const pathsButtons = screen.getAllByText("Paths");
-      fireEvent.click(pathsButtons[0]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Paths" }), {
+        button: 0,
+      });
 
       await waitFor(() => {
         expect(
@@ -226,8 +225,9 @@ describe("SettingsScreen", () => {
         expect(screen.getByText("General")).toBeInTheDocument();
       });
 
-      const advancedButtons = screen.getAllByText("Advanced");
-      fireEvent.click(advancedButtons[0]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Advanced" }), {
+        button: 0,
+      });
 
       await waitFor(() => {
         expect(screen.getByText("Advanced Settings")).toBeInTheDocument();
@@ -318,9 +318,8 @@ describe("SettingsScreen", () => {
     });
   });
 
-  // Note: The old "Agent" category was removed. Agent configuration is now done through
-  // the "Agents" category which manages agent configurations globally.
-  // See "Agent Configuration Settings (S-0020)" tests below for the new agent management tests.
+  // Note: Agent configuration lives under organization settings. The project settings
+  // "Agents" category manages registered agents for the current project.
 
   describe("Paths Settings (Read-Only)", () => {
     it("displays paths as read-only values", async () => {
@@ -345,8 +344,9 @@ describe("SettingsScreen", () => {
         expect(screen.getByText("General")).toBeInTheDocument();
       });
 
-      const pathsButtons = screen.getAllByText("Paths");
-      fireEvent.click(pathsButtons[0]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Paths" }), {
+        button: 0,
+      });
 
       await waitFor(() => {
         // Check for the path values within code elements (they're displayed in code blocks)
@@ -372,8 +372,9 @@ describe("SettingsScreen", () => {
         expect(screen.getByText("General")).toBeInTheDocument();
       });
 
-      const pathsButtons = screen.getAllByText("Paths");
-      fireEvent.click(pathsButtons[0]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Paths" }), {
+        button: 0,
+      });
 
       await waitFor(() => {
         expect(
@@ -399,8 +400,9 @@ describe("SettingsScreen", () => {
         expect(screen.getByText("General")).toBeInTheDocument();
       });
 
-      const advancedButtons = screen.getAllByText("Advanced");
-      fireEvent.click(advancedButtons[0]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Advanced" }), {
+        button: 0,
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/enable backpressure/i)).toBeInTheDocument();
@@ -428,8 +430,9 @@ describe("SettingsScreen", () => {
         expect(screen.getByText("General")).toBeInTheDocument();
       });
 
-      const advancedButtons = screen.getAllByText("Advanced");
-      fireEvent.click(advancedButtons[0]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Advanced" }), {
+        button: 0,
+      });
 
       await waitFor(() => {
         expect(screen.getByText("npm run lint")).toBeInTheDocument();
@@ -706,7 +709,7 @@ describe("SettingsScreen", () => {
         expect(screen.getByText("Failed to Load Settings")).toBeInTheDocument();
       });
 
-      const backButton = screen.getByText("← Back to Projects");
+      const backButton = screen.getByText("Back to Projects");
       fireEvent.click(backButton);
 
       expect(mockOnBack).toHaveBeenCalledTimes(1);
@@ -952,18 +955,17 @@ describe("SettingsScreen", () => {
 
         renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
 
-        await waitFor(() => {
-          expect(screen.getByText("General")).toBeInTheDocument();
-          expect(screen.getByText("Paths")).toBeInTheDocument();
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-          expect(screen.getByText("Advanced")).toBeInTheDocument();
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
+      await waitFor(() => {
+        expect(screen.getByText("General")).toBeInTheDocument();
+        expect(screen.getByText("Paths")).toBeInTheDocument();
+        expect(screen.getByText("Advanced")).toBeInTheDocument();
+        expect(screen.getByText("Projects")).toBeInTheDocument();
+        expect(screen.getByText("Agents")).toBeInTheDocument();
       });
+    });
 
-      // Note: The old "Agent" (singular) category was removed. Agent configuration is now done through
-      // the "Agents" category which manages agent configurations globally.
-      // See "Agent Configuration Settings (S-0020)" tests for the new agent management tests.
+        // Note: Agent configuration lives under organization settings. The project settings
+        // "Agents" category manages registered agents for the current project.
 
       it("can navigate to Advanced settings without projectId", async () => {
         vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
@@ -984,8 +986,9 @@ describe("SettingsScreen", () => {
           expect(screen.getByText("General")).toBeInTheDocument();
         });
 
-        const advancedButtons = screen.getAllByText("Advanced");
-        fireEvent.click(advancedButtons[0]);
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Advanced" }), {
+        button: 0,
+      });
 
         await waitFor(() => {
           expect(screen.getByText("Advanced Settings")).toBeInTheDocument();
@@ -995,1015 +998,166 @@ describe("SettingsScreen", () => {
     });
   });
 
-  // S-0016: Felix Copilot Settings Tests
-  describe("Copilot Settings (S-0016)", () => {
-    const mockOnBack = vi.fn();
-
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
-
-    // Helper to create config with copilot
-    const createMockConfigWithCopilot = (
-      copilotOverrides: any = {},
-    ): FelixConfig => ({
-      ...createMockConfig(),
-      copilot: {
-        enabled: false,
-        provider: "openai",
-        model: "gpt-4o",
-        context_sources: {
-          agents_md: true,
-          learnings_md: true,
-          prompt_md: true,
-          requirements: true,
-          other_specs: true,
-        },
-        features: {
-          streaming: true,
-          auto_suggest: true,
-          context_aware: true,
-        },
-        ...copilotOverrides,
-      },
-    });
-
-    describe("Category Navigation", () => {
-      it("displays Felix Copilot category in tabs", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-      });
-
-      it("Felix Copilot category is positioned between Paths and Advanced", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const categories = screen.getAllByRole("tab");
-
-        // Find indices
-        const pathsIndex = categories.findIndex((cat) =>
-          cat.textContent?.includes("Paths"),
-        );
-        const copilotIndex = categories.findIndex((cat) =>
-          cat.textContent?.includes("Felix Copilot"),
-        );
-        const advancedIndex = categories.findIndex((cat) =>
-          cat.textContent?.includes("Advanced"),
-        );
-
-        // Copilot should be after Paths and before Advanced
-        expect(copilotIndex).toBeGreaterThan(pathsIndex);
-        expect(copilotIndex).toBeLessThan(advancedIndex);
-      });
-
-      it("navigates to copilot settings when category is clicked", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        // Click on Felix Copilot category
-        const copilotTab = screen.getByRole("tab", {
-          name: "Felix Copilot",
-        });
-        fireEvent.click(copilotTab);
-
-        await waitFor(() => {
-          // The component shows "Felix Copilot" as the heading with "Enable Copilot" as a label
-          expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
-        });
-      });
-    });
-
-    describe("Enable/Disable Toggle", () => {
-      it("shows Enable Copilot toggle at the top", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
-        });
-      });
-
-      it("toggle defaults to OFF for new installations", async () => {
-        // Config with copilot.enabled = false (default)
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: false })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
-          const enableToggle = screen.getByRole("switch", {
-            name: /enable copilot/i,
-          });
-          expect(enableToggle).toBeInTheDocument();
-        });
-      });
-
-      it("shows toggle is ON when copilot is enabled", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
-        // When enabled, the provider dropdown should be enabled (not have cursor-not-allowed)
-        const providerSection = screen.getByText("Provider")
-          .parentElement as HTMLElement;
-        const providerSelect = within(providerSection).getByRole("combobox");
-        expect(providerSelect).not.toBeDisabled();
-      });
-    });
-    });
-
-    describe("Provider Selection", () => {
-      it("shows Provider dropdown", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Provider")).toBeInTheDocument();
-        });
-      });
-
-      it("shows OpenAI, Anthropic, Custom options in dropdown", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-      renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-      });
-
-      const copilotButtons = screen.getAllByText("Felix Copilot");
-      fireEvent.click(copilotButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByText("Provider")).toBeInTheDocument();
-      });
-
-      const providerSection = screen.getByText("Provider")
-        .parentElement as HTMLElement;
-      const providerSelect = within(providerSection).getByRole("combobox");
-      fireEvent.click(providerSelect);
-
-      await waitFor(() => {
-        // Check that dropdown options include all providers
-        expect(screen.getAllByText("OpenAI").length).toBeGreaterThan(0);
-        expect(screen.getByText("Anthropic")).toBeInTheDocument();
-        expect(screen.getByText("Custom")).toBeInTheDocument();
-      });
-    });
-    });
-
-    describe("Model Selection", () => {
-      it("shows Model dropdown with provider-specific options", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(
-            createMockConfigWithCopilot({ enabled: true, provider: "openai" }),
-          ),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByText("Model")).toBeInTheDocument();
-        const modelSection = screen.getByText("Model")
-          .parentElement as HTMLElement;
-        const modelSelect = within(modelSection).getByRole("combobox");
-        // Default OpenAI model
-        expect(modelSelect).toHaveTextContent("GPT-4o");
-      });
-    });
-    });
-
-    describe("Context Sources", () => {
-      it("shows context sources section with toggles", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Context Sources")).toBeInTheDocument();
-          expect(screen.getByText("AGENTS.md")).toBeInTheDocument();
-          expect(screen.getByText("LEARNINGS.md")).toBeInTheDocument();
-          expect(screen.getByText("prompt.md")).toBeInTheDocument();
-          expect(screen.getByText("requirements")).toBeInTheDocument();
-          // Component shows "Other specs" (lowercase s)
-          expect(screen.getByText("Other specs")).toBeInTheDocument();
-        });
-      });
-    });
-
-    describe("Feature Toggles", () => {
-      it("shows feature toggles section", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          // Component shows "Features" (not "Feature Toggles")
-          expect(screen.getByText("Features")).toBeInTheDocument();
-          expect(screen.getByText("Streaming Responses")).toBeInTheDocument();
-          // Component shows "Auto-suggest Spec Titles" (not "Auto-suggest Titles")
-          expect(
-            screen.getByText("Auto-suggest Spec Titles"),
-          ).toBeInTheDocument();
-          expect(
-            screen.getByText("Context-aware Completions"),
-          ).toBeInTheDocument();
-        });
-      });
-    });
-
-    describe("API Key Section", () => {
-      it("shows API Key configuration section", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          // The component shows "API Key" as the label for the API key section
-          expect(screen.getByText("API Key")).toBeInTheDocument();
-        });
-
-        // Also verify the API key input instructions text is visible
-        // Note: The .env reference only appears in a warning message when connection test fails,
-        // so we check for the "Enter API Key" or "Update API Key" label instead
-        await waitFor(() => {
-          expect(screen.getByText("Enter API Key")).toBeInTheDocument();
-        });
-      });
-
-      it("shows Test Connection button", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Test Connection")).toBeInTheDocument();
-        });
-      });
-
-      it("Test Connection button is disabled when copilot is disabled", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: false })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          const testButton = screen.getByText("Test Connection");
-          expect(testButton).toBeDisabled();
-        });
-      });
-    });
-
-    describe("Reset to Defaults", () => {
-      it("shows Reset to Defaults button", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: true })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Reset to Defaults")).toBeInTheDocument();
-        });
-      });
-    });
-
-    describe("Disabled State", () => {
-      it("disables provider dropdown when copilot is disabled", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: false })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-      await waitFor(() => {
-        // Find the provider dropdown and verify it's disabled
-        const providerSection = screen.getByText("Provider")
-          .parentElement as HTMLElement;
-        const providerSelect = within(providerSection).getByRole("combobox");
-        expect(providerSelect).toBeDisabled();
-      });
-    });
-
-      it("disables model dropdown when copilot is disabled", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfigWithCopilot({ enabled: false })),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-      await waitFor(() => {
-        // Find the model dropdown and verify it's disabled
-        const modelSection = screen.getByText("Model")
-          .parentElement as HTMLElement;
-        const modelSelect = within(modelSection).getByRole("combobox");
-        expect(modelSelect).toBeDisabled();
-      });
-    });
-    });
-
-    describe("Config Persistence", () => {
-      it("saves copilot settings when Save Changes is clicked", async () => {
-        const mockConfig = createMockConfigWithCopilot({ enabled: false });
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(mockConfig),
-        );
-        vi.mocked(felixApi.updateGlobalConfig).mockResolvedValue(
-          mockConfigResponse({
-            ...mockConfig,
-            copilot: { ...mockConfig.copilot!, enabled: true },
-          }),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Felix Copilot")).toBeInTheDocument();
-        });
-
-        const copilotButtons = screen.getAllByText("Felix Copilot");
-        fireEvent.click(copilotButtons[0]);
-
-        await waitFor(() => {
-          expect(screen.getByText("Enable Copilot")).toBeInTheDocument();
-        });
-
-        const enableToggle = screen.getByRole("switch", {
-          name: /enable copilot/i,
-        });
-        fireEvent.click(enableToggle);
-
-        // Wait for Save Changes to be enabled
-        await waitFor(() => {
-          const saveButton = screen.getByText("Save Changes");
-          expect(saveButton).not.toBeDisabled();
-        });
-
-        fireEvent.click(screen.getByText("Save Changes"));
-
-        await waitFor(() => {
-          expect(felixApi.updateGlobalConfig).toHaveBeenCalled();
-        });
-      });
-    });
-  });
-
-  // S-0020: Agent Configuration Settings Tests
-  describe("Agent Configuration Settings (S-0020)", () => {
-    const mockOnBack = vi.fn();
-
-    // Mock agent configurations
-    const mockAgentConfigurations = {
+    describe("Project Agents", () => {
+    const mockAgentProfiles = {
       agents: [
         {
-          id: "agent-0",
-          name: "felix-primary",
+          id: "profile-1",
+          name: "droid-default",
           executable: "droid",
           args: ["exec", "--skip-permissions-unsafe"],
           working_directory: ".",
           environment: {},
         },
-        {
-          id: "agent-1",
-          name: "claude-agent",
-          executable: "claude",
-          args: ["--model", "sonnet"],
-          working_directory: ".",
-          environment: { API_KEY: "test-key" },
-        },
       ],
-      active_agent_id: "agent-0",
+      active_agent_id: "profile-1",
     };
 
-    // Mock agent registry response
-    const mockAgentRegistry = {
-      agents: {},
+    const mockAgentList = {
+      agents: [
+        {
+          id: "agent-1",
+          project_id: mockProjectId,
+          name: "Nova",
+          type: "",
+          status: "idle",
+          heartbeat_at: null,
+          metadata: {},
+          profile_id: "profile-1",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+      ],
+      count: 1,
     };
 
     beforeEach(() => {
       vi.clearAllMocks();
-      // Default mocks for agent configuration API
-      vi.mocked(felixApi.getAgentConfigurations).mockResolvedValue(
-        mockAgentConfigurations,
+      vi.mocked(felixApi.getConfig).mockResolvedValue(
+        mockConfigResponse(createMockConfig()),
       );
-      vi.mocked(felixApi.getAgents).mockResolvedValue(mockAgentRegistry);
+      vi.mocked(felixApi.getAgentConfigurations).mockResolvedValue(
+        mockAgentProfiles,
+      );
+      vi.mocked(apiClient.listAgents).mockResolvedValue({
+        agents: [],
+        count: 0,
+      });
     });
 
-    describe("Agents Category Navigation", () => {
-      it("displays Agents category in sidebar", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
+    it("fetches agents when the Agents tab is selected", async () => {
+      renderWithTheme(
+        <SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />,
+      );
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
+      await waitFor(() => {
+        expect(screen.getByText("Agents")).toBeInTheDocument();
       });
 
-      it("navigates to agents settings when Agents category is clicked", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Agents" }), {
+        button: 0,
+      });
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-
-        // Click on Agents category
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        // Wait for agent configurations to load
-        await waitFor(() => {
-          expect(felixApi.getAgentConfigurations).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(apiClient.listAgents).toHaveBeenCalledWith({
+          scope: "project",
+          projectId: mockProjectId,
         });
       });
     });
 
-    describe("Agent List Display", () => {
-      it("displays all agent configurations from the database", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
+    it("requires an agent profile before enabling Create Agent", async () => {
+      renderWithTheme(
+        <SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />,
+      );
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-
-        // Navigate to Agents category
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          // Both agents should be displayed
-          expect(screen.getByText("felix-primary")).toBeInTheDocument();
-          expect(screen.getByText("claude-agent")).toBeInTheDocument();
-        });
+      await waitFor(() => {
+        expect(screen.getByText("Agents")).toBeInTheDocument();
       });
 
-      it("shows Active badge for the currently active agent", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          // Active badge should be visible (agent 0 is active by default)
-          expect(screen.getByText(/active/i)).toBeInTheDocument();
-        });
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Agents" }), {
+        button: 0,
       });
 
-      it("displays agent executable and args", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /add agent/i }),
+        ).toBeInTheDocument();
+      });
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+      fireEvent.click(screen.getByRole("button", { name: /add agent/i }));
 
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/my-agent/i)).toBeInTheDocument();
+      });
 
-        // First wait for agent configurations to be fetched
-        await waitFor(() => {
-          expect(felixApi.getAgentConfigurations).toHaveBeenCalled();
-        });
+      fireEvent.change(screen.getByPlaceholderText(/my-agent/i), {
+        target: { value: "Nova" },
+      });
 
-        // Then wait for agent names to appear
-        await waitFor(() => {
-          expect(screen.getByText("felix-primary")).toBeInTheDocument();
-        });
+      const createButton = screen.getByText("Create Agent");
+      expect(createButton).toBeDisabled();
 
-        // Finally check executables are visible
-        await waitFor(() => {
-          // Executable info should be visible in code elements
-          expect(screen.getByText("droid")).toBeInTheDocument();
-          expect(screen.getByText("claude")).toBeInTheDocument();
-        });
+      fireEvent.click(screen.getByText("Select an agent profile"));
+      fireEvent.click(screen.getByText("droid-default"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Create Agent")).not.toBeDisabled();
       });
     });
 
-    describe("Set Active Agent", () => {
-      it("calls setActiveAgent API when Set Active button is clicked", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-        vi.mocked(felixApi.setActiveAgent).mockResolvedValue({
-          agent_id: "agent-1",
-          message: "Active agent set",
-        });
+    it("calls registerAgent when the form is submitted", async () => {
+      vi.mocked(apiClient.listAgents).mockResolvedValue(mockAgentList);
+      vi.mocked(apiClient.registerAgent).mockResolvedValue(mockAgentList.agents[0]);
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
+      renderWithTheme(
+        <SettingsScreen projectId={mockProjectId} onBack={mockOnBack} />,
+      );
 
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText("claude-agent")).toBeInTheDocument();
-        });
-
-        // Find and click Set Active button for claude-agent
-        const setActiveButtons = screen.getAllByText(/set active/i);
-        if (setActiveButtons.length > 0) {
-          fireEvent.click(setActiveButtons[0]);
-        }
-
-        await waitFor(() => {
-          expect(felixApi.setActiveAgent).toHaveBeenCalled();
-        });
-      });
-    });
-
-    describe("Add Agent Form", () => {
-      it("shows Add Agent button", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText(/add agent/i)).toBeInTheDocument();
-        });
+      await waitFor(() => {
+        expect(screen.getByText("Agents")).toBeInTheDocument();
       });
 
-      it("opens agent form when Add Agent is clicked", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText(/add agent/i)).toBeInTheDocument();
-        });
-
-        // Click Add Agent button
-        const addButton = screen.getByText(/add agent/i);
-        fireEvent.click(addButton);
-
-        await waitFor(() => {
-          // Form fields should appear
-          expect(screen.getByPlaceholderText(/my-agent/i)).toBeInTheDocument();
-        });
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Agents" }), {
+        button: 0,
       });
 
-      it("calls createAgentConfiguration when form is submitted", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-        vi.mocked(felixApi.createAgentConfiguration).mockResolvedValue({
-          agent: {
-            id: 2,
-            name: "new-agent",
-            executable: "new-exec",
-            args: [],
-            working_directory: ".",
-            environment: {},
-          },
-          message: "Agent created",
-        });
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText(/add agent/i)).toBeInTheDocument();
-        });
-
-        // Click Add Agent button
-        const addButton = screen.getByText(/add agent/i);
-        fireEvent.click(addButton);
-
-        await waitFor(() => {
-          expect(screen.getByPlaceholderText(/my-agent/i)).toBeInTheDocument();
-        });
-
-        // Fill in form fields
-        const nameInput = screen.getByPlaceholderText(/my-agent/i);
-        fireEvent.change(nameInput, { target: { value: "new-agent" } });
-
-        // Find executable input and fill it
-        const executableInputs = screen.getAllByRole("textbox");
-        const executableInput = executableInputs.find(
-          (input) =>
-            input.getAttribute("placeholder")?.toLowerCase().includes("exec") ||
-            input.getAttribute("placeholder") === "droid",
-        );
-        if (executableInput) {
-          fireEvent.change(executableInput, { target: { value: "new-exec" } });
-        }
-
-        // Submit form - find Create Agent button
-        const createButton = screen.getByText("Create Agent");
-        fireEvent.click(createButton);
-
-        await waitFor(() => {
-          expect(felixApi.createAgentConfiguration).toHaveBeenCalled();
-        });
-      });
-    });
-
-    describe("Edit Agent", () => {
-      it("shows Edit button on agent cards", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          // Edit buttons should be visible on agent cards
-          const editButtons = screen.getAllByText(/edit/i);
-          expect(editButtons.length).toBeGreaterThan(0);
-        });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /add agent/i }),
+        ).toBeInTheDocument();
       });
 
-      it("calls updateAgentConfiguration when edit form is submitted", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-        vi.mocked(felixApi.updateAgentConfiguration).mockResolvedValue({
-          agent: {
-            id: "agent-0",
-            name: "updated-name",
-            executable: "droid",
-            args: [],
-            working_directory: ".",
-            environment: {},
-          },
-          message: "Agent updated",
-        });
+      fireEvent.click(screen.getByRole("button", { name: /add agent/i }));
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText("felix-primary")).toBeInTheDocument();
-        });
-
-        // Click Edit on first agent
-        const editButtons = screen.getAllByText(/edit/i);
-        if (editButtons.length > 0) {
-          fireEvent.click(editButtons[0]);
-        }
-
-        // Wait for form to appear with pre-filled values
-        await waitFor(() => {
-          // The form should have some input with the agent name
-          const inputs = screen.getAllByRole("textbox");
-          expect(inputs.length).toBeGreaterThan(0);
-        });
-
-        // Find and update the name input
-        const nameInput = screen.getByDisplayValue("felix-primary");
-        if (nameInput) {
-          fireEvent.change(nameInput, { target: { value: "updated-name" } });
-        }
-
-        // Submit form - find Update Agent button (when editing)
-        const updateButton = screen.getByText("Update Agent");
-        fireEvent.click(updateButton);
-
-        await waitFor(() => {
-          expect(felixApi.updateAgentConfiguration).toHaveBeenCalled();
-        });
-      });
-    });
-
-    describe("Delete Agent", () => {
-      it("disables delete button for system default agent (ID 0)", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText("felix-primary")).toBeInTheDocument();
-        });
-
-        // Find delete buttons
-        const deleteButtons = screen.getAllByText(/delete/i);
-
-        // At least one delete button should exist (for non-system-default agents)
-        // The system default agent's delete button should be disabled or not present
-        // Check that there's a delete button that is enabled (for agent ID 1)
-        const enabledDeleteButton = deleteButtons.find((btn) => {
-          const button = btn.closest("button");
-          return button && !button.disabled;
-        });
-
-        expect(enabledDeleteButton).toBeDefined();
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/my-agent/i)).toBeInTheDocument();
       });
 
-      it("calls deleteAgentConfiguration for non-system-default agents", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-        vi.mocked(felixApi.deleteAgentConfiguration).mockResolvedValue({
-          status: "deleted",
-          agent_id: "agent-1",
-          message: "Agent deleted",
-        });
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText("claude-agent")).toBeInTheDocument();
-        });
-
-        // Find and click delete button for the non-default agent
-        const deleteButtons = screen.getAllByText(/delete/i);
-        const enabledDeleteButton = deleteButtons.find((btn) => {
-          const button = btn.closest("button");
-          return button && !button.disabled;
-        });
-
-        if (enabledDeleteButton) {
-          fireEvent.click(enabledDeleteButton);
-        }
-
-        // Wait for confirmation dialog and click Confirm Delete
-        await waitFor(() => {
-          expect(screen.getByText("Confirm Delete")).toBeInTheDocument();
-        });
-
-        fireEvent.click(screen.getByText("Confirm Delete"));
-
-        await waitFor(() => {
-          expect(felixApi.deleteAgentConfiguration).toHaveBeenCalled();
-        });
-      });
-    });
-
-    describe("Error Handling", () => {
-      it("displays error when agent configurations fail to load", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-        vi.mocked(felixApi.getAgentConfigurations).mockRejectedValue(
-          new Error("Failed to load agent configs"),
-        );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          // Error message should be displayed
-          expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
-        });
+      fireEvent.change(screen.getByPlaceholderText(/my-agent/i), {
+        target: { value: "Nova" },
       });
 
-      it("shows Try Again button when agent configs fail to load", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
-        );
-        vi.mocked(felixApi.getAgentConfigurations).mockRejectedValue(
-          new Error("Failed to load"),
-        );
+      fireEvent.click(screen.getByText("Select an agent profile"));
+      fireEvent.click(screen.getByText("droid-default"));
 
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        await waitFor(() => {
-          expect(screen.getByText(/try again/i)).toBeInTheDocument();
-        });
+      fireEvent.change(screen.getByPlaceholderText(/ralph/i), {
+        target: { value: "pilot" },
       });
-    });
 
-    describe("Refresh Functionality", () => {
-      it("refreshes agent configurations when refresh button is clicked", async () => {
-        vi.mocked(felixApi.getGlobalConfig).mockResolvedValue(
-          mockConfigResponse(createMockConfig()),
+      fireEvent.click(screen.getByText("Create Agent"));
+
+      await waitFor(() => {
+        expect(apiClient.registerAgent).toHaveBeenCalledWith(
+          expect.any(String),
+          "Nova",
+          "pilot",
+          { source: "ui" },
+          "profile-1",
         );
-
-        renderWithTheme(<SettingsScreen onBack={mockOnBack} />);
-
-        await waitFor(() => {
-          expect(screen.getByText("Agents")).toBeInTheDocument();
-        });
-        const agentsTab = screen.getByRole("tab", { name: "Agents" });
-        fireEvent.click(agentsTab);
-
-        // Wait for initial load
-        await waitFor(() => {
-          expect(felixApi.getAgentConfigurations).toHaveBeenCalledTimes(1);
-        });
-
-        // Find and click refresh button by text content
-        const refreshButton = screen.getByText("Refresh");
-        fireEvent.click(refreshButton);
-
-        await waitFor(() => {
-          // Should have been called again
-          expect(felixApi.getAgentConfigurations).toHaveBeenCalledTimes(2);
-        });
       });
     });
   });
 });
+
 
