@@ -237,7 +237,7 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0060",
@@ -252,7 +252,7 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0057",
@@ -267,13 +267,13 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0058",
                              "title":  "S-0058: Run Artifact Sync - Database Schema Extensions",
                              "spec_path":  "specs/S-0058-runs-database-schema-extensions.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "tags":  [
 
@@ -282,7 +282,7 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0063",
@@ -297,7 +297,7 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0064",
@@ -312,7 +312,7 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0061",
@@ -327,7 +327,7 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0062",
@@ -342,7 +342,7 @@
 
                                             ],
                              "updated_at":  "2026-02-16",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0051",
@@ -413,7 +413,7 @@
 
                                             ],
                              "updated_at":  "2026-02-09",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0056",
@@ -428,7 +428,7 @@
 
                                             ],
                              "updated_at":  "2026-02-08",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0053",
@@ -457,7 +457,7 @@
 
                                             ],
                              "updated_at":  "2026-02-06",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0032",
@@ -917,7 +917,7 @@
 
                                             ],
                              "updated_at":  "2026-02-06",
-                             "commit_on_complete":  false
+                             "commit_on_complete":  true
                          },
                          {
                              "id":  "S-0023",
