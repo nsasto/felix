@@ -6,8 +6,12 @@
                              "spec_path":  "specs/S-0043-supabase-setup-migration.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -16,8 +20,12 @@
                              "spec_path":  "specs/S-0044-rls-policies.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -26,8 +34,12 @@
                              "spec_path":  "specs/S-0041-console-streaming-websocket.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -36,8 +48,12 @@
                              "spec_path":  "specs/S-0042-frontend-api-client.md",
                              "status":  "done",
                              "priority":  "high",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16"
                          },
                          {
@@ -46,8 +62,12 @@
                              "spec_path":  "specs/S-0047-frontend-supabase-client.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -56,8 +76,12 @@
                              "spec_path":  "specs/S-0048-project-state-realtime.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -66,8 +90,12 @@
                              "spec_path":  "specs/S-0045-jwt-auth-integration.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -76,8 +104,12 @@
                              "spec_path":  "specs/S-0046-personal-org-creation.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -86,8 +118,12 @@
                              "spec_path":  "specs/S-0035-database-schema-migrations.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -96,8 +132,12 @@
                              "spec_path":  "specs/S-0036-backend-db-integration.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -106,8 +146,12 @@
                              "spec_path":  "specs/S-0033-remove-frontend-polling.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -116,8 +160,12 @@
                              "spec_path":  "specs/S-0034-cleanup-verification-docs.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -126,8 +174,12 @@
                              "spec_path":  "specs/S-0039-control-websocket.md",
                              "status":  "done",
                              "priority":  "high",
-                             "tags": [],
-                             "depends_on":  ["S-0038"],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+                                                "S-0038"
+                                            ],
                              "updated_at":  "2026-02-16"
                          },
                          {
@@ -136,8 +188,12 @@
                              "spec_path":  "specs/S-0040-run-control-api.md",
                              "status":  "done",
                              "priority":  "high",
-                             "tags": [],
-                             "depends_on":  ["S-0039"],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+                                                "S-0039"
+                                            ],
                              "updated_at":  "2026-02-16"
                          },
                          {
@@ -146,8 +202,12 @@
                              "spec_path":  "specs/S-0037-database-writers.md",
                              "status":  "done",
                              "priority":  "high",
-                             "tags": [],
-                             "depends_on":  ["S-0036"],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+                                                "S-0036"
+                                            ],
                              "updated_at":  "2026-02-16"
                          },
                          {
@@ -156,8 +216,12 @@
                              "spec_path":  "specs/S-0038-agent-registration-heartbeat.md",
                              "status":  "done",
                              "priority":  "high",
-                             "tags": [],
-                             "depends_on":  ["S-0037"],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+                                                "S-0037"
+                                            ],
                              "updated_at":  "2026-02-16"
                          },
                          {
@@ -166,8 +230,12 @@
                              "spec_path":  "specs/S-0059-storage-abstraction-layer.md",
                              "status":  "planned",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -177,8 +245,12 @@
                              "spec_path":  "specs/S-0060-backend-sync-endpoints.md",
                              "status":  "planned",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -188,8 +260,12 @@
                              "spec_path":  "specs/S-0057-runs-sync-preparation.md",
                              "status":  "planned",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -197,10 +273,14 @@
                              "id":  "S-0058",
                              "title":  "S-0058: Run Artifact Sync - Database Schema Extensions",
                              "spec_path":  "specs/S-0058-runs-database-schema-extensions.md",
-                             "status":  "planned",
+                             "status":  "in_progress",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -210,8 +290,12 @@
                              "spec_path":  "specs/S-0063-frontend-artifact-viewer.md",
                              "status":  "planned",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -221,8 +305,12 @@
                              "spec_path":  "specs/S-0064-runs-sync-production-readiness.md",
                              "status":  "planned",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -232,8 +320,12 @@
                              "spec_path":  "specs/S-0061-cli-sync-plugin.md",
                              "status":  "planned",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -243,8 +335,12 @@
                              "spec_path":  "specs/S-0062-runs-sync-e2e-testing.md",
                              "status":  "planned",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-16",
                              "commit_on_complete":  false
                          },
@@ -254,8 +350,12 @@
                              "spec_path":  "specs/S-0051-monitoring-logging-health.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -264,8 +364,12 @@
                              "spec_path":  "specs/S-0052-docker-deployment.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -274,8 +378,12 @@
                              "spec_path":  "specs/S-0049-org-context-switcher.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -284,8 +392,12 @@
                              "spec_path":  "specs/S-0050-data-migration-script.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -294,8 +406,12 @@
                              "spec_path":  "specs/S-0055-windows-tray-remote-enhancements.md",
                              "status":  "draft",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-09",
                              "commit_on_complete":  false
                          },
@@ -305,8 +421,12 @@
                              "spec_path":  "specs/S-0056-tray-manager-ui-modernization.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-08",
                              "commit_on_complete":  false
                          },
@@ -316,8 +436,12 @@
                              "spec_path":  "specs/S-0053-production-testing.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -326,8 +450,12 @@
                              "spec_path":  "specs/S-0054-windows-tray-manager.md",
                              "status":  "draft",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06",
                              "commit_on_complete":  false
                          },
@@ -337,8 +465,12 @@
                              "spec_path":  "specs/S-0032-remove-backend-file-ops.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -365,8 +497,12 @@
                              "spec_path":  "specs/S-0011-kanban-detail-artifact-viewer.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -375,7 +511,9 @@
                              "spec_path":  "specs/S-0008-projects-settings-screen.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
+                             "tags":  [
+
+                                      ],
                              "depends_on":  [
                                                 "S-0002",
                                                 "S-0007"
@@ -406,8 +544,12 @@
                              "spec_path":  "specs/S-0014-agent-orchestration-dashboard.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -433,8 +575,12 @@
                              "spec_path":  "specs/S-0012-done-status.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -443,8 +589,12 @@
                              "spec_path":  "specs/S-0013-agent-settings-registry.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -490,7 +640,9 @@
                                           "testing",
                                           "dummy"
                                       ],
-                             "depends_on": [],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-09",
                              "commit_on_complete":  false
                          },
@@ -504,7 +656,9 @@
                                           "foundation",
                                           "agent"
                                       ],
-                             "depends_on":  ["S-0005"],
+                             "depends_on":  [
+                                                "S-0005"
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -518,7 +672,9 @@
                                           "ux",
                                           "safety"
                                       ],
-                             "depends_on":  ["S-0003"],
+                             "depends_on":  [
+                                                "S-0003"
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -548,7 +704,9 @@
                                           "tooling",
                                           "dx"
                                       ],
-                             "depends_on":  ["S-0005"],
+                             "depends_on":  [
+                                                "S-0005"
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -562,7 +720,9 @@
                                           "validation",
                                           "agent"
                                       ],
-                             "depends_on": [],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -571,8 +731,12 @@
                              "spec_path":  "specs/S-0026-remember-last-project.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -581,8 +745,12 @@
                              "spec_path":  "specs/S-0027-fix-repeating-streaming-copilot-output.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -591,8 +759,12 @@
                              "spec_path":  "specs/S-0024-sleeker-toolbar-buttons.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -601,8 +773,12 @@
                              "spec_path":  "specs/S-0025-compact-kanban-cards.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -611,8 +787,12 @@
                              "spec_path":  "specs/S-0030-agent-trace.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -621,8 +801,12 @@
                              "spec_path":  "specs/S-0031-remove-file-websocket.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -631,8 +815,12 @@
                              "spec_path":  "specs/S-0028-show-done-in-dropzone.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -641,8 +829,12 @@
                              "spec_path":  "specs/S-0029-connect-live-polling.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -656,7 +848,9 @@
                                           "validation",
                                           "ux"
                                       ],
-                             "depends_on":  ["S-0003"],
+                             "depends_on":  [
+                                                "S-0003"
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -665,8 +859,12 @@
                              "spec_path":  "specs/S-0019-settings-not-project-dependent.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -712,8 +910,12 @@
                              "spec_path":  "specs/S-0022-copilot-apikey-storage.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06",
                              "commit_on_complete":  false
                          },
@@ -723,8 +925,12 @@
                              "spec_path":  "specs/S-0023-live-polling-onoff.md",
                              "status":  "complete",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -733,8 +939,12 @@
                              "spec_path":  "specs/S-0020-consolidate-agent-settings.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          },
                          {
@@ -743,8 +953,12 @@
                              "spec_path":  "specs/S-0021-agent-orchestration-enhancement.md",
                              "status":  "done",
                              "priority":  "medium",
-                             "tags": [],
-                             "depends_on": [],
+                             "tags":  [
+
+                                      ],
+                             "depends_on":  [
+
+                                            ],
                              "updated_at":  "2026-02-06"
                          }
                      ]

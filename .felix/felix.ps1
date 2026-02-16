@@ -808,6 +808,9 @@ function Invoke-List {
         }
     }
 
+    # Sort by ID for consistent ordering
+    $filtered = $filtered | Sort-Object { $_.id }
+
     if ($Format -eq "json") {
         $filtered | ConvertTo-Json -Depth 10
     } 
