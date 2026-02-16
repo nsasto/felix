@@ -546,8 +546,20 @@ async def get_run_history(
         # Get run IDs already in memory to avoid duplicates
         existing_run_ids = {r.run_id for r in runs}
 
+        # Get all run directories and sort by name (most recent first)
+        # Run directory names are timestamps, so lexicographic sort works
+        all_run_dirs = sorted(
+            [d for d in runs_dir.iterdir() if d.is_dir()],
+            key=lambda d: d.name,
+            reverse=True,
+        )
+
+        # Only scan the most recent 100 runs to avoid slow filesystem traversal
+        # This significantly improves dashboard load time with many historical runs
+        recent_run_dirs = all_run_dirs[:100]
+
         # Scan run directories
-        for run_dir in runs_dir.iterdir():
+        for run_dir in recent_run_dirs:
             if not run_dir.is_dir():
                 continue
 
@@ -611,9 +623,7 @@ async def get_run_history(
             agent_name_file = run_dir / "agent_name.txt"
             if agent_name_file.exists():
                 try:
-                    run_agent_name = agent_name_file.read_text(
-                        encoding="utf-8"
-                    ).strip()
+                    run_agent_name = agent_name_file.read_text(encoding="utf-8").strip()
                 except Exception:
                     pass
 
