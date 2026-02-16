@@ -117,6 +117,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   >(null);
   const [configProjectName, setConfigProjectName] = useState("");
   const [configProjectPath, setConfigProjectPath] = useState("");
+  const [configProjectGitRepo, setConfigProjectGitRepo] = useState("");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [orgConfig, setOrgConfig] = useState<FelixConfig | null>(null);
   const [orgConfigOriginal, setOrgConfigOriginal] = useState<FelixConfig | null>(
@@ -1125,6 +1126,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                           setConfiguringProjectId(project.id);
                           setConfigProjectName(project.name || "");
                           setConfigProjectPath(project.path);
+                          setConfigProjectGitRepo(project.git_repo || "");
                         }}
                         variant="secondary"
                         size="sm"
@@ -1182,12 +1184,29 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                             Full path to the project directory (must contain specs/ and felix/ directories)
                           </p>
                         </div>
+                        <div>
+                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                            Git Repository (optional)
+                          </label>
+                          <Input
+                            type="text"
+                            value={configProjectGitRepo}
+                            onChange={(e) =>
+                              setConfigProjectGitRepo(e.target.value)
+                            }
+                            placeholder="https://github.com/username/repo.git"
+                          />
+                          <p className="mt-1.5 text-[10px] theme-text-muted">
+                            Git repository URL (optional). Validated on save.
+                          </p>
+                        </div>
                         <div className="flex justify-end gap-3">
                           <Button
                             onClick={() => {
                               setConfiguringProjectId(null);
                               setConfigProjectName("");
                               setConfigProjectPath("");
+                              setConfigProjectGitRepo("");
                             }}
                             variant="ghost"
                             size="sm"
@@ -1201,15 +1220,22 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                               try {
                                 const pathChanged =
                                   configProjectPath.trim() !== project.path;
+                                const gitRepoChanged =
+                                  configProjectGitRepo.trim() !==
+                                  (project.git_repo || "");
                                 await felixApi.updateProject(project.id, {
                                   name: configProjectName.trim() || undefined,
                                   path: pathChanged
                                     ? configProjectPath.trim()
                                     : undefined,
+                                  git_repo: gitRepoChanged
+                                    ? configProjectGitRepo.trim() || null
+                                    : undefined,
                                 });
                                 setConfiguringProjectId(null);
                                 setConfigProjectName("");
                                 setConfigProjectPath("");
+                                setConfigProjectGitRepo("");
                                 fetchProjects();
                               } catch (err) {
                                 setProjectsError(

@@ -21,14 +21,15 @@ ON CONFLICT (id) DO NOTHING;
 -- Fixed UUID: 00000000-0000-0000-0000-000000000001
 -- Belongs to untruaxioms organization
 -- ============================================================================
-INSERT INTO projects (id, org_id, name, slug, description, metadata)
+INSERT INTO projects (id, org_id, name, slug, description, metadata, path)
 VALUES (
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000001',
     'Felix',
     'felix',
     'Felix AI agent orchestration system',
-    '{}'::jsonb
+    '{}'::jsonb,
+    'C:\\dev\\felix'
 )
 ON CONFLICT (id) DO NOTHING;
 
