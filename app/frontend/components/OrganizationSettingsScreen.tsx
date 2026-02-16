@@ -2,7 +2,10 @@
 import { felixApi, FelixConfig, Project } from "../services/felixApi";
 import { AlertTriangle, Copy, Folder, Plus, Search, X } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import DataSurface from "./DataSurface";
+import FilterPopover from "./FilterPopover";
 import { Input } from "./ui/input";
 import { PageLoading } from "./ui/page-loading";
 import {
@@ -14,6 +17,32 @@ import {
 } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Switch } from "./ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 type OrgTab =
   | "members"
@@ -73,6 +102,61 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const [orgValidationErrors, setOrgValidationErrors] = useState<
     Record<string, string>
   >({});
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [memberFilters, setMemberFilters] = useState<Record<string, Set<string>>>({
+    role: new Set(),
+    status: new Set(),
+  });
+
+  const initialMembers = [
+    {
+      id: "member-1",
+      name: "Ari Nguyen",
+      email: "ari.nguyen@untrueaxioms.io",
+      role: "Owner",
+      status: "Active",
+      lastActive: "2m ago",
+      joinedAt: "2026-01-05",
+    },
+    {
+      id: "member-2",
+      name: "Maya Patel",
+      email: "maya.patel@untrueaxioms.io",
+      role: "Admin",
+      status: "Active",
+      lastActive: "38m ago",
+      joinedAt: "2026-01-22",
+    },
+    {
+      id: "member-3",
+      name: "Sam Ortega",
+      email: "sam.ortega@untrueaxioms.io",
+      role: "Member",
+      status: "Active",
+      lastActive: "3h ago",
+      joinedAt: "2026-02-02",
+    },
+    {
+      id: "member-4",
+      name: "Jess Lin",
+      email: "jess.lin@untrueaxioms.io",
+      role: "Member",
+      status: "Invited",
+      lastActive: "Awaiting",
+      joinedAt: "2026-02-15",
+    },
+  ];
+  const [orgMembers, setOrgMembers] = useState(initialMembers);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [manageMember, setManageMember] = useState<
+    (typeof initialMembers)[number] | null
+  >(null);
+  const [manageRole, setManageRole] = useState("member");
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
     setProjectsLoading(true);
@@ -194,7 +278,445 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     }
   };
 
-    const renderProjectsTab = () => {
+  const renderMembersTab = () => {
+    const filteredMembers = orgMembers.filter((member) => {
+      const query = memberSearchQuery.trim().toLowerCase();
+      const matchesQuery =
+        !query ||
+        member.name.toLowerCase().includes(query) ||
+        member.email.toLowerCase().includes(query);
+      const matchesRole =
+        memberFilters.role.size === 0 ||
+        memberFilters.role.has(member.role.toLowerCase());
+      const matchesStatus =
+        memberFilters.status.size === 0 ||
+        memberFilters.status.has(member.status.toLowerCase());
+      return matchesQuery && matchesRole && matchesStatus;
+    });
+
+    const roleOptions = Array.from(
+      new Set(orgMembers.map((member) => member.role.toLowerCase())),
+    );
+    const statusOptions = Array.from(
+      new Set(orgMembers.map((member) => member.status.toLowerCase())),
+    );
+
+    const statusVariant =
+      (status: string): React.ComponentProps<typeof Badge>["variant"] => {
+        switch (status.toLowerCase()) {
+          case "active":
+            return "success";
+          case "invited":
+            return "warning";
+          default:
+            return "default";
+        }
+      };
+
+    const formatRoleLabel = (role: string) =>
+      role.charAt(0).toUpperCase() + role.slice(1);
+
+    const parseNameFromEmail = (email: string) => {
+      const handle = email.split("@")[0] || "New member";
+      return handle
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    };
+
+    const handleInviteSubmit = () => {
+      const trimmedEmail = inviteEmail.trim().toLowerCase();
+      if (!trimmedEmail) {
+        setInviteError("Email is required.");
+        return;
+      }
+      if (!/^[^@]+@[^@]+\.[^@]+$/.test(trimmedEmail)) {
+        setInviteError("Enter a valid email address.");
+        return;
+      }
+      if (orgMembers.some((member) => member.email === trimmedEmail)) {
+        setInviteError("This member is already in the organization.");
+        return;
+      }
+      const newMember = {
+        id: `member-${Date.now()}`,
+        name: parseNameFromEmail(trimmedEmail),
+        email: trimmedEmail,
+        role: formatRoleLabel(inviteRole),
+        status: "Invited",
+        lastActive: "Awaiting",
+        joinedAt: new Date().toISOString().slice(0, 10),
+      };
+      setOrgMembers((prev) => [newMember, ...prev]);
+      setInviteEmail("");
+      setInviteRole("member");
+      setInviteError(null);
+      setInviteOpen(false);
+    };
+
+    const openManageMember = (member: (typeof initialMembers)[number]) => {
+      setManageMember(member);
+      setManageRole(member.role.toLowerCase());
+    };
+
+    const handleManageSave = () => {
+      if (!manageMember) return;
+      const updatedRole = formatRoleLabel(manageRole);
+      setOrgMembers((prev) =>
+        prev.map((member) =>
+          member.id === manageMember.id
+            ? { ...member, role: updatedRole }
+            : member,
+        ),
+      );
+      setManageMember(null);
+    };
+
+    const handleRemoveMember = () => {
+      if (!pendingRemoveId) return;
+      setOrgMembers((prev) =>
+        prev.filter((member) => member.id !== pendingRemoveId),
+      );
+      setPendingRemoveId(null);
+      setConfirmRemoveOpen(false);
+      setManageMember(null);
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-lg font-semibold">Members and Roles</h3>
+            <p className="text-xs theme-text-muted mt-1">
+              Manage organization access and role assignments.
+            </p>
+          </div>
+          <Button size="sm" className="uppercase" onClick={() => setInviteOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Invite Member
+          </Button>
+        </div>
+        <DataSurface
+          className="pt-0 -mx-6"
+          search={(
+            <div className="relative w-full max-w-sm">
+              <Input
+                type="text"
+                placeholder="Search members by name or email..."
+                value={memberSearchQuery}
+                onChange={(e) => setMemberSearchQuery(e.target.value)}
+                className="h-9 pl-9 text-sm"
+              />
+              <Search className="w-4 h-4 theme-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+            </div>
+          )}
+          filters={(
+            <FilterPopover
+              groups={[
+                {
+                  key: "role",
+                  label: "Role",
+                  options: roleOptions.map((role) => ({
+                    label: formatRoleLabel(role),
+                    value: role,
+                  })),
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  options: statusOptions.map((status) => ({
+                    label: formatRoleLabel(status),
+                    value: status,
+                  })),
+                },
+              ]}
+              value={memberFilters}
+              onChange={setMemberFilters}
+              label="Filter members"
+            />
+          )}
+          footer={(
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-semibold theme-text-secondary">
+                  Members summary
+                </h4>
+                <p className="text-[11px] theme-text-muted mt-1">
+                  {orgMembers.length} total, {orgMembers.filter((m) => m.status === "Active").length} active.
+                </p>
+              </div>
+              <Badge variant="default">Org Scope</Badge>
+            </div>
+          )}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Member</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last Active</TableHead>
+                <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMembers.map((member) => (
+                <TableRow key={member.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[var(--bg-surface-200)] flex items-center justify-center text-[11px] font-bold text-[var(--text-muted)]">
+                        {member.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .slice(0, 2)
+                          .join("")}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold theme-text-secondary">
+                          {member.name}
+                        </p>
+                        <p className="text-[11px] theme-text-muted">
+                          {member.email}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-semibold theme-text-secondary">
+                      {member.role}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={statusVariant(member.status)}>
+                      {member.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs theme-text-muted">
+                      {member.lastActive}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs theme-text-muted">
+                      {new Date(member.joinedAt).toLocaleDateString()}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-[10px] font-bold"
+                      onClick={() => openManageMember(member)}
+                    >
+                      Manage
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredMembers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <div className="py-6 text-center text-xs theme-text-muted">
+                      No members match the current filters.
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </DataSurface>
+
+        <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <div>
+                <DialogTitle>Invite Member</DialogTitle>
+                <DialogDescription>
+                  Send an invitation to join this organization.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setInviteOpen(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </DialogHeader>
+            <div className="px-4 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Email Address
+                </label>
+                <Input
+                  type="email"
+                  placeholder="member@company.com"
+                  value={inviteEmail}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value);
+                    if (inviteError) {
+                      setInviteError(null);
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                  Role
+                </label>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {inviteError && (
+                <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+                  <AlertDescription className="text-xs">
+                    {inviteError}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setInviteOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="uppercase" onClick={handleInviteSubmit}>
+                Send Invite
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!manageMember} onOpenChange={(open) => {
+          if (!open) setManageMember(null);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <div>
+                <DialogTitle>Manage Member</DialogTitle>
+                <DialogDescription>
+                  Adjust access level and manage membership.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setManageMember(null)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </DialogHeader>
+            {manageMember && (
+              <div className="px-4 py-4 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[var(--bg-surface-200)] flex items-center justify-center text-[11px] font-bold text-[var(--text-muted)]">
+                    {manageMember.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .slice(0, 2)
+                      .join("")}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold theme-text-secondary">
+                      {manageMember.name}
+                    </p>
+                    <p className="text-[11px] theme-text-muted">
+                      {manageMember.email}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold theme-text-tertiary mb-2">
+                    Role
+                  </label>
+                  <Select value={manageRole} onValueChange={setManageRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {manageMember.status.toLowerCase() === "invited" && (
+                  <div className="flex items-center justify-between rounded-lg border border-[var(--border-muted)] p-3 text-xs">
+                    <span className="theme-text-muted">
+                      Invitation pending. Last sent {manageMember.joinedAt}.
+                    </span>
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold">
+                      Resend
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter className="justify-between">
+              <Button
+                variant="destructive"
+                size="sm"
+                className="bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
+                onClick={() => {
+                  if (!manageMember) return;
+                  setPendingRemoveId(manageMember.id);
+                  setConfirmRemoveOpen(true);
+                }}
+              >
+                Remove Member
+              </Button>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setManageMember(null)}>
+                  Cancel
+                </Button>
+                <Button size="sm" className="uppercase" onClick={handleManageSave}>
+                  Save Changes
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Member</AlertDialogTitle>
+              <AlertDialogDescription>
+                This member will lose access to the organization immediately.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant="ghost" size="sm">
+                  Cancel
+                </Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  size="sm"
+                  className="bg-[var(--destructive-500)] text-white hover:bg-[var(--destructive-600)]"
+                  onClick={handleRemoveMember}
+                >
+                  Remove
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  };
+
+  const renderProjectsTab = () => {
     const filteredProjects = projects.filter((project) => {
       if (!projectSearchQuery.trim()) return true;
       const query = projectSearchQuery.toLowerCase();
@@ -627,6 +1149,9 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const renderActiveTab = () => {
     if (activeTab === "projects") {
       return renderProjectsTab();
+    }
+    if (activeTab === "members") {
+      return renderMembersTab();
     }
     if (activeTab === "policies") {
       const hasChanges =
