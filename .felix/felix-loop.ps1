@@ -93,14 +93,15 @@ function Select-NextRequirement {
     }
     
     # Find first in_progress, then first planned (explicitly exclude complete, blocked, done)
+    # Sort by ID to ensure sequential processing (S-0001, S-0002, etc.)
     $req = $requirements.requirements | Where-Object { 
         $_.status -eq "in_progress" 
-    } | Select-Object -First 1
+    } | Sort-Object { $_.id } | Select-Object -First 1
     
     if (-not $req) {
         $req = $requirements.requirements | Where-Object { 
             $_.status -eq "planned" 
-        } | Select-Object -First 1
+        } | Sort-Object { $_.id } | Select-Object -First 1
     }
     
     return $req
