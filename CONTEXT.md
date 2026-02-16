@@ -124,6 +124,8 @@ Felix is a plan-driven executor for autonomous software delivery. It transforms 
   - Run: `powershell -File .\scripts\test-frontend.ps1`
   - Setup: `app/frontend/src/__tests__/setup.ts`
   - Environment: happy-dom
+  - Pool: threads (required for Windows, prevents fork timeout issues)
+  - Configuration: `app/frontend/vite.config.ts`
 - **Agent (PowerShell):**
   - Location: `.felix/tests/`
   - Harness: `.felix/plugins/test-harness.ps1`

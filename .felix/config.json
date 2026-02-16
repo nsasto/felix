@@ -52,5 +52,11 @@
       "auto_suggest": true,
       "context_aware": true
     }
+  },
+  "sync": {
+    "enabled": false,
+    "provider": "fastapi",
+    "base_url": "http://localhost:8080",
+    "api_key": null
   }
 }
