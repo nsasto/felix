@@ -111,6 +111,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
@@ -181,6 +185,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     const fetchConfig = async () => {
       setLoading(true);
       setError(null);
+      setSaveMessage(null);
 
       try {
         // Use global settings API when no projectId, otherwise use project-specific API
@@ -518,6 +523,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     setSaving(true);
     setError(null);
+    setSaveMessage(null);
 
     try {
       if (hasConfigChanges) {
@@ -544,16 +550,32 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       if (hasConfigChanges && hasProjectChanges) {
         toast.success("Settings saved successfully");
+        setSaveMessage({
+          type: "success",
+          text: "Settings saved successfully",
+        });
       } else if (hasProjectChanges) {
         toast.success("Project updated successfully");
+        setSaveMessage({
+          type: "success",
+          text: "Project updated successfully",
+        });
       } else if (hasConfigChanges) {
         toast.success("Configuration saved successfully");
+        setSaveMessage({
+          type: "success",
+          text: "Configuration saved successfully",
+        });
       }
     } catch (err) {
       console.error("Failed to save settings:", err);
       const message =
         err instanceof Error ? err.message : "Failed to save settings";
       setError(message);
+      setSaveMessage({
+        type: "error",
+        text: message,
+      });
       if (hasProjectChanges) {
         setCurrentProjectError(message);
       }
@@ -561,6 +583,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!saveMessage) return undefined;
+    const timeout = setTimeout(() => setSaveMessage(null), 3000);
+    return () => clearTimeout(timeout);
+  }, [saveMessage]);
 
   // Reset to original config
   const handleReset = () => {
@@ -1665,6 +1693,21 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--status-warning)]">
                   <div className="w-1.5 h-1.5 rounded-full bg-[var(--status-warning)] animate-pulse" />
                   <span className="font-mono uppercase">Unsaved changes</span>
+                </div>
+              )}
+              {saveMessage && (
+                <div className="mt-3">
+                  <Alert
+                    className={
+                      saveMessage.type === "error"
+                        ? "border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]"
+                        : "border-[var(--status-success)]/30 bg-[var(--status-success)]/10 text-[var(--status-success)]"
+                    }
+                  >
+                    <AlertDescription className="text-xs">
+                      {saveMessage.text}
+                    </AlertDescription>
+                  </Alert>
                 </div>
               )}
             </div>

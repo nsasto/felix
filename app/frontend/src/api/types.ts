@@ -84,3 +84,42 @@ export interface RunListResponse {
   /** Total number of runs returned */
   count: number;
 }
+
+/**
+ * Organization member response.
+ * Matches OrganizationMember in backend models.py.
+ */
+export interface OrgMember {
+  id: string;
+  org_id: string;
+  user_id: string;
+  role: string;
+  email: string | null;
+  display_name: string | null;
+  full_name: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/**
+ * Organization invite response.
+ * Matches OrganizationInvite in backend models.py.
+ */
+export interface OrgInvite {
+  id: string;
+  org_id: string;
+  email: string;
+  role: string;
+  status: string;
+  invited_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Response model for listing members and invites.
+ */
+export interface OrgMembersResponse {
+  members: OrgMember[];
+  invites: OrgInvite[];
+}

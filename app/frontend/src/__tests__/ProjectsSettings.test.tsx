@@ -54,6 +54,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
   it("loads projects on mount and shows the list", async () => {
     renderWithTheme(
       <OrganizationSettingsScreen
+        orgId="00000000-0000-0000-0000-000000000001"
         organizationName="Acme"
         roleLabel="Owner"
         onBack={mockOnBack}
@@ -77,6 +78,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
 
     renderWithTheme(
       <OrganizationSettingsScreen
+        orgId="00000000-0000-0000-0000-000000000001"
         organizationName="Acme"
         roleLabel="Owner"
         onBack={mockOnBack}
@@ -97,6 +99,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
 
     renderWithTheme(
       <OrganizationSettingsScreen
+        orgId="00000000-0000-0000-0000-000000000001"
         organizationName="Acme"
         roleLabel="Owner"
         onBack={mockOnBack}
@@ -115,6 +118,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
 
     renderWithTheme(
       <OrganizationSettingsScreen
+        orgId="00000000-0000-0000-0000-000000000001"
         organizationName="Acme"
         roleLabel="Owner"
         onBack={mockOnBack}
@@ -137,6 +141,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
 
     renderWithTheme(
       <OrganizationSettingsScreen
+        orgId="00000000-0000-0000-0000-000000000001"
         organizationName="Acme"
         roleLabel="Owner"
         onBack={mockOnBack}
@@ -189,6 +194,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
   it("filters projects by search query", async () => {
     renderWithTheme(
       <OrganizationSettingsScreen
+        orgId="00000000-0000-0000-0000-000000000001"
         organizationName="Acme"
         roleLabel="Owner"
         onBack={mockOnBack}

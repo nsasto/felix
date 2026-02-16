@@ -9,6 +9,9 @@
 import type {
   Agent,
   AgentListResponse,
+  OrgInvite,
+  OrgMember,
+  OrgMembersResponse,
   Run,
   RunListResponse,
 } from './types';
@@ -153,4 +156,105 @@ export async function listRuns(limit?: number): Promise<RunListResponse> {
  */
 export async function getRun(run_id: string): Promise<Run> {
   return request<Run>(`/agents/runs/${encodeURIComponent(run_id)}`);
+}
+
+/**
+ * List organization members and invites.
+ */
+export async function listOrgMembers(orgId: string): Promise<OrgMembersResponse> {
+  return request<OrgMembersResponse>(
+    `/orgs/${encodeURIComponent(orgId)}/members`
+  );
+}
+
+/**
+ * Invite a new organization member.
+ */
+export async function inviteOrgMember(
+  orgId: string,
+  payload: {
+    email: string;
+    role: string;
+  }
+): Promise<OrgInvite> {
+  return request<OrgInvite>(
+    `/orgs/${encodeURIComponent(orgId)}/invites`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+/**
+ * Update an organization member role.
+ */
+export async function updateOrgMemberRole(
+  orgId: string,
+  userId: string,
+  role: string
+): Promise<OrgMember> {
+  return request<OrgMember>(
+    `/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }
+  );
+}
+
+/**
+ * Remove an organization member.
+ */
+export async function removeOrgMember(
+  orgId: string,
+  userId: string
+): Promise<{ status: string }> {
+  return request<{ status: string }>(
+    `/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`,
+    { method: 'DELETE' }
+  );
+}
+
+/**
+ * Update an organization invite role.
+ */
+export async function updateOrgInviteRole(
+  orgId: string,
+  inviteId: string,
+  role: string
+): Promise<OrgInvite> {
+  return request<OrgInvite>(
+    `/orgs/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }
+  );
+}
+
+/**
+ * Resend an organization invite.
+ */
+export async function resendOrgInvite(
+  orgId: string,
+  inviteId: string
+): Promise<OrgInvite> {
+  return request<OrgInvite>(
+    `/orgs/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}/resend`,
+    { method: 'POST' }
+  );
+}
+
+/**
+ * Revoke an organization invite.
+ */
+export async function revokeOrgInvite(
+  orgId: string,
+  inviteId: string
+): Promise<OrgInvite> {
+  return request<OrgInvite>(
+    `/orgs/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}`,
+    { method: 'DELETE' }
+  );
 }

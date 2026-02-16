@@ -1,6 +1,16 @@
 ﻿import React, { useCallback, useEffect, useState } from "react";
 import { felixApi, FelixConfig, Project } from "../services/felixApi";
 import { AlertTriangle, Copy, Folder, Plus, Search, X } from "lucide-react";
+import {
+  inviteOrgMember,
+  listOrgMembers,
+  removeOrgMember,
+  resendOrgInvite,
+  revokeOrgInvite,
+  updateOrgInviteRole,
+  updateOrgMemberRole,
+} from "../src/api/client";
+import type { OrgInvite, OrgMember } from "../src/api/types";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -61,13 +71,29 @@ const ORG_TABS: Array<{ id: OrgTab; label: string }> = [
   { id: "billing", label: "Billing" },
 ];
 
+type MemberRow = {
+  id: string;
+  kind: "member" | "invite";
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  lastActive: string;
+  joinedAt: string;
+  userId?: string;
+  inviteId?: string;
+};
+
 interface OrganizationSettingsScreenProps {
+  orgId?: string | null;
+  orgSlug?: string | null;
   organizationName?: string | null;
   roleLabel?: string | null;
   onBack: () => void;
 }
 
 const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
+  orgId,
   organizationName,
   roleLabel,
   onBack,
@@ -107,62 +133,38 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     role: new Set(),
     status: new Set(),
   });
-
-  const initialMembers = [
-    {
-      id: "member-1",
-      name: "Ari Nguyen",
-      email: "ari.nguyen@untrueaxioms.io",
-      role: "Owner",
-      status: "Active",
-      lastActive: "2m ago",
-      joinedAt: "2026-01-05",
-    },
-    {
-      id: "member-2",
-      name: "Maya Patel",
-      email: "maya.patel@untrueaxioms.io",
-      role: "Admin",
-      status: "Active",
-      lastActive: "38m ago",
-      joinedAt: "2026-01-22",
-    },
-    {
-      id: "member-3",
-      name: "Sam Ortega",
-      email: "sam.ortega@untrueaxioms.io",
-      role: "Member",
-      status: "Active",
-      lastActive: "3h ago",
-      joinedAt: "2026-02-02",
-    },
-    {
-      id: "member-4",
-      name: "Jess Lin",
-      email: "jess.lin@untrueaxioms.io",
-      role: "Member",
-      status: "Invited",
-      lastActive: "Awaiting",
-      joinedAt: "2026-02-15",
-    },
-  ];
-  const [orgMembers, setOrgMembers] = useState(initialMembers);
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
+  const [orgInvites, setOrgInvites] = useState<OrgInvite[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviteError, setInviteError] = useState<string | null>(null);
-  const [manageMember, setManageMember] = useState<
-    (typeof initialMembers)[number] | null
-  >(null);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [manageMember, setManageMember] = useState<MemberRow | null>(null);
   const [manageRole, setManageRole] = useState("member");
+  const [manageSaving, setManageSaving] = useState(false);
+  const [manageError, setManageError] = useState<string | null>(null);
+  const [resendInviting, setResendInviting] = useState(false);
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
-  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<MemberRow | null>(null);
 
   const fetchProjects = useCallback(async () => {
+    if (!orgId) {
+      setProjectsError("Organization not selected.");
+      setProjectsLoading(false);
+      return;
+    }
     setProjectsLoading(true);
     setProjectsError(null);
     try {
-      const list = await felixApi.listProjects();
+      const list = await Promise.race([
+        felixApi.listProjects(),
+        new Promise<Project[]>((_, reject) =>
+          setTimeout(() => reject(new Error("Project request timed out")), 12000),
+        ),
+      ]);
       setProjects(list);
     } catch (err) {
       setProjectsError(
@@ -171,13 +173,40 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     } finally {
       setProjectsLoading(false);
     }
-  }, []);
+  }, [orgId]);
 
   useEffect(() => {
     if (activeTab === "projects") {
       fetchProjects();
     }
   }, [activeTab, fetchProjects]);
+
+  const fetchOrgMembers = useCallback(async () => {
+    if (!orgId) {
+      setMembersError("Organization not selected.");
+      setMembersLoading(false);
+      return;
+    }
+    setMembersLoading(true);
+    setMembersError(null);
+    try {
+      const result = await listOrgMembers(orgId);
+      setOrgMembers(result.members);
+      setOrgInvites(result.invites);
+    } catch (err) {
+      setMembersError(
+        err instanceof Error ? err.message : "Failed to load members",
+      );
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [orgId]);
+
+  useEffect(() => {
+    if (activeTab === "members") {
+      fetchOrgMembers();
+    }
+  }, [activeTab, fetchOrgMembers]);
 
   const fetchOrgConfig = useCallback(async () => {
     setOrgConfigLoading(true);
@@ -279,7 +308,56 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   };
 
   const renderMembersTab = () => {
-    const filteredMembers = orgMembers.filter((member) => {
+    const formatLabel = (value: string) =>
+      value
+        .replace(/[_-]+/g, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map((segment) => segment[0].toUpperCase() + segment.slice(1))
+        .join(" ");
+
+    const parseNameFromEmail = (email: string) => {
+      const handle = email.split("@")[0] || "New member";
+      return handle
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    };
+
+    const rows: MemberRow[] = [
+      ...orgMembers.map((member) => ({
+        id: `member-${member.user_id}`,
+        kind: "member",
+        name:
+          member.display_name ||
+          member.full_name ||
+          member.email ||
+          member.user_id ||
+          "Member",
+        email: member.email || member.user_id || "",
+        role: formatLabel(member.role),
+        status: "Active",
+        lastActive: member.updated_at
+          ? new Date(member.updated_at).toLocaleDateString()
+          : "N/A",
+        joinedAt: member.created_at,
+        userId: member.user_id,
+      })),
+      ...orgInvites.map((invite) => ({
+        id: `invite-${invite.id}`,
+        kind: "invite",
+        name: parseNameFromEmail(invite.email),
+        email: invite.email,
+        role: formatLabel(invite.role),
+        status: formatLabel(invite.status || "invited"),
+        lastActive: "Awaiting",
+        joinedAt: invite.created_at,
+        inviteId: invite.id,
+      })),
+    ];
+
+    const filteredMembers = rows.filter((member) => {
       const query = memberSearchQuery.trim().toLowerCase();
       const matchesQuery =
         !query ||
@@ -295,10 +373,10 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     });
 
     const roleOptions = Array.from(
-      new Set(orgMembers.map((member) => member.role.toLowerCase())),
+      new Set(rows.map((member) => member.role.toLowerCase())),
     );
     const statusOptions = Array.from(
-      new Set(orgMembers.map((member) => member.status.toLowerCase())),
+      new Set(rows.map((member) => member.status.toLowerCase())),
     );
 
     const statusVariant =
@@ -307,25 +385,18 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
           case "active":
             return "success";
           case "invited":
+          case "pending":
             return "warning";
           default:
             return "default";
         }
       };
 
-    const formatRoleLabel = (role: string) =>
-      role.charAt(0).toUpperCase() + role.slice(1);
-
-    const parseNameFromEmail = (email: string) => {
-      const handle = email.split("@")[0] || "New member";
-      return handle
-        .split(/[._-]+/)
-        .filter(Boolean)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ");
-    };
-
-    const handleInviteSubmit = () => {
+    const handleInviteSubmit = async () => {
+      if (!orgId) {
+        setInviteError("Organization not selected.");
+        return;
+      }
       const trimmedEmail = inviteEmail.trim().toLowerCase();
       if (!trimmedEmail) {
         setInviteError("Email is required.");
@@ -335,53 +406,101 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
         setInviteError("Enter a valid email address.");
         return;
       }
-      if (orgMembers.some((member) => member.email === trimmedEmail)) {
-        setInviteError("This member is already in the organization.");
+      if (rows.some((member) => member.email.toLowerCase() === trimmedEmail)) {
+        setInviteError("This email is already listed.");
         return;
       }
-      const newMember = {
-        id: `member-${Date.now()}`,
-        name: parseNameFromEmail(trimmedEmail),
-        email: trimmedEmail,
-        role: formatRoleLabel(inviteRole),
-        status: "Invited",
-        lastActive: "Awaiting",
-        joinedAt: new Date().toISOString().slice(0, 10),
-      };
-      setOrgMembers((prev) => [newMember, ...prev]);
-      setInviteEmail("");
-      setInviteRole("member");
+      setInviteSubmitting(true);
       setInviteError(null);
-      setInviteOpen(false);
+      try {
+        await inviteOrgMember(orgId, {
+          email: trimmedEmail,
+          role: inviteRole,
+        });
+        await fetchOrgMembers();
+        setInviteEmail("");
+        setInviteRole("member");
+        setInviteOpen(false);
+      } catch (err) {
+        setInviteError(
+          err instanceof Error ? err.message : "Failed to send invite",
+        );
+      } finally {
+        setInviteSubmitting(false);
+      }
     };
 
-    const openManageMember = (member: (typeof initialMembers)[number]) => {
+    const openManageMember = (member: MemberRow) => {
       setManageMember(member);
       setManageRole(member.role.toLowerCase());
+      setManageError(null);
     };
 
-    const handleManageSave = () => {
-      if (!manageMember) return;
-      const updatedRole = formatRoleLabel(manageRole);
-      setOrgMembers((prev) =>
-        prev.map((member) =>
-          member.id === manageMember.id
-            ? { ...member, role: updatedRole }
-            : member,
-        ),
-      );
-      setManageMember(null);
+    const handleManageSave = async () => {
+      if (!manageMember || !orgId) return;
+      setManageSaving(true);
+      setManageError(null);
+      try {
+        const updatedRole = manageRole;
+        if (manageMember.kind === "invite") {
+          await updateOrgInviteRole(orgId, manageMember.inviteId!, updatedRole);
+        } else {
+          await updateOrgMemberRole(orgId, manageMember.userId!, updatedRole);
+        }
+        await fetchOrgMembers();
+        setManageMember(null);
+      } catch (err) {
+        setManageError(
+          err instanceof Error ? err.message : "Failed to update role",
+        );
+      } finally {
+        setManageSaving(false);
+      }
     };
 
-    const handleRemoveMember = () => {
-      if (!pendingRemoveId) return;
-      setOrgMembers((prev) =>
-        prev.filter((member) => member.id !== pendingRemoveId),
-      );
-      setPendingRemoveId(null);
-      setConfirmRemoveOpen(false);
-      setManageMember(null);
+    const handleRemoveMember = async () => {
+      if (!pendingRemove || !orgId) return;
+      try {
+        if (pendingRemove.kind === "invite") {
+          await revokeOrgInvite(orgId, pendingRemove.inviteId!);
+        } else {
+          await removeOrgMember(orgId, pendingRemove.userId!);
+        }
+        await fetchOrgMembers();
+      } catch (err) {
+        setMembersError(
+          err instanceof Error ? err.message : "Failed to remove member",
+        );
+      } finally {
+        setPendingRemove(null);
+        setConfirmRemoveOpen(false);
+        setManageMember(null);
+      }
     };
+
+    const handleResendInvite = async () => {
+      if (!manageMember || manageMember.kind !== "invite" || !orgId) return;
+      setResendInviting(true);
+      setManageError(null);
+      try {
+        await resendOrgInvite(orgId, manageMember.inviteId!);
+        await fetchOrgMembers();
+      } catch (err) {
+        setManageError(
+          err instanceof Error ? err.message : "Failed to resend invite",
+        );
+      } finally {
+        setResendInviting(false);
+      }
+    };
+
+    if (membersLoading) {
+      return (
+        <div className="flex justify-center py-8">
+          <PageLoading message="Loading members..." size="md" fullPage={false} />
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -397,6 +516,13 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
             Invite Member
           </Button>
         </div>
+        {membersError && (
+          <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+            <AlertDescription className="text-xs">
+              {membersError}
+            </AlertDescription>
+          </Alert>
+        )}
         <DataSurface
           className="pt-0 -mx-6"
           search={(
@@ -418,7 +544,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                   key: "role",
                   label: "Role",
                   options: roleOptions.map((role) => ({
-                    label: formatRoleLabel(role),
+                    label: formatLabel(role),
                     value: role,
                   })),
                 },
@@ -426,7 +552,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                   key: "status",
                   label: "Status",
                   options: statusOptions.map((status) => ({
-                    label: formatRoleLabel(status),
+                    label: formatLabel(status),
                     value: status,
                   })),
                 },
@@ -443,7 +569,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                   Members summary
                 </h4>
                 <p className="text-[11px] theme-text-muted mt-1">
-                  {orgMembers.length} total, {orgMembers.filter((m) => m.status === "Active").length} active.
+                  {rows.length} total, {orgMembers.length} active.
                 </p>
               </div>
               <Badge variant="default">Org Scope</Badge>
@@ -478,7 +604,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                           {member.name}
                         </p>
                         <p className="text-[11px] theme-text-muted">
-                          {member.email}
+                          {member.email || "N/A"}
                         </p>
                       </div>
                     </div>
@@ -589,20 +715,30 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               <Button variant="ghost" size="sm" onClick={() => setInviteOpen(false)}>
                 Cancel
               </Button>
-              <Button size="sm" className="uppercase" onClick={handleInviteSubmit}>
-                Send Invite
+              <Button
+                size="sm"
+                className="uppercase"
+                onClick={handleInviteSubmit}
+                disabled={inviteSubmitting}
+              >
+                {inviteSubmitting ? "Sending..." : "Send Invite"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!manageMember} onOpenChange={(open) => {
-          if (!open) setManageMember(null);
-        }}>
+        <Dialog
+          open={!!manageMember}
+          onOpenChange={(open) => {
+            if (!open) setManageMember(null);
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <div>
-                <DialogTitle>Manage Member</DialogTitle>
+                <DialogTitle>
+                  {manageMember?.kind === "invite" ? "Manage Invite" : "Manage Member"}
+                </DialogTitle>
                 <DialogDescription>
                   Adjust access level and manage membership.
                 </DialogDescription>
@@ -630,7 +766,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                       {manageMember.name}
                     </p>
                     <p className="text-[11px] theme-text-muted">
-                      {manageMember.email}
+                      {manageMember.email || "N/A"}
                     </p>
                   </div>
                 </div>
@@ -649,15 +785,29 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                     </SelectContent>
                   </Select>
                 </div>
-                {manageMember.status.toLowerCase() === "invited" && (
+                {manageMember.kind === "invite" && (
                   <div className="flex items-center justify-between rounded-lg border border-[var(--border-muted)] p-3 text-xs">
                     <span className="theme-text-muted">
-                      Invitation pending. Last sent {manageMember.joinedAt}.
+                      Invitation pending. Last sent{" "}
+                      {new Date(manageMember.joinedAt).toLocaleDateString()}.
                     </span>
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold">
-                      Resend
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-[10px] font-bold"
+                      onClick={handleResendInvite}
+                      disabled={resendInviting}
+                    >
+                      {resendInviting ? "Resending..." : "Resend"}
                     </Button>
                   </div>
+                )}
+                {manageError && (
+                  <Alert className="border-[var(--destructive-500)]/30 bg-[var(--destructive-500)]/10 text-[var(--destructive-500)]">
+                    <AlertDescription className="text-xs">
+                      {manageError}
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
             )}
@@ -668,18 +818,23 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                 className="bg-[var(--destructive-500)]/10 text-[var(--destructive-500)] hover:bg-[var(--destructive-500)]/20"
                 onClick={() => {
                   if (!manageMember) return;
-                  setPendingRemoveId(manageMember.id);
+                  setPendingRemove(manageMember);
                   setConfirmRemoveOpen(true);
                 }}
               >
-                Remove Member
+                {manageMember?.kind === "invite" ? "Revoke Invite" : "Remove Member"}
               </Button>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" size="sm" onClick={() => setManageMember(null)}>
                   Cancel
                 </Button>
-                <Button size="sm" className="uppercase" onClick={handleManageSave}>
-                  Save Changes
+                <Button
+                  size="sm"
+                  className="uppercase"
+                  onClick={handleManageSave}
+                  disabled={manageSaving}
+                >
+                  {manageSaving ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             </DialogFooter>
@@ -689,9 +844,13 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
         <AlertDialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Remove Member</AlertDialogTitle>
+              <AlertDialogTitle>
+                {pendingRemove?.kind === "invite" ? "Revoke Invite" : "Remove Member"}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                This member will lose access to the organization immediately.
+                {pendingRemove?.kind === "invite"
+                  ? "This invitation will be revoked immediately."
+                  : "This member will lose access to the organization immediately."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -706,7 +865,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                   className="bg-[var(--destructive-500)] text-white hover:bg-[var(--destructive-600)]"
                   onClick={handleRemoveMember}
                 >
-                  Remove
+                  {pendingRemove?.kind === "invite" ? "Revoke" : "Remove"}
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -715,6 +874,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
       </div>
     );
   };
+
 
   const renderProjectsTab = () => {
     const filteredProjects = projects.filter((project) => {

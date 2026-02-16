@@ -272,8 +272,9 @@ const App: React.FC = () => {
   const pendingOrgSlugRef = useRef<string | null>(null);
   const [orgSearch, setOrgSearch] = useState("");
   const [orgs, setOrgs] = useState<OrganizationSummary[]>([]);
+  const initialOrgId = felixApi.getActiveOrgId();
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
-    felixApi.getActiveOrgId(),
+    initialOrgId,
   );
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
@@ -351,7 +352,20 @@ const App: React.FC = () => {
     selectedOrg?.name || userProfile?.organization || "Organization";
   const currentOrgSlug =
     selectedOrg?.slug || userProfile?.org_slug || toSlug(selectedOrgLabel) || "org";
-  const orgOptions = orgs.map((org) => ({
+  const resolvedOrgs =
+    orgs.length > 0
+      ? orgs
+      : userProfile?.org_id && userProfile.organization
+        ? [
+            {
+              id: userProfile.org_id,
+              name: userProfile.organization,
+              slug: userProfile.org_slug || toSlug(userProfile.organization),
+              role: userProfile.role || "member",
+            },
+          ]
+        : [];
+  const orgOptions = resolvedOrgs.map((org) => ({
     id: org.id,
     label: org.name,
     slug: org.slug,
@@ -507,6 +521,21 @@ const App: React.FC = () => {
       setSelectedOrgId(userProfile.org_id);
     }
   }, [selectedOrgId, userProfile?.org_id]);
+
+  useEffect(() => {
+    if (orgs.length === 0) {
+      return;
+    }
+    const hasSelected = selectedOrgId
+      ? orgs.some((org) => org.id === selectedOrgId)
+      : false;
+    if (!hasSelected) {
+      const fallbackOrgId = orgs[0].id;
+      setSelectedOrgId(fallbackOrgId);
+      felixApi.setActiveOrgId(fallbackOrgId);
+    }
+  }, [orgs, selectedOrgId]);
+
 
   const applyRoute = React.useCallback(
     async (pathname: string) => {
@@ -1567,6 +1596,7 @@ export const executeTask = (taskId: string) => {
             <PersonalSettingsScreen onBack={() => setUiState("projects")} />
           ) : uiState === "org-settings" ? (
             <OrganizationSettingsScreen
+              orgId={selectedOrgId}
               organizationName={selectedOrgLabel}
               orgSlug={currentOrgSlug}
               roleLabel={

@@ -8,6 +8,48 @@ from pydantic import BaseModel, Field
 from pathlib import Path
 
 
+class OrganizationMember(BaseModel):
+    """Organization member record with profile details."""
+    id: str
+    org_id: str
+    user_id: str
+    role: str
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    full_name: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class OrganizationInvite(BaseModel):
+    """Organization invite record."""
+    id: str
+    org_id: str
+    email: str
+    role: str
+    status: str
+    invited_by_user_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class OrganizationMembersResponse(BaseModel):
+    members: List[OrganizationMember] = Field(default_factory=list)
+    invites: List[OrganizationInvite] = Field(default_factory=list)
+
+
+class OrganizationInviteRequest(BaseModel):
+    email: str = Field(..., description="Invitee email")
+    role: str = Field(default="member", description="Role for the invitee")
+
+
+class OrganizationInviteUpdate(BaseModel):
+    role: str = Field(..., description="Updated role for invite")
+
+
+class OrganizationMemberRoleUpdate(BaseModel):
+    role: str = Field(..., description="Updated role for member")
+
 class ProjectBase(BaseModel):
     """Base project data"""
     path: str = Field(..., description="Absolute path to project directory")

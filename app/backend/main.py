@@ -25,6 +25,7 @@ from routers import (
     agent_configs,
     user,
     requirements,
+    org_members,
 )
 from database.db import startup as db_startup, shutdown as db_shutdown, get_db
 from auth import get_current_user
@@ -90,6 +91,7 @@ app.include_router(copilot.router)
 app.include_router(agent_configs.router)
 app.include_router(user.router)
 app.include_router(requirements.router)
+app.include_router(org_members.router)
 
 
 @app.get("/health")

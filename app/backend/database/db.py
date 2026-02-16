@@ -37,6 +37,7 @@ async def verify_schema() -> None:
         "schema_migrations",
         "organizations",
         "organization_members",
+        "organization_invites",
         "settings",
         "projects",
         "requirements",
