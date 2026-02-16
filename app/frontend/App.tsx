@@ -354,7 +354,10 @@ const App: React.FC = () => {
   const selectedOrgLabel =
     selectedOrg?.name || userProfile?.organization || "Organization";
   const currentOrgSlug =
-    selectedOrg?.slug || userProfile?.org_slug || toSlug(selectedOrgLabel) || "org";
+    selectedOrg?.slug ||
+    userProfile?.org_slug ||
+    toSlug(selectedOrgLabel) ||
+    "org";
   const resolvedOrgs =
     orgs.length > 0
       ? orgs
@@ -540,7 +543,6 @@ const App: React.FC = () => {
       felixApi.setActiveOrgId(fallbackOrgId);
     }
   }, [orgs, selectedOrgId]);
-
 
   const applyRoute = React.useCallback(
     async (pathname: string) => {

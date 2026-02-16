@@ -476,6 +476,214 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 
 // --- Run History Panel ---
 
+// --- Agent Details Panel Component ---
+
+interface AgentDetailsPanelProps {
+  agent: Agent;
+  canStartAgent: boolean;
+  canStopAgent: boolean;
+  actionInProgress: string | null;
+  onStart: () => void;
+  onStop: () => void;
+  onRefresh: () => void;
+}
+
+const AgentDetailsPanel: React.FC<AgentDetailsPanelProps> = ({
+  agent,
+  canStartAgent,
+  canStopAgent,
+  actionInProgress,
+  onStart,
+  onStop,
+  onRefresh,
+}) => {
+  const formatRelativeTime = (isoString: string | null) => {
+    if (!isoString) return "Never";
+    try {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+      if (diff < 60) return `${diff}s ago`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    } catch {
+      return "Unknown";
+    }
+  };
+
+  const hostLabel = getAgentHostLabel(agent);
+  const workflowStage = getAgentWorkflowStage(agent);
+  const metadata = agent.metadata || {};
+  const owner =
+    getAgentMetadataValue(metadata, "owner") ||
+    getAgentMetadataValue(metadata, "user");
+
+  const normalizeStatus = (status: string): AgentStatus => {
+    const lower = status?.toLowerCase() || "unknown";
+    if (lower === "running") return "running";
+    if (lower === "idle" || lower === "ready") return "idle";
+    if (lower === "stopped") return "stopped";
+    if (lower === "error" || lower === "failed") return "error";
+    return "unknown";
+  };
+
+  const statusDot: Record<AgentStatus, string> = {
+    running: "bg-emerald-500 animate-pulse",
+    idle: "bg-slate-400",
+    stopped: "bg-rose-500",
+    error: "bg-amber-400",
+    unknown: "bg-slate-500",
+  };
+
+  const statusTone: Record<AgentStatus, string> = {
+    running: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+    idle: "border-slate-400/20 bg-slate-400/10 text-slate-300",
+    stopped: "border-rose-500/20 bg-rose-500/10 text-rose-400",
+    error: "border-amber-400/20 bg-amber-400/10 text-amber-400",
+    unknown: "border-slate-500/20 bg-slate-500/10 text-slate-400",
+  };
+
+  const status = normalizeStatus(agent.status);
+
+  return (
+    <div className="h-full flex flex-col bg-[var(--bg-base)]">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-[var(--border)]">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
+          Agent Details
+        </h2>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-4">
+        {/* Agent Name & Type */}
+        <div>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-[var(--text)] truncate">
+                {agent.name}
+              </p>
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">
+                {agent.type}
+              </p>
+            </div>
+            <div
+              className={cn(
+                "inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border shrink-0",
+                statusTone[status],
+              )}
+            >
+              <span className={cn("w-2 h-2 rounded-full", statusDot[status])} />
+              {agent.status}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="space-y-3 text-xs">
+          {agent.profile_name && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                Profile
+              </p>
+              <p className="text-[var(--text-light)]">{agent.profile_name}</p>
+            </div>
+          )}
+
+          {hostLabel && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                Machine
+              </p>
+              <p className="font-mono text-[var(--text-light)]">{hostLabel}</p>
+            </div>
+          )}
+
+          {owner && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                Owner
+              </p>
+              <p className="text-[var(--text-light)]">{owner}</p>
+            </div>
+          )}
+
+          {workflowStage && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                Workflow Stage
+              </p>
+              <p className="text-[var(--text-light)]">{workflowStage}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1">
+              Last Activity
+            </p>
+            <p className="text-[var(--text-light)]">
+              {formatRelativeTime(agent.heartbeat_at)}
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--border)]">
+          <Button
+            onClick={onStart}
+            disabled={!canStartAgent || actionInProgress !== null}
+            size="sm"
+            className="text-[10px] font-bold gap-2"
+          >
+            {actionInProgress === "start" ? (
+              <>
+                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Starting
+              </>
+            ) : (
+              <>
+                <IconPlay className="w-3 h-3" />
+                Start
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={onStop}
+            disabled={!canStopAgent || actionInProgress !== null}
+            variant="ghost"
+            size="sm"
+            className="text-[10px] font-bold text-[var(--destructive-500)] gap-2"
+          >
+            {actionInProgress === "stop" ? (
+              <>
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Stopping
+              </>
+            ) : (
+              <>
+                <IconStop className="w-3 h-3" />
+                Stop
+              </>
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onRefresh}
+            className="text-[10px] font-bold"
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Run History Panel Component ---
+
 interface RunHistoryPanelProps {
   projectId: string;
   selectedAgentId: string | null;
@@ -1226,7 +1434,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
             />
           ) : (
             <div className="overflow-hidden">
-              <DataTable
+              <DataTable<Agent>
                 data={filteredAgents}
                 rowKey={(row) => row.id}
                 onRowClick={(row) => enterDetailView(row)}
@@ -1314,94 +1522,29 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="border-b border-[var(--border-default)] bg-[var(--bg-base)] px-6 py-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={exitDetailView}
-                className="h-9 w-9 text-[var(--text-muted)]"
-                aria-label="Back to dashboard"
-              >
-                <IconChevronLeft className="w-4 h-4" />
-              </Button>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-semibold theme-text-secondary">
-                    {selectedAgent.agent.name}
-                  </h2>
-                  <span
-                    className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border ${statusTone[normalizeStatus(selectedAgent.agent.status)]}`}
-                  >
-                    <span
-                      className={`w-2 h-2 rounded-full ${statusDot[normalizeStatus(selectedAgent.agent.status)]}`}
-                    />
-                    {selectedAgent.agent.status.replace("-", " ")}
-                  </span>
-                </div>
-                <div className="text-[10px] theme-text-muted mt-1">
-                  <span className="font-mono">
-                    {getAgentHostLabel(selectedAgent.agent) ||
-                      selectedAgent.agent.type}
-                  </span>
-                  <span className="mx-2 text-[var(--text-faint)]">|</span>
-                  <span className="font-mono">
-                    Heartbeat{" "}
-                    {formatRelativeTime(selectedAgent.agent.heartbeat_at)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                onClick={() => setShowStartDialog(true)}
-                disabled={!canStartAgent || actionInProgress !== null}
-                size="sm"
-                className="text-[10px] font-bold gap-2"
-              >
-                {actionInProgress === "start" ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Starting
-                  </>
-                ) : (
-                  <>
-                    <IconPlay className="w-3 h-3" />
-                    Start
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={() => handleStop("graceful")}
-                disabled={!canStopAgent || actionInProgress !== null}
-                variant="ghost"
-                size="sm"
-                className="text-[10px] font-bold text-[var(--destructive-500)] gap-2"
-              >
-                {actionInProgress === "stop" ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Stopping
-                  </>
-                ) : (
-                  <>
-                    <IconStop className="w-3 h-3" />
-                    Stop
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                className="text-[10px] font-bold"
-              >
-                Refresh
-              </Button>
-            </div>
+        <div className="bg-[var(--bg-base)] px-6 py-3">
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={exitDetailView}
+              className="h-8 w-8 text-[var(--text-muted)]"
+              aria-label="Back to dashboard"
+            >
+              <IconChevronLeft className="w-4 h-4" />
+            </Button>
+            <h2 className="text-base font-semibold theme-text-secondary">
+              {selectedAgent.agent.name}
+            </h2>
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${statusTone[normalizeStatus(selectedAgent.agent.status)]}`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${statusDot[normalizeStatus(selectedAgent.agent.status)]}`}
+              />
+              {selectedAgent.agent.status.replace("-", " ")}
+            </span>
           </div>
         </div>
 
@@ -1414,14 +1557,27 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               showWorkflow={false}
             />
           </div>
-          <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface-100)] overflow-hidden">
-            <RunHistoryPanel
-              projectId={projectId}
-              selectedAgentId={selectedAgent.id}
-              onSelectRun={setSelectedRunId}
-              dbRuns={selectedAgentRuns}
-              loading={loading}
-            />
+          <div className="flex flex-col gap-6 min-h-0">
+            <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface-100)] overflow-hidden flex-shrink-0">
+              <AgentDetailsPanel
+                agent={selectedAgent.agent}
+                canStartAgent={canStartAgent}
+                canStopAgent={canStopAgent}
+                actionInProgress={actionInProgress}
+                onStart={() => setShowStartDialog(true)}
+                onStop={() => handleStop("graceful")}
+                onRefresh={handleRefresh}
+              />
+            </div>
+            <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface-100)] overflow-hidden flex-1 min-h-0">
+              <RunHistoryPanel
+                projectId={projectId}
+                selectedAgentId={selectedAgent.id}
+                onSelectRun={setSelectedRunId}
+                dbRuns={selectedAgentRuns}
+                loading={loading}
+              />
+            </div>
           </div>
         </div>
 

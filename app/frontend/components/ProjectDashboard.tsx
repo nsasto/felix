@@ -31,7 +31,7 @@ interface ProjectDashboardProps {
 type DashboardAgent = {
   id: number;
   name: string;
-  status: AgentEntry["status"];
+  status: Agent["status"];
   hostname?: string | null;
   executable?: string | null;
   currentRunId?: string | null;

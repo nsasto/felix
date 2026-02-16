@@ -153,6 +153,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [agentFormName, setAgentFormName] = useState("");
   const [agentFormSaving, setAgentFormSaving] = useState(false);
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
+  const [agentNameValidationError, setAgentNameValidationError] = useState<
+    string | null
+  >(null);
 
   const [activeDoc, setActiveDoc] = useState<DocFileName>("README.md");
   const [docContents, setDocContents] = useState<Record<DocFileName, string>>({
@@ -415,7 +418,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Handle agent name input change
   const handleAgentNameInputChange = (value: string) => {
-    setAgentNameInput(value);
+    setAgentFormName(value);
     setAgentNameValidationError(validateAgentName(value));
   };
 
