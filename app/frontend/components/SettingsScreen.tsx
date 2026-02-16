@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import {
   felixApi,
   FelixConfig,
@@ -110,7 +111,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
@@ -142,17 +142,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Agent configurations state (legacy)
 
-  const getAgentProfileLabel = useCallback(
-    (profileId?: string | null): string => {
-      if (!profileId) {
-        return "No profile";
-      }
-      const match = agentProfiles.find((profile) => profile.id === profileId);
-      return match?.name || "Unknown profile";
-    },
-    [agentProfiles],
-  );
-
   // Agent form state (for add/edit)
   const [showAgentForm, setShowAgentForm] = useState(false);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
@@ -161,20 +150,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
 
   const [activeDoc, setActiveDoc] = useState<DocFileName>("README.md");
-  const [docContents, setDocContents] = useState<
-    Record<DocFileName, string>
-  >({
+  const [docContents, setDocContents] = useState<Record<DocFileName, string>>({
     "README.md": "",
     "CONTEXT.md": "",
     "AGENTS.md": "",
   });
-  const [docOriginals, setDocOriginals] = useState<
-    Record<DocFileName, string>
-  >({
-    "README.md": "",
-    "CONTEXT.md": "",
-    "AGENTS.md": "",
-  });
+  const [docOriginals, setDocOriginals] = useState<Record<DocFileName, string>>(
+    {
+      "README.md": "",
+      "CONTEXT.md": "",
+      "AGENTS.md": "",
+    },
+  );
   const [docsLoaded, setDocsLoaded] = useState<Record<DocFileName, boolean>>({
     "README.md": false,
     "CONTEXT.md": false,
@@ -273,13 +260,29 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setAgentProfilesError(null);
     try {
       const response = await felixApi.getAgentConfigurations();
-      setAgentProfiles(response.agents);
+      console.log("[SettingsScreen] Agent profiles response:", response);
+      console.log(
+        "[SettingsScreen] Individual profiles:",
+        response.agents.map((p) => ({ id: p.id, name: p.name })),
+      );
+
+      // Filter out any profiles without valid IDs to prevent React key errors
+      const validProfiles = response.agents.filter(
+        (profile) => profile.id != null && profile.id !== "",
+      );
+
+      if (validProfiles.length !== response.agents.length) {
+        console.warn(
+          `[SettingsScreen] Filtered out ${response.agents.length - validProfiles.length} profiles without valid IDs`,
+          response.agents.filter((p) => !p.id || p.id === ""),
+        );
+      }
+
+      setAgentProfiles(validProfiles);
     } catch (err) {
       console.error("Failed to fetch agent profiles:", err);
       setAgentProfilesError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load agent profiles",
+        err instanceof Error ? err.message : "Failed to load agent profiles",
       );
     } finally {
       setAgentProfilesLoading(false);
@@ -357,14 +360,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       return () => clearTimeout(timeout);
     }
   }, [docsSaveMessage]);
-
-  // Clear success message after 3 seconds
-  useEffect(() => {
-    if (successMessage) {
-      const timeout = setTimeout(() => setSuccessMessage(null), 3000);
-      return () => clearTimeout(timeout);
-    }
-  }, [successMessage]);
 
   // Validate config
   const validateConfig = useCallback(
@@ -523,7 +518,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     setSaving(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
       if (hasConfigChanges) {
@@ -536,8 +530,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       if (hasProjectChanges && currentProject) {
         setCurrentProjectError(null);
-        const pathChanged =
-          configProjectPath.trim() !== currentProject.path;
+        const pathChanged = configProjectPath.trim() !== currentProject.path;
         const updated = await felixApi.updateProject(currentProject.id, {
           name: configProjectName.trim() || undefined,
           path: pathChanged ? configProjectPath.trim() : undefined,
@@ -550,11 +543,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       }
 
       if (hasConfigChanges && hasProjectChanges) {
-        setSuccessMessage("Settings saved successfully");
+        toast.success("Settings saved successfully");
       } else if (hasProjectChanges) {
-        setSuccessMessage("Project updated successfully");
+        toast.success("Project updated successfully");
       } else if (hasConfigChanges) {
-        setSuccessMessage("Configuration saved successfully");
+        toast.success("Configuration saved successfully");
       }
     } catch (err) {
       console.error("Failed to save settings:", err);
@@ -670,14 +663,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
               handleExecutorChange("default_mode", value)
             }
           >
-          <SelectTrigger
-            aria-label="Default Mode"
-            className={
-              validationErrors.default_mode
-                ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
-                : ""
-            }
-          >
+            <SelectTrigger
+              aria-label="Default Mode"
+              className={
+                validationErrors.default_mode
+                  ? "border-[var(--destructive-500)]/50 focus-visible:ring-[var(--destructive-500)]"
+                  : ""
+              }
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -917,7 +910,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     );
   };
 
-    // Render Projects settings
+  // Render Projects settings
   const renderProjectsSettings = () => {
     if (!projectId) {
       return (
@@ -1003,7 +996,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   }
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Display name for this project (leave empty to use directory name)
+                  Display name for this project (leave empty to use directory
+                  name)
                 </p>
               </div>
               <div>
@@ -1018,7 +1012,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   className="font-mono"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Full path to the project directory (must contain specs/ and felix/ directories)
+                  Full path to the project directory (must contain specs/ and
+                  felix/ directories)
                 </p>
               </div>
               <p className="text-[10px] theme-text-muted">
@@ -1089,8 +1084,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           { source: "ui" },
           agentFormProfileId,
         );
-        setSuccessMessage(
-          editingAgentId ? "Agent updated successfully" : "Agent created successfully",
+        toast.success(
+          editingAgentId
+            ? "Agent updated successfully"
+            : "Agent created successfully",
         );
         resetAgentForm();
         fetchProjectAgents();
@@ -1181,8 +1178,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <SelectValue placeholder="Select an agent profile" />
                   </SelectTrigger>
                   <SelectContent>
-                    {agentProfiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>
+                    {agentProfiles.map((profile, idx) => (
+                      <SelectItem
+                        key={profile.id || `profile-${idx}`}
+                        value={profile.id}
+                      >
                         {profile.name}
                       </SelectItem>
                     ))}
@@ -1271,17 +1271,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {projectAgentsLoading && projectAgents.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <PageLoading message="Loading agents..." size="md" fullPage={false} />
+              <PageLoading
+                message="Loading agents..."
+                size="md"
+                fullPage={false}
+              />
             </div>
           )}
 
-          {!projectAgentsLoading && !projectAgentsError && projectAgents.length === 0 && (
-            <div className="text-center py-6">
-              <p className="text-xs theme-text-muted">
-                No agents registered for this project yet.
-              </p>
-            </div>
-          )}
+          {!projectAgentsLoading &&
+            !projectAgentsError &&
+            projectAgents.length === 0 && (
+              <div className="text-center py-6">
+                <p className="text-xs theme-text-muted">
+                  No agents registered for this project yet.
+                </p>
+              </div>
+            )}
 
           {projectAgents.length > 0 && (
             <div className="space-y-3">
@@ -1297,7 +1303,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </h5>
                       <div className="text-[11px] theme-text-muted mt-1">
                         <span className="font-mono">
-                          {getAgentProfileLabel(agent.profile_id)}
+                          {agent.profile_name || "No profile"}
                         </span>
                         {agent.heartbeat_at && (
                           <span className="ml-2">
@@ -1328,20 +1334,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {projectAgentsLoading && projectAgents.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <PageLoading message="Loading running agents..." size="md" fullPage={false} />
+              <PageLoading
+                message="Loading running agents..."
+                size="md"
+                fullPage={false}
+              />
             </div>
           )}
 
           {!projectAgentsLoading &&
-            projectAgents.filter((agent) => agent.status === "running").length === 0 && (
+            projectAgents.filter((agent) => agent.status === "running")
+              .length === 0 && (
               <div className="text-center py-6">
                 <p className="text-xs theme-text-muted">
-                  No agents are currently running. Start an agent to see it here.
+                  No agents are currently running. Start an agent to see it
+                  here.
                 </p>
               </div>
             )}
 
-          {projectAgents.filter((agent) => agent.status === "running").length > 0 && (
+          {projectAgents.filter((agent) => agent.status === "running").length >
+            0 && (
             <div className="space-y-3">
               {projectAgents
                 .filter((agent) => agent.status === "running")
@@ -1357,7 +1370,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         </h5>
                         <div className="text-[11px] theme-text-muted mt-1">
                           <span className="font-mono">
-                            {getAgentProfileLabel(agent.profile_id)}
+                            {agent.profile_name || "No profile"}
                           </span>
                           {agent.heartbeat_at && (
                             <span className="ml-2">
@@ -1377,20 +1390,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         <div className="bg-[var(--status-info)]/5 border border-[var(--status-info)]/20 rounded-xl p-4">
-      <div className="flex items-start gap-3">
-        <Info className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" />
-        <div className="text-xs text-[var(--status-info)]/80">
-          <p>
-            <strong>Project Agents</strong> are registered instances tied to the current project.
-          </p>
-          <p className="mt-1">
-            <strong>Agent Profiles</strong> define defaults and are required when creating agents.
-          </p>
-          <p className="mt-1">
-            <strong>Running Agents</strong> are pulled from the project agent list.
-          </p>
-        </div>
-      </div>
+          <div className="flex items-start gap-3">
+            <Info className="w-4 h-4 text-[var(--status-info)] mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-[var(--status-info)]/80">
+              <p>
+                <strong>Project Agents</strong> are registered instances tied to
+                the current project.
+              </p>
+              <p className="mt-1">
+                <strong>Agent Profiles</strong> define defaults and are required
+                when creating agents.
+              </p>
+              <p className="mt-1">
+                <strong>Running Agents</strong> are pulled from the project
+                agent list.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1435,7 +1451,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     : CATEGORIES.filter((category) => category.id !== "docs");
 
   useEffect(() => {
-    if (!availableCategories.some((category) => category.id === activeCategory)) {
+    if (
+      !availableCategories.some((category) => category.id === activeCategory)
+    ) {
       setActiveCategory("general");
     }
   }, [activeCategory, availableCategories]);
@@ -1474,8 +1492,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       );
     }
 
-    const hasDocChanges =
-      docContents[activeDoc] !== docOriginals[activeDoc];
+    const hasDocChanges = docContents[activeDoc] !== docOriginals[activeDoc];
 
     const handleDocSave = async () => {
       if (!hasDocChanges) return;
@@ -1662,16 +1679,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   Discard
                 </Button>
               )}
-                <Button
-                  onClick={handleSave}
-                  disabled={
-                    saving ||
-                    !hasChanges ||
-                    (hasConfigChanges && Object.keys(validationErrors).length > 0)
-                  }
-                  size="sm"
-                  className="text-[10px] font-bold uppercase"
-                >
+              <Button
+                onClick={handleSave}
+                disabled={
+                  saving ||
+                  !hasChanges ||
+                  (hasConfigChanges && Object.keys(validationErrors).length > 0)
+                }
+                size="sm"
+                className="text-[10px] font-bold uppercase"
+              >
                 {saving ? (
                   <>
                     <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1710,24 +1727,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
       </div>
 
-      {/* Success/Error Messages */}
-      {(successMessage || error) && (
-        <div
-          className={`px-6 py-3 text-xs flex items-center gap-2 ${
-            successMessage
-              ? "bg-[var(--status-success)]/10 text-[var(--status-success)]"
-              : "bg-[var(--status-error)]/10 text-[var(--status-error)]"
-          }`}
-        >
-          {successMessage ? (
-            <Check className="w-4 h-4" />
-          ) : (
-            <X className="w-4 h-4" />
-          )}
-          {successMessage || error}
-        </div>
-      )}
-
       {/* Settings Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-8 theme-bg-base">
         <div className="max-w-3xl mx-auto">{renderActiveSettings()}</div>
@@ -1737,7 +1736,3 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 };
 
 export default SettingsScreen;
-
-
-
-

@@ -11,16 +11,15 @@ from databases import Database
 
 
 class IAgentProfileRepository(Protocol):
-    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]:
-        ...
+    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]: ...
 
-    async def get_by_id(self, org_id: str, profile_id: str) -> Optional[Dict[str, Any]]:
-        ...
+    async def get_by_id(
+        self, org_id: str, profile_id: str
+    ) -> Optional[Dict[str, Any]]: ...
 
     async def get_by_name_adapter(
         self, org_id: str, name: str, adapter: str
-    ) -> Optional[Dict[str, Any]]:
-        ...
+    ) -> Optional[Dict[str, Any]]: ...
 
     async def create_profile(
         self,
@@ -35,25 +34,21 @@ class IAgentProfileRepository(Protocol):
         description: Optional[str],
         source: str,
         created_by_user_id: Optional[str],
-    ) -> Dict[str, Any]:
-        ...
+    ) -> Dict[str, Any]: ...
 
-    async def update_profile(self, profile_id: str, updates: Dict[str, Any]) -> None:
-        ...
+    async def update_profile(
+        self, profile_id: str, updates: Dict[str, Any]
+    ) -> None: ...
 
-    async def delete_profile(self, profile_id: str) -> None:
-        ...
+    async def delete_profile(self, profile_id: str) -> None: ...
 
 
 class IAgentRepository(Protocol):
-    async def get_by_id(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        ...
+    async def get_by_id(self, agent_id: str) -> Optional[Dict[str, Any]]: ...
 
-    async def list_by_project(self, project_id: str) -> List[Dict[str, Any]]:
-        ...
+    async def list_by_project(self, project_id: str) -> List[Dict[str, Any]]: ...
 
-    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]:
-        ...
+    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]: ...
 
     async def create_agent(
         self,
@@ -69,28 +64,23 @@ class IAgentRepository(Protocol):
         override_executable: Optional[str],
         override_model: Optional[str],
         metadata: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        ...
+    ) -> Dict[str, Any]: ...
 
-    async def update_status(self, agent_id: str, status: str) -> None:
-        ...
+    async def update_status(self, agent_id: str, status: str) -> None: ...
 
-    async def update_heartbeat(self, agent_id: str) -> None:
-        ...
+    async def update_heartbeat(self, agent_id: str) -> None: ...
 
-    async def set_assignment(self, agent_id: str, assigned_user_id: Optional[str]) -> None:
-        ...
+    async def set_assignment(
+        self, agent_id: str, assigned_user_id: Optional[str]
+    ) -> None: ...
 
-    async def set_machine(self, agent_id: str, machine_id: Optional[str]) -> None:
-        ...
+    async def set_machine(self, agent_id: str, machine_id: Optional[str]) -> None: ...
 
-    async def set_profile(self, agent_id: str, profile_id: Optional[str]) -> None:
-        ...
+    async def set_profile(self, agent_id: str, profile_id: Optional[str]) -> None: ...
 
 
 class IMachineRepository(Protocol):
-    async def get_by_id(self, machine_id: str) -> Optional[Dict[str, Any]]:
-        ...
+    async def get_by_id(self, machine_id: str) -> Optional[Dict[str, Any]]: ...
 
     async def upsert_machine(
         self,
@@ -98,11 +88,9 @@ class IMachineRepository(Protocol):
         hostname: str,
         fingerprint: str,
         metadata: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        ...
+    ) -> Dict[str, Any]: ...
 
-    async def touch_last_seen(self, machine_id: str) -> None:
-        ...
+    async def touch_last_seen(self, machine_id: str) -> None: ...
 
 
 class PostgresAgentProfileRepository:
@@ -261,10 +249,12 @@ class PostgresAgentRepository:
     async def list_by_project(self, project_id: str) -> List[Dict[str, Any]]:
         rows = await self.db.fetch_all(
             """
-            SELECT *
-            FROM agents
-            WHERE project_id = :project_id
-            ORDER BY created_at DESC
+            SELECT a.*, ap.name AS profile_name, m.hostname AS hostname
+            FROM agents a
+            LEFT JOIN agent_profiles ap ON ap.id = a.profile_id
+            LEFT JOIN machines m ON m.id = a.machine_id
+            WHERE a.project_id = :project_id
+            ORDER BY a.created_at DESC
             """,
             values={"project_id": project_id},
         )
@@ -273,9 +263,11 @@ class PostgresAgentRepository:
     async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]:
         rows = await self.db.fetch_all(
             """
-            SELECT a.*
+            SELECT a.*, ap.name AS profile_name, m.hostname AS hostname
             FROM agents a
             JOIN projects p ON p.id = a.project_id
+            LEFT JOIN agent_profiles ap ON ap.id = a.profile_id
+            LEFT JOIN machines m ON m.id = a.machine_id
             WHERE p.org_id = :org_id
             ORDER BY a.created_at DESC
             """,
@@ -381,7 +373,9 @@ class PostgresAgentRepository:
             values={"id": agent_id},
         )
 
-    async def set_assignment(self, agent_id: str, assigned_user_id: Optional[str]) -> None:
+    async def set_assignment(
+        self, agent_id: str, assigned_user_id: Optional[str]
+    ) -> None:
         await self.db.execute(
             """
             UPDATE agents

@@ -26,6 +26,10 @@ export interface Agent {
   metadata: Record<string, unknown>;
   /** Agent profile ID (UUID string or null) */
   profile_id: string | null;
+  /** Agent profile name (human-readable, joined from agent_profiles table) */
+  profile_name?: string | null;
+  /** Hostname where the agent is running (joined from machines table) */
+  hostname?: string | null;
   /** When the agent was created (ISO string) */
   created_at: string;
   /** When the agent was last updated (ISO string) */

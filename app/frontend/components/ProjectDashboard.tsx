@@ -4,9 +4,9 @@ import {
   ProjectDetails,
   Requirement,
   RunHistoryEntry,
-  AgentEntry,
-  AgentConfiguration,
 } from "../services/felixApi";
+import { listAgents } from "../src/api/client";
+import type { Agent } from "../src/api/types";
 import {
   Kanban as IconKanban,
   FileText as IconFileText,
@@ -58,8 +58,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
 }) => {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [runs, setRuns] = useState<RunHistoryEntry[]>([]);
-  const [registryAgents, setRegistryAgents] = useState<AgentEntry[]>([]);
-  const [configAgents, setConfigAgents] = useState<AgentConfiguration[]>([]);
+  const [registryAgents, setRegistryAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agentQuery, setAgentQuery] = useState("");
@@ -75,14 +74,12 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
       const results = await Promise.allSettled([
         felixApi.getRequirements(projectId),
         felixApi.listRuns(projectId),
-        felixApi.getAgents(),
-        felixApi.getAgentConfigurations(),
+        listAgents({ scope: "project", projectId }),
       ]);
 
       if (!isMounted) return;
 
-      const [requirementsResult, runsResult, agentsResult, configsResult] =
-        results;
+      const [requirementsResult, runsResult, agentsResult] = results;
       if (requirementsResult.status === "fulfilled") {
         setRequirements(requirementsResult.value.requirements || []);
       }
@@ -90,18 +87,13 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         setRuns(runsResult.value.runs || []);
       }
       if (agentsResult.status === "fulfilled") {
-        const list = Object.values(agentsResult.value.agents || {});
-        setRegistryAgents(list);
-      }
-      if (configsResult.status === "fulfilled") {
-        setConfigAgents(configsResult.value.agents || []);
+        setRegistryAgents(agentsResult.value.agents || []);
       }
 
       if (
         requirementsResult.status === "rejected" &&
         runsResult.status === "rejected" &&
-        agentsResult.status === "rejected" &&
-        configsResult.status === "rejected"
+        agentsResult.status === "rejected"
       ) {
         setError("Unable to load dashboard telemetry.");
       }
@@ -223,35 +215,21 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   };
 
   const combinedAgents = useMemo<DashboardAgent[]>(() => {
-    const registry = registryAgents.map((agent) => ({
-      id: agent.agent_id,
-      name: agent.agent_name,
-      status: agent.status,
-      hostname: agent.hostname,
-      executable: null,
-      currentRunId: agent.current_run_id,
-      workflowStage: agent.current_workflow_stage ?? null,
-      source: "registry" as const,
-    }));
-
-    const registryIds = new Set(registryAgents.map((agent) => agent.agent_id));
-    const configs = configAgents
-      .filter((agent) => !registryIds.has(agent.id))
+    return registryAgents
+      .filter((agent) => agent.id) // Filter out agents without IDs
       .map((agent) => ({
         id: agent.id,
         name: agent.name,
-        status: "not-started" as const,
-        hostname: null,
-        executable: agent.executable,
-        currentRunId: null,
-        workflowStage: null,
-        source: "config" as const,
-      }));
-
-    return [...registry, ...configs].sort((a, b) =>
-      (a.name || "").localeCompare(b.name || ""),
-    );
-  }, [registryAgents, configAgents]);
+        status: agent.status,
+        hostname: agent.hostname || null,
+        executable: null,
+        currentRunId: (agent.metadata?.current_run_id as string | null) || null,
+        workflowStage:
+          (agent.metadata?.current_workflow_stage as string | null) || null,
+        source: "registry" as const,
+      }))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [registryAgents]);
 
   const agentMetrics = useMemo(() => {
     const metrics = {
@@ -628,7 +606,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 key={`${agent.source}-${agent.id}`}
                 className={`${agentDensity === "compact" ? "p-3" : "p-4"}`}
               >
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={`w-2 h-2 rounded-full ${agentStatusColor(agent.status)}`}
@@ -641,7 +619,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                       {agent.name}
                     </span>
                   </div>
-                  <span className="text-[9px] font-mono uppercase theme-text-muted">
+                  <span className="text-[9px] font-mono theme-text-muted ml-4">
                     #{agent.id}
                   </span>
                 </div>

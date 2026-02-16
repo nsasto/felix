@@ -3,6 +3,7 @@ Felix Backend - Agent Configuration API
 Manages agent configuration profiles stored in the database.
 These are agent templates/presets, separate from the runtime agent registry.
 """
+
 import json
 from typing import List, Dict, Optional, Any
 
@@ -21,8 +22,10 @@ router = APIRouter(prefix="/api/agent-configs", tags=["agent-configs"])
 
 # --- Request/Response Models ---
 
+
 class AgentConfigEntry(BaseModel):
     """Agent configuration entry"""
+
     id: str = Field(..., description="Unique agent profile ID (UUID)")
     name: str = Field(..., description="Display name for the agent")
     adapter: str = Field(default="droid", description="Agent adapter type")
@@ -30,58 +33,74 @@ class AgentConfigEntry(BaseModel):
     args: List[str] = Field(default_factory=list, description="Command line arguments")
     model: Optional[str] = Field(None, description="Optional model override")
     working_directory: str = Field(default=".", description="Working directory")
-    environment: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+    environment: Dict[str, str] = Field(
+        default_factory=dict, description="Environment variables"
+    )
     description: Optional[str] = Field(None, description="Optional description")
 
 
 class AgentConfigCreate(BaseModel):
     """Request body for creating a new agent configuration"""
+
     name: str = Field(..., description="Display name for the agent")
     adapter: str = Field(default="droid", description="Agent adapter type")
     executable: str = Field(default="droid", description="Agent executable path")
     args: List[str] = Field(default_factory=list, description="Command line arguments")
     model: Optional[str] = Field(None, description="Optional model override")
     working_directory: str = Field(default=".", description="Working directory")
-    environment: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+    environment: Dict[str, str] = Field(
+        default_factory=dict, description="Environment variables"
+    )
     description: Optional[str] = Field(None, description="Optional description")
 
 
 class AgentConfigUpdate(BaseModel):
     """Request body for updating an agent configuration"""
+
     name: Optional[str] = Field(None, description="Display name for the agent")
     adapter: Optional[str] = Field(None, description="Agent adapter type")
     executable: Optional[str] = Field(None, description="Agent executable path")
     args: Optional[List[str]] = Field(None, description="Command line arguments")
     model: Optional[str] = Field(None, description="Optional model override")
     working_directory: Optional[str] = Field(None, description="Working directory")
-    environment: Optional[Dict[str, str]] = Field(None, description="Environment variables")
+    environment: Optional[Dict[str, str]] = Field(
+        None, description="Environment variables"
+    )
     description: Optional[str] = Field(None, description="Optional description")
 
 
 class AgentConfigsResponse(BaseModel):
     """Response containing all agent configurations"""
+
     agents: List[AgentConfigEntry]
-    active_agent_id: Optional[str] = Field(None, description="Currently active agent profile ID")
+    active_agent_id: Optional[str] = Field(
+        None, description="Currently active agent profile ID"
+    )
 
 
 class AgentConfigResponse(BaseModel):
     """Response for a single agent configuration operation"""
+
     agent: AgentConfigEntry
     message: str
 
 
 class SetActiveAgentRequest(BaseModel):
     """Request body for setting the active agent"""
+
     agent_id: str = Field(..., description="Agent profile ID to set as active")
 
 
 class SetActiveAgentResponse(BaseModel):
     """Response for setting active agent"""
+
     agent_id: str
     message: str
 
 
-def _extract_active_agent_id(org_metadata: Optional[Dict[str, Any] | str]) -> Optional[str]:
+def _extract_active_agent_id(
+    org_metadata: Optional[Dict[str, Any] | str],
+) -> Optional[str]:
     if not org_metadata:
         return None
     if isinstance(org_metadata, str):
@@ -114,7 +133,9 @@ async def get_active_agent_id(db: Database, org_id: str) -> Optional[str]:
     return _extract_active_agent_id(row["metadata"])
 
 
-async def set_active_agent_id(db: Database, org_id: str, agent_id: Optional[str]) -> None:
+async def set_active_agent_id(
+    db: Database, org_id: str, agent_id: Optional[str]
+) -> None:
     payload = json.dumps(agent_id) if agent_id else "null"
     await db.execute(
         """
@@ -147,6 +168,7 @@ def _to_entry(row: Dict[str, Any]) -> AgentConfigEntry:
 
 # --- API Endpoints ---
 
+
 @router.get("", response_model=AgentConfigsResponse)
 async def get_agent_configs(
     db: Database = Depends(get_db),
@@ -160,6 +182,15 @@ async def get_agent_configs(
     repo = PostgresAgentProfileRepository(db)
     agents = await repo.list_by_org(user["org_id"])
     active_id = await get_active_agent_id(db, user["org_id"])
+
+    print(
+        f"[agent_configs] Fetched {len(agents)} agent profiles for org {user['org_id']}"
+    )
+    for agent in agents:
+        print(
+            f"  - Agent: id={agent.get('id')}, name={agent.get('name')}, adapter={agent.get('adapter')}"
+        )
+
     return AgentConfigsResponse(
         agents=[_to_entry(agent) for agent in agents],
         active_agent_id=active_id,
@@ -178,7 +209,9 @@ async def get_agent_config(
     repo = PostgresAgentProfileRepository(db)
     agent = await repo.get_by_id(user["org_id"], agent_id)
     if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent with ID {agent_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID {agent_id} not found"
+        )
     return AgentConfigResponse(
         agent=_to_entry(agent),
         message=f"Agent configuration retrieved: {agent.get('name', 'Unknown')}",
@@ -237,10 +270,21 @@ async def update_agent_config(
     repo = PostgresAgentProfileRepository(db)
     existing = await repo.get_by_id(user["org_id"], agent_id)
     if not existing:
-        raise HTTPException(status_code=404, detail=f"Agent with ID {agent_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID {agent_id} not found"
+        )
 
     updates: Dict[str, Any] = {}
-    for field in ("name", "adapter", "executable", "args", "model", "working_directory", "environment", "description"):
+    for field in (
+        "name",
+        "adapter",
+        "executable",
+        "args",
+        "model",
+        "working_directory",
+        "environment",
+        "description",
+    ):
         value = getattr(request, field)
         if value is not None:
             updates[field] = value
@@ -269,7 +313,9 @@ async def delete_agent_config(
     repo = PostgresAgentProfileRepository(db)
     agent = await repo.get_by_id(user["org_id"], agent_id)
     if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent with ID {agent_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID {agent_id} not found"
+        )
 
     await repo.delete_profile(agent_id)
 
@@ -284,7 +330,11 @@ async def delete_agent_config(
         )
         return {"status": "deleted", "agent_id": agent_id, "message": message}
 
-    return {"status": "deleted", "agent_id": agent_id, "message": f"Agent '{agent.get('name', 'Unknown')}' deleted."}
+    return {
+        "status": "deleted",
+        "agent_id": agent_id,
+        "message": f"Agent '{agent.get('name', 'Unknown')}' deleted.",
+    }
 
 
 @router.post("/active", response_model=SetActiveAgentResponse)
@@ -299,7 +349,9 @@ async def set_active_agent(
     repo = PostgresAgentProfileRepository(db)
     agent = await repo.get_by_id(user["org_id"], request.agent_id)
     if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent with ID {request.agent_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID {request.agent_id} not found"
+        )
 
     await set_active_agent_id(db, user["org_id"], request.agent_id)
     return SetActiveAgentResponse(
@@ -324,7 +376,9 @@ async def get_active_agent(
 
     agent = await repo.get_by_id(user["org_id"], active_id)
     if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent with ID {active_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID {active_id} not found"
+        )
 
     return AgentConfigResponse(
         agent=_to_entry(agent),
