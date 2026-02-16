@@ -36,31 +36,31 @@ const NAV_ITEMS: Array<{
   {
     id: "projects",
     label: "Project Overview",
-    icon: <IconFileText />,
+    icon: <IconFileText strokeWidth={1.25} />,
     subtitle: "Workspace",
   },
   {
     id: "kanban",
     label: "Board",
-    icon: <IconKanban />,
+    icon: <IconKanban strokeWidth={1.25} />,
     subtitle: "Requirements",
   },
   {
     id: "assets",
     label: "Specifications",
-    icon: <IconFileCode />,
+    icon: <IconFileCode strokeWidth={1.25} />,
     subtitle: "Documentation",
   },
   {
     id: "orchestration",
     label: "Orchestration",
-    icon: <IconPulse />,
+    icon: <IconPulse strokeWidth={1.25} />,
     subtitle: "Agent views",
   },
   {
     id: "settings",
     label: "Settings",
-    icon: <IconSettings />,
+    icon: <IconSettings strokeWidth={1.25} />,
     subtitle: "Preferences",
   },
 ];
@@ -155,7 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             aria-haspopup="true"
             aria-expanded={modeMenuOpen}
           >
-            <IconPanelLeftDashed className="w-4 h-4" />
+            <IconPanelLeftDashed className="w-4 h-4" strokeWidth={1.25} />
           </Button>
           {modeMenuOpen && (
             <div
