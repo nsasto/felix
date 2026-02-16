@@ -228,7 +228,7 @@
                              "id":  "S-0059",
                              "title":  "S-0059: Run Artifact Sync - Storage Abstraction Layer",
                              "spec_path":  "specs/S-0059-storage-abstraction-layer.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "tags":  [
 
