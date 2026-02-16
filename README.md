@@ -42,6 +42,19 @@ npm run dev
 .\scripts\install-cli.ps1  # Then use 'felix run S-0001'
 ```
 
+**Optional: Enable server sync for run artifacts**
+
+```json
+// Add to .felix/config.json:
+{
+  "sync": {
+    "enabled": true,
+    "provider": "fastapi",
+    "base_url": "http://localhost:8080"
+  }
+}
+```
+
 📘 **[Complete setup guide →](HOW_TO_USE.md)**
 
 ---
@@ -97,9 +110,15 @@ your-project/
 │
 ├── .felix/                          # Felix configuration & state
 │   ├── requirements.json          # Requirement registry with status
-│   ├── config.json                # Executor configuration
+│   ├── config.json                # Executor configuration (includes sync settings)
 │   ├── agents.json                # CLI agent presets (local only)
 │   ├── state.json                 # Current execution state
+│   ├── outbox/                    # Sync queue (when enabled)
+│   │   └── *.jsonl                # Pending requests to server
+│   ├── core/                      # Core modules & interfaces
+│   │   └── sync-interface.ps1    # Abstract sync plugin interface
+│   ├── plugins/                   # Plugin system
+│   │   └── sync-fastapi.ps1      # FastAPI sync implementation
 │   └── prompts/                   # Mode-specific LLM prompts
 │       ├── planning.md
 │       └── building.md
@@ -132,20 +151,23 @@ Felix consists of three independent components:
 │  • Edits artifacts                                  │
 │  • Spawns agents                                    │
 │  • Monitors runs                                    │
+│  • Views artifacts & events                         │
 └──────────────────┬──────────────────────────────────┘
-                   │ HTTP/WebSocket
+                   │ REST + SSE
 ┌──────────────────▼──────────────────────────────────┐
 │  Backend (FastAPI)                                  │
 │  • Spawns agent processes                           │
 │  • Monitors via filesystem watchers                 │
-│  • Provides API for UI                              │
-│  • WebSocket updates                                │
+│  • Ingests run artifacts & events                   │
+│  • Stores artifacts via abstraction layer           │
+│  • SSE streaming for real-time updates              │
 └──────────────────┬──────────────────────────────────┘
                    │ subprocess + filesystem
 ┌──────────────────▼──────────────────────────────────┐
 │  Agent (PowerShell)                                 │
 │  • Runs Ralph loop                                  │
 │  • Reads/writes artifacts                           │
+│  • Optional: Syncs to server via outbox queue       │
 │  • Calls LLM APIs                                   │
 │  • Executes code changes                            │
 │  • Runs tests                                       │

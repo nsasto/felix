@@ -28,6 +28,7 @@ Felix is a plan-driven executor for autonomous software delivery. It transforms 
   - `anthropic`, `openai` - LLM client libraries (Copilot)
   - `httpx` - Async HTTP client
   - `python-dotenv` - Environment management
+  - `supabase` - Cloud storage client (optional)
 - **Location:** `app/backend/`
 - **API Docs:** http://localhost:8080/docs (Swagger UI)
 
@@ -69,9 +70,11 @@ Felix is a plan-driven executor for autonomous software delivery. It transforms 
 ### Communication Architecture
 
 - **Agent ↔ Filesystem:** Direct read/write of project files (specs, plans, state JSON)
+- **Agent → Backend:** Optional outbox-based sync (JSONL queue)
 - **Backend ↔ Agent:** No direct communication; backend watches filesystem for changes
 - **Backend ↔ Database:** Async PostgreSQL via `databases` + `asyncpg`
-- **Backend ↔ Frontend:** REST API + WebSocket for real-time updates
+- **Backend ↔ Storage:** Artifact upload via abstraction layer (filesystem or Supabase)
+- **Backend ↔ Frontend:** REST API + SSE for real-time updates
 - **Frontend ↔ LLM (Copilot):** Via backend proxy endpoints or direct client (Gemini)
 - **Agent ↔ LLM:** Agent shells out to `droid exec` which calls Factory API
 
@@ -136,12 +139,15 @@ Felix is a plan-driven executor for autonomous software delivery. It transforms 
   - `felix.ps1` - CLI dispatcher (entry point)
   - `felix-agent.ps1` - Core agent executor
   - `felix-loop.ps1` - Continuous execution loop
-  - `config.json` - Runtime configuration
+  - `config.json` - Runtime configuration (includes sync settings)
   - `agents.json` - Agent registry (ID, executable, adapter)
   - `requirements.json` - Requirements status tracking
   - `state.json` - Current execution state
-  - `core/` - Core PowerShell modules
-  - `plugins/` - Plugin system (metrics, slack, prompt-enhancer)
+  - `outbox/` - Sync queue for server uploads (\*.jsonl)
+  - `core/` - Core PowerShell modules & interfaces
+    - `sync-interface.ps1` - Abstract sync reporter interface
+  - `plugins/` - Plugin system (metrics, slack, sync, prompt-enhancer)
+    - `sync-fastapi.ps1` - FastAPI sync implementation
   - `policies/` - Allowlist/denylist for agent operations
   - `prompts/` - LLM prompt templates (planning.md, building.md, etc.)
   - `tests/` - Agent test files
@@ -179,7 +185,7 @@ Felix is a plan-driven executor for autonomous software delivery. It transforms 
 
 ## Database Schema
 
-PostgreSQL database with 9 core tables:
+PostgreSQL database with 11 core tables:
 
 - `schema_migrations` - Migration version tracking
 - `organizations` - Multi-tenant organization records
@@ -189,7 +195,9 @@ PostgreSQL database with 9 core tables:
 - `agents` - Agent registration and status
 - `agent_states` - Key-value state storage for agents
 - `runs` - Execution run records (pending/running/completed/failed/cancelled)
-- `run_artifacts` - Artifacts produced by runs
+- `run_artifacts` - Artifacts produced by runs (deprecated)
+- `run_files` - Run artifact storage tracking with SHA256
+- `run_events` - Event timeline for runs (real-time streaming)
 
 Setup: `.\scripts\setup-db.ps1`
 
@@ -201,6 +209,25 @@ Setup: `.\scripts\setup-db.ps1`
 - **PostgreSQL:** Primary data store for backend (local or remote)
 - **Node.js/npm:** Frontend build and development
 - **Python 3.11+:** Backend runtime
+
+## Sync Configuration (Optional)
+
+Agent-to-server artifact mirroring via outbox pattern:
+
+- **Outbox Queue:** `.felix/outbox/*.jsonl` with automatic retry
+- **Plugin System:** Pluggable sync providers (fastapi, custom)
+- **Idempotent:** SHA256 manifest ensures unchanged files skip upload
+- **Batch Upload:** All run artifacts in single HTTP request (~90% fewer requests)
+- **Automatic Compression:** gzip via HTTP Accept-Encoding header
+- **Storage Abstraction:** FilesystemStorage (local) or SupabaseStorage (cloud)
+
+Environment Variables:
+
+- `FELIX_SYNC_ENABLED` - Enable sync (true/false)
+- `FELIX_SYNC_URL` - Backend base URL (e.g., http://localhost:8080)
+- `FELIX_SYNC_KEY` - Optional API key for authentication
+
+See: **Enhancements/runs_migration.md** for implementation details.
 
 ### Environment Variables
 
@@ -215,4 +242,3 @@ Setup: `.\scripts\setup-db.ps1`
 - `.felix/agents.json` - Agent definitions registry
 - `app/backend/.env` - Backend environment variables
 - `app/frontend/.env` - Frontend environment variables (Vite)
-

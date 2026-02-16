@@ -69,7 +69,50 @@ Run the agent locally with PowerShell (examples):
 
 # Alternative: run the looped runner
 .\felix\felix-loop.ps1 C:\dev\Felix
+
+# Sync plugin loads automatically if enabled in config
+# Check: .felix/outbox/ will contain *.jsonl if queued
 ```
+
+### Sync Configuration (Optional)
+
+Enable artifact mirroring to server for team collaboration:
+
+**Environment Variables:**
+
+```powershell
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "http://localhost:8080"
+$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"  # Optional
+```
+
+**Config File (.felix/config.json):**
+
+```json
+{
+  "sync": {
+    "enabled": true,
+    "provider": "fastapi",
+    "base_url": "http://localhost:8080",
+    "api_key": null
+  }
+}
+```
+
+**How It Works:**
+
+- Agent writes artifacts locally first (always)
+- Sync plugin queues uploads in `.felix/outbox/*.jsonl`
+- Automatic retry on network failure (eventual consistency)
+- Idempotent: unchanged files skip upload (SHA256 check)
+- Batch upload: all run artifacts in single HTTP request
+
+**Check Sync Status:**
+
+- Pending uploads: `ls .felix\outbox\*.jsonl`
+- Recent synced runs: Check backend at http://localhost:8080/docs → GET /api/runs
+
+See **Enhancements/runs_migration.md** for architecture details.
 
 ### Agent Profiles (Local vs Remote)
 
@@ -153,4 +196,3 @@ The validation script executes anything in backticks as a shell command. If it's
 ## CLI Scope
 
 Felix CLI configuration and execution are always local to the machine running it.
-
