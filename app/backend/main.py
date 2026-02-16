@@ -26,6 +26,7 @@ from routers import (
     user,
     requirements,
     org_members,
+    sync,
 )
 from database.db import startup as db_startup, shutdown as db_shutdown, get_db
 from auth import get_current_user
@@ -92,6 +93,7 @@ app.include_router(agent_configs.router)
 app.include_router(user.router)
 app.include_router(requirements.router)
 app.include_router(org_members.router)
+app.include_router(sync.router)
 
 
 @app.get("/health")
