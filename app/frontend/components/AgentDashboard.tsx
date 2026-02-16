@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { felixApi, Requirement, MergedAgent } from "../services/felixApi";
-import { listRuns as apiListRuns } from "../src/api/client";
-import type { Run } from "../src/api/types";
+import { felixApi, Requirement } from "../services/felixApi";
+import { listAgents as apiListAgents, listRuns as apiListRuns } from "../src/api/client";
+import type { Agent, Run } from "../src/api/types";
 import { PageLoading } from "./ui/page-loading";
 import {
   Bot as IconFelix,
@@ -57,11 +57,40 @@ interface AgentDashboardProps {
 
 interface SelectedAgent {
   id: string;
-  agent: MergedAgent;
+  agent: Agent;
 }
 
-type AgentStatus = MergedAgent["status"];
+type AgentStatus = "running" | "idle" | "stopped" | "error" | "unknown";
 type DashboardView = "dashboard" | "detail";
+
+const getAgentMetadataValue = (
+  metadata: Record<string, unknown>,
+  key: string,
+) => {
+  const value = metadata[key];
+  return typeof value === "string" ? value : null;
+};
+
+const getAgentHostLabel = (agent: Agent) => {
+  const metadata = agent.metadata || {};
+  const machine = metadata.machine;
+  if (machine && typeof machine === "object") {
+    const machineHost = getAgentMetadataValue(
+      machine as Record<string, unknown>,
+      "hostname",
+    );
+    if (machineHost) return machineHost;
+  }
+  return getAgentMetadataValue(metadata, "hostname");
+};
+
+const getAgentWorkflowStage = (agent: Agent) => {
+  const metadata = agent.metadata || {};
+  return (
+    getAgentMetadataValue(metadata, "current_workflow_stage") ||
+    getAgentMetadataValue(metadata, "workflow_stage")
+  );
+};
 
 // --- Status Icon Component Removed (Integrated into Badge/Dot) ---
 
@@ -93,216 +122,12 @@ const RunStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-// --- Agent List Panel ---
-
-interface AgentListPanelProps {
-  agents: MergedAgent[];
-  selectedAgent: SelectedAgent | null;
-  onSelectAgent: (agent: SelectedAgent) => void;
-  loading: boolean;
-}
-
-const AgentListPanel: React.FC<AgentListPanelProps> = ({
-  agents,
-  selectedAgent,
-  onSelectAgent,
-  loading,
-}) => {
-  // Group agents by status per S-0021 spec
-  const availableAgents = agents.filter((a) => a.status === "not-started");
-  const activeAgents = agents.filter(
-    (a) => a.status === "active" || a.status === "stale",
-  );
-  const inactiveAgents = agents.filter(
-    (a) => a.status === "inactive" || a.status === "stopped",
-  );
-
-  // Format relative time
-  const formatRelativeTime = (isoString: string | null | undefined) => {
-    if (!isoString) return null;
-    try {
-      const date = new Date(isoString);
-      const now = new Date();
-      const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-      if (diff < 60) return `${diff}s ago`;
-      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-      return `${Math.floor(diff / 3600)}h ago`;
-    } catch {
-      return null;
-    }
-  };
-
-  const renderAgentCard = (agent: MergedAgent) => {
-    const isSelected = selectedAgent?.id === agent.id;
-    const relativeTime = formatRelativeTime(agent.last_heartbeat);
-
-    const statusColor =
-      {
-        active: "bg-[var(--brand-500)] shadow-[0_0_8px_-2px_var(--brand-500)]",
-        stale: "bg-[var(--warning-500)]",
-        stopped: "bg-[var(--destructive-500)]",
-        "not-started": "bg-[var(--border-muted)]",
-        inactive: "bg-[var(--text-muted)]",
-      }[agent.status] || "bg-[var(--text-muted)]";
-
-    return (
-      <Card
-        key={agent.id}
-        onClick={() => onSelectAgent({ id: agent.id, agent })}
-        className={cn(
-          "w-full p-3 rounded-xl text-left transition-all cursor-pointer border",
-          isSelected
-            ? "border-[var(--brand-500)]/50 bg-[var(--brand-500)]/5"
-            : "bg-[var(--bg-base)] border-[var(--border-default)] hover:border-[var(--brand-500)]/20 hover:bg-[var(--bg-surface)]",
-        )}
-      >
-        <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              "w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 transition-colors",
-              statusColor,
-            )}
-            title={agent.status}
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-bold text-sm truncate theme-text-secondary">
-                {agent.name}
-              </span>
-              {agent.current_run_id && (
-                <span className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-[var(--brand-500)]/10 text-[var(--brand-400)] border border-[var(--brand-500)]/20">
-                  {agent.current_run_id}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-[10px] theme-text-muted">
-              {agent.status === "not-started" ? (
-                // For not-started agents, show executable + args preview
-                <span className="truncate font-mono">
-                  {agent.executable} {agent.args.slice(0, 2).join(" ")}...
-                </span>
-              ) : (
-                // For running/stopped agents, show hostname
-                <span className="truncate">
-                  {agent.hostname || agent.executable}
-                </span>
-              )}
-              {(agent.status === "active" || agent.status === "stale") &&
-                relativeTime && (
-                  <>
-                    <span>•</span>
-                    <span>{relativeTime}</span>
-                  </>
-                )}
-            </div>
-            {/* Status text for not-started agents */}
-            {agent.status === "not-started" && (
-              <p className="text-[9px] mt-1 theme-text-faint">Ready to start</p>
-            )}
-            {/* Last active timestamp for stopped agents */}
-            {agent.status === "stopped" && agent.stopped_at && (
-              <p className="text-[9px] mt-1 theme-text-faint">
-                Stopped {formatRelativeTime(agent.stopped_at)}
-              </p>
-            )}
-          </div>
-        </div>
-      </Card>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="h-full flex flex-col bg-[var(--bg-200)]">
-        <div className="p-4 border-b border-[var(--border-default)]">
-          <h2 className="text-xs font-bold uppercase tracking-wider theme-text-tertiary">
-            Agents
-          </h2>
-        </div>
-        <div className="flex-1">
-          <PageLoading size="md" showText={false} />
-        </div>
-      </div>
-    );
-  }
-
-  if (agents.length === 0) {
-    return (
-      <div className="h-full flex flex-col bg-[var(--bg-200)]">
-        <div className="p-4 border-b border-[var(--border)]">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
-            Agents
-          </h2>
-        </div>
-        <EmptyState
-          title="No agents configured"
-          description="Configure agents in Settings"
-          icon={<IconCpu className="w-6 h-6 text-[var(--text-faint)]" />}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full flex flex-col bg-[var(--bg-base)]">
-      <div className="px-6 py-4 border-b border-[var(--border)]">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
-          Agents
-        </h2>
-      </div>
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-3">
-        {/* Available Agents (not-started) */}
-        {availableAgents.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <div className="w-2 h-2 rounded-full bg-slate-500" />
-              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
-                Available ({availableAgents.length})
-              </span>
-            </div>
-            <div className="space-y-2">
-              {availableAgents.map(renderAgentCard)}
-            </div>
-          </div>
-        )}
-
-        {/* Active Agents */}
-        {activeAgents.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
-                Active ({activeAgents.length})
-              </span>
-            </div>
-            <div className="space-y-2">{activeAgents.map(renderAgentCard)}</div>
-          </div>
-        )}
-
-        {/* Inactive Agents */}
-        {inactiveAgents.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <div className="w-2 h-2 rounded-full bg-[var(--text-lighter)]" />
-              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
-                Inactive ({inactiveAgents.length})
-              </span>
-            </div>
-            <div className="space-y-2">
-              {inactiveAgents.map(renderAgentCard)}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // --- Live Console Panel ---
 
 interface LiveConsolePanelProps {
   selectedAgent: SelectedAgent | null;
   projectId: string;
+  runId: string | null;
   showWorkflow?: boolean;
 }
 
@@ -319,6 +144,7 @@ interface ConsoleWebSocketMessage {
 const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
   selectedAgent,
   projectId,
+  runId,
   showWorkflow = true,
 }) => {
   const [consoleOutput, setConsoleOutput] = useState<string>("");
@@ -348,7 +174,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
 
   // WebSocket connection for console streaming
   useEffect(() => {
-    if (!selectedAgent || selectedAgent.agent.status !== "active") {
+    if (!selectedAgent || selectedAgent.agent.status !== "running" || !runId) {
       // Clean up WebSocket when agent is not active
       if (wsRef.current) {
         wsRef.current.close();
@@ -369,7 +195,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
       setConnectionStatus("connecting");
 
       // Create WebSocket connection
-      const wsUrl = `ws://localhost:8080/api/agents/${agentId}/console`;
+      const wsUrl = `ws://localhost:8080/api/agents/${agentId}/console?run_id=${encodeURIComponent(runId)}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -440,7 +266,7 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         wsRef.current = null;
 
         // Auto-reconnect with exponential backoff (max 30 seconds)
-        if (selectedAgent?.agent.status === "active") {
+        if (selectedAgent?.agent.status === "running" && runId) {
           const delay = Math.min(
             1000 * Math.pow(2, reconnectAttempts.current),
             30000,
@@ -470,13 +296,13 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         wsRef.current = null;
       }
     };
-  }, [selectedAgent?.id, selectedAgent?.agent.status]);
+  }, [selectedAgent?.id, selectedAgent?.agent.status, runId]);
 
   const handleClear = () => {
     setConsoleOutput("");
   };
 
-  const isAgentActive = selectedAgent?.agent?.status === "active";
+  const isAgentActive = selectedAgent?.agent?.status === "running";
 
   // Determine status message for non-active agents
   const getStatusMessage = () => {
@@ -484,15 +310,20 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
     if (isAgentActive) return null;
 
     switch (selectedAgent.agent.status) {
-      case "not-started":
+      case "idle":
         return {
-          primary: "Agent not running",
-          secondary: "Start the agent to see output",
+          primary: "Agent idle",
+          secondary: "Start a run to see output",
         };
       case "stopped":
         return {
           primary: "Agent stopped",
           secondary: "Restart the agent to see output",
+        };
+      case "error":
+        return {
+          primary: "Agent error",
+          secondary: "Resolve the error to resume output",
         };
       default:
         return {
@@ -511,11 +342,11 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         <div className="flex items-center gap-3">
           <IconTerminal className="w-4 h-4 text-brand-400" />
           <span className="text-xs font-bold text-[var(--text-light)]">
-            {selectedAgent?.name || "Live Console"}
+            {selectedAgent?.agent?.name || "Live Console"}
           </span>
-          {selectedAgent?.agent?.current_run_id && (
+          {currentRunId && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
-              {selectedAgent.agent.current_run_id}
+              {currentRunId}
             </span>
           )}
           {isAgentActive && (
@@ -609,38 +440,33 @@ const LiveConsolePanel: React.FC<LiveConsolePanelProps> = ({
         )}
       </div>
 
-      {/* Workflow Footer - Fixed at bottom */}
-      <div className="flex-shrink-0 border-t-2 border-[var(--border)] bg-[var(--bg-base)]">
-        {/* Workflow Header */}
-        <div className="px-4 py-1.5 border-b flex items-center gap-2 flex-shrink-0 border-[var(--border)]">
-          <IconWorkflow className="w-4 h-4 text-[var(--text-muted)]" />
-          <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
-            Agent Workflow
-          </span>
+      {showWorkflow && (
+        <div className="flex-shrink-0 border-t-2 border-[var(--border)] bg-[var(--bg-base)]">
+          <div className="px-4 py-1.5 border-b flex items-center gap-2 flex-shrink-0 border-[var(--border)]">
+            <IconWorkflow className="w-4 h-4 text-[var(--text-muted)]" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-lighter)]">
+              Agent Workflow
+            </span>
+          </div>
+          <div className="overflow-x-auto overflow-y-hidden custom-scrollbar h-[120px]">
+            {!selectedAgent && (
+              <div className="h-full flex flex-col items-center justify-center opacity-20">
+                <IconCpu className="w-8 h-8 mb-2 text-[var(--text-lighter)]" />
+                <p className="text-[10px] uppercase tracking-widest text-[var(--text-lighter)]">
+                  Select an agent
+                </p>
+              </div>
+            )}
+            {selectedAgent && (
+              <WorkflowVisualization
+                projectId={projectId}
+                currentStage={getAgentWorkflowStage(selectedAgent.agent)}
+                isAgentActive={isAgentActive}
+              />
+            )}
+          </div>
         </div>
-
-        {/* Workflow Visualization */}
-        <div className="overflow-x-auto overflow-y-hidden custom-scrollbar h-[120px]">
-          {/* No agent selected */}
-          {!selectedAgent && (
-            <div className="h-full flex flex-col items-center justify-center opacity-20">
-              <IconCpu className="w-8 h-8 mb-2 text-[var(--text-lighter)]" />
-              <p className="text-[10px] uppercase tracking-widest text-[var(--text-lighter)]">
-                Select an agent
-              </p>
-            </div>
-          )}
-
-          {/* Agent selected - always show workflow visualization */}
-          {selectedAgent && showWorkflow && (
-            <WorkflowVisualization
-              projectId={projectId}
-              currentStage={selectedAgent?.agent?.current_workflow_stage}
-              isAgentActive={isAgentActive}
-            />
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -913,7 +739,7 @@ const RunDetailSlideOut: React.FC<RunDetailSlideOutProps> = ({
 // --- Main Dashboard Component ---
 
 const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
-  const [agents, setAgents] = useState<MergedAgent[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [dbRuns, setDbRuns] = useState<Run[]>([]); // Database-backed runs from new API
   const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
     null,
@@ -926,12 +752,22 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [error, setError] = useState<string | null>(null);
   const [agentSearch, setAgentSearch] = useState("");
   const [showStartDialog, setShowStartDialog] = useState(false);
+  const [agentScope, setAgentScope] = useState<"project" | "org">(
+    projectId ? "project" : "org",
+  );
+  const canUseProjectScope = Boolean(projectId);
 
   // Refs to track current selectedAgent for polling without recreating fetchAgents
   const selectedAgentRef = useRef(selectedAgent);
   useEffect(() => {
     selectedAgentRef.current = selectedAgent;
   }, [selectedAgent]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setAgentScope("org");
+    }
+  }, [projectId]);
 
   // Fetch runs from database-backed API (S-0042)
   const fetchDbRuns = useCallback(async () => {
@@ -944,69 +780,41 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     }
   }, []);
 
-  // Fetch agents - merges configured agents with runtime status
+  // Fetch agents from database-backed API
   const fetchAgents = useCallback(async () => {
     try {
-      // Load both configured agents and runtime agents in parallel
-      const [configResponse, runtimeResponse] = await Promise.all([
-        felixApi.getAgentsConfig().catch(() => ({ agents: [] })), // Graceful fallback
-        felixApi.getAgents(),
-      ]);
-
-      const configuredAgents = configResponse.agents || [];
-      const runtimeAgents = runtimeResponse.agents || {};
-
-      // Merge: configured agents are source of truth, overlay with runtime status
-      const mergedAgents: MergedAgent[] = configuredAgents.map((config) => {
-        const runtime = runtimeAgents[config.id];
-
-        if (!runtime) {
-          // No runtime entry - agent has never been started
-          return {
-            ...config,
-            status: "not-started" as const,
-          };
-        }
-
-        // Has runtime entry - merge config with runtime data
-        return {
-          ...config,
-          status: runtime.status,
-          pid: runtime.pid,
-          hostname: runtime.hostname,
-          current_run_id: runtime.current_run_id,
-          last_heartbeat: runtime.last_heartbeat,
-          started_at: runtime.started_at,
-          stopped_at: runtime.stopped_at,
-          // Workflow stage fields (S-0030)
-          current_workflow_stage: runtime.current_workflow_stage,
-          workflow_stage_timestamp: runtime.workflow_stage_timestamp,
-        };
+      const response = await apiListAgents({
+        scope: agentScope,
+        projectId: agentScope === "project" ? projectId || undefined : undefined,
       });
-
-      setAgents(mergedAgents);
+      setAgents(response.agents);
       setError(null);
 
-      // Auto-select first active agent if none selected (using ref for current value)
+      // Auto-select first running agent if none selected (using ref for current value)
       const currentSelected = selectedAgentRef.current;
       if (!currentSelected) {
-        const activeAgents = mergedAgents.filter((a) => a.status === "active");
-        if (activeAgents.length > 0) {
+        const runningAgents = response.agents.filter(
+          (agent) => normalizeStatus(agent.status) === "running",
+        );
+        if (runningAgents.length > 0) {
           setSelectedAgent({
-            id: activeAgents[0].id,
-            agent: activeAgents[0],
+            id: runningAgents[0].id,
+            agent: runningAgents[0],
           });
         }
       } else {
         // Update selected agent data
-        const updatedAgent = mergedAgents.find(
-          (a) => a.id === currentSelected.id,
+        const updatedAgent = response.agents.find(
+          (agent) => agent.id === currentSelected.id,
         );
         if (updatedAgent) {
           setSelectedAgent({
             id: updatedAgent.id,
             agent: updatedAgent,
           });
+        } else if (viewMode === "detail") {
+          setViewMode("dashboard");
+          setSelectedAgent(null);
         }
       }
     } catch (err) {
@@ -1015,7 +823,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty deps - uses ref for selectedAgent to avoid recreating
+  }, [agentScope, projectId, viewMode]); // Uses ref for selectedAgent to avoid recreating
 
   // Fetch requirements
   const fetchRequirements = useCallback(async () => {
@@ -1032,7 +840,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     fetchAgents();
     fetchRequirements();
     fetchDbRuns();
-  }, []); // Empty deps - run once on mount
+  }, [fetchAgents, fetchRequirements, fetchDbRuns]);
 
   // 3-second polling for agents and runs (S-0042: restored live polling)
   useEffect(() => {
@@ -1094,20 +902,29 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     fetchDbRuns();
   };
 
+  const normalizeStatus = (status: string | null | undefined): AgentStatus => {
+    if (!status) return "unknown";
+    if (status === "running") return "running";
+    if (status === "idle") return "idle";
+    if (status === "stopped") return "stopped";
+    if (status === "error") return "error";
+    return "unknown";
+  };
+
   const statusTone: Record<AgentStatus, string> = {
-    active: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    stale: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-    inactive: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+    running: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    idle: "bg-slate-500/15 text-slate-300 border-slate-500/30",
     stopped: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-    "not-started": "bg-slate-500/10 text-slate-300 border-slate-500/20",
+    error: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    unknown: "bg-slate-500/10 text-slate-300 border-slate-500/20",
   };
 
   const statusDot: Record<AgentStatus, string> = {
-    active: "bg-emerald-500",
-    stale: "bg-amber-400",
-    inactive: "bg-slate-400",
+    running: "bg-emerald-500",
+    idle: "bg-slate-400",
     stopped: "bg-rose-500",
-    "not-started": "bg-slate-500",
+    error: "bg-amber-400",
+    unknown: "bg-slate-500",
   };
 
   const filteredAgents = agents.filter((agent) => {
@@ -1115,32 +932,34 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     if (!query) return true;
     return (
       agent.name.toLowerCase().includes(query) ||
-      agent.executable.toLowerCase().includes(query) ||
-      (agent.hostname || "").toLowerCase().includes(query)
+      agent.type.toLowerCase().includes(query) ||
+      agent.project_id.toLowerCase().includes(query) ||
+      (getAgentHostLabel(agent) || "").toLowerCase().includes(query)
     );
   });
 
-  const activeCount = agents.filter(
-    (agent) => agent.status === "active" || agent.status === "stale",
+  const runningCount = agents.filter(
+    (agent) => normalizeStatus(agent.status) === "running",
   ).length;
   const idleCount = agents.filter(
-    (agent) => agent.status === "inactive" || agent.status === "not-started",
+    (agent) => normalizeStatus(agent.status) === "idle",
   ).length;
-  const stoppedCount = agents.filter((agent) => agent.status === "stopped")
-    .length;
+  const stoppedCount = agents.filter(
+    (agent) => normalizeStatus(agent.status) === "stopped",
+  ).length;
   const runningRuns = dbRuns.filter((run) => run.status === "running").length;
   const failedRuns = dbRuns.filter((run) => run.status === "failed").length;
   const availableRequirements = requirements.filter(
     (req) => req.status === "planned" || req.status === "blocked",
   );
-  const isAgentActive = selectedAgent?.agent.status === "active";
+  const isAgentActive = selectedAgent?.agent.status === "running";
   const canStartAgent =
     selectedAgent &&
-    (selectedAgent.agent.status === "not-started" ||
+    (selectedAgent.agent.status === "idle" ||
       selectedAgent.agent.status === "stopped");
   const canStopAgent = selectedAgent && isAgentActive;
 
-  const enterDetailView = (agent: MergedAgent) => {
+  const enterDetailView = (agent: Agent) => {
     setSelectedAgent({ id: agent.id, agent });
     setViewMode("detail");
   };
@@ -1208,8 +1027,10 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   };
 
   const selectedAgentRuns = selectedAgent
-    ? dbRuns.filter((run) => run.agent_name === selectedAgent.agent.name)
+    ? dbRuns.filter((run) => run.agent_id === selectedAgent.id)
     : [];
+  const activeRunId =
+    selectedAgentRuns.find((run) => run.status === "running")?.id || null;
 
   const renderDashboard = () => (
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
@@ -1217,11 +1038,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface)]">
             <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-              Active Agents
+              Running Agents
             </p>
             <div className="mt-3 flex items-end justify-between">
               <span className="text-3xl font-semibold theme-text-secondary">
-                {activeCount}
+                {runningCount}
               </span>
               <span className="text-[11px] theme-text-muted">
                 {agents.length} total
@@ -1271,11 +1092,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               <div className="flex items-center gap-3 text-[10px] theme-text-muted">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Active
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  Stale
+                  Running
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-slate-400" />
@@ -1285,6 +1102,10 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
                   <span className="w-2 h-2 rounded-full bg-rose-500" />
                   Stopped
                 </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  Error
+                </span>
               </div>
             </div>
             <div className="grid grid-cols-12 gap-2">
@@ -1292,7 +1113,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
                 <div
                   key={agent?.id || `slot-${idx}`}
                   className={`h-6 rounded-md ${
-                    agent ? statusDot[agent.status] : "bg-[var(--bg-surface-200)]"
+                    agent
+                      ? statusDot[normalizeStatus(agent.status)]
+                      : "bg-[var(--bg-surface-200)]"
                   }`}
                   title={agent ? `${agent.name} (${agent.status})` : "Empty"}
                 />
@@ -1369,6 +1192,41 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex items-center rounded-full border border-[var(--border-default)] bg-[var(--bg-base)] p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={!canUseProjectScope}
+                  onClick={() => setAgentScope("project")}
+                  className={cn(
+                    "h-7 px-3 text-[10px] font-semibold rounded-full",
+                    agentScope === "project"
+                      ? "bg-[var(--brand-500)]/10 text-[var(--brand-300)]"
+                      : "text-[var(--text-muted)]",
+                  )}
+                  title={
+                    canUseProjectScope ? "Project scope" : "No project selected"
+                  }
+                >
+                  Project
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setAgentScope("org")}
+                  className={cn(
+                    "h-7 px-3 text-[10px] font-semibold rounded-full",
+                    agentScope === "org"
+                      ? "bg-[var(--brand-500)]/10 text-[var(--brand-300)]"
+                      : "text-[var(--text-muted)]",
+                  )}
+                  title="Organization scope"
+                >
+                  Org
+                </Button>
+              </div>
               <Input
                 value={agentSearch}
                 onChange={(event) => setAgentSearch(event.target.value)}
@@ -1409,26 +1267,41 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
                   {
                     key: "agent",
                     header: "Agent",
-                    cell: (row) => (
-                      <div>
-                        <p className="text-sm font-semibold theme-text-secondary">
-                          {row.name}
-                        </p>
-                        <p className="text-[10px] theme-text-muted">
-                          {row.hostname || row.executable}
-                        </p>
-                      </div>
-                    ),
+                    cell: (row) => {
+                      const hostLabel = getAgentHostLabel(row);
+                      return (
+                        <div>
+                          <p className="text-sm font-semibold theme-text-secondary">
+                            {row.name}
+                          </p>
+                          <p className="text-[10px] theme-text-muted">
+                            {row.type}
+                            {hostLabel ? ` | ${hostLabel}` : ""}
+                          </p>
+                        </div>
+                      );
+                    },
                   },
                   {
                     key: "status",
                     header: "Status",
                     cell: (row) => (
                       <span
-                        className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border ${statusTone[row.status]}`}
+                        className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border ${statusTone[normalizeStatus(row.status)]}`}
                       >
-                        <span className={`w-2 h-2 rounded-full ${statusDot[row.status]}`} />
+                        <span
+                          className={`w-2 h-2 rounded-full ${statusDot[normalizeStatus(row.status)]}`}
+                        />
                         {row.status.replace("-", " ")}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "project",
+                    header: "Project",
+                    cell: (row) => (
+                      <span className="text-xs font-mono theme-text-muted">
+                        {row.project_id}
                       </span>
                     ),
                   },
@@ -1437,25 +1310,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
                     header: "Last heartbeat",
                     cell: (row) => (
                       <span className="text-xs theme-text-muted">
-                        {formatRelativeTime(row.last_heartbeat)}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "run",
-                    header: "Current run",
-                    cell: (row) => (
-                      <span className="text-xs font-mono theme-text-secondary">
-                        {row.current_run_id || "--"}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "workflow",
-                    header: "Workflow",
-                    cell: (row) => (
-                      <span className="text-xs theme-text-muted">
-                        {row.current_workflow_stage || "--"}
+                        {formatRelativeTime(row.heartbeat_at)}
                       </span>
                     ),
                   },
@@ -1507,22 +1362,22 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
                     {selectedAgent.agent.name}
                   </h2>
                   <span
-                    className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border ${statusTone[selectedAgent.agent.status]}`}
+                    className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-semibold border ${statusTone[normalizeStatus(selectedAgent.agent.status)]}`}
                   >
                     <span
-                      className={`w-2 h-2 rounded-full ${statusDot[selectedAgent.agent.status]}`}
+                      className={`w-2 h-2 rounded-full ${statusDot[normalizeStatus(selectedAgent.agent.status)]}`}
                     />
                     {selectedAgent.agent.status.replace("-", " ")}
                   </span>
                 </div>
                 <div className="text-[10px] theme-text-muted mt-1">
                   <span className="font-mono">
-                    {selectedAgent.agent.hostname ||
-                      selectedAgent.agent.executable}
+                    {getAgentHostLabel(selectedAgent.agent) ||
+                      selectedAgent.agent.type}
                   </span>
-                  <span className="mx-2 text-[var(--text-faint)]">·</span>
+                  <span className="mx-2 text-[var(--text-faint)]">|</span>
                   <span className="font-mono">
-                    Heartbeat {formatRelativeTime(selectedAgent.agent.last_heartbeat)}
+                    Heartbeat {formatRelativeTime(selectedAgent.agent.heartbeat_at)}
                   </span>
                 </div>
               </div>
@@ -1583,6 +1438,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
             <LiveConsolePanel
               selectedAgent={selectedAgent}
               projectId={projectId}
+              runId={activeRunId}
               showWorkflow={false}
             />
           </div>

@@ -12,7 +12,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from databases import Database
@@ -403,9 +403,16 @@ async def update_agent_status(
 @router.get("", response_model=AgentListResponse)
 async def get_agents(
     db: Database = Depends(get_db),
+    scope: Optional[str] = Query(
+        None, description="Scope for listing agents: project or org"
+    ),
+    project_id: Optional[str] = Query(
+        None, description="Project ID when scope is project"
+    ),
+    user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Get all registered agents for the current project.
+    Get registered agents for a project or organization.
     
     Returns a list of agents from the database-backed registry.
     
@@ -419,23 +426,29 @@ async def get_agents(
         HTTPException 500: On database error
     """
     try:
-        # Get project_id from config (dev mode)
-        project_id = config.DEV_PROJECT_ID
-        
-        # Fetch agents from database
         agent_repo = PostgresAgentRepository(db)
-        agent_records = await agent_repo.list_by_project(project_id)
+
+        if scope == "org":
+            org_id = user.get("org_id") or config.DEV_ORG_ID
+            if not org_id:
+                raise HTTPException(
+                    status_code=400, detail="Organization scope requires org_id"
+                )
+            agent_records = await agent_repo.list_by_org(org_id)
+        else:
+            resolved_project_id = project_id or config.DEV_PROJECT_ID
+            agent_records = await agent_repo.list_by_project(resolved_project_id)
         
         # Transform database records to AgentResponse objects
         agents = [
             AgentResponse(
-                id=record["id"],
-                project_id=record["project_id"],
+                id=str(record["id"]),
+                project_id=str(record["project_id"]),
                 name=record["name"],
                 type=record["type"],
                 status=record["status"],
                 heartbeat_at=record.get("heartbeat_at"),
-                metadata=record.get("metadata") or {},
+                metadata=_parse_json_field(record.get("metadata"), {}),
                 created_at=record["created_at"],
                 updated_at=record["updated_at"],
             )
@@ -884,13 +897,13 @@ async def get_agent(
         
         # Transform to AgentResponse
         return AgentResponse(
-            id=agent["id"],
-            project_id=agent["project_id"],
+            id=str(agent["id"]),
+            project_id=str(agent["project_id"]),
             name=agent["name"],
             type=agent["type"],
             status=agent["status"],
             heartbeat_at=agent.get("heartbeat_at"),
-            metadata=agent.get("metadata") or {},
+            metadata=_parse_json_field(agent.get("metadata"), {}),
             created_at=agent["created_at"],
             updated_at=agent["updated_at"],
         )

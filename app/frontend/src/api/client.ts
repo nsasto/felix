@@ -72,8 +72,19 @@ export async function registerAgent(
  *
  * @returns List of agents and count
  */
-export async function listAgents(): Promise<AgentListResponse> {
-  return request<AgentListResponse>('/agents');
+export async function listAgents(options?: {
+  scope?: 'project' | 'org';
+  projectId?: string;
+}): Promise<AgentListResponse> {
+  const params = new URLSearchParams();
+  if (options?.scope) {
+    params.append('scope', options.scope);
+  }
+  if (options?.projectId) {
+    params.append('project_id', options.projectId);
+  }
+  const query = params.toString();
+  return request<AgentListResponse>(`/agents${query ? `?${query}` : ''}`);
 }
 
 /**

@@ -52,6 +52,9 @@ class IAgentRepository(Protocol):
     async def list_by_project(self, project_id: str) -> List[Dict[str, Any]]:
         ...
 
+    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]:
+        ...
+
     async def create_agent(
         self,
         agent_id: str,
@@ -264,6 +267,19 @@ class PostgresAgentRepository:
             ORDER BY created_at DESC
             """,
             values={"project_id": project_id},
+        )
+        return [dict(row) for row in rows]
+
+    async def list_by_org(self, org_id: str) -> List[Dict[str, Any]]:
+        rows = await self.db.fetch_all(
+            """
+            SELECT a.*
+            FROM agents a
+            JOIN projects p ON p.id = a.project_id
+            WHERE p.org_id = :org_id
+            ORDER BY a.created_at DESC
+            """,
+            values={"org_id": org_id},
         )
         return [dict(row) for row in rows]
 
