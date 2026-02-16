@@ -285,9 +285,21 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
       };
 
     return (
-      <div className="h-full">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-lg font-semibold">Members and Roles</h3>
+            <p className="text-xs theme-text-muted mt-1">
+              Manage organization access and role assignments.
+            </p>
+          </div>
+          <Button size="sm" className="uppercase" disabled>
+            <Plus className="w-4 h-4" />
+            Invite Member
+          </Button>
+        </div>
         <DataSurface
-          title="Members and Roles"
+          className="pt-0 -mx-6"
           search={(
             <div className="relative w-full max-w-sm">
               <Input
@@ -324,12 +336,6 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               onChange={setMemberFilters}
               label="Filter members"
             />
-          )}
-          actions={(
-            <Button size="sm" className="uppercase" disabled>
-              <Plus className="w-4 h-4" />
-              Invite Member
-            </Button>
           )}
           footer={(
             <div className="flex items-center justify-between">
