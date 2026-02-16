@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { felixApi, Requirement } from "../services/felixApi";
-import { listAgents as apiListAgents, listRuns as apiListRuns } from "../src/api/client";
+import {
+  listAgents as apiListAgents,
+  listRuns as apiListRuns,
+} from "../src/api/client";
 import type { Agent, Run } from "../src/api/types";
 import { PageLoading } from "./ui/page-loading";
 import {
@@ -752,22 +755,12 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const [error, setError] = useState<string | null>(null);
   const [agentSearch, setAgentSearch] = useState("");
   const [showStartDialog, setShowStartDialog] = useState(false);
-  const [agentScope, setAgentScope] = useState<"project" | "org">(
-    projectId ? "project" : "org",
-  );
-  const canUseProjectScope = Boolean(projectId);
 
   // Refs to track current selectedAgent for polling without recreating fetchAgents
   const selectedAgentRef = useRef(selectedAgent);
   useEffect(() => {
     selectedAgentRef.current = selectedAgent;
   }, [selectedAgent]);
-
-  useEffect(() => {
-    if (!projectId) {
-      setAgentScope("org");
-    }
-  }, [projectId]);
 
   // Fetch runs from database-backed API (S-0042)
   const fetchDbRuns = useCallback(async () => {
@@ -784,8 +777,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   const fetchAgents = useCallback(async () => {
     try {
       const response = await apiListAgents({
-        scope: agentScope,
-        projectId: agentScope === "project" ? projectId || undefined : undefined,
+        scope: "project",
+        projectId: projectId || undefined,
       });
       setAgents(response.agents);
       setError(null);
@@ -823,7 +816,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     } finally {
       setLoading(false);
     }
-  }, [agentScope, projectId, viewMode]); // Uses ref for selectedAgent to avoid recreating
+  }, [projectId, viewMode]); // Uses ref for selectedAgent to avoid recreating
 
   // Fetch requirements
   const fetchRequirements = useCallback(async () => {
@@ -1033,219 +1026,198 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
     selectedAgentRuns.find((run) => run.status === "running")?.id || null;
 
   const renderDashboard = () => (
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
-        {/* Metric tiles */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface)]">
-            <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-              Running Agents
-            </p>
-            <div className="mt-3 flex items-end justify-between">
-              <span className="text-3xl font-semibold theme-text-secondary">
-                {runningCount}
-              </span>
-              <span className="text-[11px] theme-text-muted">
-                {agents.length} total
-              </span>
-            </div>
-          </Card>
-          <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface)]">
-            <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-              Idle / Ready
-            </p>
-            <div className="mt-3 flex items-end justify-between">
-              <span className="text-3xl font-semibold theme-text-secondary">
-                {idleCount}
-              </span>
-              <span className="text-[11px] theme-text-muted">
-                {stoppedCount} stopped
-              </span>
-            </div>
-          </Card>
-          <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface)]">
-            <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-              Runs In Flight
-            </p>
-            <div className="mt-3 flex items-end justify-between">
-              <span className="text-3xl font-semibold theme-text-secondary">
-                {runningRuns}
-              </span>
-              <span className="text-[11px] theme-text-muted">
-                {failedRuns} failed
-              </span>
-            </div>
-          </Card>
-        </div>
+    <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
+      {/* Metric tiles */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface-100)]">
+          <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+            Running Agents
+          </p>
+          <div className="mt-3 flex items-end justify-between">
+            <span className="text-3xl font-semibold theme-text-secondary">
+              {runningCount}
+            </span>
+            <span className="text-[11px] theme-text-muted">
+              {agents.length} total
+            </span>
+          </div>
+        </Card>
+        <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface-100)]">
+          <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+            Idle / Ready
+          </p>
+          <div className="mt-3 flex items-end justify-between">
+            <span className="text-3xl font-semibold theme-text-secondary">
+              {idleCount}
+            </span>
+            <span className="text-[11px] theme-text-muted">
+              {stoppedCount} stopped
+            </span>
+          </div>
+        </Card>
+        <Card className="p-5 border border-[var(--border-default)] bg-[var(--bg-surface-100)]">
+          <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
+            Runs In Flight
+          </p>
+          <div className="mt-3 flex items-end justify-between">
+            <span className="text-3xl font-semibold theme-text-secondary">
+              {runningRuns}
+            </span>
+            <span className="text-[11px] theme-text-muted">
+              {failedRuns} failed
+            </span>
+          </div>
+        </Card>
+      </div>
 
-        {/* Widgets row */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <Card className="xl:col-span-2 p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-text-muted">
-                  Live Fleet Health
-                </p>
-                <p className="text-xs theme-text-muted mt-1">
-                  Status snapshot of registered agents.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 text-[10px] theme-text-muted">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Running
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-slate-400" />
-                  Idle
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-rose-500" />
-                  Stopped
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  Error
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-12 gap-2">
-              {matrixAgents.map((agent, idx) => (
-                <div
-                  key={agent?.id || `slot-${idx}`}
-                  className={`h-6 rounded-md ${
-                    agent
-                      ? statusDot[normalizeStatus(agent.status)]
-                      : "bg-[var(--bg-surface-200)]"
-                  }`}
-                  title={agent ? `${agent.name} (${agent.status})` : "Empty"}
-                />
-              ))}
-            </div>
-            <div className="mt-6 border-t border-[var(--border-muted)] pt-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">
-                Workflow Congestion
-              </p>
-              <div className="mt-3 grid grid-cols-5 gap-3">
-                {workflowCounts.map((stage) => (
-                  <div key={stage.status} className="text-center">
-                    <div className="h-16 rounded-lg bg-[var(--bg-surface-200)] flex items-end justify-center overflow-hidden">
-                      <div
-                        className="w-full bg-[var(--accent-primary)]/60"
-                        style={{
-                          height: `${Math.min(100, stage.count * 10)}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-2 text-[10px] uppercase tracking-[0.18em] theme-text-muted">
-                      {stage.status.replace("_", " ")}
-                    </p>
-                    <p className="text-xs font-semibold theme-text-secondary">
-                      {stage.count}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-text-muted">
-                  Performance Velocity
-                </p>
-                <p className="text-xs theme-text-muted mt-1">
-                  Runs started per hour.
-                </p>
-              </div>
-              <span className="text-[10px] theme-text-muted">Last 6 hours</span>
-            </div>
-            <div className="flex items-end gap-3 h-40">
-              {velocityBuckets.map((bucket) => (
-                <div key={bucket.label} className="flex-1 flex flex-col items-center gap-2">
-                  <div className="w-full bg-[var(--bg-surface-200)] rounded-md flex items-end overflow-hidden h-28">
-                    <div
-                      className="w-full bg-[var(--accent-primary)]/70"
-                      style={{
-                        height: `${(bucket.value / maxVelocity) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="text-[9px] theme-text-muted">
-                    {bucket.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        {/* Agents table */}
-        <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface)]">
-          <div className="flex items-center justify-between gap-4 mb-4">
+      {/* Widgets row */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface-100)]">
+          <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-sm font-semibold theme-text-secondary">
-                Agent Fleet
-              </h2>
-              <p className="text-xs theme-text-muted">
-                Select an agent to drill into details.
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-text-muted">
+                Live Fleet Health
+              </p>
+              <p className="text-xs theme-text-muted mt-1">
+                Status snapshot of registered agents.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-full border border-[var(--border-default)] bg-[var(--bg-base)] p-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={!canUseProjectScope}
-                  onClick={() => setAgentScope("project")}
-                  className={cn(
-                    "h-7 px-3 text-[10px] font-semibold rounded-full",
-                    agentScope === "project"
-                      ? "bg-[var(--brand-500)]/10 text-[var(--brand-300)]"
-                      : "text-[var(--text-muted)]",
-                  )}
-                  title={
-                    canUseProjectScope ? "Project scope" : "No project selected"
-                  }
-                >
-                  Project
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setAgentScope("org")}
-                  className={cn(
-                    "h-7 px-3 text-[10px] font-semibold rounded-full",
-                    agentScope === "org"
-                      ? "bg-[var(--brand-500)]/10 text-[var(--brand-300)]"
-                      : "text-[var(--text-muted)]",
-                  )}
-                  title="Organization scope"
-                >
-                  Org
-                </Button>
-              </div>
-              <Input
-                value={agentSearch}
-                onChange={(event) => setAgentSearch(event.target.value)}
-                placeholder="Search agents..."
-                className="h-9 w-64 text-xs"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                className="text-[10px] font-bold"
-              >
-                Refresh
-              </Button>
+            <div className="flex items-center gap-3 text-[10px] theme-text-muted">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                Running
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-slate-400" />
+                Idle
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                Stopped
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                Error
+              </span>
             </div>
           </div>
+          <div className="grid grid-cols-12 gap-2">
+            {matrixAgents.map((agent, idx) => (
+              <div
+                key={agent?.id || `slot-${idx}`}
+                className={`h-6 rounded-md ${
+                  agent
+                    ? statusDot[normalizeStatus(agent.status)]
+                    : "bg-[var(--bg-surface-200)]"
+                }`}
+                title={agent ? `${agent.name} (${agent.status})` : "Empty"}
+              />
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface-100)]">
+          <div className="mb-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-text-muted">
+              Workflow Congestion
+            </p>
+            <p className="text-xs theme-text-muted mt-1">
+              Requirement stages across agents.
+            </p>
+          </div>
+          <div className="grid grid-cols-5 gap-3">
+            {workflowCounts.map((stage) => (
+              <div key={stage.status} className="text-center">
+                <div className="h-16 rounded-lg bg-[var(--bg-surface-200)] flex items-end justify-center overflow-hidden">
+                  <div
+                    className="w-full bg-[var(--accent-primary)]/60"
+                    style={{
+                      height: `${Math.min(100, stage.count * 10)}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-[10px] uppercase tracking-[0.18em] theme-text-muted">
+                  {stage.status.replace("_", " ")}
+                </p>
+                <p className="text-xs font-semibold theme-text-secondary">
+                  {stage.count}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6 border border-[var(--border-default)] bg-[var(--bg-surface-100)]">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-text-muted">
+                Performance Velocity
+              </p>
+              <p className="text-xs theme-text-muted mt-1">
+                Runs started per hour.
+              </p>
+            </div>
+            <span className="text-[10px] theme-text-muted">Last 6 hours</span>
+          </div>
+          <div className="flex items-end gap-3 h-40">
+            {velocityBuckets.map((bucket) => (
+              <div
+                key={bucket.label}
+                className="flex-1 flex flex-col items-center gap-2"
+              >
+                <div className="w-full bg-[var(--bg-surface-200)] rounded-md flex items-end overflow-hidden h-28">
+                  <div
+                    className="w-full bg-[var(--accent-primary)]/70"
+                    style={{
+                      height: `${(bucket.value / maxVelocity) * 100}%`,
+                    }}
+                  />
+                </div>
+                <span className="text-[9px] theme-text-muted">
+                  {bucket.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Agents table */}
+      <div>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-sm font-semibold theme-text-secondary">
+              Agent Fleet
+            </h2>
+            <p className="text-xs theme-text-muted">
+              Select an agent to drill into details.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              value={agentSearch}
+              onChange={(event) => setAgentSearch(event.target.value)}
+              placeholder="Search agents..."
+              className="h-9 w-64 text-xs"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              className="text-[10px] font-bold"
+            >
+              Refresh
+            </Button>
+          </div>
+        </div>
+        <Card className="border border-[var(--border-default)] bg-[var(--bg-surface-100)]">
           {loading ? (
-            <PageLoading message="Loading agents..." size="sm" fullPage={false} />
+            <PageLoading
+              message="Loading agents..."
+              size="sm"
+              fullPage={false}
+            />
           ) : filteredAgents.length === 0 ? (
             <EmptyState
               title="No agents found"
@@ -1253,15 +1225,13 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               icon={<IconCpu className="w-6 h-6 text-[var(--text-faint)]" />}
             />
           ) : (
-            <div className="border border-[var(--border-default)] rounded-xl overflow-hidden">
+            <div className="overflow-hidden">
               <DataTable
                 data={filteredAgents}
                 rowKey={(row) => row.id}
                 onRowClick={(row) => enterDetailView(row)}
                 rowClassName={(row) =>
-                  selectedAgent?.id === row.id
-                    ? "bg-[var(--brand-500)]/5"
-                    : ""
+                  selectedAgent?.id === row.id ? "bg-[var(--brand-500)]/5" : ""
                 }
                 columns={[
                   {
@@ -1334,6 +1304,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
           )}
         </Card>
       </div>
+    </div>
   );
 
   const renderDetail = () => {
@@ -1377,7 +1348,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
                   </span>
                   <span className="mx-2 text-[var(--text-faint)]">|</span>
                   <span className="font-mono">
-                    Heartbeat {formatRelativeTime(selectedAgent.agent.heartbeat_at)}
+                    Heartbeat{" "}
+                    {formatRelativeTime(selectedAgent.agent.heartbeat_at)}
                   </span>
                 </div>
               </div>
@@ -1434,7 +1406,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
         </div>
 
         <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 p-6 overflow-hidden">
-          <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface)] overflow-hidden">
+          <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface-100)] overflow-hidden">
             <LiveConsolePanel
               selectedAgent={selectedAgent}
               projectId={projectId}
@@ -1442,7 +1414,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               showWorkflow={false}
             />
           </div>
-          <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface)] overflow-hidden">
+          <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-surface-100)] overflow-hidden">
             <RunHistoryPanel
               projectId={projectId}
               selectedAgentId={selectedAgent.id}
@@ -1503,10 +1475,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
               )}
             </div>
             <DialogFooter>
-              <Button
-                variant="ghost"
-                onClick={() => setShowStartDialog(false)}
-              >
+              <Button variant="ghost" onClick={() => setShowStartDialog(false)}>
                 Cancel
               </Button>
             </DialogFooter>

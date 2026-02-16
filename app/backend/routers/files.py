@@ -1006,12 +1006,17 @@ def find_plan_for_requirement(
     return plan_files[0]
 
 
-def build_plan_map(project_path: Path) -> dict[str, tuple[Path, str]]:
+def build_plan_map(
+    project_path: Path, max_runs: int = 100
+) -> dict[str, tuple[Path, str]]:
     """
     Build a map of requirement_id -> (plan_path, run_id) by scanning runs directory once.
 
     This is much more efficient than calling find_plan_for_requirement() for each requirement
     when there are many run directories. Reduces O(n*m) to O(m) where n=requirements, m=runs.
+
+    Performance optimization: Only scans the most recent max_runs directories to avoid
+    slow filesystem traversal when there are hundreds of old runs.
 
     Returns dict mapping requirement_id to (plan_path, run_id) for the most recent plan.
     """
@@ -1022,8 +1027,19 @@ def build_plan_map(project_path: Path) -> dict[str, tuple[Path, str]]:
     # Map: requirement_id -> list of (plan_path, run_id)
     plan_files_by_req: dict[str, list[tuple[Path, str]]] = {}
 
-    # Single pass through all run directories
-    for run_dir in runs_dir.iterdir():
+    # Get all run directories and sort by name (most recent first)
+    # Run directory names are timestamps, so lexicographic sort works
+    all_run_dirs = sorted(
+        [d for d in runs_dir.iterdir() if d.is_dir()],
+        key=lambda d: d.name,
+        reverse=True,
+    )
+
+    # Only scan the most recent runs (performance optimization)
+    recent_run_dirs = all_run_dirs[:max_runs]
+
+    # Single pass through recent run directories
+    for run_dir in recent_run_dirs:
         if not run_dir.is_dir():
             continue
 
