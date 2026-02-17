@@ -118,6 +118,11 @@ Felix is a plan-driven executor for autonomous software delivery. It transforms 
   - Run: `powershell -File .\scripts\test-backend.ps1`
   - Coverage: pytest-cov enabled
   - Configuration: `app/backend/pytest.ini`
+  - **Mocking Infrastructure:**
+    - Unit tests must NEVER require real database connections
+    - Mock database lifecycle: `patch("main.db_startup")` and `patch("main.db_shutdown")`
+    - Example: See **app/backend/tests/test_sync_endpoints.py** (FakeDatabase pattern)
+    - Pattern: Use `unittest.mock.patch` in test fixtures for all external dependencies
 - **Frontend:**
   - Framework: Vitest 4.0 with @testing-library/react
   - Location: `app/frontend/src/__tests__/*.test.tsx`
