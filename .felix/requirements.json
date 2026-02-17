@@ -288,7 +288,7 @@
                              "id":  "S-0063",
                              "title":  "S-0063: Run Artifact Sync - Frontend Artifact Viewer",
                              "spec_path":  "specs/S-0063-frontend-artifact-viewer.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "medium",
                              "tags":  [
 
