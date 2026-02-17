@@ -44,7 +44,21 @@ DATABASE_CONNECTION_ERRORS = (
     asyncpg.InterfaceError,
     ConnectionRefusedError,
     ConnectionResetError,
+)
+
+
+# ============================================================================
+# STORAGE ERROR TYPES
+# ============================================================================
+
+# Exception types that indicate transient storage issues
+# These should return 503 Service Unavailable to signal client retry
+# Note: FileNotFoundError is NOT included - that's a 404 condition
+STORAGE_TRANSIENT_ERRORS = (
+    IOError,
     OSError,
+    PermissionError,
+    TimeoutError,
 )
 
 # Configure logger
@@ -219,6 +233,98 @@ def raise_database_unavailable(
     raise HTTPException(
         status_code=503,
         detail=f"Database temporarily unavailable. Please retry. (Operation: {operation})"
+    )
+
+
+def is_storage_error(exc: Exception) -> bool:
+    """
+    Check if an exception is a storage error that should return 503.
+    
+    These errors indicate transient storage issues (disk full, permissions,
+    network timeout for remote storage). Clients should retry after receiving
+    a 503 response.
+    
+    Note: FileNotFoundError is NOT considered a transient error - that
+    indicates a 404 condition and is handled separately.
+    
+    Args:
+        exc: Exception to check
+        
+    Returns:
+        True if the exception indicates a transient storage issue
+    """
+    # FileNotFoundError should be 404, not 503
+    if isinstance(exc, FileNotFoundError):
+        return False
+    
+    # NotImplementedError (from stub storage) should be 500, not 503
+    if isinstance(exc, NotImplementedError):
+        return False
+    
+    # Check if it's one of the known storage error types
+    if isinstance(exc, STORAGE_TRANSIENT_ERRORS):
+        return True
+    
+    # Check for nested storage errors (e.g., wrapped in async library)
+    if exc.__cause__ and isinstance(exc.__cause__, STORAGE_TRANSIENT_ERRORS):
+        # But not if the cause is FileNotFoundError
+        if isinstance(exc.__cause__, FileNotFoundError):
+            return False
+        return True
+    
+    # Check error message for common storage patterns
+    error_message = str(exc).lower()
+    storage_keywords = [
+        "disk full",
+        "no space left",
+        "permission denied",
+        "storage unavailable",
+        "storage timeout",
+        "storage error",
+        "i/o error",
+        "read-only file system",
+        "too many open files",
+        "quota exceeded",
+    ]
+    return any(keyword in error_message for keyword in storage_keywords)
+
+
+def raise_storage_unavailable(
+    operation: str,
+    exc: Exception,
+    *,
+    run_id: Optional[str] = None,
+    storage_key: Optional[str] = None,
+    **extra
+) -> None:
+    """
+    Log storage error and raise 503 Service Unavailable.
+    
+    This helper standardizes the handling of storage errors across all
+    sync endpoints that interact with artifact storage, ensuring consistent
+    logging and response format.
+    
+    Args:
+        operation: Description of the failed operation (e.g., "file upload")
+        exc: The storage exception that was caught
+        run_id: Optional run ID for logging context
+        storage_key: Optional storage key for logging context
+        **extra: Additional context for logging
+        
+    Raises:
+        HTTPException: 503 Service Unavailable with details
+    """
+    log_sync_error(
+        f"Storage unavailable during {operation}",
+        run_id=run_id,
+        storage_key=storage_key,
+        error_type=type(exc).__name__,
+        exc=exc,
+        **extra
+    )
+    raise HTTPException(
+        status_code=503,
+        detail=f"Storage temporarily unavailable. Please retry. (Operation: {operation})"
     )
 
 
@@ -1015,6 +1121,13 @@ async def upload_files(
                 e,
                 run_id=run_id
             )
+        # Check for storage errors - return 503 for transient failures
+        if is_storage_error(e):
+            raise_storage_unavailable(
+                "file upload",
+                e,
+                run_id=run_id
+            )
         # Log and return 500 for other errors
         log_sync_error(
             "Failed to upload files",
@@ -1193,6 +1306,14 @@ async def download_file(
                 e,
                 run_id=run_id,
                 file_path=file_path
+            )
+        # Check for storage errors - return 503 for transient failures
+        if is_storage_error(e):
+            raise_storage_unavailable(
+                "file download",
+                e,
+                run_id=run_id,
+                storage_key=file_path
             )
         # Log and return 500 for other errors
         log_sync_error(
