@@ -33,26 +33,6 @@
     "circuit_breaker_max_failures": 3,
     "commands": []
   },
-  "ui": {
-    "theme": "light"
-  },
-  "copilot": {
-    "enabled": true,
-    "provider": "openai",
-    "model": "gpt-4o",
-    "context_sources": {
-      "agents_md": true,
-      "learnings_md": true,
-      "prompt_md": true,
-      "requirements": true,
-      "other_specs": true
-    },
-    "features": {
-      "streaming": true,
-      "auto_suggest": true,
-      "context_aware": true
-    }
-  },
   "sync": {
     "enabled": false,
     "provider": "fastapi",

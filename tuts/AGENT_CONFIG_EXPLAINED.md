@@ -9,18 +9,20 @@ Felix agents exist in two completely different contexts:
 ### 1. Local CLI Agents (What You Run)
 
 These are the executables on your machine:
+
 - `droid` (Factory.ai CLI)
 - `claude` (Anthropic CLI)
 - `codex` (OpenAI CLI)
 - `gemini` (Google CLI)
 
 **Configuration:** `.felix/agents.json` in your repository  
-**Purpose:** Tell Felix *how to launch* these CLIs  
-**Scope:** Local machine only  
+**Purpose:** Tell Felix _how to launch_ these CLIs  
+**Scope:** Local machine only
 
 ### 2. Remote Agents (What The Backend Tracks)
 
 These are runtime registrations in the database:
+
 - Which agents are currently running
 - On which machines
 - For which organizations
@@ -28,15 +30,16 @@ These are runtime registrations in the database:
 
 **Configuration:** PostgreSQL database (tables: `agents`, `agent_profiles`, `machines`)  
 **Purpose:** Track activity, enable collaboration, provide visibility  
-**Scope:** Team-wide, server-managed  
+**Scope:** Team-wide, server-managed
 
-**Here's the key insight:** These two systems are *intentionally separate*. Your local `.felix/agents.json` doesn't sync to the backend. The backend doesn't tell your CLI which agents to use.
+**Here's the key insight:** These two systems are _intentionally separate_. Your local `.felix/agents.json` doesn't sync to the backend. The backend doesn't tell your CLI which agents to use.
 
 ## Why Two Systems?
 
 ### The Local Problem: "How Do I Run This Agent?"
 
 You type `felix run S-0001`. Felix needs to know:
+
 - Which executable to run (`droid`, `claude`, etc.)
 - What arguments to pass
 - What environment variables to set
@@ -49,6 +52,7 @@ You type `felix run S-0001`. Felix needs to know:
 Your manager asks: "Which agents are working on what?"
 
 The backend needs to know:
+
 - Agent `0` is running on John's laptop
 - Agent `1` is running on the CI server
 - Agent `2` just finished on Jane's machine
@@ -88,16 +92,16 @@ This file lives in your repository and defines agent presets:
 
 ### Field Reference
 
-| Field | Purpose | Example |
-|-------|---------|---------|
-| `id` | Stable identifier (never change) | `0`, `1`, `2` |
-| `name` | Human-readable name | `"droid"`, `"claude"` |
-| `adapter` | LLM adapter type (for backend tracking) | `"droid"`, `"claude"` |
-| `executable` | Command to run | `"droid"`, `"claude"` |
-| `model` | Model identifier (passed to CLI) | `"claude-opus-4-5-20251101"` |
-| `working_directory` | Where to run the command | `"."` (repo root) |
-| `environment` | Environment variables | `{"API_KEY": "..."}` |
-| `description` | Display text | `"Factory.ai Droid - Fast..."` |
+| Field               | Purpose                                 | Example                        |
+| ------------------- | --------------------------------------- | ------------------------------ |
+| `id`                | Stable identifier (never change)        | `0`, `1`, `2`                  |
+| `name`              | Human-readable name                     | `"droid"`, `"claude"`          |
+| `adapter`           | LLM adapter type (for backend tracking) | `"droid"`, `"claude"`          |
+| `executable`        | Command to run                          | `"droid"`, `"claude"`          |
+| `model`             | Model identifier (passed to CLI)        | `"claude-opus-4-5-20251101"`   |
+| `working_directory` | Where to run the command                | `"."` (repo root)              |
+| `environment`       | Environment variables                   | `{"API_KEY": "..."}`           |
+| `description`       | Display text                            | `"Factory.ai Droid - Fast..."` |
 
 ### Selecting Which Agent To Use
 
@@ -112,6 +116,7 @@ Edit `.felix/config.json`:
 ```
 
 **What happens:**
+
 1. Felix reads `agent_id: 0` from config
 2. Looks up agent `0` in `agents.json`
 3. Finds `"executable": "droid"`
@@ -153,7 +158,7 @@ When you run Felix with sync enabled, the agent registers itself:
 
 ```sql
 -- Backend executed this
-INSERT INTO agents (id, name, hostname, platform, version, 
+INSERT INTO agents (id, name, hostname, platform, version,
                     adapter, executable, model, last_seen_at)
 VALUES ('0', '0', 'UK2060899W2', 'windows', '0.7',
         'droid', 'droid', 'claude-opus-4-5-20251101', NOW())
@@ -220,6 +225,7 @@ CREATE TABLE machines (
 **1. Visibility**
 
 Web UI shows:
+
 - Which agents are active
 - What they're working on
 - When they last checked in
@@ -227,6 +233,7 @@ Web UI shows:
 **2. Audit Trail**
 
 Database records:
+
 - Every run's agent_id
 - Which machine it ran on
 - What model was used
@@ -234,20 +241,22 @@ Database records:
 **3. Capacity Planning**
 
 Queries like:
+
 ```sql
 -- How many agents ran today?
-SELECT COUNT(DISTINCT id) FROM agents 
+SELECT COUNT(DISTINCT id) FROM agents
 WHERE last_seen_at > NOW() - INTERVAL '1 day';
 
 -- Which models are most used?
-SELECT adapter, model, COUNT(*) 
-FROM agents 
+SELECT adapter, model, COUNT(*)
+FROM agents
 GROUP BY adapter, model;
 ```
 
 **4. Future: Distributed Work**
 
 Backend can eventually:
+
 - Assign work to idle agents
 - Balance load across machines
 - Manage API quotas per agent
@@ -267,7 +276,7 @@ Your local `.felix/agents.json` still says `claude-opus-4`. The CLI uses the loc
 
 ```json
 // This does NOT update the backend
-{"id": 0, "model": "new-model"}
+{ "id": 0, "model": "new-model" }
 ```
 
 Backend shows old model until next run (when registration updates it).
@@ -280,7 +289,7 @@ Think of it like Git:
 - **Backend database** = Remote repository
 - **Agent registration** = Push (one-way, best-effort)
 
-There's no "pull" from backend to CLI. There's no automatic sync. The local file is always the source of truth for *how to run* agents.
+There's no "pull" from backend to CLI. There's no automatic sync. The local file is always the source of truth for _how to run_ agents.
 
 ## Practical Scenarios
 
@@ -319,13 +328,13 @@ grep "Using agent" runs/*/output.log
   "executable": "python",
   "model": "scripts/my_agent.py",
   "working_directory": ".",
-  "environment": {"PYTHONPATH": "scripts"}
+  "environment": { "PYTHONPATH": "scripts" }
 }
 ```
 
 ```json
 // .felix/config.json
-{"agent": {"agent_id": 5}}
+{ "agent": { "agent_id": 5 } }
 ```
 
 **Backend sees:** Agent `5` with adapter `custom`. Shows in web UI.
@@ -353,12 +362,14 @@ VALUES ('org-abc', 'Standard Droid', 'droid', 'droid', 'claude-opus-4');
 **Debug steps:**
 
 1. **Check config:**
+
    ```bash
    cat .felix/config.json | grep agent_id
    # Output: "agent_id": 0
    ```
 
 2. **Check agents.json:**
+
    ```bash
    cat .felix/agents.json | jq '.agents[] | select(.id == 0)'
    # Output: {"id": 0, "name": "droid", "executable": "droid", ...}
@@ -373,6 +384,7 @@ VALUES ('org-abc', 'Standard Droid', 'droid', 'droid', 'claude-opus-4');
 **Problem found:** Config says `0`, logs show `1`. Something is overriding the config.
 
 **Common causes:**
+
 - Old `.felix/state.json` cached the agent
 - Environment variable `FELIX_AGENT_ID` set
 - Wrong working directory (reading different `.felix/config.json`)
@@ -384,6 +396,7 @@ VALUES ('org-abc', 'Standard Droid', 'droid', 'droid', 'claude-opus-4');
 **1. Keep agents.json in version control**
 
 Team members share the same agent definitions:
+
 ```bash
 git add .felix/agents.json
 git commit -m "Add droid agent configuration"
@@ -392,6 +405,7 @@ git commit -m "Add droid agent configuration"
 **2. Use stable IDs**
 
 Never change agent IDs. Add new ones:
+
 ```json
 // Good
 {"id": 0, "name": "droid-old"}
@@ -466,21 +480,25 @@ Sync goes one way: CLI → Backend. Backend doesn't push configs back to CLI (ye
 Eventually, Felix will support:
 
 **1. Backend-managed agent profiles**
+
 - IT team defines approved configurations
 - CLI downloads and applies them
 - No local `.felix/agents.json` needed
 
 **2. Agent assignment**
+
 - Backend assigns work to idle agents
 - Agents poll: "What should I work on?"
 - Distributed processing
 
 **3. Live agent status**
+
 - Real-time heartbeat (not just registration)
 - Web UI shows: "Agent 0 is on iteration 3/10"
 - Kill switch from web UI
 
 **4. API quota management**
+
 - Backend tracks API usage per agent
 - Throttle agents approaching quota
 - Distribute quota across team
@@ -488,12 +506,14 @@ Eventually, Felix will support:
 ## Summary
 
 **Local agents.json:**
+
 - How to run CLIs
 - Per-repository
 - Source of truth for execution
 - Versioned with code
 
 **Backend database:**
+
 - What agents ran
 - Team visibility
 - Audit trail
@@ -501,7 +521,7 @@ Eventually, Felix will support:
 
 **They're separate** by design. This keeps the CLI functional offline while enabling team collaboration when online.
 
-**The rule:** If you're changing *how* agents work, edit `.felix/agents.json`. If you're tracking *what* agents did, check the database.
+**The rule:** If you're changing _how_ agents work, edit `.felix/agents.json`. If you're tracking _what_ agents did, check the database.
 
 ---
 
@@ -517,6 +537,7 @@ Eventually, Felix will support:
 ---
 
 **See also:**
+
 - [Sync Tutorial](sync/README.md) - How agent registration works
 - [HOW_TO_USE.md](../HOW_TO_USE.md) - CLI usage guide
 - [AGENTS.md](../AGENTS.md) - Operational guide
