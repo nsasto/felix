@@ -318,7 +318,7 @@
                              "id":  "S-0061",
                              "title":  "S-0061: Run Artifact Sync - CLI Plugin Implementation",
                              "spec_path":  "specs/S-0061-cli-sync-plugin.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "medium",
                              "tags":  [
 
@@ -333,7 +333,7 @@
                              "id":  "S-0062",
                              "title":  "S-0062: Run Artifact Sync - End-to-End Testing",
                              "spec_path":  "specs/S-0062-runs-sync-e2e-testing.md",
-                             "status":  "planned",
+                             "status":  "in_progress",
                              "priority":  "medium",
                              "tags":  [
 
