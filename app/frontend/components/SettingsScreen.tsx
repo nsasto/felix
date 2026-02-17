@@ -5,6 +5,9 @@ import {
   FelixConfig,
   ProjectDetails,
   AgentConfiguration,
+  ApiKeyInfo,
+  ApiKeyCreated,
+  ApiKeyListResponse,
 } from "../services/felixApi";
 import { listAgents, registerAgent } from "../src/api/client";
 import type { Agent } from "../src/api/types";
@@ -21,6 +24,7 @@ import {
   FileText as IconFileText,
   Briefcase as IconBriefcase,
   Cpu as IconCpu,
+  Key as IconKey,
 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -48,6 +52,7 @@ type SettingsCategory =
   | "advanced"
   | "projects"
   | "agents"
+  | "api-keys"
   | "docs";
 
 type DocFileName = "README.md" | "CONTEXT.md" | "AGENTS.md";
@@ -89,6 +94,12 @@ const CATEGORIES: CategoryInfo[] = [
     label: "Agents",
     description: "Agent registry and status",
     icon: <IconCpu className="w-4 h-4" />,
+  },
+  {
+    id: "api-keys",
+    label: "API Keys",
+    description: "Manage project API keys for CLI sync",
+    icon: <IconKey className="w-4 h-4" />,
   },
   {
     id: "docs",
@@ -142,6 +153,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [agentProfiles, setAgentProfiles] = useState<AgentConfiguration[]>([]);
   const [agentProfilesLoading, setAgentProfilesLoading] = useState(false);
   const [agentProfilesError, setAgentProfilesError] = useState<string | null>(
+    null,
+  );
+
+  // API Keys state (project-scoped)
+  const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+  const [apiKeysError, setApiKeysError] = useState<string | null>(null);
+  const [showApiKeyForm, setShowApiKeyForm] = useState(false);
+  const [apiKeyFormName, setApiKeyFormName] = useState("");
+  const [apiKeyFormExpiresDays, setApiKeyFormExpiresDays] = useState<
+    number | undefined
+  >(undefined);
+  const [apiKeyFormSaving, setApiKeyFormSaving] = useState(false);
+  const [createdApiKey, setCreatedApiKey] = useState<ApiKeyCreated | null>(
     null,
   );
 
@@ -1495,6 +1520,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         return renderProjectsSettings();
       case "agents":
         return renderAgentsSettings();
+      case "api-keys":
+        return renderApiKeysSettings();
       case "docs":
         return renderDocsSettings();
       default:
@@ -1504,7 +1531,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const availableCategories = projectId
     ? CATEGORIES
-    : CATEGORIES.filter((category) => category.id !== "docs");
+    : CATEGORIES.filter(
+        (category) => category.id !== "docs" && category.id !== "api-keys",
+      );
 
   useEffect(() => {
     if (
@@ -1535,6 +1564,354 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       description: "Agent instructions and execution guidance.",
     },
   ];
+
+  // Load API keys when projectId changes
+  useEffect(() => {
+    if (!projectId || activeCategory !== "api-keys") {
+      return;
+    }
+
+    const loadApiKeys = async () => {
+      setApiKeysLoading(true);
+      setApiKeysError(null);
+      try {
+        const response = await felixApi.listApiKeys(projectId);
+        setApiKeys(response.keys);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to load API keys";
+        setApiKeysError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setApiKeysLoading(false);
+      }
+    };
+
+    loadApiKeys();
+  }, [projectId, activeCategory]);
+
+  const handleCreateApiKey = async () => {
+    if (!projectId) return;
+
+    setApiKeyFormSaving(true);
+    try {
+      const newKey = await felixApi.createApiKey(projectId, {
+        name: apiKeyFormName || undefined,
+        expires_days: apiKeyFormExpiresDays,
+      });
+      setCreatedApiKey(newKey);
+      setApiKeys([...apiKeys, newKey]);
+      setShowApiKeyForm(false);
+      setApiKeyFormName("");
+      setApiKeyFormExpiresDays(undefined);
+      toast.success("API key created successfully");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to create API key";
+      toast.error(errorMessage);
+    } finally {
+      setApiKeyFormSaving(false);
+    }
+  };
+
+  const handleRevokeApiKey = async (keyId: string) => {
+    if (!projectId) return;
+    if (
+      !confirm(
+        "Are you sure you want to revoke this API key? This action cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await felixApi.revokeApiKey(projectId, keyId);
+      setApiKeys(apiKeys.filter((key) => key.id !== keyId));
+      toast.success("API key revoked successfully");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to revoke API key";
+      toast.error(errorMessage);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Never";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const renderApiKeysSettings = () => {
+    if (!projectId) {
+      return (
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6">
+          <h3 className="text-lg font-semibold">API Keys</h3>
+          <p className="text-xs theme-text-muted mt-2">
+            Select a project to manage API keys for CLI sync.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <IconKey className="w-5 h-5" />
+                API Keys
+              </h3>
+              <p className="text-xs theme-text-muted mt-1">
+                Generate project-scoped API keys for CLI agent sync. Each key is
+                scoped to this project only.
+              </p>
+            </div>
+            <Button
+              onClick={() => setShowApiKeyForm(true)}
+              size="sm"
+              disabled={showApiKeyForm}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              New Key
+            </Button>
+          </div>
+
+          {/* New Key Form */}
+          {showApiKeyForm && (
+            <div className="mt-4 p-4 border border-[var(--border-default)] rounded-lg space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Key Name (Optional)
+                </label>
+                <Input
+                  value={apiKeyFormName}
+                  onChange={(e) => setApiKeyFormName(e.target.value)}
+                  placeholder="e.g., Dev Laptop, CI/CD Pipeline"
+                  className="w-full"
+                />
+                <p className="text-xs theme-text-muted mt-1">
+                  A descriptive name to help you identify this key
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Expires In (Optional)
+                </label>
+                <Select
+                  value={apiKeyFormExpiresDays?.toString() || "never"}
+                  onValueChange={(value) =>
+                    setApiKeyFormExpiresDays(
+                      value === "never" ? undefined : parseInt(value),
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Never expires" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="never">Never expires</SelectItem>
+                    <SelectItem value="7">7 days</SelectItem>
+                    <SelectItem value="30">30 days</SelectItem>
+                    <SelectItem value="90">90 days</SelectItem>
+                    <SelectItem value="365">1 year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCreateApiKey}
+                  disabled={apiKeyFormSaving}
+                  size="sm"
+                >
+                  {apiKeyFormSaving ? "Generating..." : "Generate Key"}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowApiKeyForm(false);
+                    setApiKeyFormName("");
+                    setApiKeyFormExpiresDays(undefined);
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  disabled={apiKeyFormSaving}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Created Key Display (one-time) */}
+          {createdApiKey && (
+            <Alert className="mt-4 border-green-500/50 bg-green-500/10">
+              <Check className="w-4 h-4 text-green-500" />
+              <AlertDescription>
+                <p className="text-sm font-semibold mb-2">
+                  API Key Generated Successfully
+                </p>
+                <p className="text-xs theme-text-muted mb-3">
+                  Copy this key now - it will not be shown again!
+                </p>
+                <div className="flex items-center gap-2 p-2 bg-black/20 rounded font-mono text-sm break-all">
+                  <code className="flex-1">{createdApiKey.key}</code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => copyToClipboard(createdApiKey.key)}
+                    className="shrink-0"
+                  >
+                    Copy
+                  </Button>
+                </div>
+                <p className="text-xs theme-text-muted mt-3">
+                  Set this in your environment or config:
+                  <br />
+                  <code className="text-xs">
+                    $env:FELIX_SYNC_KEY = "{createdApiKey.key}"
+                  </code>
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setCreatedApiKey(null)}
+                  className="mt-3"
+                >
+                  Dismiss
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        {/* Keys List */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6">
+          <h4 className="text-md font-semibold mb-4">Active Keys</h4>
+
+          {apiKeysLoading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-[var(--border-default)] border-t-[var(--fg-default)] rounded-full animate-spin" />
+            </div>
+          )}
+
+          {apiKeysError && (
+            <Alert className="border-red-500/50 bg-red-500/10">
+              <AlertTriangle className="w-4 h-4 text-red-500" />
+              <AlertDescription>{apiKeysError}</AlertDescription>
+            </Alert>
+          )}
+
+          {!apiKeysLoading && !apiKeysError && apiKeys.length === 0 && (
+            <p className="text-sm theme-text-muted text-center py-8">
+              No API keys yet. Generate one to enable CLI sync for this project.
+            </p>
+          )}
+
+          {!apiKeysLoading && !apiKeysError && apiKeys.length > 0 && (
+            <div className="space-y-3">
+              {apiKeys.map((key) => (
+                <div
+                  key={key.id}
+                  className="p-4 border border-[var(--border-default)] rounded-lg"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          {key.name || "Unnamed Key"}
+                        </p>
+                        {key.expires_at &&
+                          new Date(key.expires_at) < new Date() && (
+                            <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-500 rounded">
+                              Expired
+                            </span>
+                          )}
+                      </div>
+                      <div className="text-xs theme-text-muted mt-1 space-y-1">
+                        <p>Created: {formatDate(key.created_at)}</p>
+                        {key.last_used_at && (
+                          <p>Last used: {formatDate(key.last_used_at)}</p>
+                        )}
+                        {key.expires_at && (
+                          <p>Expires: {formatDate(key.expires_at)}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleRevokeApiKey(key.id)}
+                      className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Revoke
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Help Section */}
+        <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-6">
+          <h4 className="text-md font-semibold mb-3 flex items-center gap-2">
+            <Info className="w-4 h-4" />
+            Using API Keys
+          </h4>
+          <div className="space-y-3 text-sm theme-text-muted">
+            <p>
+              API keys allow your CLI agent to sync run artifacts to this
+              server. Each key is scoped to this project only.
+            </p>
+            <div>
+              <p className="font-medium theme-text-default mb-1">
+                Setup Instructions:
+              </p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Generate a new API key above</li>
+                <li>Copy the key (shown only once)</li>
+                <li>
+                  Set in environment:{" "}
+                  <code className="text-xs px-1 py-0.5 bg-black/20 rounded">
+                    $env:FELIX_SYNC_KEY = "fsk_..."
+                  </code>
+                </li>
+                <li>
+                  Or add to{" "}
+                  <code className="text-xs px-1 py-0.5 bg-black/20 rounded">
+                    .felix/config.json
+                  </code>{" "}
+                  under{" "}
+                  <code className="text-xs px-1 py-0.5 bg-black/20 rounded">
+                    sync.api_key
+                  </code>
+                </li>
+                <li>Enable sync in config or use --sync flag</li>
+              </ol>
+            </div>
+            <p className="text-xs">
+              Sync is optional. CLI agents work perfectly without it for
+              local-only development.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderDocsSettings = () => {
     if (!projectId) {

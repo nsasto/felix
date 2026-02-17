@@ -99,6 +99,34 @@ export interface RunArtifactContent {
   size: number;
 }
 
+export interface ApiKeyInfo {
+  id: string;
+  project_id: string;
+  name: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+}
+
+export interface ApiKeyCreated {
+  id: string;
+  project_id: string;
+  name: string | null;
+  key: string; // Plain-text key (shown only once)
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface ApiKeyListResponse {
+  keys: ApiKeyInfo[];
+  count: number;
+}
+
+export interface ApiKeyCreateRequest {
+  name?: string;
+  expires_days?: number;
+}
+
 export interface AgentStatus {
   running: boolean;
   pid: number | null;
@@ -1286,6 +1314,34 @@ class FelixApiService {
 
   getActiveOrgId(): string | null {
     return this.orgId;
+  }
+
+  // --- API Key Endpoints ---
+
+  async listApiKeys(projectId: string): Promise<ApiKeyListResponse> {
+    return this.request<ApiKeyListResponse>(`/projects/${projectId}/keys`);
+  }
+
+  async createApiKey(
+    projectId: string,
+    request: ApiKeyCreateRequest,
+  ): Promise<ApiKeyCreated> {
+    return this.request<ApiKeyCreated>(`/projects/${projectId}/keys`, {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+
+  async revokeApiKey(
+    projectId: string,
+    keyId: string,
+  ): Promise<{ id: string; status: string }> {
+    return this.request<{ id: string; status: string }>(
+      `/projects/${projectId}/keys/${keyId}`,
+      {
+        method: "DELETE",
+      },
+    );
   }
 
   async healthCheck(): Promise<{
