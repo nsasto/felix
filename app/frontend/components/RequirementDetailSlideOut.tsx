@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { felixApi, Requirement, RunHistoryEntry } from "../services/felixApi";
 import { marked } from "marked";
 import RunArtifactViewer from "./RunArtifactViewer";
+import RunDetail from "./RunDetail";
+import { getRunFiles } from "../src/api/client";
 import RunCard from "./RunCard";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -52,6 +54,72 @@ const TOP_LEVEL_TABS: TopLevelTabInfo[] = [
   { id: "overview", label: "Overview", icon: IconFileText },
   { id: "history", label: "Run History", icon: IconHistory },
 ];
+
+/**
+ * Smart viewer that tries sync API first, then falls back to legacy viewer.
+ * This provides backward compatibility for runs that exist in filesystem
+ * but haven't been synced to the database yet.
+ */
+const SmartRunViewer: React.FC<{
+  projectId: string;
+  runId: string;
+}> = ({ projectId, runId }) => {
+  const [useLegacy, setUseLegacy] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // Check if run exists in sync API
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkSyncAvailability = async () => {
+      try {
+        // Try to fetch files from sync API
+        const response = await getRunFiles(runId);
+        // If we get files, use the new RunDetail component
+        if (!cancelled && response.files.length > 0) {
+          setUseLegacy(false);
+          setChecking(false);
+        } else {
+          // No files in sync, fall back to legacy
+          if (!cancelled) {
+            setUseLegacy(true);
+            setChecking(false);
+          }
+        }
+      } catch {
+        // Sync API failed - fall back to legacy viewer
+        if (!cancelled) {
+          setUseLegacy(true);
+          setChecking(false);
+        }
+      }
+    };
+
+    setChecking(true);
+    checkSyncAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [runId]);
+
+  // Show loading while checking
+  if (checking) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <PageLoading message="Loading run..." size="md" fullPage={false} />
+      </div>
+    );
+  }
+
+  // Use legacy viewer for filesystem-based runs
+  if (useLegacy) {
+    return <RunArtifactViewer projectId={projectId} runId={runId} />;
+  }
+
+  // Use new RunDetail for synced runs (no onClose in embedded mode)
+  return <RunDetail runId={runId} />;
+};
 
 interface RequirementDetailSlideOutProps {
   projectId: string;
@@ -539,7 +607,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               </p>
             </div>
           ) : (
-            <RunArtifactViewer projectId={projectId} runId={selectedRunId} />
+            <SmartRunViewer projectId={projectId} runId={selectedRunId} />
           )}
         </div>
       </div>
