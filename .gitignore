@@ -227,3 +227,8 @@ state.json
 /obj
 # Temp script
 clean_droid_and_ignore.ps1
+#felix sync and session management
+.felix/sessions.json
+.felix/state.json
+.felix/outbox
+.felix/requirements.json
