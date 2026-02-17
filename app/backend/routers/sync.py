@@ -23,6 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import asyncpg
 from databases import Database
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -30,6 +31,21 @@ from pydantic import BaseModel, Field
 
 from artifact_storage import get_artifact_storage, ArtifactStorage
 from database.db import get_db
+
+
+# ============================================================================
+# DATABASE ERROR TYPES
+# ============================================================================
+
+# Exception types that indicate transient database connection issues
+# These should return 503 Service Unavailable to signal client retry
+DATABASE_CONNECTION_ERRORS = (
+    asyncpg.PostgresConnectionError,
+    asyncpg.InterfaceError,
+    ConnectionRefusedError,
+    ConnectionResetError,
+    OSError,
+)
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -129,6 +145,82 @@ def log_sync_debug(message: str, *, run_id: Optional[str] = None, agent_id: Opti
     
     context_str = f"[{' '.join(context_parts)}] " if context_parts else ""
     logger.debug(f"{context_str}{message}")
+
+
+def is_database_connection_error(exc: Exception) -> bool:
+    """
+    Check if an exception is a database connection error.
+    
+    These errors are transient and indicate the database is temporarily
+    unreachable. Clients should retry after receiving a 503 response.
+    
+    Args:
+        exc: Exception to check
+        
+    Returns:
+        True if the exception indicates a database connection issue
+    """
+    # Check if it's one of the known connection error types
+    if isinstance(exc, DATABASE_CONNECTION_ERRORS):
+        return True
+    
+    # Check for nested connection errors (e.g., wrapped in databases library)
+    if exc.__cause__ and isinstance(exc.__cause__, DATABASE_CONNECTION_ERRORS):
+        return True
+    
+    # Check error message for common connection patterns
+    error_message = str(exc).lower()
+    connection_keywords = [
+        "connection refused",
+        "connection reset",
+        "connection closed",
+        "connection timed out",
+        "could not connect",
+        "database is unavailable",
+        "no connection to server",
+        "connection pool exhausted",
+        "too many connections",
+    ]
+    return any(keyword in error_message for keyword in connection_keywords)
+
+
+def raise_database_unavailable(
+    operation: str,
+    exc: Exception,
+    *,
+    run_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    **extra
+) -> None:
+    """
+    Log database connection error and raise 503 Service Unavailable.
+    
+    This helper standardizes the handling of database connection errors
+    across all sync endpoints, ensuring consistent logging and response format.
+    
+    Args:
+        operation: Description of the failed operation (e.g., "agent registration")
+        exc: The database exception that was caught
+        run_id: Optional run ID for logging context
+        agent_id: Optional agent ID for logging context
+        **extra: Additional context for logging
+        
+    Raises:
+        HTTPException: 503 Service Unavailable with details
+    """
+    log_sync_error(
+        f"Database unavailable during {operation}",
+        run_id=run_id,
+        agent_id=agent_id,
+        error_type=type(exc).__name__,
+        exc=exc,
+        **extra
+    )
+    raise HTTPException(
+        status_code=503,
+        detail=f"Database temporarily unavailable. Please retry. (Operation: {operation})"
+    )
+
 
 router = APIRouter(tags=["sync"])
 
@@ -342,6 +434,14 @@ async def register_agent(
             agent_id=request.agent_id,
         )
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "agent registration",
+                e,
+                agent_id=request.agent_id
+            )
+        # Log and return 500 for other database errors
         log_sync_error(
             "Failed to register agent",
             agent_id=request.agent_id,
@@ -458,6 +558,15 @@ async def create_run(
     except HTTPException:
         raise
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "run creation",
+                e,
+                agent_id=request.agent_id,
+                project_id=request.project_id
+            )
+        # Log and return 500 for other database errors
         log_sync_error(
             "Failed to create run",
             agent_id=request.agent_id,
@@ -547,6 +656,15 @@ async def append_events(
     except HTTPException:
         raise
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "event append",
+                e,
+                run_id=run_id,
+                event_count=len(events)
+            )
+        # Log and return 500 for other database errors
         log_sync_error(
             "Failed to append events",
             run_id=run_id,
@@ -664,6 +782,15 @@ async def finish_run(
     except HTTPException:
         raise
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "run completion",
+                e,
+                run_id=run_id,
+                status=request.status
+            )
+        # Log and return 500 for other database errors
         log_sync_error(
             "Failed to finish run",
             run_id=run_id,
@@ -881,6 +1008,14 @@ async def upload_files(
     except HTTPException:
         raise
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "file upload",
+                e,
+                run_id=run_id
+            )
+        # Log and return 500 for other errors
         log_sync_error(
             "Failed to upload files",
             run_id=run_id,
@@ -960,6 +1095,14 @@ async def list_files(
     except HTTPException:
         raise
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "file listing",
+                e,
+                run_id=run_id
+            )
+        # Log and return 500 for other errors
         log_sync_error(
             "Failed to list files",
             run_id=run_id,
@@ -1043,6 +1186,15 @@ async def download_file(
     except HTTPException:
         raise
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "file download",
+                e,
+                run_id=run_id,
+                file_path=file_path
+            )
+        # Log and return 500 for other errors
         log_sync_error(
             f"Failed to download file: {file_path}",
             run_id=run_id,
@@ -1145,6 +1297,14 @@ async def list_events(
     except HTTPException:
         raise
     except Exception as e:
+        # Check for database connection errors - return 503 for transient failures
+        if is_database_connection_error(e):
+            raise_database_unavailable(
+                "event listing",
+                e,
+                run_id=run_id
+            )
+        # Log and return 500 for other errors
         log_sync_error(
             "Failed to list events",
             run_id=run_id,
