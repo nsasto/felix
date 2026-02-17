@@ -1237,13 +1237,7 @@ function Process-CompletionSignals {
         }
     }
     
-    # Task complete - continue to next iteration
-    if ($Output -match '<promise>TASK_COMPLETE</promise>') {
-        Emit-Log -Level "info" -Message "Task complete signal detected, continuing to next task" -Component "executor"
-        return @{ ShouldExit = $false }
-    }
-    
-    # All requirements met?
+    # Check ALL_COMPLETE first (more specific than TASK_COMPLETE)
     Emit-Log -Level "debug" -Message "Checking for ALL_COMPLETE signal..." -Component "executor"
     if ($Output -match '<promise>ALL_COMPLETE</promise>') {
         Emit-Log -Level "info" -Message "ALL_COMPLETE signal detected, marking requirement complete" -Component "executor"
@@ -1272,6 +1266,12 @@ function Process-CompletionSignals {
         
         Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $CurrentRequirement.id -NewStatus "complete"
         return @{ ShouldExit = $true; ExitCode = 0 }
+    }
+    
+    # Task complete - continue to next iteration
+    if ($Output -match '<promise>TASK_COMPLETE</promise>') {
+        Emit-Log -Level "info" -Message "Task complete signal detected, continuing to next task" -Component "executor"
+        return @{ ShouldExit = $false }
     }
     
     return @{ ShouldExit = $false }
