@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 import asyncpg
 from databases import Database
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -333,32 +333,221 @@ router = APIRouter(tags=["sync"])
 
 
 # ============================================================================
-# AUTH STUB
+# API KEY AUTHENTICATION
 # ============================================================================
 
-async def verify_api_key(
-    authorization: Optional[str] = Header(None, description="Bearer token for authentication")
-) -> Optional[str]:
-    """
-    Verify API key from Authorization header.
+class ApiKeyInfo(BaseModel):
+    """Information about a validated API key."""
+    key_id: str = Field(..., description="UUID of the api_key record")
+    agent_id: Optional[str] = Field(None, description="Agent ID the key is restricted to (if any)")
+    name: Optional[str] = Field(None, description="Human-readable name of the key")
     
-    TODO: Implement proper API key validation against database.
-    Currently accepts any Bearer token for development purposes.
+    class Config:
+        # Allow arbitrary types for compatibility with database rows
+        arbitrary_types_allowed = True
+
+
+def hash_api_key(key: str) -> str:
+    """
+    Hash an API key using SHA256.
+    
+    This must match the hashing used in scripts/generate-sync-key.py.
+    
+    Args:
+        key: Plain-text API key
+        
+    Returns:
+        Hex-encoded SHA256 hash
+    """
+    return hashlib.sha256(key.encode('utf-8')).hexdigest()
+
+
+async def verify_api_key(
+    authorization: Optional[str] = Header(None, description="Bearer token for authentication"),
+    db: Database = Depends(get_db),
+) -> Optional[ApiKeyInfo]:
+    """
+    Verify API key from Authorization header against database.
+    
+    Validates the API key by:
+    1. Extracting the token from the Authorization header
+    2. Hashing it with SHA256
+    3. Looking up the hash in the api_keys table
+    4. Checking if the key has expired
+    5. Updating last_used_at timestamp
     
     Args:
         authorization: Optional Authorization header value (e.g., "Bearer fsk_xxx")
+        db: Database connection
         
     Returns:
-        The API key if provided, None otherwise
+        ApiKeyInfo if valid key provided, None if no key provided
+        
+    Raises:
+        HTTPException 401: If key is invalid or expired
+        HTTPException 503: If database is unavailable
     """
     if authorization is None:
         return None
     
     # Extract token from "Bearer <token>" format
+    token = authorization
     if authorization.startswith("Bearer "):
-        return authorization[7:]
+        token = authorization[7:]
     
-    return authorization
+    if not token:
+        return None
+    
+    # Hash the token
+    key_hash = hash_api_key(token)
+    
+    try:
+        # Look up the key in the database
+        query = """
+            SELECT id, agent_id, name, expires_at
+            FROM api_keys
+            WHERE key_hash = :key_hash
+        """
+        row = await db.fetch_one(query, {"key_hash": key_hash})
+        
+        if not row:
+            log_sync_warning(
+                "Invalid API key attempted",
+                key_prefix=token[:8] if len(token) >= 8 else token
+            )
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid API key"
+            )
+        
+        # Check expiration
+        expires_at = row["expires_at"]
+        if expires_at is not None:
+            # Handle both timezone-aware and naive datetimes
+            now = datetime.now(timezone.utc)
+            if expires_at.tzinfo is None:
+                # Assume UTC if no timezone info
+                from datetime import timezone as tz
+                expires_at = expires_at.replace(tzinfo=tz.utc)
+            
+            if now > expires_at:
+                log_sync_warning(
+                    "Expired API key attempted",
+                    key_id=str(row["id"]),
+                    expires_at=str(expires_at)
+                )
+                raise HTTPException(
+                    status_code=401,
+                    detail="API key has expired"
+                )
+        
+        # Update last_used_at
+        update_query = """
+            UPDATE api_keys
+            SET last_used_at = NOW()
+            WHERE id = :key_id
+        """
+        await db.execute(update_query, {"key_id": row["id"]})
+        
+        log_sync_debug(
+            "API key validated",
+            key_id=str(row["id"]),
+            key_name=row["name"]
+        )
+        
+        return ApiKeyInfo(
+            key_id=str(row["id"]),
+            agent_id=str(row["agent_id"]) if row["agent_id"] else None,
+            name=row["name"],
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        if is_database_connection_error(e):
+            log_sync_error(
+                "Database unavailable during API key verification",
+                exc=e
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Database temporarily unavailable. Please retry."
+            )
+        log_sync_error(
+            "Error during API key verification",
+            exc=e
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error during API key verification: {str(e)}"
+        )
+
+
+async def log_api_key_usage(
+    db: Database,
+    api_key: Optional[ApiKeyInfo],
+    endpoint: str,
+    request: Request,
+    *,
+    agent_id: Optional[str] = None,
+    success: bool = True,
+) -> None:
+    """
+    Log API key usage to the audit trail.
+    
+    This function records each API key use for security auditing.
+    It's designed to be fire-and-forget - errors are logged but don't
+    affect the main request flow.
+    
+    Args:
+        db: Database connection
+        api_key: API key info (None if no key was provided)
+        endpoint: The API endpoint being accessed
+        request: FastAPI request object (for client IP and user agent)
+        agent_id: Optional agent ID from the request body
+        success: Whether the request was successful
+    """
+    if api_key is None:
+        return
+    
+    try:
+        # Get client info from request
+        client_ip = None
+        if request.client:
+            client_ip = request.client.host
+        
+        # Check for X-Forwarded-For header (if behind proxy)
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            # Take the first IP in the chain (original client)
+            client_ip = forwarded_for.split(",")[0].strip()
+        
+        user_agent = request.headers.get("User-Agent", "")[:500]  # Truncate to prevent overflow
+        
+        # Insert usage log
+        query = """
+            INSERT INTO api_key_usage_log (key_id, endpoint, agent_id, ip_address, user_agent, success)
+            VALUES (:key_id, :endpoint, :agent_id, :ip_address, :user_agent, :success)
+        """
+        await db.execute(
+            query,
+            {
+                "key_id": api_key.key_id,
+                "endpoint": endpoint,
+                "agent_id": agent_id,
+                "ip_address": client_ip,
+                "user_agent": user_agent,
+                "success": success,
+            }
+        )
+        
+    except Exception as e:
+        # Log error but don't fail the request - audit logging is non-critical
+        log_sync_warning(
+            f"Failed to log API key usage: {str(e)}",
+            key_id=api_key.key_id,
+            endpoint=endpoint
+        )
 
 
 # ============================================================================
@@ -482,9 +671,10 @@ class EventListResponse(BaseModel):
 
 @router.post("/api/agents/register", response_model=AgentRegistrationResponse)
 async def register_agent(
-    request: AgentRegistration,
+    body: AgentRegistration,
+    http_request: Request,
     db: Database = Depends(get_db),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -494,7 +684,8 @@ async def register_agent(
     On conflict, updates hostname, platform, version, and last_seen_at.
     
     Args:
-        request: Agent registration data
+        body: Agent registration data
+        http_request: FastAPI request object
         db: Database connection
         api_key: Optional API key for authentication
         
@@ -504,6 +695,9 @@ async def register_agent(
     Raises:
         HTTPException 500: On database error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, "/api/agents/register", http_request, agent_id=body.agent_id)
+    
     try:
         # Upsert agent record
         query = """
@@ -521,25 +715,25 @@ async def register_agent(
         await db.execute(
             query,
             {
-                "id": request.agent_id,
-                "name": request.agent_id,  # Use agent_id as name for CLI agents
-                "hostname": request.hostname,
-                "platform": request.platform,
-                "version": request.version,
+                "id": body.agent_id,
+                "name": body.agent_id,  # Use agent_id as name for CLI agents
+                "hostname": body.hostname,
+                "platform": body.platform,
+                "version": body.version,
                 "last_seen_at": datetime.now(timezone.utc),
             }
         )
         
         log_sync_info(
-            f"Agent registered on {request.hostname}",
-            agent_id=request.agent_id,
-            platform=request.platform,
-            version=request.version
+            f"Agent registered on {body.hostname}",
+            agent_id=body.agent_id,
+            platform=body.platform,
+            version=body.version
         )
         
         return AgentRegistrationResponse(
             status="registered",
-            agent_id=request.agent_id,
+            agent_id=body.agent_id,
         )
     except Exception as e:
         # Check for database connection errors - return 503 for transient failures
@@ -547,12 +741,12 @@ async def register_agent(
             raise_database_unavailable(
                 "agent registration",
                 e,
-                agent_id=request.agent_id
+                agent_id=body.agent_id
             )
         # Log and return 500 for other database errors
         log_sync_error(
             "Failed to register agent",
-            agent_id=request.agent_id,
+            agent_id=body.agent_id,
             exc=e
         )
         raise HTTPException(
@@ -567,9 +761,10 @@ async def register_agent(
 
 @router.post("/api/runs", response_model=RunCreateResponse)
 async def create_run(
-    request: RunCreate,
+    body: RunCreate,
+    http_request: Request,
     db: Database = Depends(get_db),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -579,7 +774,8 @@ async def create_run(
     Inserts run with status='running' and creates initial 'started' event.
     
     Args:
-        request: Run creation data
+        body: Run creation data
+        http_request: FastAPI request object
         db: Database connection
         api_key: Optional API key for authentication
         
@@ -590,30 +786,33 @@ async def create_run(
         HTTPException 404: If agent or project not found
         HTTPException 500: On database error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, "/api/runs", http_request, agent_id=body.agent_id)
+    
     try:
         # Generate run ID if not provided
-        run_id = request.id or str(uuid.uuid4())
+        run_id = body.id or str(uuid.uuid4())
         
         # Verify agent exists
         agent = await db.fetch_one(
             "SELECT id FROM agents WHERE id = :agent_id",
-            {"agent_id": request.agent_id}
+            {"agent_id": body.agent_id}
         )
         if not agent:
             raise HTTPException(
                 status_code=404,
-                detail=f"Agent not found: {request.agent_id}"
+                detail=f"Agent not found: {body.agent_id}"
             )
         
         # Verify project exists
         project = await db.fetch_one(
             "SELECT id FROM projects WHERE id = :project_id",
-            {"project_id": request.project_id}
+            {"project_id": body.project_id}
         )
         if not project:
             raise HTTPException(
                 status_code=404,
-                detail=f"Project not found: {request.project_id}"
+                detail=f"Project not found: {body.project_id}"
             )
         
         # Insert run record
@@ -634,13 +833,13 @@ async def create_run(
             run_query,
             {
                 "id": run_id,
-                "project_id": request.project_id,
-                "agent_id": request.agent_id,
-                "requirement_id": request.requirement_id,
-                "branch": request.branch,
-                "commit_sha": request.commit_sha,
-                "scenario": request.scenario,
-                "phase": request.phase,
+                "project_id": body.project_id,
+                "agent_id": body.agent_id,
+                "requirement_id": body.requirement_id,
+                "branch": body.branch,
+                "commit_sha": body.commit_sha,
+                "scenario": body.scenario,
+                "phase": body.phase,
             }
         )
         
@@ -655,9 +854,9 @@ async def create_run(
         log_sync_info(
             "Run created",
             run_id=run_id,
-            agent_id=request.agent_id,
-            project_id=request.project_id,
-            requirement_id=request.requirement_id
+            agent_id=body.agent_id,
+            project_id=body.project_id,
+            requirement_id=body.requirement_id
         )
         
         return RunCreateResponse(
@@ -672,14 +871,14 @@ async def create_run(
             raise_database_unavailable(
                 "run creation",
                 e,
-                agent_id=request.agent_id,
-                project_id=request.project_id
+                agent_id=body.agent_id,
+                project_id=body.project_id
             )
         # Log and return 500 for other database errors
         log_sync_error(
             "Failed to create run",
-            agent_id=request.agent_id,
-            project_id=request.project_id,
+            agent_id=body.agent_id,
+            project_id=body.project_id,
             exc=e
         )
         raise HTTPException(
@@ -696,8 +895,9 @@ async def create_run(
 async def append_events(
     run_id: str,
     events: List[RunEvent],
+    http_request: Request,
     db: Database = Depends(get_db),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -708,6 +908,7 @@ async def append_events(
     Args:
         run_id: Run ID to append events to
         events: List of events to append
+        http_request: FastAPI request object
         db: Database connection
         api_key: Optional API key for authentication
         
@@ -718,6 +919,9 @@ async def append_events(
         HTTPException 404: If run not found
         HTTPException 500: On database error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/events", http_request)
+    
     try:
         # Verify run exists
         run = await db.fetch_one(
@@ -794,9 +998,10 @@ async def append_events(
 @router.post("/api/runs/{run_id}/finish", response_model=RunCompletionResponse)
 async def finish_run(
     run_id: str,
-    request: RunCompletion,
+    body: RunCompletion,
+    http_request: Request,
     db: Database = Depends(get_db),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -807,7 +1012,8 @@ async def finish_run(
     
     Args:
         run_id: Run ID to finish
-        request: Completion data
+        body: Completion data
+        http_request: FastAPI request object
         db: Database connection
         api_key: Optional API key for authentication
         
@@ -818,6 +1024,9 @@ async def finish_run(
         HTTPException 404: If run not found
         HTTPException 500: On database error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/finish", http_request)
+    
     try:
         # Verify run exists
         run = await db.fetch_one(
@@ -847,20 +1056,20 @@ async def finish_run(
             update_query,
             {
                 "run_id": run_id,
-                "status": request.status,
-                "exit_code": request.exit_code,
-                "duration_sec": request.duration_sec,
-                "error_summary": request.error_summary,
-                "summary_json": json.dumps(request.summary_json) if request.summary_json else None,
+                "status": body.status,
+                "exit_code": body.exit_code,
+                "duration_sec": body.duration_sec,
+                "error_summary": body.error_summary,
+                "summary_json": json.dumps(body.summary_json) if body.summary_json else None,
             }
         )
         
         # Determine event type and level based on status
-        event_type = "completed" if request.status in ("completed", "succeeded") else "failed"
+        event_type = "completed" if body.status in ("completed", "succeeded") else "failed"
         event_level = "info" if event_type == "completed" else "error"
         event_message = f"Run {event_type}"
-        if request.error_summary:
-            event_message += f": {request.error_summary}"
+        if body.error_summary:
+            event_message += f": {body.error_summary}"
         
         # Insert completion event
         event_query = """
@@ -879,11 +1088,11 @@ async def finish_run(
         )
         
         log_sync_info(
-            f"Run finished with status {request.status}",
+            f"Run finished with status {body.status}",
             run_id=run_id,
-            status=request.status,
-            exit_code=request.exit_code,
-            duration_sec=request.duration_sec
+            status=body.status,
+            exit_code=body.exit_code,
+            duration_sec=body.duration_sec
         )
         
         return RunCompletionResponse(
@@ -899,13 +1108,13 @@ async def finish_run(
                 "run completion",
                 e,
                 run_id=run_id,
-                status=request.status
+                status=body.status
             )
         # Log and return 500 for other database errors
         log_sync_error(
             "Failed to finish run",
             run_id=run_id,
-            status=request.status,
+            status=body.status,
             exc=e
         )
         raise HTTPException(
@@ -1042,11 +1251,12 @@ def validate_file_path(path: str, *, run_id: Optional[str] = None) -> None:
 @router.post("/api/runs/{run_id}/files", response_model=FileUploadResponse)
 async def upload_files(
     run_id: str,
+    http_request: Request,
     manifest: str = Form(..., description="JSON manifest with file metadata"),
     files: List[UploadFile] = File(..., description="Files to upload"),
     db: Database = Depends(get_db),
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -1067,6 +1277,7 @@ async def upload_files(
     
     Args:
         run_id: Run ID to upload files to
+        http_request: FastAPI request object
         manifest: JSON string with file metadata
         files: Uploaded files
         db: Database connection
@@ -1082,6 +1293,9 @@ async def upload_files(
         HTTPException 413: If file or total upload size exceeds limits
         HTTPException 500: On database or storage error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/files", http_request)
+    
     try:
         # Parse manifest
         try:
@@ -1306,8 +1520,9 @@ async def upload_files(
 @router.get("/api/runs/{run_id}/files", response_model=FileListResponse)
 async def list_files(
     run_id: str,
+    http_request: Request,
     db: Database = Depends(get_db),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -1317,6 +1532,7 @@ async def list_files(
     
     Args:
         run_id: Run ID to list files for
+        http_request: FastAPI request object
         db: Database connection
         api_key: Optional API key for authentication
         
@@ -1327,6 +1543,9 @@ async def list_files(
         HTTPException 404: If run not found
         HTTPException 500: On database error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/files", http_request)
+    
     try:
         # Verify run exists
         run = await db.fetch_one(
@@ -1395,9 +1614,10 @@ async def list_files(
 async def download_file(
     run_id: str,
     file_path: str,
+    http_request: Request,
     db: Database = Depends(get_db),
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -1408,6 +1628,7 @@ async def download_file(
     Args:
         run_id: Run ID containing the file
         file_path: Path of file within the run
+        http_request: FastAPI request object
         db: Database connection
         storage: Artifact storage instance
         api_key: Optional API key for authentication
@@ -1420,6 +1641,9 @@ async def download_file(
         HTTPException 404: If file not found in DB or storage
         HTTPException 500: On database or storage error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/files/{file_path}", http_request)
+    
     try:
         # Validate file path for path traversal attacks
         validate_file_path(file_path, run_id=run_id)
@@ -1500,10 +1724,11 @@ async def download_file(
 @router.get("/api/runs/{run_id}/events", response_model=EventListResponse)
 async def list_events(
     run_id: str,
+    http_request: Request,
     after: Optional[int] = Query(None, description="Cursor for pagination - return events after this ID"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of events to return"),
     db: Database = Depends(get_db),
-    api_key: Optional[str] = Depends(verify_api_key),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
@@ -1513,6 +1738,7 @@ async def list_events(
     
     Args:
         run_id: Run ID to query events for
+        http_request: FastAPI request object
         after: Optional cursor - return events with ID greater than this
         limit: Maximum events to return (default 100)
         db: Database connection
@@ -1525,6 +1751,9 @@ async def list_events(
         HTTPException 404: If run not found
         HTTPException 500: On database error
     """
+    # Log API key usage for audit trail
+    await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/events", http_request)
+    
     try:
         # Verify run exists
         run = await db.fetch_one(
