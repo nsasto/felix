@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from databases import Database
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, Field
 
 from auth import get_current_user
@@ -18,6 +18,7 @@ from repositories.projects import PostgresProjectRepository
 
 
 router = APIRouter(prefix="/api/projects/{project_id}/keys", tags=["api-keys"])
+global_keys_router = APIRouter(prefix="/api/keys", tags=["api-keys"])
 
 
 # ============================================================================
@@ -78,6 +79,97 @@ class ApiKeyRevoked(BaseModel):
 
     id: str = Field(..., description="UUID of the revoked key")
     status: str = Field(..., description="Always 'revoked'")
+
+
+class ApiKeyValidate(BaseModel):
+    """Response from validating an API key."""
+
+    project_id: str = Field(..., description="Project this key belongs to")
+    project_name: Optional[str] = Field(None, description="Human-readable project name")
+    org_id: str = Field(..., description="Organization ID")
+    expires_at: Optional[datetime] = Field(None, description="When the key expires")
+
+
+# ============================================================================
+# GLOBAL API KEY ENDPOINTS (no project_id in path)
+# ============================================================================
+
+
+@global_keys_router.get("/validate", response_model=ApiKeyValidate)
+async def validate_api_key(
+    authorization: str = Header(...),
+    db: Database = Depends(get_db),
+):
+    """
+    Validate an API key and return information about it.
+
+    This endpoint is used by CLI setup to verify a key is valid and show
+    which project it grants access to.
+
+    Args:
+        authorization: Bearer token (e.g., "Bearer fsk_...")
+        db: Database connection
+
+    Returns:
+        Information about the key and project
+
+    Raises:
+        HTTPException 401: If key is invalid or expired
+    """
+    # Parse Authorization header
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Authorization header format. Use: Bearer fsk_...",
+        )
+
+    plain_key = authorization[7:]  # Strip "Bearer "
+    key_hash = hash_api_key(plain_key)
+
+    # Look up key
+    api_key_repo = PostgresApiKeyRepository(db)
+    key_record = await api_key_repo.get_by_key_hash(key_hash)
+
+    if not key_record:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key",
+        )
+
+    # Check if expired
+    if key_record.get("expires_at"):
+        expires_at = key_record["expires_at"]
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=401,
+                detail="API key has expired",
+            )
+
+    # Fetch project details
+    project_repo = PostgresProjectRepository(db)
+    project_id = str(key_record["project_id"])
+    # We don't have org_id in the project fetch, so let's get it from the query
+    project_row = await db.fetch_one(
+        """
+        SELECT p.id, p.name, p.org_id
+        FROM projects p
+        WHERE p.id = :project_id
+        """,
+        values={"project_id": project_id},
+    )
+
+    if not project_row:
+        raise HTTPException(
+            status_code=401,
+            detail="API key references non-existent project",
+        )
+
+    return ApiKeyValidate(
+        project_id=str(project_row["id"]),
+        project_name=project_row.get("name"),
+        org_id=str(project_row["org_id"]),
+        expires_at=key_record.get("expires_at"),
+    )
 
 
 # ============================================================================

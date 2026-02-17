@@ -162,6 +162,7 @@ app.add_middleware(RequestSizeLimitMiddleware)
 # Include routers
 app.include_router(projects.router)
 app.include_router(keys.router)
+app.include_router(keys.global_keys_router)
 app.include_router(files.router)
 app.include_router(runs.router)
 app.include_router(agents.router)
