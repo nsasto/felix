@@ -117,13 +117,13 @@ sequenceDiagram
 
 **Estimated Time:** 4 hours
 
-#### Step 1.1: Create Migration `017_project_scoped_api_keys.sql`
+#### Step 1.1: Create Migration `018_project_scoped_api_keys.sql`
 
-**File:** `app/backend/migrations/017_project_scoped_api_keys.sql`
+**File:** `app/backend/migrations/018_project_scoped_api_keys.sql`
 
 ```sql
 -- ===================================================================
--- Migration 017: Project-Scoped API Keys
+-- Migration 018: Project-Scoped API Keys
 -- ===================================================================
 -- Breaking change: Existing API keys are deleted (pre-production status).
 -- All keys must now be scoped to a project (project_id NOT NULL).
@@ -201,7 +201,7 @@ class Project(Base):
 
 ```bash
 # Apply migration
-psql -U postgres -d felix -f app/backend/migrations/017_project_scoped_api_keys.sql
+psql -U postgres -d felix -f app/backend/migrations/018_project_scoped_api_keys.sql
 
 # Verify schema
 psql -U postgres -d felix -c "\d api_keys"

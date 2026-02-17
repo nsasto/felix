@@ -1,5 +1,5 @@
 -- ===================================================================
--- Migration 017: Project-Scoped API Keys
+-- Migration 018: Project-Scoped API Keys
 -- ===================================================================
 -- Breaking change: Existing API keys are deleted (pre-production status).
 -- All keys must now be scoped to a project (project_id NOT NULL).

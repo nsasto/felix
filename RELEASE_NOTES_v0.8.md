@@ -1,6 +1,7 @@
 # Release Notes - v0.8.0
 
 ## Highlights
+
 - **🔒 Project-scoped API keys** - Secure sync authentication with per-project access control
 - **⚠️ BREAKING CHANGE** - API keys now required when sync is enabled
 - **✨ API Keys UI** - Generate and manage keys directly in Settings
@@ -25,11 +26,13 @@
 2. **Update Configuration:**
 
    **Option A: Environment Variable**
+
    ```powershell
    $env:FELIX_SYNC_KEY = "fsk_your_api_key_here"
    ```
 
    **Option B: Config File (.felix/config.json)**
+
    ```json
    {
      "sync": {
@@ -41,6 +44,7 @@
    ```
 
 3. **Run Agent:**
+
    ```powershell
    felix run S-0001
    ```
@@ -52,6 +56,7 @@
    ```
 
 **If API key is missing when sync is enabled:**
+
 ```
 ERROR: Sync is enabled but no API key is configured.
 
@@ -106,12 +111,14 @@ Note: If you don't need sync, set enabled to false in config.json
 **Location:** Settings → API Keys (only visible when project selected)
 
 **Key Generation:**
+
 - Name your key for identification
 - Set expiration period (30/90/180/365 days or never)
 - One-time key display with copy-to-clipboard
 - Security warning to save key immediately
 
 **Key Management:**
+
 - List all active keys with metadata:
   - Name and creation date
   - Last used timestamp
@@ -121,6 +128,7 @@ Note: If you don't need sync, set enabled to false in config.json
 - Automatic refresh after create/revoke
 
 **Help Section:**
+
 - CLI setup instructions
 - Config.json example
 - Environment variable example
@@ -128,7 +136,7 @@ Note: If you don't need sync, set enabled to false in config.json
 ### Backend Changes
 
 - **Repository Pattern:** New `IApiKeyRepository` protocol with PostgreSQL implementation
-- **Database Migration:** `017_project_scoped_api_keys.sql` migrates from agent-scoped to project-scoped
+- **Database Migration:** `018_project_scoped_api_keys.sql` migrates from agent-scoped to project-scoped
 - **API Endpoints:**
   - `POST /api/projects/{id}/keys` - Generate new key
   - `GET /api/projects/{id}/keys` - List project keys
@@ -148,7 +156,7 @@ Note: If you don't need sync, set enabled to false in config.json
 ## Documentation Updates
 
 - **README.md:** Updated sync section to require API keys
-- **HOW_TO_USE.md:** 
+- **HOW_TO_USE.md:**
   - Updated configuration examples
   - Added key generation instructions
   - Updated troubleshooting for 401 errors
@@ -160,17 +168,21 @@ Note: If you don't need sync, set enabled to false in config.json
 ### api_keys Table Changes
 
 **Added:**
+
 - `project_id` (NOT NULL, foreign key to projects.id)
 
 **Removed:**
+
 - `agent_id` (no longer agent-scoped)
 
 **Indexes:**
+
 - `idx_api_keys_project_id` - Fast project key lookups
 - `idx_api_keys_key_hash` - Fast authentication lookups
 - `idx_api_keys_project_is_active` - Fast active key queries
 
 **Cascade:**
+
 - Deleting a project automatically revokes all its API keys
 
 ## Technical Details
@@ -213,7 +225,7 @@ Note: If you don't need sync, set enabled to false in config.json
 ```powershell
 # Apply migration
 cd app/backend
-python -m app.backend.database migrations/017_project_scoped_api_keys.sql
+python -m app.backend.database migrations/018_project_scoped_api_keys.sql
 
 # Verify schema
 psql felix -c "\d api_keys"
