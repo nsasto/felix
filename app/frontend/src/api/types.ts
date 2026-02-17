@@ -176,3 +176,16 @@ export interface RunFilesResponse {
   /** List of files in the run */
   files: RunFile[];
 }
+
+/**
+ * Response for listing run events from the sync API.
+ * Matches EventListResponse in backend routers/sync.py.
+ */
+export interface RunEventsResponse {
+  /** Run ID */
+  run_id: string;
+  /** List of events in the run */
+  events: RunEvent[];
+  /** Whether more events exist after this page (for pagination) */
+  has_more: boolean;
+}

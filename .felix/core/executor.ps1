@@ -493,7 +493,7 @@ function Build-IterationPrompt {
     }
     
     if ($shouldAgentCommit) {
-        $contextParts += "# Git Commit Instructions`n`n**You MUST commit your changes:**`n`n1. Run: ``git add -A```n2. Run: ``git commit -m `"Felix (REQ-ID): Brief task description```"`n3. Include commit confirmation in your run report`n`nDo NOT push changes to remote."
+        $contextParts += "# Git Commit Instructions`n`n**Stage your changes (do NOT commit):**`n`n1. Run: ``git add -A`` to stage all changes`n2. Do NOT run ``git commit`` - the system will commit automatically after validation`n3. Your staged changes will be committed with proper formatting applied`n`nDo NOT push changes to remote."
     }
     else {
         $contextParts += "# Git Commit Instructions`n`n**Do NOT commit changes.** The commit_on_complete setting is disabled. Your changes will be captured but not committed to git history."
