@@ -356,6 +356,7 @@ const App: React.FC = () => {
   const currentOrgSlug =
     selectedOrg?.slug ||
     userProfile?.org_slug ||
+    pendingOrgSlugRef.current ||
     toSlug(selectedOrgLabel) ||
     "org";
   const resolvedOrgs =
