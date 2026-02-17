@@ -67,12 +67,15 @@ class FastApiReporter : IRunReporter {
     [string]$ApiKey
     [string]$OutboxPath
     [string]$FelixDir
+    [string]$LogPath
+    [int]$MaxLogSizeBytes = 5242880  # 5MB max log size
     
     FastApiReporter([hashtable]$config, [string]$felixDir) {
         $this.BaseUrl = $config.base_url
         $this.ApiKey = $config.api_key
         $this.FelixDir = $felixDir
         $this.OutboxPath = Join-Path $felixDir "outbox"
+        $this.LogPath = Join-Path $felixDir "sync.log"
         
         # Create outbox directory if it doesn't exist
         if (-not (Test-Path $this.OutboxPath)) {
@@ -82,6 +85,46 @@ class FastApiReporter : IRunReporter {
         
         Write-Verbose "FastApiReporter initialized - BaseUrl: $($this.BaseUrl)"
     }
+    
+    #region Logging with Rotation
+    
+    hidden [void] WriteLog([string]$level, [string]$message) {
+        # Rotate log if needed
+        $this.RotateLogIfNeeded()
+        
+        $timestamp = [System.DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        $logEntry = "[$timestamp] [$level] $message"
+        
+        try {
+            Add-Content -Path $this.LogPath -Value $logEntry -Encoding UTF8 -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently fail if unable to write log
+        }
+    }
+    
+    hidden [void] RotateLogIfNeeded() {
+        if (-not (Test-Path $this.LogPath)) {
+            return
+        }
+        
+        try {
+            $logFile = Get-Item $this.LogPath -ErrorAction SilentlyContinue
+            if ($logFile -and $logFile.Length -ge $this.MaxLogSizeBytes) {
+                # Rotate: rename current log to .old and start fresh
+                $oldLogPath = "$($this.LogPath).old"
+                if (Test-Path $oldLogPath) {
+                    Remove-Item -Path $oldLogPath -Force -ErrorAction SilentlyContinue
+                }
+                Move-Item -Path $this.LogPath -Destination $oldLogPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+        catch {
+            # Silently fail if rotation fails
+        }
+    }
+    
+    #endregion
     
     [void] RegisterAgent([hashtable]$agentInfo) {
         $request = @{
@@ -313,44 +356,173 @@ class FastApiReporter : IRunReporter {
         }
     }
     
+    hidden [int] GetMaxRetries() {
+        # Check environment variable for max retry attempts
+        $envMaxRetries = $env:FELIX_SYNC_MAX_RETRIES
+        if ($envMaxRetries -and $envMaxRetries -match '^\d+$') {
+            return [int]$envMaxRetries
+        }
+        return 5  # Default: 5 attempts (delays: 1s, 2s, 4s, 8s, 16s)
+    }
+    
+    hidden [bool] IsTransientError([int]$statusCode, [string]$errorMessage) {
+        # Transient errors are retryable: network issues, server overload, etc.
+        # Status codes: 429 (rate limited), 500 (server error), 502, 503, 504 (gateway/unavailable)
+        $transientStatusCodes = @(429, 500, 502, 503, 504)
+        
+        if ($statusCode -in $transientStatusCodes) {
+            return $true
+        }
+        
+        # Network-related errors are transient
+        $transientPatterns = @(
+            "Unable to connect",
+            "Connection refused",
+            "Connection timed out",
+            "Network is unreachable",
+            "No route to host",
+            "DNS",
+            "timeout",
+            "temporarily unavailable"
+        )
+        
+        foreach ($pattern in $transientPatterns) {
+            if ($errorMessage -match $pattern) {
+                return $true
+            }
+        }
+        
+        return $false
+    }
+    
+    hidden [bool] IsPermanentError([int]$statusCode) {
+        # Permanent errors should not be retried: bad request, unauthorized, not found, etc.
+        # Status codes: 400 (bad request), 401 (unauthorized), 403 (forbidden), 404 (not found), 422 (unprocessable)
+        $permanentStatusCodes = @(400, 401, 403, 404, 422)
+        return $statusCode -in $permanentStatusCodes
+    }
+    
     hidden [void] TrySendOutbox() {
         # List all .jsonl files in outbox sorted by name (oldest first)
         $outboxFiles = Get-ChildItem -Path $this.OutboxPath -Filter "*.jsonl" -File -ErrorAction SilentlyContinue | 
             Where-Object { $_.Name -notlike "run-*.jsonl" } |  # Skip run event files (handled by FlushRunEvents)
             Sort-Object Name
         
+        $maxRetries = $this.GetMaxRetries()
+        
         foreach ($file in $outboxFiles) {
-            try {
-                $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8
-                $request = $content | ConvertFrom-Json
+            $attempt = 0
+            $success = $false
+            $lastError = $null
+            $isPermanentFailure = $false
+            
+            while (-not $success -and $attempt -lt $maxRetries) {
+                $attempt++
                 
-                # Detect batch upload requests by checking for files property
-                if ($request.files) {
-                    $success = $this.UploadBatch($request.run_id, $request.files)
-                }
-                else {
-                    $success = $this.SendJsonRequest($request.method, $request.endpoint, $request.body)
+                # Exponential backoff delay (except first attempt)
+                if ($attempt -gt 1) {
+                    $delaySeconds = [Math]::Pow(2, $attempt - 1)  # 1s, 2s, 4s, 8s, 16s
+                    $this.WriteLog("INFO", "Retry attempt $attempt/$maxRetries for $($file.Name) after ${delaySeconds}s delay")
+                    Start-Sleep -Seconds $delaySeconds
                 }
                 
-                if ($success) {
-                    # Delete outbox file after successful send
+                try {
+                    $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8
+                    if (-not $content -or $content.Trim() -eq "") {
+                        $this.WriteLog("WARNING", "Skipping empty outbox file: $($file.Name)")
+                        $success = $true  # Remove empty files
+                        continue
+                    }
+                    
+                    $request = $null
+                    try {
+                        $request = $content | ConvertFrom-Json
+                    }
+                    catch {
+                        $this.WriteLog("ERROR", "Corrupt JSON in outbox file $($file.Name): $_")
+                        # Mark as permanent failure - corrupted files won't become valid
+                        $isPermanentFailure = $true
+                        break
+                    }
+                    
+                    # Detect batch upload requests by checking for files property
+                    $result = $null
+                    if ($request.files) {
+                        $result = $this.UploadBatchWithStatus($request.run_id, $request.files)
+                    }
+                    else {
+                        $result = $this.SendJsonRequestWithStatus($request.method, $request.endpoint, $request.body)
+                    }
+                    
+                    if ($result.Success) {
+                        $success = $true
+                        $this.WriteLog("INFO", "Successfully sent $($file.Name)")
+                    }
+                    else {
+                        $lastError = $result.Error
+                        
+                        # Check if this is a permanent error (don't retry)
+                        if ($this.IsPermanentError($result.StatusCode)) {
+                            $this.WriteLog("ERROR", "Permanent error for $($file.Name): HTTP $($result.StatusCode) - $lastError")
+                            $isPermanentFailure = $true
+                            break
+                        }
+                        
+                        # Check if this is a transient error (retry with backoff)
+                        if ($this.IsTransientError($result.StatusCode, $lastError)) {
+                            $this.WriteLog("WARNING", "Transient error for $($file.Name): HTTP $($result.StatusCode) - $lastError (attempt $attempt/$maxRetries)")
+                        }
+                        else {
+                            # Unknown error type - treat as transient but log it
+                            $this.WriteLog("WARNING", "Unknown error for $($file.Name): HTTP $($result.StatusCode) - $lastError (attempt $attempt/$maxRetries)")
+                        }
+                    }
+                }
+                catch {
+                    $lastError = $_.Exception.Message
+                    
+                    # Check if this looks like a transient network error
+                    if ($this.IsTransientError(0, $lastError)) {
+                        $this.WriteLog("WARNING", "Network error for $($file.Name): $lastError (attempt $attempt/$maxRetries)")
+                    }
+                    else {
+                        $this.WriteLog("ERROR", "Unexpected error processing $($file.Name): $lastError")
+                    }
+                }
+            }
+            
+            if ($success) {
+                # Delete outbox file after successful send
+                try {
                     Remove-Item -Path $file.FullName -Force
                     Write-Verbose "Successfully processed and removed: $($file.Name)"
                 }
-                else {
-                    # Break loop on error, preserve remaining files for retry
-                    Write-Warning "Failed to process $($file.Name) - will retry later"
-                    break
+                catch {
+                    $this.WriteLog("WARNING", "Failed to delete processed file $($file.Name): $_")
                 }
             }
-            catch {
-                Write-Warning "Error processing outbox file $($file.Name): $_"
+            elseif ($isPermanentFailure) {
+                # Permanent failure - keep file in outbox but log and continue to next file
+                $this.WriteLog("ERROR", "Permanent failure for $($file.Name) - file remains in outbox for investigation")
+                Write-Warning "Permanent error for $($file.Name) - file remains in outbox"
+                # Continue to next file - don't block other requests
+            }
+            else {
+                # Transient failure after max retries - keep file in outbox and stop processing
+                $this.WriteLog("ERROR", "Max retries ($maxRetries) exceeded for $($file.Name) - file remains in outbox")
+                Write-Warning "Failed to process $($file.Name) after $maxRetries attempts - will retry later"
+                # Break loop to preserve ordering for remaining files
                 break
             }
         }
     }
     
     hidden [bool] SendJsonRequest([string]$method, [string]$endpoint, [object]$body) {
+        $result = $this.SendJsonRequestWithStatus($method, $endpoint, $body)
+        return $result.Success
+    }
+    
+    hidden [hashtable] SendJsonRequestWithStatus([string]$method, [string]$endpoint, [object]$body) {
         $url = "$($this.BaseUrl)$endpoint"
         
         $headers = @{
@@ -375,16 +547,46 @@ class FastApiReporter : IRunReporter {
             
             $response = Invoke-RestMethod @params -ErrorAction Stop
             Write-Verbose "Request succeeded: $method $endpoint"
-            return $true
+            return @{
+                Success    = $true
+                StatusCode = 200
+                Error      = $null
+            }
         }
         catch {
             $errorMsg = $_.Exception.Message
+            $statusCode = 0
+            
+            # Try to extract HTTP status code from WebException
+            if ($_.Exception.Response) {
+                try {
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                }
+                catch {
+                    # Ignore status code extraction failures
+                }
+            }
+            
+            # Also check for status code in the error message (PowerShell 7+)
+            if ($statusCode -eq 0 -and $errorMsg -match 'Response status code does not indicate success: (\d+)') {
+                $statusCode = [int]$Matches[1]
+            }
+            
             Write-Warning "Sync request failed: $method $endpoint - $errorMsg"
-            return $false
+            return @{
+                Success    = $false
+                StatusCode = $statusCode
+                Error      = $errorMsg
+            }
         }
     }
     
     hidden [bool] UploadBatch([string]$runId, [array]$files) {
+        $result = $this.UploadBatchWithStatus($runId, $files)
+        return $result.Success
+    }
+    
+    hidden [hashtable] UploadBatchWithStatus([string]$runId, [array]$files) {
         $url = "$($this.BaseUrl)/api/runs/$runId/files"
         
         # Build manifest array
@@ -411,7 +613,11 @@ class FastApiReporter : IRunReporter {
         
         if ($manifest.Count -eq 0) {
             Write-Verbose "No valid files to upload in batch"
-            return $true  # Consider success if nothing to upload
+            return @{
+                Success    = $true
+                StatusCode = 200
+                Error      = $null
+            }  # Consider success if nothing to upload
         }
         
         try {
@@ -463,12 +669,37 @@ class FastApiReporter : IRunReporter {
             
             $response = Invoke-RestMethod @params -ErrorAction Stop
             Write-Verbose "Batch upload succeeded for run $runId with $($validFiles.Count) files"
-            return $true
+            return @{
+                Success    = $true
+                StatusCode = 200
+                Error      = $null
+            }
         }
         catch {
             $errorMsg = $_.Exception.Message
+            $statusCode = 0
+            
+            # Try to extract HTTP status code from WebException
+            if ($_.Exception.Response) {
+                try {
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                }
+                catch {
+                    # Ignore status code extraction failures
+                }
+            }
+            
+            # Also check for status code in the error message (PowerShell 7+)
+            if ($statusCode -eq 0 -and $errorMsg -match 'Response status code does not indicate success: (\d+)') {
+                $statusCode = [int]$Matches[1]
+            }
+            
             Write-Warning "Batch upload failed for run $runId - $errorMsg"
-            return $false
+            return @{
+                Success    = $false
+                StatusCode = $statusCode
+                Error      = $errorMsg
+            }
         }
     }
     
