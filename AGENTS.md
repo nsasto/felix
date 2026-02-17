@@ -86,6 +86,20 @@ $env:FELIX_SYNC_URL = "http://localhost:8080"
 $env:FELIX_SYNC_KEY = "fsk_your_api_key_here"  # Optional
 ```
 
+**Temporary Sync Override (CLI Flag):**
+
+Use the `--Sync` flag to enable sync for a single run without modifying config.json:
+
+```powershell
+# Enable sync just for this run (overrides config.json)
+felix run S-0001 --sync
+
+# Combine with other flags
+felix run S-0001 --sync --quick --no-commit
+```
+
+The flag sets `FELIX_SYNC_ENABLED` environment variable for the agent subprocess only. It doesn't persist across runs.
+
 **Config File (.felix/config.json):**
 
 ```json

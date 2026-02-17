@@ -264,6 +264,7 @@ Felix.Cli.exe list --status planned
 ```powershell
 felix run S-0001
 felix run S-0001 --format json
+felix run S-0001 --sync  # Temporarily enable sync
 Felix.Cli.exe run S-0001 --no-stats
 ```
 
@@ -649,6 +650,9 @@ felix run S-0001 --no-stats
 
 # Show detailed agent thinking and tool calls
 felix run S-0001 --verbose
+
+# Temporarily enable sync for this run
+felix run S-0001 --sync
 ```
 
 ### Examples

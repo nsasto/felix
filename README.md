@@ -32,6 +32,9 @@ npm run dev
 # Or run in continuous loop mode
 .\.felix\felix.ps1 loop
 
+# Run with temporary sync enabled (overrides config)
+.\.felix\felix.ps1 run S-0001 --sync
+
 # Launch interactive TUI dashboard
 .\.felix\felix.ps1 tui
 
@@ -69,6 +72,12 @@ Or use environment variables (overrides config):
 $env:FELIX_SYNC_ENABLED = "true"
 $env:FELIX_SYNC_URL = "http://localhost:8080"
 $env:FELIX_SYNC_KEY = "fsk_your_key_here"  # Optional
+```
+
+Or use the `--sync` flag for temporary override (single run only):
+
+```powershell
+felix run S-0001 --sync  # Enables sync just for this execution
 ```
 
 **When sync is enabled, you'll see:**

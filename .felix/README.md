@@ -498,6 +498,15 @@ Tests cover:
 .\.felix\felix-agent.ps1 . -RequirementId S-0001 -NoCommit
 ```
 
+### With Sync Enabled (temporary)
+
+```powershell
+# Using felix-cli.ps1 wrapper with --sync flag
+.\.felix\felix-cli.ps1 . -RequirementId S-0001 -Sync
+```
+
+This temporarily enables sync for a single run without modifying config.json.
+
 ## Exit Codes
 
 - `0` - Success (requirement complete)

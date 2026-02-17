@@ -18,6 +18,9 @@ param(
     [switch]$NoCommit,   # Use this flag for testing to prevent git commits
     
     [Parameter(Mandatory = $false)]
+    [switch]$Sync,       # Temporarily enable sync for this loop
+    
+    [Parameter(Mandatory = $false)]
     [string]$Format = "json"  # Output format: json, plain, or rich
 )
 
@@ -155,7 +158,13 @@ while ($requirementsProcessed -lt $MaxRequirements) {
         Write-Host ""  # Blank line before requirement execution
     }
     
-    & $FelixScript run $nextReq.id --format $Format
+    # Build command arguments
+    $runArgs = @("run", $nextReq.id, "--format", $Format)
+    if ($Sync) {
+        $runArgs += "--sync"
+    }
+    
+    & $FelixScript @runArgs
     $exitCode = $LASTEXITCODE
     
     switch ($exitCode) {

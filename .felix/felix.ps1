@@ -527,21 +527,25 @@ function Invoke-Run {
 
     $requirementId = $Args[0]
     $formatValue = $Format  # Use script-level default
+    $syncEnabled = $false
     
-    # Parse optional --format flag
+    # Parse optional flags
     for ($i = 1; $i -lt $Args.Count; $i++) {
         if ($Args[$i] -eq "--format" -and ($i + 1) -lt $Args.Count) {
             $formatValue = $Args[$i + 1]
             $i++  # Skip the format value
         }
+        elseif ($Args[$i] -eq "--sync") {
+            $syncEnabled = $true
+        }
     }
 
     # Execute felix-cli.ps1 which spawns agent internally
     if ($NoStats) {
-        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats -VerboseMode:$VerboseMode
+        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats -VerboseMode:$VerboseMode -Sync:$syncEnabled
     }
     else {
-        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -VerboseMode:$VerboseMode
+        & "$PSScriptRoot\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -VerboseMode:$VerboseMode -Sync:$syncEnabled
     }
 
     exit $LASTEXITCODE
@@ -553,6 +557,7 @@ function Invoke-Loop {
     # Parse flags
     $maxIterations = 0
     $formatValue = $Format  # Use script-level default
+    $syncEnabled = $false
     
     $i = 0
     while ($i -lt $Args.Count) {
@@ -563,6 +568,10 @@ function Invoke-Loop {
         elseif ($Args[$i] -eq "--format" -and ($i + 1) -lt $Args.Count) {
             $formatValue = $Args[$i + 1]
             $i += 2
+        }
+        elseif ($Args[$i] -eq "--sync") {
+            $syncEnabled = $true
+            $i++
         }
         else {
             $i++
@@ -578,10 +587,10 @@ function Invoke-Loop {
 
     # Start loop process - use explicit named parameters
     if ($maxIterations -gt 0) {
-        & "$PSScriptRoot\felix-loop.ps1" -ProjectPath $RepoRoot -MaxRequirements $maxIterations -Format $formatValue
+        & "$PSScriptRoot\felix-loop.ps1" -ProjectPath $RepoRoot -MaxRequirements $maxIterations -Format $formatValue -Sync:$syncEnabled
     }
     else {
-        & "$PSScriptRoot\felix-loop.ps1" -ProjectPath $RepoRoot -Format $formatValue
+        & "$PSScriptRoot\felix-loop.ps1" -ProjectPath $RepoRoot -Format $formatValue -Sync:$syncEnabled
     }
     exit $LASTEXITCODE
 }
@@ -1879,10 +1888,12 @@ function Show-Help {
                 Write-Host "Options:" -ForegroundColor Yellow
                 Write-Host "  --format <json|plain|rich>   Output format (default: rich)"
                 Write-Host "  --no-stats                   Suppress statistics summary"
+                Write-Host "  --sync                       Temporarily enable sync (overrides config)"
                 Write-Host ""
                 Write-Host "Examples:"
                 Write-Host "  felix run S-0001"
                 Write-Host "  felix run S-0001 --format json"
+                Write-Host "  felix run S-0001 --sync"
                 Write-Host "  felix run S-0001 --format plain --no-stats"
                 Write-Host ""
             }
@@ -1894,10 +1905,12 @@ function Show-Help {
                 Write-Host ""
                 Write-Host "Options:" -ForegroundColor Yellow
                 Write-Host "  --max-iterations <n>   Maximum iterations to run"
+                Write-Host "  --sync                 Temporarily enable sync (overrides config)"
                 Write-Host ""
                 Write-Host "Examples:"
                 Write-Host "  felix loop"
                 Write-Host "  felix loop --max-iterations 10"
+                Write-Host "  felix loop --sync"
                 Write-Host ""
             }
             "status" {
