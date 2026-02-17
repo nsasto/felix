@@ -41,6 +41,9 @@ git push -u origin feature/run-artifact-sync
 
 ```json
 {
+  "agent": {
+    "agent_id": null
+  },
   "sync": {
     "enabled": false,
     "provider": "fastapi",
@@ -698,7 +701,7 @@ class RunCreate(BaseModel):
     id: Optional[str] = None
     requirement_id: str
     agent_id: str
-    project_id: str
+    # REMOVED: project_id (backend derives from API key)
     branch: Optional[str] = None
     commit_sha: Optional[str] = None
     scenario: Optional[str] = "autonomous"
@@ -719,11 +722,89 @@ class RunCompletion(BaseModel):
 
 # --- Authentication ---
 
-async def verify_api_key(authorization: str = Header(None)):
-    """Simple API key authentication (optional)"""
-    # TODO: Implement proper API key validation
-    # For now, accept any Bearer token or no auth
-    return True
+from datetime import datetime
+import hashlib
+
+class ApiKeyInfo(BaseModel):
+    """API key validation result with project context"""
+    key_id: str
+    project_id: str
+    org_id: str
+    name: Optional[str] = None
+
+async def verify_api_key(authorization: str = Header(None)) -> ApiKeyInfo:
+    """
+    Verify API key and return project context.
+
+    API keys are project-scoped (NOT NULL project_id).
+    Backend derives project context from key, client cannot override.
+
+    Raises:
+        HTTPException 401: Missing or invalid API key
+        HTTPException 403: API key expired
+    """
+    if not authorization:
+        raise HTTPException(401, "Authorization header required (Bearer fsk_...)")
+
+    # Extract token
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        token = authorization  # Allow plain token without Bearer prefix
+
+    if not token.startswith("fsk_"):
+        raise HTTPException(401, "Invalid API key format (expected fsk_...)")
+
+    # Hash and lookup
+    key_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    db = await get_db()
+    result = await db.fetch_one(
+        """
+        SELECT
+            ak.id as key_id,
+            ak.project_id,
+            p.org_id,
+            ak.name,
+            ak.expires_at
+        FROM api_keys ak
+        JOIN projects p ON ak.project_id = p.id
+        WHERE ak.key_hash = :key_hash
+        """,
+        {"key_hash": key_hash}
+    )
+
+    if not result:
+        raise HTTPException(401, "Invalid API key")
+
+    # Check expiration
+    if result["expires_at"] and datetime.now() > result["expires_at"]:
+        raise HTTPException(403, "API key expired")
+
+    # Update last_used_at (fire and forget)
+    await db.execute(
+        "UPDATE api_keys SET last_used_at = NOW() WHERE id = :key_id",
+        {"key_id": result["key_id"]}
+    )
+
+    return ApiKeyInfo(
+        key_id=str(result["key_id"]),
+        project_id=str(result["project_id"]),
+        org_id=str(result["org_id"]),
+        name=result["name"]
+    )
+
+def require_project_access(key_info: ApiKeyInfo, requested_project_id: str):
+    """
+    Validate API key grants access to requested project.
+
+    Raises:
+        HTTPException 403: Project mismatch
+    """
+    if str(key_info.project_id) != requested_project_id:
+        raise HTTPException(
+            403,
+            f"API key not authorized for project {requested_project_id}"
+        )
 
 # --- Endpoints ---
 
@@ -731,20 +812,29 @@ async def verify_api_key(authorization: str = Header(None)):
 async def register_agent(
     agent: AgentRegistration,
     db: Database = Depends(get_db),
-    _auth: bool = Depends(verify_api_key)
+    key_info: ApiKeyInfo = Depends(verify_api_key)
 ):
-    """Register or update agent (idempotent)"""
+    """
+    Register or update agent (idempotent).
+
+    Agent automatically assigned to API key's project.
+    No client-provided project_id accepted.
+    """
 
     try:
+        # Use API key's project_id (single source of truth)
+        project_id = key_info.project_id
+
         # Use INSERT ... ON CONFLICT for idempotent upsert
         await db.execute(
             """
-            INSERT INTO agents (id, name, type, hostname, platform, version, status, last_seen_at, metadata)
-            VALUES (:id, :name, 'felix', :hostname, :platform, :version, 'idle', NOW(), :metadata)
+            INSERT INTO agents (id, name, type, hostname, platform, version, project_id, status, last_seen_at, metadata)
+            VALUES (:id, :name, 'felix', :hostname, :platform, :version, :project_id, 'idle', NOW(), :metadata)
             ON CONFLICT (id) DO UPDATE SET
                 hostname = EXCLUDED.hostname,
                 platform = EXCLUDED.platform,
                 version = EXCLUDED.version,
+                project_id = EXCLUDED.project_id,
                 last_seen_at = NOW(),
                 updated_at = NOW()
             """,
@@ -754,11 +844,16 @@ async def register_agent(
                 "hostname": agent.hostname,
                 "platform": agent.platform,
                 "version": agent.version,
+                "project_id": project_id,
                 "metadata": json.dumps({"felix_root": agent.felix_root})
             }
         )
 
-        return {"status": "registered", "agent_id": agent.agent_id}
+        return {
+            "status": "registered",
+            "agent_id": agent.agent_id,
+            "project_id": project_id
+        }
 
     except Exception as e:
         raise HTTPException(500, f"Failed to register agent: {str(e)}")
@@ -767,34 +862,36 @@ async def register_agent(
 async def create_run(
     run: RunCreate,
     db: Database = Depends(get_db),
-    _auth: bool = Depends(verify_api_key)
+    key_info: ApiKeyInfo = Depends(verify_api_key)
 ):
-    """Create new run record"""
+    """
+    Create new run record.
+
+    project_id derived from API key (not client request).
+    """
 
     run_id = run.id or str(uuid.uuid4())
+    project_id = key_info.project_id  # API key determines project
 
     try:
-        # Verify agent and project exist
+        # Verify agent exists
         agent = await db.fetch_one("SELECT id FROM agents WHERE id = :id", {"id": run.agent_id})
         if not agent:
             raise HTTPException(404, f"Agent not found: {run.agent_id}")
 
-        project = await db.fetch_one("SELECT id FROM projects WHERE id = :id", {"id": run.project_id})
-        if not project:
-            raise HTTPException(404, f"Project not found: {run.project_id}")
-
-        # Create run record
+        # Create run record (project_id from key_info)
         await db.execute(
             """
-            INSERT INTO runs (id, agent_id, project_id, requirement_id, branch, commit_sha,
+            INSERT INTO runs (id, agent_id, project_id, org_id, requirement_id, branch, commit_sha,
                             status, phase, scenario, created_at, started_at)
-            VALUES (:id, :agent_id, :project_id, :requirement_id, :branch, :commit_sha,
+            VALUES (:id, :agent_id, :project_id, :org_id, :requirement_id, :branch, :commit_sha,
                     'running', :phase, :scenario, NOW(), NOW())
             """,
             {
                 "id": run_id,
                 "agent_id": run.agent_id,
-                "project_id": run.project_id,
+                "project_id": project_id,
+                "org_id": key_info.org_id,
                 "requirement_id": run.requirement_id,
                 "branch": run.branch,
                 "commit_sha": run.commit_sha,
@@ -811,11 +908,11 @@ async def create_run(
             """,
             {
                 "run_id": run_id,
-                "message": f"Run started on {run.agent_id}"
+                "message": f"Run started on {run.agent_id} in project {project_id}"
             }
         )
 
-        return {"run_id": run_id, "status": "created"}
+        return {"run_id": run_id, "status": "created", "project_id": project_id}
 
     except HTTPException:
         raise
@@ -923,18 +1020,25 @@ async def upload_artifacts_batch(
     files: list[UploadFile] = File(...),
     db: Database = Depends(get_db),
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    _auth: bool = Depends(verify_api_key)
+    key_info: ApiKeyInfo = Depends(verify_api_key)
 ):
-    """Batch upload run artifacts with SHA256 manifest"""
+    """
+    Batch upload run artifacts with SHA256 manifest.
+
+    Validates run belongs to API key's project.
+    """
 
     try:
-        # Verify run exists
+        # Verify run exists and belongs to key's project
         run = await db.fetch_one(
             "SELECT id, project_id FROM runs WHERE id = :run_id",
             {"run_id": run_id}
         )
         if not run:
             raise HTTPException(404, "Run not found")
+
+        # Authorize project access
+        require_project_access(key_info, str(run["project_id"]))
 
         project_id = run["project_id"]
 
@@ -1327,6 +1431,7 @@ class FastApiReporter : IRunReporter {
     [string]$BaseUrl
     [string]$ApiKey
     [string]$OutboxPath
+    [string]$ProjectId  # Cached from key validation
 
     FastApiReporter([hashtable]$config) {
         $this.BaseUrl = $config.base_url
@@ -1336,7 +1441,20 @@ class FastApiReporter : IRunReporter {
         # Ensure outbox exists
         New-Item -ItemType Directory -Path $this.OutboxPath -Force | Out-Null
 
-        Write-Verbose "FastAPI reporter initialized: $($this.BaseUrl)"
+        # Validate API key and cache project_id
+        try {
+            $validateUrl = "$($this.BaseUrl)/api/keys/validate"
+            $headers = @{ "Authorization" = "Bearer $($this.ApiKey)" }
+            $response = Invoke-RestMethod -Uri $validateUrl -Method Get -Headers $headers
+
+            $this.ProjectId = $response.project_id
+            Write-Host "[SYNC] Validated API key → Project: $($response.project_name) ($($this.ProjectId))" -ForegroundColor Cyan
+        }
+        catch {
+            Write-Warning "[SYNC] API key validation failed: $($_.Exception.Message)"
+            Write-Warning "[SYNC] Sync disabled - run 'felix setup' to configure"
+            throw "API key validation failed"
+        }
     }
 
     [void] RegisterAgent([hashtable]$agentInfo) {
@@ -1348,6 +1466,10 @@ class FastApiReporter : IRunReporter {
         # Generate client-side run ID
         $runId = [guid]::NewGuid().ToString()
         $metadata.id = $runId
+
+        # REMOVED: project_id from request body (backend derives from API key)
+        # Backend will use key's project_id automatically
+
         $this.QueueRequest("POST", "/api/runs", $metadata)
         $this.TrySendOutbox()
         return $runId
@@ -1686,6 +1808,7 @@ git checkout .felix/felix-agent.ps1
 # Setup
 $env:FELIX_SYNC_ENABLED = "true"
 $env:FELIX_SYNC_URL = "http://localhost:8080"
+$env:FELIX_SYNC_KEY = "fsk_your_generated_key_here"
 
 # Run a single requirement
 .\.felix\felix.ps1 run S-0001
@@ -1755,7 +1878,126 @@ psql -U postgres -d felix -c "
 "
 ```
 
-#### 4. Large File Test
+#### 4. API Key Scoping Tests
+
+**Test:** Project isolation via API keys
+
+```bash
+# Generate keys for two different projects
+python scripts/generate-sync-key.py --project-id 00000000-0000-0000-0000-000000000001 --name "Project A Key"
+python scripts/generate-sync-key.py --project-id 00000000-0000-0000-0000-000000000002 --name "Project B Key"
+
+# Save keys
+$keyA = "fsk_..."  # Project A key
+$keyB = "fsk_..."  # Project B key
+
+# Configure Agent A with Project A key
+$env:FELIX_SYNC_KEY = $keyA
+.\.felix\felix.ps1 run S-0001
+
+# Verify run created in Project A
+curl -H "Authorization: Bearer $keyA" http://localhost:8080/api/keys/validate
+
+# Configure Agent B with Project B key
+$env:FELIX_SYNC_KEY = $keyB
+.\.felix\felix.ps1 run S-0002
+
+# Verify run created in Project B
+psql -U postgres -d felix -c "
+  SELECT r.id, r.requirement_id, r.project_id
+  FROM runs r
+  WHERE r.requirement_id IN ('S-0001', 'S-0002')
+  ORDER BY r.created_at;
+"
+
+# Expected: Two different project_id values
+
+# Attempt cross-project access (should fail)
+# Get run_id from Project A
+$runIdA = "..."
+# Try to upload artifact using Project B key
+curl -X POST -H "Authorization: Bearer $keyB" \
+  -F "manifest=[{\"path\":\"test.txt\",\"sha256\":\"abc\",\"size_bytes\":100}]" \
+  -F "files=@test.txt" \
+  http://localhost:8080/api/runs/$runIdA/files
+
+# Expected: 403 Forbidden (project mismatch)
+```
+
+**Test:** Local-only mode (no API key)
+
+```powershell
+# Remove or null api_key in .felix/config.json
+$config = Get-Content .felix/config.json | ConvertFrom-Json
+$config.sync.api_key = $null
+$config | ConvertTo-Json -Depth 10 | Set-Content .felix/config.json
+
+# Run agent locally
+.\.felix\felix.ps1 run S-0004
+
+# Expected: Agent runs successfully
+# Expected log: "Sync disabled (local-only mode)" or "Sync not enabled in config"
+
+# Verify: run artifacts written to local runs/ folder only
+Test-Path "runs/**/S-0004"  # Should be True
+
+# Verify: No outbox files created
+ls .felix/outbox/*.jsonl  # Should be empty or not exist
+```
+
+**Test:** Invalid API key handling
+
+```powershell
+# Set invalid API key in config
+$env:FELIX_SYNC_KEY = "fsk_invalid_key_12345678901234567890"
+
+# Run agent
+.\.felix\felix.ps1 run S-0005
+
+# Expected: Startup validation fails, error logged
+# Expected log: "API key validation failed: 401 Invalid API key"
+# Expected: Sync disabled gracefully, agent continues in local-only mode
+
+# Verify agent still ran locally
+Test-Path "runs/**/S-0005"  # Should be True
+```
+
+**Test:** Agent re-assignment to new project
+
+```powershell
+# Register agent with Project A key
+$env:FELIX_SYNC_KEY = $keyA
+.\.felix\felix.ps1 run S-0006
+
+# Check agent's project_id
+psql -U postgres -d felix -c "
+  SELECT id, name, project_id FROM agents WHERE hostname = '$env:COMPUTERNAME';
+"
+# Expected: project_id = Project A ID
+
+# Switch to Project B key
+$env:FELIX_SYNC_KEY = $keyB
+.\.felix\felix.ps1 run S-0007
+
+# Check agent's project_id again
+psql -U postgres -d felix -c "
+  SELECT id, name, project_id, updated_at FROM agents WHERE hostname = '$env:COMPUTERNAME';
+"
+# Expected: project_id = Project B ID (updated)
+# Expected: updated_at timestamp changed
+
+# Verify new runs go to Project B
+psql -U postgres -d felix -c "
+  SELECT r.requirement_id, r.project_id
+  FROM runs r
+  JOIN agents a ON r.agent_id = a.id
+  WHERE a.hostname = '$env:COMPUTERNAME'
+  ORDER BY r.created_at DESC LIMIT 2;
+"
+# Expected: Latest run has Project B ID
+```
+
+#### 5. Large File Test
 
 ```powershell
 # Create large output file
