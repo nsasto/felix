@@ -44,18 +44,34 @@ npm run dev
 
 **Optional: Enable server sync for run artifacts**
 
+When enabled, Felix automatically mirrors run artifacts (plans, logs, diffs) to the backend server for:
+
+- Team visibility - view run results in the web UI
+- History preservation - runs persist beyond local cleanup
+- Event streaming - real-time progress updates
+- Centralized monitoring - track all agent activity
+
 ```json
 // Add to .felix/config.json:
 {
   "sync": {
     "enabled": true,
     "provider": "fastapi",
-    "base_url": "http://localhost:8080"
+    "base_url": "http://localhost:8080",
+    "api_key": null // Optional: generate with scripts/generate-sync-key.py
   }
 }
 ```
 
-📘 **[Complete setup guide →](HOW_TO_USE.md)**
+Or use environment variables (overrides config):
+
+```powershell
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "http://localhost:8080"
+$env:FELIX_SYNC_KEY = "fsk_your_key_here"  # Optional
+```
+
+📘 **[Complete setup guide →](HOW_TO_USE.md#run-artifact-sync)**
 
 ---
 
@@ -113,8 +129,9 @@ your-project/
 │   ├── config.json                # Executor configuration (includes sync settings)
 │   ├── agents.json                # CLI agent presets (local only)
 │   ├── state.json                 # Current execution state
-│   ├── outbox/                    # Sync queue (when enabled)
-│   │   └── *.jsonl                # Pending requests to server
+│   ├── outbox/                    # Sync queue (when sync enabled)
+│   │   └── *.jsonl                # Queued uploads (retry on network failure)
+│   ├── sync.log                   # Sync operation log (rotates at 5MB)
 │   ├── core/                      # Core modules & interfaces
 │   │   └── sync-interface.ps1    # Abstract sync plugin interface
 │   ├── plugins/                   # Plugin system
@@ -168,6 +185,9 @@ Felix consists of three independent components:
 │  • Runs Ralph loop                                  │
 │  • Reads/writes artifacts                           │
 │  • Optional: Syncs to server via outbox queue       │
+│    - Idempotent SHA256-based deduplication          │
+│    - Automatic retry with exponential backoff       │
+│    - Network failures don't block agent execution   │
 │  • Calls LLM APIs                                   │
 │  • Executes code changes                            │
 │  • Runs tests                                       │
@@ -176,6 +196,33 @@ Felix consists of three independent components:
 ```
 
 **Key Design**: Agents communicate with backend only via filesystem. No IPC, sockets, or shared memory. This keeps agents simple and enables remote execution.
+
+---
+
+## Viewing Run Artifacts
+
+### Local Runs (Default)
+
+All runs stored in `runs/` directory with artifacts:
+
+- `plan-*.md` - Implementation plan
+- `output.log` - Agent execution log
+- `diff.patch` - Code changes
+- `report.md` - Run summary
+- `backpressure.log` - Test/validation results
+
+### Web UI (With Sync Enabled)
+
+View runs in the frontend (http://localhost:3000):
+
+- **Run list** - All synced runs with status and duration
+- **Artifact viewer** - Browse plans, logs, diffs with markdown rendering
+- **Event timeline** - Chronological execution events with filtering
+- **File download** - Download any artifact from the server
+
+Navigate: Dashboard → Project → Runs → Click run ID → View artifacts
+
+📊 **[Sync setup & troubleshooting →](AGENTS.md#sync-troubleshooting)**
 
 ---
 

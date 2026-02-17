@@ -53,6 +53,13 @@ A Felix enabled repository typically looks like this:
 │   ├── requirements.json
 │   ├── state.json
 │   ├── config.json
+│   ├── outbox/                    # Sync queue (when enabled)
+│   │   └── *.jsonl                # Pending uploads
+│   ├── sync.log                   # Sync operation log
+│   ├── core/
+│   │   └── sync-interface.ps1    # Sync plugin interface
+│   ├── plugins/
+│   │   └── sync-fastapi.ps1      # FastAPI sync implementation
 │   ├── prompts/
 │   │   ├── planning.md
 │   │   └── building.md
@@ -84,6 +91,7 @@ Felix separates **content**, **structure**, and **action**.
 - Markdown holds **meaning**
 - JSON holds **structure and status**
 - The plan holds **next actions**
+- **Optional sync**: Mirror artifacts to server for team visibility
 
 Each has one job.
 
@@ -1214,6 +1222,262 @@ gemini auth login
 
 - [SWITCHING_AGENTS.md](tuts/SWITCHING_AGENTS.md) - Quick start guide
 - [MULTI_AGENT_SUPPORT.md](tuts/MULTI_AGENT_SUPPORT.md) - Comprehensive architecture docs
+
+---
+
+## Run Artifact Sync
+
+Felix optionally syncs run artifacts to the backend server, enabling team collaboration, web-based artifact viewing, and centralized monitoring.
+
+### What Gets Synced
+
+When sync is enabled, Felix automatically uploads:
+
+- **Run metadata** - requirement ID, agent, duration, exit code, timestamps
+- **Events** - Timeline of execution steps (task started, completed, validation, etc.)
+- **Artifacts** - All files from runs/ directory:
+  - `plan-*.md` - Implementation plans
+  - `output.log` - Agent execution logs
+  - `diff.patch` - Git diffs of changes
+  - `report.md` - Run summaries
+  - `backpressure.log` - Test/validation results
+
+### How It Works
+
+**Outbox Queue Pattern:**
+
+1. Agent writes artifacts locally first (always works offline)
+2. Sync plugin queues uploads in `.felix/outbox/*.jsonl`
+3. Automatic retry on network failure (exponential backoff)
+4. Idempotent: unchanged files skip upload (SHA256 check)
+5. Batch upload: all run artifacts in single HTTP request
+
+**Key Features:**
+
+- Non-blocking: sync failures don't stop agent execution
+- Resilient: automatic retry with exponential backoff (1s, 2s, 4s, 8s, 16s)
+- Efficient: SHA256 deduplication skips unchanged files
+- Eventual consistency: queued uploads delivered when backend available
+
+### Configuration
+
+**Method 1: Config File (.felix/config.json)**
+
+```json
+{
+  "sync": {
+    "enabled": true,
+    "provider": "fastapi",
+    "base_url": "http://localhost:8080",
+    "api_key": null
+  }
+}
+```
+
+**Method 2: Environment Variables (overrides config)**
+
+```powershell
+# Enable sync
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "http://localhost:8080"
+
+# Optional: API key for authentication
+$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"
+
+# Optional: configure max retry attempts (default: 5)
+$env:FELIX_SYNC_MAX_RETRIES = "10"
+```
+
+### Enabling Sync
+
+**Development (local backend):**
+
+```powershell
+# Start backend first
+python app/backend/main.py
+
+# Enable sync (no API key needed for local dev)
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "http://localhost:8080"
+
+# Run agent
+felix run S-0001
+```
+
+**Production:**
+
+```powershell
+# Generate API key
+python scripts/generate-sync-key.py
+
+# Configure sync with key
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "https://felix.example.com"
+$env:FELIX_SYNC_KEY = "fsk_production_key_here"
+
+# Run agent
+felix loop
+```
+
+### Checking Sync Status
+
+**View pending uploads:**
+
+```powershell
+# List queued files
+ls .felix\outbox\*.jsonl
+
+# Count pending uploads
+(Get-ChildItem .felix\outbox\*.jsonl).Count
+
+# View file contents
+Get-Content .felix\outbox\<filename>.jsonl | ConvertFrom-Json
+```
+
+**View sync logs:**
+
+```powershell
+# Recent log entries
+Get-Content .felix\sync.log -Tail 50
+
+# Search for errors
+Select-String -Path .felix\sync.log -Pattern "ERROR|WARN"
+```
+
+**Check backend:**
+
+- Health check: `curl http://localhost:8080/health`
+- API docs: http://localhost:8080/docs
+- Recent runs: GET /api/runs (via API docs interface)
+
+### Viewing Synced Artifacts
+
+**Web UI (Frontend):**
+
+1. Start frontend: `cd app/frontend && npm run dev`
+2. Navigate to project dashboard
+3. Click on any run in the runs list
+4. Browse artifacts with split-view file explorer
+5. View markdown with formatting, logs in monospace
+6. Events timeline shows execution chronology
+
+**API (Programmatic):**
+
+```powershell
+# List runs
+curl http://localhost:8080/api/runs
+
+# List artifacts for specific run
+curl http://localhost:8080/api/runs/{run-id}/files
+
+# Download artifact
+curl http://localhost:8080/api/runs/{run-id}/files/plan-S-0001.md
+
+# Query events
+curl "http://localhost:8080/api/runs/{run-id}/events?limit=100"
+```
+
+### Troubleshooting
+
+**Problem: Outbox growing large (many .jsonl files)**
+
+_Cause:_ Backend unreachable, sync failing repeatedly
+
+_Solution:_
+
+1. Check backend health: `curl http://localhost:8080/health`
+2. Verify FELIX_SYNC_URL is correct
+3. Restart backend if needed
+4. Run agent again to trigger retry: `felix run S-0001`
+5. Verify outbox cleared: `ls .felix\outbox\*.jsonl`
+
+**Problem: 401 Unauthorized errors**
+
+_Cause:_ Invalid or expired API key
+
+_Solution:_
+
+```powershell
+# Generate new key
+python scripts/generate-sync-key.py
+
+# Update environment variable
+$env:FELIX_SYNC_KEY = "fsk_new_key_here"
+```
+
+**Problem: 429 Too Many Requests**
+
+_Cause:_ Rate limit exceeded (100 req/min per agent)
+
+_Solution:_
+
+- Wait for rate limit reset (shown in X-RateLimit-Reset header)
+- Reduce sync frequency if running many agents concurrently
+- Check for infinite loops or runaway processes
+
+**Problem: 503 Service Unavailable**
+
+_Cause:_ Backend or storage unavailable
+
+_Solution:_
+
+1. Check backend health: `curl http://localhost:8080/health`
+2. Verify database connectivity
+3. Verify storage path exists and is writable
+4. Check backend logs for errors
+
+See **[AGENTS.md - Sync Troubleshooting](AGENTS.md#sync-troubleshooting)** for complete error reference.
+
+### Disabling Sync
+
+**Temporarily disable (per-agent):**
+
+```powershell
+$env:FELIX_SYNC_ENABLED = "false"
+```
+
+**Permanently disable:**
+Edit `.felix/config.json` and set `"enabled": false`
+
+**Global disable (backend):**
+
+```powershell
+# Affects all agents
+$env:FELIX_SYNC_FEATURE_ENABLED = "false"
+```
+
+When disabled:
+
+- Agents run normally (local-only mode)
+- Existing queued files in outbox preserved
+- No new uploads attempted
+- Re-enable anytime to resume sync
+
+### Advanced Topics
+
+**Rate Limiting:**
+
+- Default: 100 requests/minute per agent
+- Headers: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- Configure: Modify `app/backend/middleware/rate_limit.py`
+
+**Storage Backends:**
+
+- Default: Filesystem (`storage/runs/`)
+- Future: Supabase cloud storage (stub exists)
+- Configure: `STORAGE_TYPE` in `app/backend/.env`
+
+**Monitoring:**
+
+- Prometheus metrics: `curl http://localhost:8080/metrics`
+- Key metrics: `sync_requests_total`, `sync_artifacts_uploaded_bytes`, `run_events_inserted_total`
+- Setup guide: [docs/SYNC_OPERATIONS.md](docs/SYNC_OPERATIONS.md)
+
+**Testing:**
+
+- Happy path: `.\scripts\test-sync-happy-path.ps1`
+- Network failure: `.\scripts\test-sync-network-failure.ps1`
+- All tests: `.\scripts\test-sync-all.ps1`
 
 ---
 
