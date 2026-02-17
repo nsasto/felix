@@ -52,6 +52,7 @@ try {
     . "$PSScriptRoot/core/config-loader.ps1"
     . "$PSScriptRoot/core/initialization.ps1"
     . "$PSScriptRoot/core/executor.ps1"
+    . "$PSScriptRoot/core/sync-interface.ps1"
 }
 catch {
     Write-Host "FATAL: Failed to load module: $_" -ForegroundColor Red
@@ -402,6 +403,28 @@ try {
     $script:agentName = $agentName
     $script:agentId = $agentConfig.id
     $script:agentConfig = $agentConfig
+
+    # Initialize sync reporter
+    Emit-Log -Level "debug" -Message "Initializing sync reporter" -Component "init"
+    $script:SyncReporter = Get-RunReporter -FelixDir $FelixDir
+    Emit-Log -Level "debug" -Message "Sync reporter type: $($script:SyncReporter.GetType().Name)" -Component "init"
+
+    # Register agent with sync service (non-blocking, best-effort)
+    try {
+        $syncAgentInfo = @{
+            agent_id   = $agentConfig.id
+            hostname   = $env:COMPUTERNAME
+            platform   = "windows"
+            version    = "0.7"  # Felix version
+            felix_root = $ProjectPath
+        }
+        $script:SyncReporter.RegisterAgent($syncAgentInfo)
+        Emit-Log -Level "debug" -Message "Agent registered with sync service" -Component "sync"
+    }
+    catch {
+        # Handle registration failures gracefully - log warning but continue execution
+        Emit-Log -Level "warn" -Message "Sync registration failed (non-fatal): $_" -Component "sync"
+    }
 
     # Show agent info for spec-builder mode (bypasses event suppression)
     if ($SpecBuildMode -and $script:SuppressEventEmission) {
