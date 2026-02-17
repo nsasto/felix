@@ -147,12 +147,12 @@ async def validate_api_key(
                 )
 
         # Fetch project details
-        project_id = str(key_record["project_id"])
+        project_id = key_record["project_id"]  # Already a UUID from database
         project_row = await db.fetch_one(
             """
             SELECT p.id, p.name, p.org_id
             FROM projects p
-            WHERE p.id = :project_id::uuid
+            WHERE p.id = :project_id
             """,
             values={"project_id": project_id},
         )
@@ -174,6 +174,7 @@ async def validate_api_key(
     except Exception as e:
         # Log the error for debugging
         import traceback
+
         print(f"Error in validate_api_key: {e}")
         print(traceback.format_exc())
         raise HTTPException(
