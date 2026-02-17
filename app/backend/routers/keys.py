@@ -163,10 +163,13 @@ async def validate_api_key(
                 detail="API key references non-existent project",
             )
 
+        # Convert to dict for easier access
+        project_data = dict(project_row)
+
         return ApiKeyValidate(
-            project_id=str(project_row["id"]),
-            project_name=project_row.get("name"),
-            org_id=str(project_row["org_id"]),
+            project_id=str(project_data["id"]),
+            project_name=project_data.get("name"),
+            org_id=str(project_data["org_id"]),
             expires_at=key_record.get("expires_at"),
         )
     except HTTPException:
