@@ -80,10 +80,22 @@ After completing the task, output a brief summary:
 **Outcome:** ✅ SUCCESS or ❌ BLOCKED (with reason)
 ```
 
-## Backpressure Note
+## Validation and Testing
 
-The Felix agent will automatically run tests/build/lint after your changes.
-You do NOT need to run them yourself. Focus on implementation only.
+**Before signaling completion:**
+
+1. Run relevant tests for your changes (e.g., `pytest tests/test_agents.py` or `npm test ComponentName.test.tsx`)
+2. Fix any failures immediately - don't signal completion if tests fail
+3. Run quick build/lint checks if applicable
+4. Only signal `TASK_COMPLETE` when your changes pass basic validation
+
+**After signaling completion:**
+
+- Backpressure will run the FULL test suite, build, and lint
+- If backpressure fails, you'll be sent back to fix the issues
+- Don't signal completion unless you're confident it will pass
+
+**Important:** You are responsible for delivered quality. Don't rely on backpressure to catch obvious bugs - test your changes first.
 
 ## Completion Signals
 

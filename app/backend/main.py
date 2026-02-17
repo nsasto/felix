@@ -96,6 +96,7 @@ from routers import (
     requirements,
     org_members,
     sync,
+    metrics,
 )
 from database.db import startup as db_startup, shutdown as db_shutdown, get_db, database
 from artifact_storage import get_artifact_storage
@@ -164,6 +165,7 @@ app.include_router(user.router)
 app.include_router(requirements.router)
 app.include_router(org_members.router)
 app.include_router(sync.router)
+app.include_router(metrics.router)
 
 
 @app.get("/health")
