@@ -374,16 +374,8 @@ async def revoke_api_key(
 
     # Revoke the key
     try:
-        success = await api_key_repo.revoke_key(key_id)
-        if not success:
-            raise HTTPException(
-                status_code=404,
-                detail=f"API key not found: {key_id}",
-            )
-
+        await api_key_repo.revoke_key(key_id)
         return ApiKeyRevoked(id=key_id, status="revoked")
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to revoke API key: {str(e)}"

@@ -151,16 +151,23 @@ class PostgresApiKeyRepository:
         Revoke (delete) an API key by ID.
 
         Returns True if key was deleted, False if not found.
+        Note: Some database drivers return None from execute(), so we
+        verify existence first and trust the deletion succeeded.
         """
-        result = await self.db.execute(
+        # Check if key exists first
+        existing = await self.get_by_id(key_id)
+        if not existing:
+            return False
+
+        await self.db.execute(
             """
             DELETE FROM api_keys
             WHERE id = :key_id
             """,
             values={"key_id": key_id},
         )
-        # execute() returns the number of rows affected (or None in some drivers)
-        return result is not None and result > 0
+        # If we get here without exception, deletion succeeded
+        return True
 
     async def update_last_used(self, key_id: str) -> None:
         """Update the last_used_at timestamp for a key to NOW()."""
