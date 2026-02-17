@@ -14,6 +14,8 @@ import type {
   OrgMembersResponse,
   Run,
   RunListResponse,
+  RunFilesResponse,
+  RunEventsResponse,
 } from './types';
 
 const API_BASE_URL = 'http://localhost:8080/api';
@@ -257,4 +259,100 @@ export async function revokeOrgInvite(
     `/orgs/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}`,
     { method: 'DELETE' }
   );
+}
+
+// ============================================================================
+// RUN SYNC ENDPOINTS (S-0063 - Artifact Sync Viewer)
+// ============================================================================
+
+/**
+ * List all files for a run from the sync API.
+ *
+ * Note: The sync endpoints use full /api path in the router definition,
+ * so we need to call them without the API_BASE_URL prefix.
+ *
+ * @param runId - The run's UUID string
+ * @returns List of files in the run with metadata
+ */
+export async function getRunFiles(runId: string): Promise<RunFilesResponse> {
+  // Sync endpoints use full /api/runs path in router, not /agents/runs
+  const url = `http://localhost:8080/api/runs/${encodeURIComponent(runId)}/files`;
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.detail || `HTTP ${response.status}: ${response.statusText}`
+    );
+  }
+
+  return response.json();
+}
+
+/**
+ * Get the content of a specific file from a run.
+ *
+ * @param runId - The run's UUID string
+ * @param filePath - Path of the file within the run (e.g., 'report.md', 'output.log')
+ * @returns The file content as text
+ */
+export async function getRunFile(
+  runId: string,
+  filePath: string
+): Promise<string> {
+  // Sync endpoints use full /api/runs path in router
+  const url = `http://localhost:8080/api/runs/${encodeURIComponent(runId)}/files/${encodeURIComponent(filePath)}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.detail || `HTTP ${response.status}: ${response.statusText}`
+    );
+  }
+
+  return response.text();
+}
+
+/**
+ * List events for a run from the sync API with pagination support.
+ *
+ * @param runId - The run's UUID string
+ * @param after - Cursor for pagination - return events after this ID (optional)
+ * @param limit - Maximum number of events to return (default: 100, max: 1000)
+ * @returns List of events and pagination info
+ */
+export async function getRunEvents(
+  runId: string,
+  after?: number,
+  limit?: number
+): Promise<RunEventsResponse> {
+  const params = new URLSearchParams();
+  if (after !== undefined) {
+    params.append('after', after.toString());
+  }
+  if (limit !== undefined) {
+    params.append('limit', limit.toString());
+  }
+  const query = params.toString();
+  // Sync endpoints use full /api/runs path in router, not /agents/runs
+  const url = `http://localhost:8080/api/runs/${encodeURIComponent(runId)}/events${query ? `?${query}` : ''}`;
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.detail || `HTTP ${response.status}: ${response.statusText}`
+    );
+  }
+
+  return response.json();
 }
