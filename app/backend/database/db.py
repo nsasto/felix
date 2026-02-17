@@ -2,6 +2,24 @@
 Database connection management module for Felix Backend.
 
 Provides async database connection using the 'databases' library with asyncpg.
+
+Connection Pooling:
+    The 'databases' library uses asyncpg's connection pool with defaults:
+    - min_size: 1 (minimum connections in pool)
+    - max_size: varies by version, typically 10
+    
+    For production workloads requiring higher concurrency, pool size can be
+    configured by passing options to Database():
+    
+        database = Database(url, min_size=5, max_size=20)
+    
+    Or via query parameters in DATABASE_URL:
+    
+        postgresql://user:pass@host:5432/db?min_size=5&max_size=20
+    
+    Current setup uses defaults which are sufficient for development and
+    light production use. Monitor 'connection pool exhausted' warnings
+    in logs to determine if pool size increase is needed.
 """
 
 import sys
@@ -9,6 +27,8 @@ from databases import Database
 import config
 
 # Database instance using the DATABASE_URL from config
+# Uses asyncpg's default pool settings (min_size=1, max_size varies by version)
+# For production tuning, add pool parameters: Database(url, min_size=5, max_size=20)
 database = Database(config.DATABASE_URL)
 
 

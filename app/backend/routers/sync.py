@@ -20,6 +20,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -1310,6 +1311,8 @@ async def upload_files(
     - Maximum 100 MB per file
     - Maximum 500 MB total per upload request
     
+    Performance target: <5s for 5MB of uploaded data.
+    
     Manifest format:
     [
         {"path": "output.log", "sha256": "abc123..."},
@@ -1334,6 +1337,8 @@ async def upload_files(
         HTTPException 413: If file or total upload size exceeds limits
         HTTPException 500: On database or storage error
     """
+    start_time = time.perf_counter()
+    
     # Log API key usage for audit trail
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/files", http_request)
     
@@ -1510,13 +1515,37 @@ async def upload_files(
             ))
             uploaded_count += 1
         
-        log_sync_info(
-            f"Uploaded {uploaded_count} files ({skipped_count} skipped)",
-            run_id=run_id,
-            uploaded=uploaded_count,
-            skipped=skipped_count,
-            total=len(manifest_data)
-        )
+        # Calculate upload timing (target: <5s for 5MB, scales linearly)
+        elapsed_sec = time.perf_counter() - start_time
+        # Calculate total bytes uploaded (not skipped)
+        total_bytes_uploaded = sum(r.size_bytes for r in results if r.status == "uploaded")
+        
+        # Target time: 5s for 5MB = 1MB/s, so target_sec = total_bytes_uploaded / (1MB/s)
+        # With a minimum target of 1 second for small uploads
+        target_sec = max(1.0, total_bytes_uploaded / (1024 * 1024))
+        
+        if elapsed_sec > target_sec:
+            throughput_mbps = (total_bytes_uploaded / (1024 * 1024)) / elapsed_sec if elapsed_sec > 0 else 0
+            log_sync_warning(
+                f"upload_files took {elapsed_sec:.2f}s (target: {target_sec:.2f}s, "
+                f"{total_bytes_uploaded / (1024 * 1024):.2f}MB @ {throughput_mbps:.2f}MB/s)",
+                run_id=run_id,
+                uploaded=uploaded_count,
+                skipped=skipped_count,
+                total_bytes=total_bytes_uploaded,
+                elapsed_sec=round(elapsed_sec, 2),
+                target_sec=round(target_sec, 2)
+            )
+        else:
+            log_sync_info(
+                f"Uploaded {uploaded_count} files ({skipped_count} skipped) in {elapsed_sec:.2f}s",
+                run_id=run_id,
+                uploaded=uploaded_count,
+                skipped=skipped_count,
+                total=len(manifest_data),
+                total_bytes=total_bytes_uploaded,
+                elapsed_sec=round(elapsed_sec, 2)
+            )
         
         return FileUploadResponse(
             run_id=run_id,
@@ -1572,6 +1601,8 @@ async def list_files(
     
     Returns files ordered by kind (artifact first) then path.
     
+    Performance target: <200ms response time.
+    
     Args:
         run_id: Run ID to list files for
         http_request: FastAPI request object
@@ -1585,6 +1616,8 @@ async def list_files(
         HTTPException 404: If run not found
         HTTPException 500: On database error
     """
+    start_time = time.perf_counter()
+    
     # Log API key usage for audit trail
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/files", http_request)
     
@@ -1621,6 +1654,23 @@ async def list_files(
             )
             for row in rows
         ]
+        
+        # Log response time (target: <200ms)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        if elapsed_ms > 200:
+            log_sync_warning(
+                f"list_files response time {elapsed_ms:.1f}ms exceeds 200ms target",
+                run_id=run_id,
+                file_count=len(files),
+                response_time_ms=round(elapsed_ms, 1)
+            )
+        else:
+            log_sync_debug(
+                f"list_files completed in {elapsed_ms:.1f}ms",
+                run_id=run_id,
+                file_count=len(files),
+                response_time_ms=round(elapsed_ms, 1)
+            )
         
         return FileListResponse(
             run_id=run_id,
@@ -1668,6 +1718,8 @@ async def download_file(
     
     Streams file content with appropriate headers.
     
+    Performance target: <200ms response time for small files.
+    
     Args:
         run_id: Run ID containing the file
         file_path: Path of file within the run
@@ -1684,6 +1736,8 @@ async def download_file(
         HTTPException 404: If file not found in DB or storage
         HTTPException 500: On database or storage error
     """
+    start_time = time.perf_counter()
+    
     # Log API key usage for audit trail
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/files/{file_path}", http_request)
     
@@ -1715,6 +1769,28 @@ async def download_file(
         
         # Get file content
         content = await storage.get(storage_key)
+        
+        # Log response time (target: <200ms for small files, scale with size)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        # For files larger than 1MB, allow more time (1ms per KB above 1MB)
+        time_target_ms = 200 + max(0, (size_bytes - 1024 * 1024) // 1024)
+        
+        if elapsed_ms > time_target_ms:
+            log_sync_warning(
+                f"download_file response time {elapsed_ms:.1f}ms exceeds {time_target_ms}ms target",
+                run_id=run_id,
+                file_path=file_path,
+                size_bytes=size_bytes,
+                response_time_ms=round(elapsed_ms, 1)
+            )
+        else:
+            log_sync_debug(
+                f"download_file completed in {elapsed_ms:.1f}ms",
+                run_id=run_id,
+                file_path=file_path,
+                size_bytes=size_bytes,
+                response_time_ms=round(elapsed_ms, 1)
+            )
         
         # Extract filename for Content-Disposition
         filename = file_path.split("/")[-1]
@@ -1780,6 +1856,8 @@ async def list_events(
     
     Returns events in timeline order (oldest first) with cursor-based pagination.
     
+    Performance target: <200ms response time.
+    
     Args:
         run_id: Run ID to query events for
         http_request: FastAPI request object
@@ -1795,6 +1873,8 @@ async def list_events(
         HTTPException 404: If run not found
         HTTPException 500: On database error
     """
+    start_time = time.perf_counter()
+    
     # Log API key usage for audit trail
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/events", http_request)
     
@@ -1848,6 +1928,23 @@ async def list_events(
             )
             for row in rows
         ]
+        
+        # Log response time (target: <200ms)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        if elapsed_ms > 200:
+            log_sync_warning(
+                f"list_events response time {elapsed_ms:.1f}ms exceeds 200ms target",
+                run_id=run_id,
+                event_count=len(events),
+                response_time_ms=round(elapsed_ms, 1)
+            )
+        else:
+            log_sync_debug(
+                f"list_events completed in {elapsed_ms:.1f}ms",
+                run_id=run_id,
+                event_count=len(events),
+                response_time_ms=round(elapsed_ms, 1)
+            )
         
         return EventListResponse(
             run_id=run_id,
