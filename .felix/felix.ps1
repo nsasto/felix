@@ -30,7 +30,7 @@ Command-specific arguments and global flags
 
 param(
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "context", "agent", "procs", "tui", "version", "help")]
+    [ValidateSet("run", "loop", "status", "list", "validate", "deps", "spec", "context", "agent", "procs", "tui", "setup", "version", "help")]
     [string]$Command = "help",
 
     [Parameter(Mandatory = $false, Position = 1, ValueFromRemainingArguments = $true)]
@@ -1874,6 +1874,169 @@ function Show-Version {
     Write-Host ""
 }
 
+function Show-ApiKeyExpiration {
+    param([string]$ExpiresAt)
+    
+    if (-not $ExpiresAt) {
+        Write-Host "   Expires: Never" -ForegroundColor Gray
+        return
+    }
+    
+    $expiresDate = [DateTime]::Parse($ExpiresAt)
+    $daysLeft = ($expiresDate - [DateTime]::Now).Days
+    $dateString = $expiresDate.ToString("yyyy-MM-dd")
+    
+    if ($daysLeft -gt 0) {
+        $message = '   Expires: {0} ({1} days left)' -f $dateString, $daysLeft
+        Write-Host $message -ForegroundColor Gray
+    }
+    else {
+        $message = '   Expires: {0} (EXPIRED)' -f $dateString
+        Write-Host $message -ForegroundColor Yellow
+    }
+}
+
+function Invoke-Setup {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
+
+    Write-Host "`n════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host " Felix CLI Setup Wizard" -ForegroundColor Cyan
+    Write-Host "════════════════════════════════════`n" -ForegroundColor Cyan
+
+    # Load existing config
+    $configPath = Join-Path $RepoRoot ".felix\config.json"
+    $config = @{
+        agent = @{ agent_id = $null }
+        sync = @{
+            enabled = $false
+            provider = "fastapi"
+            base_url = "http://localhost:8080"
+            api_key = $null
+        }
+    }
+
+    if (Test-Path $configPath) {
+        try {
+            $existingConfig = Get-Content $configPath -Raw | ConvertFrom-Json
+            if ($existingConfig.sync) {
+                if ($existingConfig.sync.base_url) {
+                    $config.sync.base_url = $existingConfig.sync.base_url
+                }
+                if ($existingConfig.sync.api_key) {
+                    $config.sync.api_key = $existingConfig.sync.api_key
+                }
+            }
+        }
+        catch {
+            Write-Warning "Could not parse existing config: $($_.Exception.Message)"
+        }
+    }
+
+    # Prompt for backend URL
+    Write-Host "Backend URL" -ForegroundColor White
+    Write-Host "  Current: $($config.sync.base_url)" -ForegroundColor Gray
+    $newUrl = Read-Host "  Enter backend URL (press Enter to keep current)"
+    if ($newUrl -and $newUrl.Trim()) {
+        $config.sync.base_url = $newUrl.Trim().TrimEnd("/")
+    }
+
+    # Prompt for API key
+    Write-Host "`nAPI Key" -ForegroundColor White
+    Write-Host "  Generate a key at: $($config.sync.base_url)/settings" -ForegroundColor Gray
+    if ($config.sync.api_key) {
+        Write-Host "  Current key: $($config.sync.api_key.Substring(0, [Math]::Min(12, $config.sync.api_key.Length)))..." -ForegroundColor Gray
+    }
+    $newKey = Read-Host "  Paste your API key starting with fsk_ or press Enter to keep current"
+
+    if (-not $newKey -or -not $newKey.Trim()) {
+        if ($config.sync.api_key) {
+            Write-Host "`n  Keeping existing API key" -ForegroundColor Gray
+            $newKey = $config.sync.api_key
+        }
+        else {
+            Write-Host "`n⚠️  No API key provided - sync will be disabled" -ForegroundColor Yellow
+            $config.sync.enabled = $false
+            $config.sync.api_key = $null
+            $newKey = $null
+        }
+    }
+    else {
+        $newKey = $newKey.Trim()
+    }
+
+    if ($newKey) {
+        if (-not $newKey.StartsWith("fsk_")) {
+            Write-Host "`nInvalid API key format - expected key starting with fsk_" -ForegroundColor Red
+            exit 1
+        }
+
+        # Validate key
+        Write-Host "`nValidating API key..." -ForegroundColor Cyan
+
+        try {
+            $validateUrl = "$($config.sync.base_url)/api/keys/validate"
+            $headers = @{ "Authorization" = "Bearer $newKey" }
+            $response = Invoke-RestMethod -Uri $validateUrl -Method Get -Headers $headers -ErrorAction Stop
+
+            Write-Host "Valid API key!" -ForegroundColor Green
+            Write-Host "   Project: $($response.project_name) [$($response.project_id)]" -ForegroundColor Gray
+            Write-Host "   Organization: $($response.org_id)" -ForegroundColor Gray
+            
+            Show-ApiKeyExpiration -ExpiresAt $response.expires_at
+
+            $config.sync.api_key = $newKey
+            $config.sync.enabled = $true
+        }
+        catch {
+            Write-Host "API key validation failed: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "   Check backend URL and key, then try again" -ForegroundColor Yellow
+            exit 1
+        }
+    }
+
+    # Save config
+    Write-Host "`nSaving configuration..." -ForegroundColor Cyan
+
+    try {
+        $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        Write-Host "Configuration saved to .felix\config.json" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Failed to save configuration: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+
+    # Update .gitignore
+    $gitignorePath = Join-Path $RepoRoot ".gitignore"
+    if (Test-Path $gitignorePath) {
+        $gitignore = Get-Content $gitignorePath -Raw
+        if ($gitignore -notmatch "\.felix/config\.json") {
+            try {
+                Add-Content $gitignorePath "`n# Felix local config (contains API key)`n.felix/config.json" -Encoding UTF8
+                Write-Host "Updated .gitignore to exclude config.json" -ForegroundColor Green
+            }
+            catch {
+                Write-Warning "Could not update .gitignore: $($_.Exception.Message)"
+            }
+        }
+    }
+
+    Write-Host "`n════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host " Setup Complete!" -ForegroundColor Green
+    Write-Host "════════════════════════════════════" -ForegroundColor Cyan
+
+    if ($config.sync.enabled) {
+        Write-Host "`nSync enabled - runs will mirror to backend" -ForegroundColor Green
+        Write-Host "   Run: felix run <requirement-id>" -ForegroundColor Gray
+    }
+    else {
+        Write-Host "`nSync disabled - runs will only save locally" -ForegroundColor Yellow
+        Write-Host "   Run felix setup again to enable sync" -ForegroundColor Gray
+    }
+
+    Write-Host ""
+}
+
 function Show-Help {
     param([string]$SubCommand)
 
@@ -2088,6 +2251,7 @@ function Show-Help {
         Write-Host "  agent <subcommand>    Manage and switch agents"
         Write-Host "  procs [subcommand]    Manage active execution sessions"
         Write-Host "  tui                   Launch interactive terminal UI"
+        Write-Host "  setup                 Configure sync with backend (API key)"
         Write-Host "  version               Show version information"
         Write-Host "  help [command]        Show help for a command"
         Write-Host ""
@@ -2105,6 +2269,7 @@ function Show-Help {
         Write-Host "  felix deps S-0001 --check"
         Write-Host "  felix spec create ""Add user authentication"""
         Write-Host "  felix context build"
+        Write-Host "  felix setup"
         Write-Host "  felix help run"
         Write-Host ""
     }
@@ -2144,6 +2309,9 @@ switch ($Command) {
     }
     "procs" {
         Invoke-ProcessList -Arguments $remainingArgs
+    }
+    "setup" {
+        Invoke-Setup -Args $remainingArgs
     }
     "version" {
         Show-Version
