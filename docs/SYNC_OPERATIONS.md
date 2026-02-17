@@ -5,6 +5,7 @@ This guide covers operational procedures for the Felix Run Artifact Sync feature
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Authentication & Security](#authentication--security)
 - [Monitoring Dashboard Setup](#monitoring-dashboard-setup)
 - [Alert Configuration](#alert-configuration)
 - [Backup and Recovery](#backup-and-recovery)
@@ -35,25 +36,214 @@ This guide covers operational procedures for the Felix Run Artifact Sync feature
 
 ### Components
 
-| Component | Description | Port |
-|-----------|-------------|------|
-| Backend API | FastAPI sync endpoints | 8080 |
-| CLI Plugin | PowerShell sync-fastapi.ps1 | N/A |
-| PostgreSQL | Run metadata and events | 5432 |
-| Artifact Storage | File system or cloud storage | N/A |
-| Frontend | React artifact viewer | 3000 |
+| Component        | Description                  | Port |
+| ---------------- | ---------------------------- | ---- |
+| Backend API      | FastAPI sync endpoints       | 8080 |
+| CLI Plugin       | PowerShell sync-fastapi.ps1  | N/A  |
+| PostgreSQL       | Run metadata and events      | 5432 |
+| Artifact Storage | File system or cloud storage | N/A  |
+| Frontend         | React artifact viewer        | 3000 |
 
 ### Key Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| /health | GET | Health check (DB + storage) |
-| /metrics | GET | Prometheus metrics |
-| /api/agents/register | POST | Register CLI agent |
-| /api/runs | POST | Create new run |
-| /api/runs/{id}/events | POST/GET | Append/query events |
-| /api/runs/{id}/files | POST/GET | Upload/list files |
-| /api/runs/{id}/finish | POST | Complete run |
+| Endpoint              | Method   | Description                 |
+| --------------------- | -------- | --------------------------- |
+| /health               | GET      | Health check (DB + storage) |
+| /metrics              | GET      | Prometheus metrics          |
+| /api/agents/register  | POST     | Register CLI agent          |
+| /api/runs             | POST     | Create new run              |
+| /api/runs/{id}/events | POST/GET | Append/query events         |
+| /api/runs/{id}/files  | POST/GET | Upload/list files           |
+| /api/runs/{id}/finish | POST     | Complete run                |
+
+---
+
+## Authentication & Security
+
+### Project-Scoped API Keys
+
+Felix sync endpoints require project-scoped API keys for authentication. Each API key grants access to a single project's artifacts and data.
+
+**Key Properties:**
+
+- **Format:** `fsk_` prefix + 32 hex characters (256-bit entropy)
+- **Scoping:** One key = one project (no multi-project keys)
+- **Storage:** SHA256 hashed in database, plain-text shown only once
+- **Expiration:** Optional (30, 90, 180, 365 days, or never)
+- **Revocation:** Immediate via UI or API endpoint
+
+### Generating API Keys
+
+**Via UI (Recommended):**
+
+1. Log in to Felix at http://localhost:3000 (or your deployment URL)
+2. Select your project from the sidebar
+3. Navigate to **Settings → API Keys**
+4. Click **"New Key"** button
+5. Enter a descriptive name (e.g., "CI Pipeline", "Developer Laptop")
+6. Select expiration period or "Never"
+7. Click **Generate**
+8. **Copy the key immediately** - it won't be shown again
+
+**Via API:**
+
+```bash
+# Requires user authentication token
+curl -X POST "http://localhost:8080/api/projects/{project_id}/keys" \
+  -H "Authorization: Bearer {user_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "CI Pipeline Key",
+    "expires_days": 365
+  }'
+
+# Response includes plain-text key (only time it's returned)
+{
+  "id": "key-uuid",
+  "name": "CI Pipeline Key",
+  "key": "fsk_abc123...",  // Save this immediately
+  "created_at": "2026-02-17T12:00:00Z",
+  "expires_at": "2027-02-17T12:00:00Z"
+}
+```
+
+### CLI Configuration
+
+**Environment Variables (Recommended for CI/CD):**
+
+```powershell
+# Windows PowerShell
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "https://felix.example.com"
+$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"
+
+# Linux/macOS Bash
+export FELIX_SYNC_ENABLED=true
+export FELIX_SYNC_URL=https://felix.example.com
+export FELIX_SYNC_KEY=fsk_your_api_key_here
+```
+
+**Config File (for persistent local setup):**
+
+```json
+// .felix/config.json
+{
+  "sync": {
+    "enabled": true,
+    "provider": "fastapi",
+    "base_url": "https://felix.example.com",
+    "api_key": "fsk_your_api_key_here"
+  }
+}
+```
+
+**⚠️ Security Best Practices:**
+
+- **Never commit API keys to version control**
+- Add `.felix/config.json` to `.gitignore` (already configured)
+- Use environment variables in CI/CD pipelines
+- Rotate keys quarterly or on team member departure
+- Use descriptive names to track key usage
+- Set reasonable expiration periods (90-365 days)
+- Revoke keys immediately if compromised
+
+### Authentication Flow
+
+```
+┌──────────────┐                           ┌──────────────────┐
+│  Felix CLI   │                           │  Backend API     │
+│              │    POST /api/runs         │                  │
+│              │  Authorization: Bearer    │                  │
+│              │  fsk_abc123...            │                  │
+│              │──────────────────────────>│                  │
+│              │                           │  1. Hash API key │
+│              │                           │  2. Lookup in DB │
+│              │                           │  3. Get project  │
+│              │                           │  4. Validate     │
+│              │                           │                  │
+│              │<──────────────────────────│  200 OK          │
+│              │                           │  (or 401/403)    │
+└──────────────┘                           └──────────────────┘
+```
+
+**Status Codes:**
+
+- `200 OK` - Valid key, authorized for project
+- `401 Unauthorized` - Missing, invalid, or expired key
+- `403 Forbidden` - Valid key, but wrong project (key is project-scoped)
+- `429 Too Many Requests` - Rate limit exceeded (100 requests/minute per key)
+
+### Key Management API
+
+**List Project Keys** (metadata only, no plain-text keys):
+
+```bash
+GET /api/projects/{project_id}/keys
+Authorization: Bearer {user_token}
+
+# Response
+{
+  "keys": [
+    {
+      "id": "key-uuid",
+      "name": "Developer Laptop",
+      "created_at": "2026-02-01T10:00:00Z",
+      "last_used_at": "2026-02-17T09:30:00Z",
+      "expires_at": null,
+      "is_revoked": false
+    }
+  ],
+  "count": 1
+}
+```
+
+**Revoke Key** (immediate effect):
+
+```bash
+DELETE /api/projects/{project_id}/keys/{key_id}
+Authorization: Bearer {user_token}
+
+# Response: 204 No Content
+```
+
+### Security Auditing
+
+**Track Key Usage:**
+
+```sql
+-- View recent API key activity
+SELECT
+  ak.name,
+  ak.last_used_at,
+  COUNT(r.id) as run_count
+FROM api_keys ak
+LEFT JOIN runs r ON r.project_id = ak.project_id
+WHERE ak.project_id = {project_id}
+  AND ak.is_revoked = false
+  AND r.created_at > NOW() - INTERVAL '7 days'
+GROUP BY ak.id, ak.name, ak.last_used_at
+ORDER BY ak.last_used_at DESC;
+```
+
+**Monitor Failed Auth Attempts:**
+
+```promql
+# Prometheus query for 401/403 errors
+rate(http_requests_total{endpoint="/api/runs", status=~"401|403"}[5m])
+```
+
+**Alert on Suspicious Activity:**
+
+```yaml
+# Prometheus alert rule
+- alert: HighAuthFailureRate
+  expr: |
+    rate(http_requests_total{status=~"401|403"}[5m]) > 10
+  for: 5m
+  annotations:
+    summary: "High rate of auth failures detected"
+    description: "More than 10 failed auth attempts/sec for 5 minutes"
+```
 
 ---
 
@@ -65,25 +255,25 @@ Add the Felix backend as a scrape target in your **prometheus.yml**:
 
 ```yaml
 scrape_configs:
-  - job_name: 'felix-backend'
+  - job_name: "felix-backend"
     scrape_interval: 15s
     scrape_timeout: 10s
     static_configs:
-      - targets: ['localhost:8080']
-    metrics_path: '/metrics'
+      - targets: ["localhost:8080"]
+    metrics_path: "/metrics"
 ```
 
 For multiple instances (load-balanced deployment):
 
 ```yaml
 scrape_configs:
-  - job_name: 'felix-backend'
+  - job_name: "felix-backend"
     scrape_interval: 15s
     static_configs:
       - targets:
-          - 'felix-backend-1:8080'
-          - 'felix-backend-2:8080'
-          - 'felix-backend-3:8080'
+          - "felix-backend-1:8080"
+          - "felix-backend-2:8080"
+          - "felix-backend-3:8080"
 ```
 
 ### Grafana Dashboard
@@ -159,7 +349,7 @@ Save as **felix-sync-dashboard.json** and import into Grafana:
           "legendFormat": "{{endpoint}}"
         }
       ],
-      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
     },
     {
       "title": "Error Rate",
@@ -170,7 +360,7 @@ Save as **felix-sync-dashboard.json** and import into Grafana:
           "legendFormat": "{{error_type}}"
         }
       ],
-      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
     },
     {
       "title": "Upload Duration P95",
@@ -180,7 +370,7 @@ Save as **felix-sync-dashboard.json** and import into Grafana:
           "expr": "histogram_quantile(0.95, sum(rate(sync_upload_duration_seconds_bucket[5m])) by (le))"
         }
       ],
-      "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4}
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 }
     },
     {
       "title": "Runs Created Today",
@@ -190,7 +380,7 @@ Save as **felix-sync-dashboard.json** and import into Grafana:
           "expr": "increase(runs_created_total[24h])"
         }
       ],
-      "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4}
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 4 }
     }
   ]
 }
@@ -218,7 +408,7 @@ groups:
         annotations:
           summary: "High sync error rate detected"
           description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
-      
+
       # Backend down alert
       - alert: FelixBackendDown
         expr: up{job="felix-backend"} == 0
@@ -228,7 +418,7 @@ groups:
         annotations:
           summary: "Felix backend is down"
           description: "Backend instance {{ $labels.instance }} is unreachable"
-      
+
       # Database unhealthy alert
       - alert: FelixDatabaseUnhealthy
         expr: felix_health_database == 0
@@ -238,7 +428,7 @@ groups:
         annotations:
           summary: "Felix database health check failing"
           description: "Database connectivity check has been failing for 2 minutes"
-      
+
       # Storage unhealthy alert
       - alert: FelixStorageUnhealthy
         expr: felix_health_storage == 0
@@ -248,7 +438,7 @@ groups:
         annotations:
           summary: "Felix storage health check failing"
           description: "Storage write capability check has been failing for 2 minutes"
-      
+
       # Slow uploads alert
       - alert: FelixSlowUploads
         expr: |
@@ -259,17 +449,17 @@ groups:
         annotations:
           summary: "Slow artifact uploads detected"
           description: "P95 upload duration is {{ $value }}s (target: <5s)"
-      
+
       # High upload volume alert
       - alert: FelixHighUploadVolume
-        expr: rate(sync_artifacts_uploaded_bytes_sum[5m]) > 104857600  # 100MB/min
+        expr: rate(sync_artifacts_uploaded_bytes_sum[5m]) > 104857600 # 100MB/min
         for: 5m
         labels:
           severity: info
         annotations:
           summary: "High upload volume detected"
           description: "Upload rate is {{ $value | humanize1024 }}B/min"
-      
+
       # Rate limiting triggered
       - alert: FelixRateLimitTriggered
         expr: sum(rate(sync_requests_total{status="429"}[5m])) > 0
@@ -287,33 +477,33 @@ Example **alertmanager.yml** for routing alerts:
 
 ```yaml
 route:
-  group_by: ['alertname']
+  group_by: ["alertname"]
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
-  receiver: 'default'
+  receiver: "default"
   routes:
     - match:
         severity: critical
-      receiver: 'pagerduty'
+      receiver: "pagerduty"
     - match:
         severity: warning
-      receiver: 'slack'
+      receiver: "slack"
 
 receivers:
-  - name: 'default'
+  - name: "default"
     email_configs:
-      - to: 'felix-alerts@example.com'
-  
-  - name: 'pagerduty'
+      - to: "felix-alerts@example.com"
+
+  - name: "pagerduty"
     pagerduty_configs:
-      - service_key: '<your-pagerduty-key>'
-  
-  - name: 'slack'
+      - service_key: "<your-pagerduty-key>"
+
+  - name: "slack"
     slack_configs:
-      - api_url: 'https://hooks.slack.com/services/xxx/yyy/zzz'
-        channel: '#felix-alerts'
-        text: '{{ .CommonAnnotations.description }}'
+      - api_url: "https://hooks.slack.com/services/xxx/yyy/zzz"
+        channel: "#felix-alerts"
+        text: "{{ .CommonAnnotations.description }}"
 ```
 
 ---
@@ -489,12 +679,12 @@ READ_DATABASE_URL = "postgresql://replica:5432/felix"
 
 ### Capacity Planning
 
-| Load Level | Agents | Runs/Day | Storage/Day | Recommended Setup |
-|------------|--------|----------|-------------|-------------------|
-| Small | 1-5 | <100 | <1GB | Single instance |
-| Medium | 5-20 | 100-500 | 1-10GB | 2 instances + RDS |
-| Large | 20-100 | 500-2000 | 10-50GB | 3+ instances + RDS + S3 |
-| Enterprise | 100+ | 2000+ | 50GB+ | Kubernetes + managed services |
+| Load Level | Agents | Runs/Day | Storage/Day | Recommended Setup             |
+| ---------- | ------ | -------- | ----------- | ----------------------------- |
+| Small      | 1-5    | <100     | <1GB        | Single instance               |
+| Medium     | 5-20   | 100-500  | 1-10GB      | 2 instances + RDS             |
+| Large      | 20-100 | 500-2000 | 10-50GB     | 3+ instances + RDS + S3       |
+| Enterprise | 100+   | 2000+    | 50GB+       | Kubernetes + managed services |
 
 ---
 
@@ -526,14 +716,14 @@ Set in **main.py** or uvicorn config:
 
 **Response Time Targets**
 
-| Operation | Target | Typical |
-|-----------|--------|---------|
-| GET /health | <50ms | 10-20ms |
-| GET /metrics | <100ms | 20-50ms |
-| POST /api/runs | <200ms | 50-100ms |
-| POST /api/runs/{id}/events | <200ms | 50-150ms |
-| POST /api/runs/{id}/files (5MB) | <5s | 1-3s |
-| GET /api/runs/{id}/files | <200ms | 50-100ms |
+| Operation                       | Target | Typical  |
+| ------------------------------- | ------ | -------- |
+| GET /health                     | <50ms  | 10-20ms  |
+| GET /metrics                    | <100ms | 20-50ms  |
+| POST /api/runs                  | <200ms | 50-100ms |
+| POST /api/runs/{id}/events      | <200ms | 50-150ms |
+| POST /api/runs/{id}/files (5MB) | <5s    | 1-3s     |
+| GET /api/runs/{id}/files        | <200ms | 50-100ms |
 
 ### Database Tuning
 
@@ -543,7 +733,7 @@ Ensure all indexes are present (from migration 015):
 
 ```sql
 -- Check indexes exist
-SELECT indexname FROM pg_indexes 
+SELECT indexname FROM pg_indexes
 WHERE tablename IN ('runs', 'run_events', 'run_files');
 
 -- Expected indexes:
@@ -781,6 +971,60 @@ echo $DATABASE_URL
 psql $DATABASE_URL -c "SELECT 1"
 ```
 
+#### 401 Unauthorized - API Key Issues
+
+**Symptom:** CLI agent fails with 401 Unauthorized error.
+
+**Causes:**
+
+1. Missing API key (sync enabled but no key configured)
+2. Invalid API key (typo, truncated, or malformed)
+3. Expired API key
+4. Revoked API key
+
+**Solution:**
+
+```powershell
+# 1. Generate new API key via UI
+# - Open Felix UI → Settings → API Keys
+# - Click "New Key"
+# - Copy the key (starts with fsk_)
+
+# 2. Set the key
+$env:FELIX_SYNC_KEY = "fsk_your_new_key_here"
+
+# 3. Run agent again
+felix run S-0001
+
+# Verify key format is correct:
+# - Must start with "fsk_"
+# - Followed by 32 hexadecimal characters
+# - Total length: 36 characters
+```
+
+#### 403 Forbidden - Wrong Project
+
+**Symptom:** Valid API key but sync fails with 403 Forbidden.
+
+**Cause:** API key belongs to different project than the one you're trying to sync to.
+
+**Solution:**
+
+```powershell
+# Check which project the key belongs to:
+# 1. Go to Felix UI → Settings → API Keys
+# 2. Find your key in the list
+# 3. Note the project name
+
+# Option 1: Generate new key for correct project
+# - Select correct project in UI
+# - Go to Settings → API Keys
+# - Generate new key
+
+# Option 2: Use existing key for its project
+# - Switch to the project that matches your API key
+```
+
 #### Health Check Returns 503
 
 **Symptom:** `/health` returns 503 with `"status": "unhealthy"`.
@@ -898,41 +1142,41 @@ Select-String -Path .felix\sync.log -Pattern "ERROR|WARN"
 
 ### Environment Variables Reference
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| DATABASE_URL | PostgreSQL connection string | Required |
-| STORAGE_BACKEND | Storage type (filesystem, s3) | filesystem |
-| STORAGE_PATH | Local storage path | ./artifacts |
-| FELIX_SYNC_FEATURE_ENABLED | Global feature flag | true |
-| LOG_LEVEL | Logging level (DEBUG, INFO, WARN, ERROR) | INFO |
-| RATE_LIMIT_REQUESTS | Requests per minute per agent | 100 |
+| Variable                   | Description                              | Default     |
+| -------------------------- | ---------------------------------------- | ----------- |
+| DATABASE_URL               | PostgreSQL connection string             | Required    |
+| STORAGE_BACKEND            | Storage type (filesystem, s3)            | filesystem  |
+| STORAGE_PATH               | Local storage path                       | ./artifacts |
+| FELIX_SYNC_FEATURE_ENABLED | Global feature flag                      | true        |
+| LOG_LEVEL                  | Logging level (DEBUG, INFO, WARN, ERROR) | INFO        |
+| RATE_LIMIT_REQUESTS        | Requests per minute per agent            | 100         |
 
 ### API Rate Limits
 
-| Endpoint | Limit | Window |
-|----------|-------|--------|
-| /api/agents/register | 100/min | Sliding |
-| /api/runs | 100/min | Sliding |
+| Endpoint              | Limit   | Window  |
+| --------------------- | ------- | ------- |
+| /api/agents/register  | 100/min | Sliding |
+| /api/runs             | 100/min | Sliding |
 | /api/runs/{id}/events | 100/min | Sliding |
-| /api/runs/{id}/files | 100/min | Sliding |
+| /api/runs/{id}/files  | 100/min | Sliding |
 | /api/runs/{id}/finish | 100/min | Sliding |
 
 ### File Size Limits
 
-| Limit | Value |
-|-------|-------|
-| Single file max | 100 MB |
+| Limit                    | Value  |
+| ------------------------ | ------ |
+| Single file max          | 100 MB |
 | Total upload per request | 500 MB |
-| Request body max | 600 MB |
+| Request body max         | 600 MB |
 
 ### Metric Names Reference
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| sync_requests_total | counter | endpoint, status | Total sync API requests |
-| runs_created_total | counter | - | Total runs created |
-| run_events_inserted_total | counter | - | Total events inserted |
-| sync_failures_total | counter | error_type | Total sync failures |
-| sync_artifacts_uploaded_bytes | histogram | - | Upload sizes |
-| sync_upload_duration_seconds | histogram | - | Upload durations |
-| process_uptime_seconds | gauge | - | Backend uptime |
+| Metric                        | Type      | Labels           | Description             |
+| ----------------------------- | --------- | ---------------- | ----------------------- |
+| sync_requests_total           | counter   | endpoint, status | Total sync API requests |
+| runs_created_total            | counter   | -                | Total runs created      |
+| run_events_inserted_total     | counter   | -                | Total events inserted   |
+| sync_failures_total           | counter   | error_type       | Total sync failures     |
+| sync_artifacts_uploaded_bytes | histogram | -                | Upload sizes            |
+| sync_upload_duration_seconds  | histogram | -                | Upload durations        |
+| process_uptime_seconds        | gauge     | -                | Backend uptime          |
