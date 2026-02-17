@@ -123,3 +123,26 @@ export interface OrgMembersResponse {
   members: OrgMember[];
   invites: OrgInvite[];
 }
+
+// ============================================================================
+// RUN FILE AND EVENT INTERFACES (S-0063 - Artifact Sync Viewer)
+// ============================================================================
+
+/**
+ * Information about a run file from the sync API.
+ * Matches FileInfo in backend routers/sync.py.
+ */
+export interface RunFile {
+  /** File path within the run (e.g., 'report.md', 'output.log') */
+  path: string;
+  /** File kind ('artifact' or 'log') */
+  kind: string;
+  /** File size in bytes */
+  size_bytes: number;
+  /** SHA256 hash of file content (optional) */
+  sha256: string | null;
+  /** MIME content type (e.g., 'text/markdown', 'text/plain') */
+  content_type: string;
+  /** When file was last updated (ISO string) */
+  updated_at: string;
+}

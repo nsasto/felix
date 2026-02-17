@@ -288,7 +288,7 @@
                              "id":  "S-0063",
                              "title":  "S-0063: Run Artifact Sync - Frontend Artifact Viewer",
                              "spec_path":  "specs/S-0063-frontend-artifact-viewer.md",
-                             "status":  "planned",
+                             "status":  "in_progress",
                              "priority":  "medium",
                              "tags":  [
 
@@ -296,7 +296,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-02-16",
+                             "updated_at":  "2026-02-17",
                              "commit_on_complete":  true
                          },
                          {
@@ -333,7 +333,7 @@
                              "id":  "S-0062",
                              "title":  "S-0062: Run Artifact Sync - End-to-End Testing",
                              "spec_path":  "specs/S-0062-runs-sync-e2e-testing.md",
-                             "status":  "in_progress",
+                             "status":  "complete",
                              "priority":  "medium",
                              "tags":  [
 
@@ -341,7 +341,7 @@
                              "depends_on":  [
 
                                             ],
-                             "updated_at":  "2026-02-16",
+                             "updated_at":  "2026-02-17",
                              "commit_on_complete":  true
                          },
                          {
