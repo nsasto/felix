@@ -186,6 +186,120 @@ Specs should include testable validation criteria with commands and expected out
 
 The validation script executes anything in backticks as a shell command. If it's not meant to be executed, don't use backticks.
 
+## Sync Troubleshooting
+
+This section covers common issues with artifact sync and how to resolve them.
+
+### Check Outbox Queue Status
+
+```powershell
+# View pending uploads
+ls .felix\outbox\*.jsonl
+
+# Count pending files
+(Get-ChildItem .felix\outbox\*.jsonl).Count
+```
+
+If you see many files, the agent is queuing uploads but cannot reach the backend.
+
+### Common Errors and Solutions
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| 401 Unauthorized | Invalid or expired API key | Generate new key with `python scripts/generate-sync-key.py`, update FELIX_SYNC_KEY |
+| 429 Too Many Requests | Rate limit exceeded (100 req/min) | Wait for rate limit reset (shown in X-RateLimit-Reset header), reduce sync frequency |
+| 503 Service Unavailable | Backend or storage unavailable | Check backend health at /health endpoint, verify database/storage connectivity |
+| Connection refused | Backend not running | Start backend with `python app/backend/main.py` |
+| Timeout errors | Network issues or large uploads | Check network, retry will happen automatically with exponential backoff |
+| "Invalid configuration" warning | Missing FELIX_SYNC_URL | Set FELIX_SYNC_URL environment variable or configure in **.felix/config.json** |
+
+### Managing Large Outbox Queue
+
+When the outbox grows large (many unsynced files):
+
+1. **Manual flush** - restart the agent to trigger sync retry
+2. **Clear stale files** - if files are corrupted or no longer needed:
+   ```powershell
+   # View file contents first
+   Get-Content .felix\outbox\<filename>.jsonl | ConvertFrom-Json
+   
+   # Remove specific stale file (use with caution)
+   Remove-Item .felix\outbox\<filename>.jsonl
+   ```
+3. **Check logs** - review **.felix/sync.log** for error details
+
+### Environment Variable Reference
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| FELIX_SYNC_ENABLED | Enable/disable sync (true/false) | false |
+| FELIX_SYNC_URL | Backend URL for sync API | none (required if enabled) |
+| FELIX_SYNC_KEY | API key for authentication (fsk_...) | none (optional) |
+| FELIX_SYNC_MAX_RETRIES | Max retry attempts for failed requests | 5 |
+
+### Configuration Examples
+
+**Development (local backend):**
+
+```powershell
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "http://localhost:8080"
+# No API key needed for local dev
+```
+
+Or in **.felix/config.json**:
+
+```json
+{
+  "sync": {
+    "enabled": true,
+    "provider": "fastapi",
+    "base_url": "http://localhost:8080"
+  }
+}
+```
+
+**Staging:**
+
+```powershell
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "https://staging-felix.example.com"
+$env:FELIX_SYNC_KEY = "fsk_staging_key_here"
+```
+
+**Production:**
+
+```powershell
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "https://felix.example.com"
+$env:FELIX_SYNC_KEY = "fsk_production_key_here"
+$env:FELIX_SYNC_MAX_RETRIES = "10"  # More retries for reliability
+```
+
+### Viewing Sync Logs
+
+The CLI writes detailed sync logs to **.felix/sync.log** (auto-rotates at 5MB):
+
+```powershell
+# View recent log entries
+Get-Content .felix\sync.log -Tail 50
+
+# Search for errors
+Select-String -Path .felix\sync.log -Pattern "ERROR|WARN"
+```
+
+### Disabling Sync in Emergency
+
+To immediately disable sync without code changes:
+
+```powershell
+$env:FELIX_SYNC_ENABLED = "false"
+```
+
+Or edit **.felix/config.json** and set `"enabled": false`.
+
+Existing queued files in **.felix/outbox/** will remain but won't be sent until sync is re-enabled.
+
 ## Repository Conventions
 
 - Keep this file operational only
