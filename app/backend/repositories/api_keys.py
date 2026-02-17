@@ -159,8 +159,8 @@ class PostgresApiKeyRepository:
             """,
             values={"key_id": key_id},
         )
-        # execute() returns the number of rows affected
-        return result > 0
+        # execute() returns the number of rows affected (or None in some drivers)
+        return result is not None and result > 0
 
     async def update_last_used(self, key_id: str) -> None:
         """Update the last_used_at timestamp for a key to NOW()."""
