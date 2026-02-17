@@ -1,18 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { marked } from "marked";
 import { PageLoading } from "./ui/page-loading";
 import { Button } from "./ui/button";
 import {
   getRunFiles,
   getRunFile,
+  getRunEvents,
 } from "../src/api/client";
-import type { RunFile, RunFilesResponse } from "../src/api/types";
+import type { RunFile, RunFilesResponse, RunEvent } from "../src/api/types";
 import {
   Bot as IconFelix,
   FileText as IconFileText,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   File as IconFile,
   ScrollText as IconScrollText,
+  Clock as IconClock,
+  AlertCircle as IconAlertCircle,
+  AlertTriangle as IconAlertTriangle,
+  Info as IconInfo,
+  Bug as IconBug,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -47,6 +55,13 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [parsedHtml, setParsedHtml] = useState<string>("");
+
+  // State for event timeline
+  const [events, setEvents] = useState<RunEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  const [eventsExpanded, setEventsExpanded] = useState(false);
+  const eventTimelineRef = useRef<HTMLDivElement>(null);
 
   // Fetch file list on mount
   useEffect(() => {
@@ -109,6 +124,37 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
     fetchContent();
   }, [runId, selectedFile]);
 
+  // Fetch events when expanded
+  useEffect(() => {
+    if (!eventsExpanded) return;
+
+    const fetchEvents = async () => {
+      setEventsLoading(true);
+      setEventsError(null);
+
+      try {
+        const response = await getRunEvents(runId, undefined, 100);
+        setEvents(response.events);
+      } catch (err) {
+        console.error("Failed to fetch run events:", err);
+        setEventsError(
+          err instanceof Error ? err.message : "Failed to load events"
+        );
+      } finally {
+        setEventsLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, [runId, eventsExpanded]);
+
+  // Auto-scroll to bottom when events change
+  useEffect(() => {
+    if (eventsExpanded && eventTimelineRef.current && events.length > 0) {
+      eventTimelineRef.current.scrollTop = eventTimelineRef.current.scrollHeight;
+    }
+  }, [events, eventsExpanded]);
+
   // Parse markdown content when file content changes
   useEffect(() => {
     if (!selectedFile || !fileContent) {
@@ -157,6 +203,57 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Format event timestamp
+  const formatEventTime = (ts: string): string => {
+    try {
+      const date = new Date(ts);
+      return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+    } catch {
+      return ts;
+    }
+  };
+
+  // Get event level styles
+  const getEventLevelStyles = (level: string) => {
+    switch (level.toLowerCase()) {
+      case "error":
+        return {
+          icon: IconAlertCircle,
+          textColor: "text-red-400",
+          bgColor: "bg-red-500/10",
+          borderColor: "border-red-500/30",
+        };
+      case "warn":
+      case "warning":
+        return {
+          icon: IconAlertTriangle,
+          textColor: "text-amber-400",
+          bgColor: "bg-amber-500/10",
+          borderColor: "border-amber-500/30",
+        };
+      case "debug":
+        return {
+          icon: IconBug,
+          textColor: "text-gray-400",
+          bgColor: "bg-gray-500/10",
+          borderColor: "border-gray-500/30",
+        };
+      case "info":
+      default:
+        return {
+          icon: IconInfo,
+          textColor: "text-blue-400",
+          bgColor: "bg-blue-500/10",
+          borderColor: "border-blue-500/30",
+        };
+    }
   };
 
   // Get file icon based on extension
@@ -218,6 +315,100 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
             );
           })}
         </div>
+      </div>
+    );
+  };
+
+  // Render event timeline panel
+  const renderEventTimeline = () => {
+    return (
+      <div className="border-t border-[var(--border)] mt-2">
+        {/* Collapsible header */}
+        <button
+          onClick={() => setEventsExpanded(!eventsExpanded)}
+          className="w-full px-3 py-2 flex items-center gap-2 hover:bg-[var(--bg-surface-200)] transition-colors"
+        >
+          {eventsExpanded ? (
+            <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />
+          ) : (
+            <ChevronRight className="w-3 h-3 text-[var(--text-muted)]" />
+          )}
+          <IconClock className="w-3 h-3 text-[var(--text-muted)]" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            Events
+          </span>
+          {events.length > 0 && (
+            <span className="ml-auto text-[9px] text-[var(--text-muted)] bg-[var(--bg-surface-200)] px-1.5 py-0.5 rounded">
+              {events.length}
+            </span>
+          )}
+        </button>
+
+        {/* Expanded event list */}
+        {eventsExpanded && (
+          <div
+            ref={eventTimelineRef}
+            className="max-h-64 overflow-y-auto custom-scrollbar px-2 pb-2"
+          >
+            {eventsLoading ? (
+              <div className="py-4 text-center">
+                <div className="w-4 h-4 border-2 border-[var(--brand-500)] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-[10px] text-[var(--text-muted)]">Loading events...</p>
+              </div>
+            ) : eventsError ? (
+              <div className="py-4 text-center">
+                <IconAlertCircle className="w-4 h-4 text-red-400 mx-auto mb-1" />
+                <p className="text-[10px] text-red-400">{eventsError}</p>
+              </div>
+            ) : events.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-[10px] text-[var(--text-muted)]">No events recorded</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 pt-1">
+                {events.map((event) => {
+                  const levelStyles = getEventLevelStyles(event.level);
+                  const LevelIcon = levelStyles.icon;
+
+                  return (
+                    <div
+                      key={event.id}
+                      className={cn(
+                        "px-2 py-1.5 rounded border text-[10px]",
+                        levelStyles.bgColor,
+                        levelStyles.borderColor
+                      )}
+                    >
+                      <div className="flex items-start gap-1.5">
+                        <LevelIcon
+                          className={cn(
+                            "w-3 h-3 flex-shrink-0 mt-0.5",
+                            levelStyles.textColor
+                          )}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={cn("font-medium", levelStyles.textColor)}>
+                              {event.type}
+                            </span>
+                            <span className="text-[var(--text-muted)] ml-auto">
+                              {formatEventTime(event.ts)}
+                            </span>
+                          </div>
+                          {event.message && (
+                            <p className="text-[var(--text-light)] break-words">
+                              {event.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -431,11 +622,16 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
 
       {/* Split layout: sidebar + content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar - file list */}
-        <div className="w-64 flex-shrink-0 border-r border-[var(--border)] overflow-y-auto custom-scrollbar py-4 bg-[var(--bg-base)]">
-          {renderFileList("Artifacts", groupedFiles.artifacts)}
-          {renderFileList("Logs", groupedFiles.logs)}
-          {renderFileList("Other", groupedFiles.other)}
+        {/* Sidebar - file list + event timeline */}
+        <div className="w-64 flex-shrink-0 border-r border-[var(--border)] flex flex-col bg-[var(--bg-base)]">
+          {/* File list area - scrollable */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar py-4">
+            {renderFileList("Artifacts", groupedFiles.artifacts)}
+            {renderFileList("Logs", groupedFiles.logs)}
+            {renderFileList("Other", groupedFiles.other)}
+          </div>
+          {/* Event timeline - at bottom of sidebar */}
+          {renderEventTimeline()}
         </div>
 
         {/* Content viewer */}
