@@ -274,7 +274,7 @@ async def revoke_api_key(
 
     # Verify key exists and belongs to this project
     key_record = await api_key_repo.get_by_id(key_id)
-    if not key_record or key_record["project_id"] != project_id:
+    if not key_record or str(key_record["project_id"]) != project_id:
         raise HTTPException(
             status_code=404,
             detail=f"API key not found or does not belong to this project: {key_id}",
