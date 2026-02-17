@@ -318,7 +318,7 @@
                              "id":  "S-0061",
                              "title":  "S-0061: Run Artifact Sync - CLI Plugin Implementation",
                              "spec_path":  "specs/S-0061-cli-sync-plugin.md",
-                             "status":  "planned",
+                             "status":  "in_progress",
                              "priority":  "medium",
                              "tags":  [
 
