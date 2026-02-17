@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { felixApi, RunArtifactContent } from "../services/felixApi";
+import React, { useState, useEffect, useCallback } from "react";
+import { felixApi, API_BASE_URL } from "../services/felixApi";
 import { marked } from "marked";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { PageLoading } from "./ui/page-loading";
 import { Button } from "./ui/button";
+import ErrorBoundary from "./ErrorBoundary";
 import {
   Bot as IconFelix,
   FileText as IconFileText,
@@ -11,7 +12,13 @@ import {
   Scroll as IconScroll,
   Edit as IconEdit,
   ChevronLeft,
+  RefreshCw,
+  Download,
+  FileWarning,
 } from "lucide-react";
+
+/** Error types for better error handling */
+type ErrorType = "not_found" | "load_failed" | "large_file" | "network" | "unknown";
 
 interface RunArtifactViewerProps {
   projectId: string;
@@ -21,7 +28,58 @@ interface RunArtifactViewerProps {
 
 type ArtifactTab = "report" | "log" | "plan" | "spec";
 
-const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
+/** Parse error message to determine error type */
+function getErrorType(error: Error | string): ErrorType {
+  const message = typeof error === "string" ? error : error.message;
+  const lowerMessage = message.toLowerCase();
+  
+  if (lowerMessage.includes("404") || lowerMessage.includes("not found")) {
+    return "not_found";
+  }
+  if (lowerMessage.includes("too large") || lowerMessage.includes("size limit") || lowerMessage.includes("413")) {
+    return "large_file";
+  }
+  if (lowerMessage.includes("network") || lowerMessage.includes("fetch") || lowerMessage.includes("failed to fetch")) {
+    return "network";
+  }
+  if (lowerMessage.includes("failed to load")) {
+    return "load_failed";
+  }
+  return "unknown";
+}
+
+/** Get user-friendly error message based on error type */
+function getErrorMessage(errorType: ErrorType, filename: string): { title: string; description: string } {
+  switch (errorType) {
+    case "not_found":
+      return {
+        title: "Artifact Not Found",
+        description: `The file "${filename}" does not exist for this run. It may not have been generated yet or the run may have been incomplete.`,
+      };
+    case "large_file":
+      return {
+        title: "File Too Large",
+        description: `The file "${filename}" is too large to display in the browser. Use the download button to save it locally.`,
+      };
+    case "network":
+      return {
+        title: "Unable to Load Artifacts",
+        description: "A network error occurred while loading the artifact. Please check your connection and try again.",
+      };
+    case "load_failed":
+      return {
+        title: "Unable to Load Artifacts",
+        description: "Failed to load the artifact content. The server may be temporarily unavailable.",
+      };
+    default:
+      return {
+        title: "Something Went Wrong",
+        description: "An unexpected error occurred while loading the artifact.",
+      };
+  }
+}
+
+const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
   projectId,
   runId,
   onClose,
@@ -30,9 +88,11 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<ErrorType>("unknown");
   const [parsedHtml, setParsedHtml] = useState<string>("");
   const [requirementId, setRequirementId] = useState<string | null>(null);
   const [specPath, setSpecPath] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Fetch requirement ID and spec path from requirement_id.txt
   useEffect(() => {
@@ -82,40 +142,55 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
   };
 
   // Fetch artifact content when tab changes
-  useEffect(() => {
-    const fetchArtifact = async () => {
-      setLoading(true);
-      setError(null);
-      setContent("");
+  const fetchArtifact = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setErrorType("unknown");
+    setContent("");
 
-      try {
-        if (activeTab === "spec" && specPath) {
-          // Fetch spec directly from specs directory
-          const filename = specPath.split("/").pop() || specPath;
-          const result = await felixApi.getSpec(projectId, filename);
-          setContent(result.content);
-        } else {
-          // Fetch from run artifacts
-          const filename = getFilename(activeTab);
-          const result = await felixApi.getRunArtifact(
-            projectId,
-            runId,
-            filename,
-          );
-          setContent(result.content);
-        }
-      } catch (err) {
-        console.error("Failed to fetch artifact:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to load artifact",
+    try {
+      if (activeTab === "spec" && specPath) {
+        // Fetch spec directly from specs directory
+        const filename = specPath.split("/").pop() || specPath;
+        const result = await felixApi.getSpec(projectId, filename);
+        setContent(result.content);
+      } else {
+        // Fetch from run artifacts
+        const filename = getFilename(activeTab);
+        const result = await felixApi.getRunArtifact(
+          projectId,
+          runId,
+          filename,
         );
-      } finally {
-        setLoading(false);
+        setContent(result.content);
       }
-    };
-
-    fetchArtifact();
+    } catch (err) {
+      console.error("Failed to fetch artifact:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to load artifact";
+      setError(errorMessage);
+      setErrorType(getErrorType(err instanceof Error ? err : errorMessage));
+    } finally {
+      setLoading(false);
+    }
   }, [projectId, runId, activeTab, requirementId, specPath]);
+
+  useEffect(() => {
+    fetchArtifact();
+  }, [fetchArtifact, retryCount]);
+
+  // Retry handler
+  const handleRetry = useCallback(() => {
+    setRetryCount((prev) => prev + 1);
+  }, []);
+
+  // Get download URL for current artifact
+  const getDownloadUrl = useCallback((): string | null => {
+    if (activeTab === "spec") {
+      return null; // Specs aren't run artifacts, no direct download
+    }
+    const filename = getFilename(activeTab);
+    return `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(filename)}`;
+  }, [activeTab, projectId, runId, requirementId]);
 
   // Parse markdown content for report, plan, and spec tabs
   useEffect(() => {
@@ -234,13 +309,50 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
         </div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center h-full text-center p-8">
-          <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-            <IconFileText className="w-8 h-8 text-slate-600" />
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
+            errorType === "not_found" ? "bg-slate-800/50" : "bg-amber-500/10"
+          }`}>
+            {errorType === "not_found" ? (
+              <FileWarning className="w-8 h-8 text-slate-600" />
+            ) : (
+              <IconFileText className="w-8 h-8 text-amber-500" />
+            )}
           </div>
-          <h3 className="text-sm font-bold text-slate-400 mb-2">
-            Artifact Not Found
+          <h3 className="text-sm font-bold text-slate-300 mb-2">
+            {getErrorMessage(errorType, getFilename(activeTab)).title}
           </h3>
-          <p className="text-xs text-slate-600 max-w-md">{error}</p>
+          <p className="text-xs text-slate-500 max-w-md mb-4">
+            {getErrorMessage(errorType, getFilename(activeTab)).description}
+          </p>
+          
+          {/* Action buttons */}
+          <div className="flex items-center gap-3">
+            {/* Show retry button for recoverable errors */}
+            {(errorType === "network" || errorType === "load_failed" || errorType === "unknown") && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleRetry}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Retry
+              </Button>
+            )}
+            
+            {/* Show download link for large files or as fallback */}
+            {(errorType === "large_file" || errorType === "load_failed") && getDownloadUrl() && (
+              <a
+                href={getDownloadUrl()!}
+                download={getFilename(activeTab)}
+                className="inline-flex items-center gap-2 h-8 px-3 text-xs font-semibold rounded-md border border-[var(--border-default)] bg-[var(--bg-surface-100)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download File
+              </a>
+            )}
+          </div>
         </div>
       ) : (
         <>
@@ -320,6 +432,34 @@ const RunArtifactViewer: React.FC<RunArtifactViewerProps> = ({
         </>
       )}
     </Tabs>
+  );
+};
+
+/**
+ * RunArtifactViewer wrapped in ErrorBoundary for resilience against render errors.
+ * This catches any JavaScript errors that occur during rendering and displays
+ * a fallback UI instead of crashing the whole application.
+ */
+const RunArtifactViewer: React.FC<RunArtifactViewerProps> = (props) => {
+  const [errorBoundaryKey, setErrorBoundaryKey] = useState(0);
+
+  const handleErrorBoundaryRetry = useCallback(() => {
+    // Reset the ErrorBoundary by changing its key
+    setErrorBoundaryKey((prev) => prev + 1);
+  }, []);
+
+  return (
+    <ErrorBoundary
+      key={errorBoundaryKey}
+      title="Unable to load artifacts"
+      onRetry={handleErrorBoundaryRetry}
+      onError={(error, errorInfo) => {
+        console.error("RunArtifactViewer ErrorBoundary caught error:", error);
+        console.error("Component stack:", errorInfo.componentStack);
+      }}
+    >
+      <RunArtifactViewerInner {...props} />
+    </ErrorBoundary>
   );
 };
 
