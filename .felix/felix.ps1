@@ -1899,9 +1899,9 @@ function Show-ApiKeyExpiration {
 function Invoke-Setup {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
 
-    Write-Host "`n════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "`n====================================" -ForegroundColor Cyan
     Write-Host " Felix CLI Setup Wizard" -ForegroundColor Cyan
-    Write-Host "════════════════════════════════════`n" -ForegroundColor Cyan
+    Write-Host "====================================`n" -ForegroundColor Cyan
 
     # Load existing config
     $configPath = Join-Path $RepoRoot ".felix\config.json"
@@ -2021,9 +2021,9 @@ function Invoke-Setup {
         }
     }
 
-    Write-Host "`n════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "`n====================================" -ForegroundColor Cyan
     Write-Host " Setup Complete!" -ForegroundColor Green
-    Write-Host "════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "====================================" -ForegroundColor Cyan
 
     if ($config.sync.enabled) {
         Write-Host "`nSync enabled - runs will mirror to backend" -ForegroundColor Green
