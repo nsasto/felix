@@ -96,6 +96,7 @@ from routers import (
     org_members,
     sync,
     metrics,
+    keys,
 )
 from database.db import startup as db_startup, shutdown as db_shutdown, get_db, database
 from artifact_storage import get_artifact_storage
@@ -160,6 +161,7 @@ app.add_middleware(RequestSizeLimitMiddleware)
 
 # Include routers
 app.include_router(projects.router)
+app.include_router(keys.router)
 app.include_router(files.router)
 app.include_router(runs.router)
 app.include_router(agents.router)

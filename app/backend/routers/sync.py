@@ -44,6 +44,7 @@ from pydantic import BaseModel, Field
 from artifact_storage import get_artifact_storage, ArtifactStorage
 from database.db import get_db
 from middleware.rate_limit import rate_limit_dependency
+from repositories.api_keys import PostgresApiKeyRepository, hash_api_key
 
 
 # ============================================================================
@@ -415,29 +416,12 @@ class ApiKeyInfo(BaseModel):
     """Information about a validated API key."""
 
     key_id: str = Field(..., description="UUID of the api_key record")
-    agent_id: Optional[str] = Field(
-        None, description="Agent ID the key is restricted to (if any)"
-    )
+    project_id: str = Field(..., description="Project ID the key belongs to")
     name: Optional[str] = Field(None, description="Human-readable name of the key")
 
     class Config:
         # Allow arbitrary types for compatibility with database rows
         arbitrary_types_allowed = True
-
-
-def hash_api_key(key: str) -> str:
-    """
-    Hash an API key using SHA256.
-
-    This must match the hashing used in scripts/generate-sync-key.py.
-
-    Args:
-        key: Plain-text API key
-
-    Returns:
-        Hex-encoded SHA256 hash
-    """
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
 async def verify_api_key(
@@ -482,13 +466,9 @@ async def verify_api_key(
     key_hash = hash_api_key(token)
 
     try:
-        # Look up the key in the database
-        query = """
-            SELECT id, agent_id, name, expires_at
-            FROM api_keys
-            WHERE key_hash = :key_hash
-        """
-        row = await db.fetch_one(query, {"key_hash": key_hash})
+        # Use repository to look up the key
+        api_key_repo = PostgresApiKeyRepository(db)
+        row = await api_key_repo.get_by_key_hash(key_hash)
 
         if not row:
             log_sync_warning(
@@ -517,18 +497,13 @@ async def verify_api_key(
                 raise HTTPException(status_code=401, detail="API key has expired")
 
         # Update last_used_at
-        update_query = """
-            UPDATE api_keys
-            SET last_used_at = NOW()
-            WHERE id = :key_id
-        """
-        await db.execute(update_query, {"key_id": row["id"]})
+        await api_key_repo.update_last_used(str(row["id"]))
 
         log_sync_debug("API key validated", key_id=str(row["id"]), key_name=row["name"])
 
         return ApiKeyInfo(
             key_id=str(row["id"]),
-            agent_id=str(row["agent_id"]) if row["agent_id"] else None,
+            project_id=str(row["project_id"]),
             name=row["name"],
         )
 
@@ -613,6 +588,41 @@ async def log_api_key_usage(
             f"Failed to log API key usage: {str(e)}",
             key_id=api_key.key_id,
             endpoint=endpoint,
+        )
+
+
+def require_project_access(api_key: Optional[ApiKeyInfo], project_id: str) -> None:
+    """
+    Require valid API key with access to the specified project.
+
+    This helper enforces project-level authorization:
+    1. API key must be provided (not None)
+    2. API key's project_id must match the requested project_id
+
+    Args:
+        api_key: Validated API key info (from verify_api_key dependency)
+        project_id: Project ID from the request (body or path parameter)
+
+    Raises:
+        HTTPException 401: If no API key provided
+        HTTPException 403: If API key does not have access to this project
+    """
+    if api_key is None:
+        raise HTTPException(
+            status_code=401,
+            detail="API key required. Include 'Authorization: Bearer fsk_xxx' header.",
+        )
+
+    if api_key.project_id != project_id:
+        log_sync_warning(
+            "API key project mismatch",
+            key_id=api_key.key_id,
+            key_project=api_key.project_id,
+            requested_project=project_id,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=f"API key does not have access to project {project_id}",
         )
 
 
@@ -787,6 +797,9 @@ async def create_run(
         db, api_key, "/api/runs", http_request, agent_id=body.agent_id
     )
 
+    # Require API key and validate project access
+    require_project_access(api_key, body.project_id)
+
     try:
         # Generate run ID if not provided
         run_id = body.id or str(uuid.uuid4())
@@ -916,12 +929,15 @@ async def append_events(
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/events", http_request)
 
     try:
-        # Verify run exists
+        # Verify run exists and get project_id for authorization
         run = await db.fetch_one(
-            "SELECT id FROM runs WHERE id = :run_id", {"run_id": run_id}
+            "SELECT id, project_id FROM runs WHERE id = :run_id", {"run_id": run_id}
         )
         if not run:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+        # Require API key and validate project access
+        require_project_access(api_key, run["project_id"])
 
         # Handle empty event list gracefully
         if not events:
@@ -1010,12 +1026,15 @@ async def finish_run(
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/finish", http_request)
 
     try:
-        # Verify run exists
+        # Verify run exists and get project_id for authorization
         run = await db.fetch_one(
-            "SELECT id FROM runs WHERE id = :run_id", {"run_id": run_id}
+            "SELECT id, project_id FROM runs WHERE id = :run_id", {"run_id": run_id}
         )
         if not run:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+        # Require API key and validate project access
+        require_project_access(api_key, run["project_id"])
 
         # Update run record
         update_query = """
@@ -1348,6 +1367,9 @@ async def upload_files(
 
         project_id = str(run["project_id"])
 
+        # Require API key and validate project access
+        require_project_access(api_key, project_id)
+
         # Create lookup for uploaded files by name
         files_by_name = {f.filename: f for f in files}
 
@@ -1547,12 +1569,15 @@ async def list_files(
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/files", http_request)
 
     try:
-        # Verify run exists
+        # Verify run exists and get project_id for authorization
         run = await db.fetch_one(
-            "SELECT id FROM runs WHERE id = :run_id", {"run_id": run_id}
+            "SELECT id, project_id FROM runs WHERE id = :run_id", {"run_id": run_id}
         )
         if not run:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+        # Require API key and validate project access
+        require_project_access(api_key, run["project_id"])
 
         # Query files ordered by kind (artifact first), then path
         query = """
@@ -1659,6 +1684,16 @@ async def download_file(
     try:
         # Validate file path for path traversal attacks
         validate_file_path(file_path, run_id=run_id)
+
+        # Verify run exists and get project_id for authorization
+        run = await db.fetch_one(
+            "SELECT id, project_id FROM runs WHERE id = :run_id", {"run_id": run_id}
+        )
+        if not run:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+        # Require API key and validate project access
+        require_project_access(api_key, run["project_id"])
 
         # Fetch file record
         file_record = await db.fetch_one(
@@ -1790,12 +1825,15 @@ async def list_events(
     await log_api_key_usage(db, api_key, f"/api/runs/{run_id}/events", http_request)
 
     try:
-        # Verify run exists
+        # Verify run exists and get project_id for authorization
         run = await db.fetch_one(
-            "SELECT id FROM runs WHERE id = :run_id", {"run_id": run_id}
+            "SELECT id, project_id FROM runs WHERE id = :run_id", {"run_id": run_id}
         )
         if not run:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+        # Require API key and validate project access
+        require_project_access(api_key, run["project_id"])
 
         # Build query with optional cursor
         if after is not None:
