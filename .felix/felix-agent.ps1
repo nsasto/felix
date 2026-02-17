@@ -103,7 +103,7 @@ if (-not (Test-ProjectStructure -Paths $paths)) {
     exit 1
 }
 
-function Acquire-FelixRunLock {
+function Lock-FelixRun {
     param(
         [Parameter(Mandatory = $true)][string]$LockPath,
         [Parameter(Mandatory = $true)][string]$ProjectPath,
@@ -122,10 +122,10 @@ function Acquire-FelixRunLock {
 
         # Verify each candidate is actually still running (not zombie/exiting)
         $others = @()
-        foreach ($pid in $candidates) {
-            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        foreach ($processId in $candidates) {
+            $proc = Get-Process -Id $processId -ErrorAction SilentlyContinue
             if ($proc) {
-                $others += $pid
+                $others += $processId
             }
         }
 
@@ -139,14 +139,14 @@ function Acquire-FelixRunLock {
                 $response = Read-Host "Kill the existing process and continue? (y/n)"
                 
                 if ($response -eq 'y' -or $response -eq 'Y') {
-                    foreach ($pid in $others) {
+                    foreach ($processId in $others) {
                         try {
-                            Write-Host "Killing process $pid..." -ForegroundColor Yellow
-                            Stop-Process -Id $pid -Force -ErrorAction Stop
+                            Write-Host "Killing process $processId..." -ForegroundColor Yellow
+                            Stop-Process -Id $processId -Force -ErrorAction Stop
                             Start-Sleep -Milliseconds 500
                         }
                         catch {
-                            Write-Host "Failed to kill process $pid`: $_" -ForegroundColor Red
+                            Write-Host "Failed to kill process $processId`: $_" -ForegroundColor Red
                         }
                     }
                     
@@ -319,7 +319,7 @@ function Acquire-FelixRunLock {
     return $null
 }
 
-function Release-FelixRunLock {
+function Unlock-FelixRun {
     param(
         [Parameter(Mandatory = $false)]$LockHandle,
         [Parameter(Mandatory = $true)][string]$LockPath
@@ -344,21 +344,17 @@ $lockPath = Join-Path $paths.FelixDir "run.lock"
 # (felix-cli spawns with redirected stdout/stderr but NOT stdin, so IsInputRedirected returns false)
 $enableInteractiveLock = $SpecBuildMode
 
-$script:FelixRunLockHandle = Acquire-FelixRunLock -LockPath $lockPath -ProjectPath $ProjectPath -RequirementId $RequirementId -Interactive:$enableInteractiveLock
+$script:FelixRunLockHandle = Lock-FelixRun -LockPath $lockPath -ProjectPath $ProjectPath -RequirementId $RequirementId -Interactive:$enableInteractiveLock
 if (-not $script:FelixRunLockHandle) {
     exit 1
 }
 
 try {
     # Extract paths for convenience
-    $SpecsDir = $paths.SpecsDir
     $FelixDir = $paths.FelixDir
-    $RunsDir = $paths.RunsDir
-    $AgentsFile = $paths.AgentsFile
     $ConfigFile = $paths.ConfigFile
     $StateFile = $paths.StateFile
     $RequirementsFile = $paths.RequirementsFile
-    $PromptsDir = $paths.PromptsDir
 
     Emit-Log -Level "debug" -Message "StateFile: $StateFile" -Component "init"
     Emit-Log -Level "debug" -Message "RequirementsFile: $RequirementsFile" -Component "init"
@@ -373,7 +369,6 @@ try {
     Emit-Log -Level "debug" -Message "Config loaded successfully" -Component "init"
 
     $maxIterations = $config.executor.max_iterations
-    $defaultMode = $config.executor.default_mode
 
     # Load agent configuration
     $agentId = if ($config.agent -and $null -ne $config.agent.agent_id) { 
@@ -410,21 +405,47 @@ try {
     $script:SyncReporter = Get-RunReporter -FelixDir $FelixDir
     Emit-Log -Level "debug" -Message "Sync reporter type: $($script:SyncReporter.GetType().Name)" -Component "init"
 
-    # Register agent with sync service (non-blocking, best-effort)
-    try {
-        $syncAgentInfo = @{
-            agent_id   = $agentConfig.id
-            hostname   = $env:COMPUTERNAME
-            platform   = "windows"
-            version    = "0.7"  # Felix version
-            felix_root = $ProjectPath
-        }
-        $script:SyncReporter.RegisterAgent($syncAgentInfo)
-        Emit-Log -Level "debug" -Message "Agent registered with sync service" -Component "sync"
+    # Show sync status to user
+    $isSyncEnabled = $script:SyncReporter.GetType().Name -ne "NoOpReporter"
+    if ($isSyncEnabled) {
+        $syncUrl = $script:SyncReporter.BaseUrl
+        Emit-Log -Level "info" -Message "Sync enabled → $syncUrl" -Component "sync"
     }
-    catch {
-        # Handle registration failures gracefully - log warning but continue execution
-        Emit-Log -Level "warn" -Message "Sync registration failed (non-fatal): $_" -Component "sync"
+
+    # Register agent with sync service (non-blocking, best-effort)
+    if ($isSyncEnabled) {
+        try {
+            # Detect platform dynamically
+            $platform = if ($IsWindows -or $env:OS -match "Windows") {
+                "windows"
+            }
+            elseif ($IsLinux) {
+                "linux"
+            }
+            elseif ($IsMacOS) {
+                "macos"
+            }
+            else {
+                "unknown"
+            }
+            
+            $syncAgentInfo = @{
+                agent_id   = $agentConfig.id.ToString()  # Convert to string for API
+                hostname   = $env:COMPUTERNAME
+                platform   = $platform
+                version    = "0.7"  # Felix version
+                felix_root = $ProjectPath
+                adapter    = $agentConfig.adapter
+                executable = $agentConfig.executable
+                model      = $agentConfig.model
+            }
+            $script:SyncReporter.RegisterAgent($syncAgentInfo)
+            Emit-Log -Level "info" -Message "Agent registered successfully" -Component "sync"
+        }
+        catch {
+            # Handle registration failures gracefully - log warning but continue execution
+            Emit-Log -Level "warn" -Message "Agent registration failed (backend may be unavailable): $_" -Component "sync"
+        }
     }
 
     # Show agent info for spec-builder mode (bypasses event suppression)
@@ -511,15 +532,8 @@ try {
     $state = Initialize-StateForRequirement -State $state -Requirement $currentReq
     Emit-Log -Level "debug" -Message "Completed Initialize-StateForRequirement" -Component "init"
 
-    # Register agent with backend
-    Emit-Log -Level "debug" -Message "About to call Register-Agent" -Component "init"
-    $registrationSucceeded = Register-Agent -AgentId $agentConfig.id -AgentName $agentName -ProcessId $PID -Hostname $env:COMPUTERNAME -BackendBaseUrl $script:BackendBaseUrl
-    Emit-Log -Level "debug" -Message "Completed Register-Agent, success=$registrationSucceeded" -Component "init"
-    if ($registrationSucceeded) {
-        Emit-Log -Level "debug" -Message "Starting heartbeat job" -Component "init"
-        $script:HeartbeatJob = Start-HeartbeatJob -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl
-        Emit-Log -Level "debug" -Message "Heartbeat job started" -Component "init"
-    }
+    # Agent registration now handled by sync reporter (lines 413-440)
+    # No separate heartbeat needed - sync reporter handles all backend communication
 
     Emit-Log -Level "debug" -Message "About to enter main iteration loop (max: $maxIterations)" -Component "init"
     # Main iteration loop
@@ -550,5 +564,5 @@ try {
     Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
 }
 finally {
-    Release-FelixRunLock -LockHandle $script:FelixRunLockHandle -LockPath $lockPath
+    Unlock-FelixRun -LockHandle $script:FelixRunLockHandle -LockPath $lockPath
 }

@@ -71,6 +71,15 @@ $env:FELIX_SYNC_URL = "http://localhost:8080"
 $env:FELIX_SYNC_KEY = "fsk_your_key_here"  # Optional
 ```
 
+**When sync is enabled, you'll see:**
+
+```
+[18:51:16.212] INFO [sync] Sync enabled → http://localhost:8080
+[18:51:16.431] INFO [sync] Agent registered successfully
+```
+
+Artifacts are automatically uploaded to the backend and queued locally if the server is unreachable.
+
 📘 **[Complete setup guide →](HOW_TO_USE.md#run-artifact-sync)**
 
 ---

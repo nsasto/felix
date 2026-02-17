@@ -1304,6 +1304,22 @@ $env:FELIX_SYNC_URL = "http://localhost:8080"
 felix run S-0001
 ```
 
+**Expected output when sync is enabled:**
+
+```
+[18:51:16.212] INFO [sync] Sync enabled → http://localhost:8080
+[18:51:16.431] INFO [sync] Agent registered successfully
+```
+
+If the backend is unavailable, you'll see a warning but the agent continues:
+
+```
+[18:51:16.212] INFO [sync] Sync enabled → http://localhost:8080
+[18:51:16.872] WARN [sync] Agent registration failed (backend may be unavailable): ...
+```
+
+Artifacts will be queued in `.felix/outbox/*.jsonl` and uploaded when the backend becomes available.
+
 **Production:**
 
 ```powershell

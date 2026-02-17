@@ -107,6 +107,15 @@ $env:FELIX_SYNC_KEY = "fsk_your_api_key_here"  # Optional
 - Idempotent: unchanged files skip upload (SHA256 check)
 - Batch upload: all run artifacts in single HTTP request
 
+**Console Output:**
+
+When sync is enabled, agent startup shows:
+
+```
+[18:51:16.212] INFO [sync] Sync enabled → http://localhost:8080
+[18:51:16.431] INFO [sync] Agent registered successfully
+```
+
 **Check Sync Status:**
 
 - Pending uploads: `ls .felix\outbox\*.jsonl`
@@ -204,14 +213,14 @@ If you see many files, the agent is queuing uploads but cannot reach the backend
 
 ### Common Errors and Solutions
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| 401 Unauthorized | Invalid or expired API key | Generate new key with `python scripts/generate-sync-key.py`, update FELIX_SYNC_KEY |
-| 429 Too Many Requests | Rate limit exceeded (100 req/min) | Wait for rate limit reset (shown in X-RateLimit-Reset header), reduce sync frequency |
-| 503 Service Unavailable | Backend or storage unavailable | Check backend health at /health endpoint, verify database/storage connectivity |
-| Connection refused | Backend not running | Start backend with `python app/backend/main.py` |
-| Timeout errors | Network issues or large uploads | Check network, retry will happen automatically with exponential backoff |
-| "Invalid configuration" warning | Missing FELIX_SYNC_URL | Set FELIX_SYNC_URL environment variable or configure in **.felix/config.json** |
+| Error                           | Cause                             | Solution                                                                             |
+| ------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------ |
+| 401 Unauthorized                | Invalid or expired API key        | Generate new key with `python scripts/generate-sync-key.py`, update FELIX_SYNC_KEY   |
+| 429 Too Many Requests           | Rate limit exceeded (100 req/min) | Wait for rate limit reset (shown in X-RateLimit-Reset header), reduce sync frequency |
+| 503 Service Unavailable         | Backend or storage unavailable    | Check backend health at /health endpoint, verify database/storage connectivity       |
+| Connection refused              | Backend not running               | Start backend with `python app/backend/main.py`                                      |
+| Timeout errors                  | Network issues or large uploads   | Check network, retry will happen automatically with exponential backoff              |
+| "Invalid configuration" warning | Missing FELIX_SYNC_URL            | Set FELIX_SYNC_URL environment variable or configure in **.felix/config.json**       |
 
 ### Managing Large Outbox Queue
 
@@ -219,23 +228,25 @@ When the outbox grows large (many unsynced files):
 
 1. **Manual flush** - restart the agent to trigger sync retry
 2. **Clear stale files** - if files are corrupted or no longer needed:
+
    ```powershell
    # View file contents first
    Get-Content .felix\outbox\<filename>.jsonl | ConvertFrom-Json
-   
+
    # Remove specific stale file (use with caution)
    Remove-Item .felix\outbox\<filename>.jsonl
    ```
+
 3. **Check logs** - review **.felix/sync.log** for error details
 
 ### Environment Variable Reference
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| FELIX_SYNC_ENABLED | Enable/disable sync (true/false) | false |
-| FELIX_SYNC_URL | Backend URL for sync API | none (required if enabled) |
-| FELIX_SYNC_KEY | API key for authentication (fsk_...) | none (optional) |
-| FELIX_SYNC_MAX_RETRIES | Max retry attempts for failed requests | 5 |
+| Variable               | Description                            | Default                    |
+| ---------------------- | -------------------------------------- | -------------------------- |
+| FELIX_SYNC_ENABLED     | Enable/disable sync (true/false)       | false                      |
+| FELIX_SYNC_URL         | Backend URL for sync API               | none (required if enabled) |
+| FELIX_SYNC_KEY         | API key for authentication (fsk\_...)  | none (optional)            |
+| FELIX_SYNC_MAX_RETRIES | Max retry attempts for failed requests | 5                          |
 
 ### Configuration Examples
 
