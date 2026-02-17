@@ -61,7 +61,7 @@ When enabled, Felix automatically mirrors run artifacts (plans, logs, diffs) to 
     "enabled": true,
     "provider": "fastapi",
     "base_url": "http://localhost:8080",
-    "api_key": null // Optional: generate with scripts/generate-sync-key.py
+    "api_key": "fsk_your_api_key_here" // Required: generate in Settings → API Keys
   }
 }
 ```
@@ -71,7 +71,7 @@ Or use environment variables (overrides config):
 ```powershell
 $env:FELIX_SYNC_ENABLED = "true"
 $env:FELIX_SYNC_URL = "http://localhost:8080"
-$env:FELIX_SYNC_KEY = "fsk_your_key_here"  # Optional
+$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"  # Required when sync enabled
 ```
 
 Or use the `--sync` flag for temporary override (single run only):

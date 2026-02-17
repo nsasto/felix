@@ -1273,7 +1273,7 @@ When sync is enabled, Felix automatically uploads:
     "enabled": true,
     "provider": "fastapi",
     "base_url": "http://localhost:8080",
-    "api_key": null
+    "api_key": "fsk_your_api_key_here" // Required: generate in Settings → API Keys
   }
 }
 ```
@@ -1285,7 +1285,7 @@ When sync is enabled, Felix automatically uploads:
 $env:FELIX_SYNC_ENABLED = "true"
 $env:FELIX_SYNC_URL = "http://localhost:8080"
 
-# Optional: API key for authentication
+# Required when sync enabled: API key for authentication
 $env:FELIX_SYNC_KEY = "fsk_your_api_key_here"
 
 # Optional: configure max retry attempts (default: 5)
@@ -1300,9 +1300,17 @@ $env:FELIX_SYNC_MAX_RETRIES = "10"
 # Start backend first
 python app/backend/main.py
 
-# Enable sync (no API key needed for local dev)
+# Generate API key via UI:
+# 1. Open http://localhost:3000
+# 2. Select your project
+# 3. Go to Settings → API Keys
+# 4. Click "New Key"
+# 5. Copy the generated key (fsk_...)
+
+# Configure sync with API key
 $env:FELIX_SYNC_ENABLED = "true"
 $env:FELIX_SYNC_URL = "http://localhost:8080"
+$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"
 
 # Run agent
 felix run S-0001
@@ -1327,8 +1335,12 @@ Artifacts will be queued in `.felix/outbox/*.jsonl` and uploaded when the backen
 **Production:**
 
 ```powershell
-# Generate API key
-python scripts/generate-sync-key.py
+# Generate API key via UI:
+# 1. Open https://felix.example.com
+# 2. Select your project
+# 3. Go to Settings → API Keys
+# 4. Click "New Key" and set expiration
+# 5. Copy the generated key (fsk_...)
 
 # Configure sync with key
 $env:FELIX_SYNC_ENABLED = "true"
@@ -1418,8 +1430,12 @@ _Cause:_ Invalid or expired API key
 _Solution:_
 
 ```powershell
-# Generate new key
-python scripts/generate-sync-key.py
+# Generate new key via UI:
+# 1. Open Felix UI at http://localhost:3000
+# 2. Navigate to Settings → API Keys
+# 3. Revoke old key if present
+# 4. Click "New Key" to generate fresh key
+# 5. Copy the generated key
 
 # Update environment variable
 $env:FELIX_SYNC_KEY = "fsk_new_key_here"
