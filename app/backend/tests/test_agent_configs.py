@@ -5,6 +5,7 @@ These tests validate:
 1. CRUD operations for agent configurations
 2. Active agent selection behavior
 """
+
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from auth import get_current_user
@@ -22,7 +24,9 @@ from main import app
 @pytest.fixture
 def mock_db():
     mock_database = MagicMock()
-    mock_database.fetch_one = AsyncMock(return_value={"metadata": {"active_agent_profile_id": "profile-1"}})
+    mock_database.fetch_one = AsyncMock(
+        return_value={"metadata": {"active_agent_profile_id": "profile-1"}}
+    )
     mock_database.execute = AsyncMock(return_value=None)
     return mock_database
 
@@ -38,8 +42,12 @@ def client(mock_db):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
 
-    with TestClient(app) as test_client:
-        yield test_client
+    # Mock database startup/shutdown to avoid real connections
+    with patch("main.db_startup", new_callable=AsyncMock), patch(
+        "main.db_shutdown", new_callable=AsyncMock
+    ):
+        with TestClient(app) as test_client:
+            yield test_client
 
     app.dependency_overrides.clear()
 
@@ -68,7 +76,9 @@ def _profile(profile_id: str, name: str = "profile"):
 
 class TestGetAgentConfigs:
     def test_get_agents_returns_profiles_and_active(self, client, mock_db, mock_repo):
-        mock_repo.list_by_org = AsyncMock(return_value=[_profile("profile-1", "primary")])
+        mock_repo.list_by_org = AsyncMock(
+            return_value=[_profile("profile-1", "primary")]
+        )
 
         response = client.get("/api/agent-configs")
 
@@ -105,7 +115,12 @@ class TestCreateAgentConfig:
 
 class TestUpdateAgentConfig:
     def test_update_agent_uses_repo(self, client, mock_repo):
-        mock_repo.get_by_id = AsyncMock(side_effect=[_profile("profile-1", "before"), _profile("profile-1", "after")])
+        mock_repo.get_by_id = AsyncMock(
+            side_effect=[
+                _profile("profile-1", "before"),
+                _profile("profile-1", "after"),
+            ]
+        )
         mock_repo.update_profile = AsyncMock(return_value=None)
 
         response = client.put(
@@ -134,7 +149,9 @@ class TestSetActiveAgent:
     def test_set_active_agent_updates_org_metadata(self, client, mock_db, mock_repo):
         mock_repo.get_by_id = AsyncMock(return_value=_profile("profile-9", "active"))
 
-        response = client.post("/api/agent-configs/active", json={"agent_id": "profile-9"})
+        response = client.post(
+            "/api/agent-configs/active", json={"agent_id": "profile-9"}
+        )
 
         assert response.status_code == 200
         assert response.json()["agent_id"] == "profile-9"
