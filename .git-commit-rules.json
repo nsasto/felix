@@ -15,7 +15,7 @@
       "name": "Strip Droid co-author trailer",
       "enabled": true,
       "type": "regex-replace",
-      "pattern": "(?m)^[ \\t]*Co-authored-by:\\s*Droid\\b.*\\r?\\n?",
+      "pattern": "(?m)^[ \\t]*Co-authored-by:.*[Dd]roid.*\\r?\\n?",
       "replacement": ""
     },
     {

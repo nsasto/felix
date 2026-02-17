@@ -146,3 +146,22 @@ export interface RunFile {
   /** When file was last updated (ISO string) */
   updated_at: string;
 }
+
+/**
+ * Information about a run event from the sync API.
+ * Matches EventInfo in backend routers/sync.py.
+ */
+export interface RunEvent {
+  /** Event ID (auto-incremented integer) */
+  id: number;
+  /** Event timestamp (ISO string) */
+  ts: string;
+  /** Event type (e.g., 'started', 'task_completed', 'error') */
+  type: string;
+  /** Event level ('info', 'warn', 'error', 'debug') */
+  level: string;
+  /** Event message (optional) */
+  message: string | null;
+  /** Event payload as JSON object (optional) */
+  payload: Record<string, unknown> | null;
+}

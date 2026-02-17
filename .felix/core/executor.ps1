@@ -1178,32 +1178,22 @@ function Commit-TaskChanges {
         }
         if ($shouldCommit) {
             $commitMsg = "Felix: $TaskDesc"
-            $prevErrorAction = $ErrorActionPreference
-            $ErrorActionPreference = "Continue"
+            Push-Location $ProjectPath
             try {
-                Push-Location $ProjectPath
-                try {
-                    $commitOutput = git commit -m $commitMsg 2>&1
+                $success = Invoke-GitCommit -Message $commitMsg
+                if ($success) {
+                    $commitHash = git rev-parse --short HEAD 2>$null
+                    Emit-Log -Level "info" -Message "Changes committed: $commitHash - $commitMsg" -Component "commit"
                 }
-                finally {
-                    Pop-Location
+                else {
+                    Emit-Error -ErrorType "GitCommitFailed" -Message "Failed to commit changes" -Severity "error"
                 }
+            }
+            catch {
+                Emit-Error -ErrorType "GitCommitFailed" -Message "Failed to commit changes: $($_.Exception.Message)" -Severity "error"
             }
             finally {
-                $ErrorActionPreference = $prevErrorAction
-            }
-            if ($LASTEXITCODE -eq 0) {
-                Push-Location $ProjectPath
-                try {
-                    $commitHash = git rev-parse --short HEAD 2>$null
-                }
-                finally {
-                    Pop-Location
-                }
-                Emit-Log -Level "info" -Message "Changes committed: $commitHash - $commitMsg" -Component "commit"
-            }
-            else {
-                Emit-Error -ErrorType "GitCommitFailed" -Message "Failed to commit changes: $commitOutput" -Severity "error"
+                Pop-Location
             }
         }
     }
