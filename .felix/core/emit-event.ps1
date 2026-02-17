@@ -67,19 +67,10 @@ function Emit-Event {
     }
     
     # Convert to JSON and write to stdout
-    # CRITICAL: Write directly to stdout stream to avoid PowerShell buffering
     $json = $event | ConvertTo-Json -Compress -Depth 10
     
-    # Direct write to stdout with immediate flush for subprocess compatibility
-    try {
-        $stdout = [Console]::Out
-        $stdout.WriteLine($json)
-        $stdout.Flush()
-    }
-    catch {
-        # Fallback to Write-Output if direct console access fails
-        Write-Output $json
-    }
+    # Use [Console]::WriteLine for speed + subprocess compatibility
+    [Console]::WriteLine($json)
 }
 
 function Emit-Log {
