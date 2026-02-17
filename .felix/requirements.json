@@ -303,7 +303,7 @@
                              "id":  "S-0064",
                              "title":  "S-0064: Run Artifact Sync - Production Readiness",
                              "spec_path":  "specs/S-0064-runs-sync-production-readiness.md",
-                             "status":  "planned",
+                             "status":  "complete",
                              "priority":  "medium",
                              "tags":  [
 

@@ -38,6 +38,7 @@ $ErrorActionPreference = "Stop"
 try {
     . "$PSScriptRoot/core/emit-event.ps1"
     . "$PSScriptRoot/core/compat-utils.ps1"
+    . "$PSScriptRoot/core/text-utils.ps1"
     . "$PSScriptRoot/core/agent-state.ps1"
     . "$PSScriptRoot/core/git-manager.ps1"
     . "$PSScriptRoot/core/state-manager.ps1"

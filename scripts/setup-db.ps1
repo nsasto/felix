@@ -117,7 +117,7 @@ catch {
     Write-Host "ERROR: Cannot connect to PostgreSQL server." -ForegroundColor Red
     Write-Host "Please ensure PostgreSQL is running on localhost:5432 or specify -DataDir/PGDATA to point to your data directory." -ForegroundColor Yellow
     if ($pgCtlExe) {
-        $dd = $DataDir -or '<PGDATA path>'
+        $dd = if ($DataDir) { $DataDir } else { '<PGDATA path>' }
         Write-Host "Start it with: $pgCtlExe -D $dd start" -ForegroundColor Yellow
     }
     else {

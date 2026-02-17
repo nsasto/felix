@@ -1177,7 +1177,9 @@ function Commit-TaskChanges {
             $shouldCommit = $Config.executor.commit_on_complete -and -not $NoCommit
         }
         if ($shouldCommit) {
-            $commitMsg = "Felix: $TaskDesc"
+            # Format task description for git commit (strip markdown, convert escape sequences)
+            $formattedTaskDesc = Format-PlainText -Text $TaskDesc
+            $commitMsg = "Felix: $formattedTaskDesc"
             Push-Location $ProjectPath
             try {
                 $success = Invoke-GitCommit -Message $commitMsg
