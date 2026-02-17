@@ -69,21 +69,60 @@ class FastApiReporter : IRunReporter {
     [string]$FelixDir
     [string]$LogPath
     [int]$MaxLogSizeBytes = 5242880  # 5MB max log size
+    [bool]$IsConfigValid = $false
     
     FastApiReporter([hashtable]$config, [string]$felixDir) {
-        $this.BaseUrl = $config.base_url
-        $this.ApiKey = $config.api_key
         $this.FelixDir = $felixDir
         $this.OutboxPath = Join-Path $felixDir "outbox"
         $this.LogPath = Join-Path $felixDir "sync.log"
         
-        # Create outbox directory if it doesn't exist
-        if (-not (Test-Path $this.OutboxPath)) {
-            New-Item -ItemType Directory -Path $this.OutboxPath -Force | Out-Null
-            Write-Verbose "Created outbox directory at $($this.OutboxPath)"
+        # Validate configuration
+        $configErrors = @()
+        
+        if (-not $config) {
+            $configErrors += "Configuration is null or empty"
+        }
+        else {
+            if (-not $config.base_url) {
+                $configErrors += "Missing required 'base_url' in sync configuration"
+            }
+            elseif ($config.base_url -notmatch '^https?://') {
+                $configErrors += "Invalid 'base_url': must start with http:// or https://"
+            }
+            else {
+                $this.BaseUrl = $config.base_url
+            }
+            
+            $this.ApiKey = $config.api_key  # Optional, can be null
         }
         
-        Write-Verbose "FastApiReporter initialized - BaseUrl: $($this.BaseUrl)"
+        if ($configErrors.Count -gt 0) {
+            $errorMsg = "Sync plugin configuration error: $($configErrors -join '; ')"
+            $this.WriteLog("ERROR", $errorMsg)
+            Write-Warning $errorMsg
+            Write-Warning "Sync requests will be queued locally but will fail to send until configuration is fixed."
+            Write-Warning "Required configuration: { `"base_url`": `"http://your-server:8080`" } in .felix/config.json under sync.provider_config"
+            $this.IsConfigValid = $false
+        }
+        else {
+            $this.IsConfigValid = $true
+        }
+        
+        # Create outbox directory if it doesn't exist
+        try {
+            if (-not (Test-Path $this.OutboxPath)) {
+                New-Item -ItemType Directory -Path $this.OutboxPath -Force | Out-Null
+                Write-Verbose "Created outbox directory at $($this.OutboxPath)"
+            }
+        }
+        catch {
+            $this.WriteLog("ERROR", "Failed to create outbox directory: $_")
+            Write-Warning "Failed to create outbox directory: $_"
+        }
+        
+        if ($this.IsConfigValid) {
+            Write-Verbose "FastApiReporter initialized - BaseUrl: $($this.BaseUrl)"
+        }
     }
     
     #region Logging with Rotation
@@ -127,130 +166,172 @@ class FastApiReporter : IRunReporter {
     #endregion
     
     [void] RegisterAgent([hashtable]$agentInfo) {
-        $request = @{
-            method   = "POST"
-            endpoint = "/api/agents/register"
-            body     = $agentInfo
+        try {
+            $request = @{
+                method   = "POST"
+                endpoint = "/api/agents/register"
+                body     = $agentInfo
+            }
+            
+            $this.QueueRequest($request)
+            $this.TrySendOutbox()
         }
-        
-        $this.QueueRequest($request)
-        $this.TrySendOutbox()
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue agent registration: $_")
+            # Don't rethrow - prevent agent crash
+        }
     }
     
     [string] StartRun([hashtable]$metadata) {
-        # Generate client-side UUID for run_id
+        # Generate client-side UUID for run_id - always do this even if queueing fails
         $runId = [System.Guid]::NewGuid().ToString()
         
-        # Add run_id to metadata
-        $metadata["id"] = $runId
-        
-        $request = @{
-            method   = "POST"
-            endpoint = "/api/runs"
-            body     = $metadata
+        try {
+            # Add run_id to metadata
+            $metadata["id"] = $runId
+            
+            $request = @{
+                method   = "POST"
+                endpoint = "/api/runs"
+                body     = $metadata
+            }
+            
+            $this.QueueRequest($request)
+            $this.TrySendOutbox()
         }
-        
-        $this.QueueRequest($request)
-        $this.TrySendOutbox()
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue run start for $runId`: $_")
+            # Don't rethrow - return runId so agent can continue
+        }
         
         return $runId
     }
     
     [void] AppendEvent([hashtable]$event) {
-        # Extract run_id from event if present
-        $runId = $event["run_id"]
-        if (-not $runId) {
-            Write-Warning "AppendEvent called without run_id in event"
-            return
+        try {
+            # Extract run_id from event if present
+            $runId = $event["run_id"]
+            if (-not $runId) {
+                $this.WriteLog("WARNING", "AppendEvent called without run_id in event")
+                return
+            }
+            
+            $this.AppendToRunOutbox($runId, $event)
         }
-        
-        $this.AppendToRunOutbox($runId, $event)
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue event: $_")
+            # Don't rethrow - prevent agent crash
+        }
     }
     
     [void] FinishRun([string]$runId, [hashtable]$result) {
-        # First flush any pending events for this run
-        $this.FlushRunEvents($runId)
-        
-        $request = @{
-            method   = "POST"
-            endpoint = "/api/runs/$runId/finish"
-            body     = $result
+        try {
+            # First flush any pending events for this run
+            $this.FlushRunEvents($runId)
+            
+            $request = @{
+                method   = "POST"
+                endpoint = "/api/runs/$runId/finish"
+                body     = $result
+            }
+            
+            $this.QueueRequest($request)
+            $this.Flush()
         }
-        
-        $this.QueueRequest($request)
-        $this.Flush()
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue run finish for $runId`: $_")
+            # Don't rethrow - prevent agent crash
+        }
     }
     
     [void] UploadArtifact([string]$runId, [string]$relativePath, [string]$localPath) {
-        if (-not (Test-Path $localPath)) {
-            Write-Warning "Artifact file not found: $localPath"
-            return
+        try {
+            if (-not (Test-Path $localPath)) {
+                $this.WriteLog("WARNING", "Artifact file not found: $localPath")
+                return
+            }
+            
+            # Calculate SHA256 hash
+            $sha256 = $this.CalculateSHA256($localPath)
+            $fileInfo = Get-Item $localPath
+            
+            $fileEntry = @{
+                path         = $relativePath
+                local_path   = $localPath
+                sha256       = $sha256
+                size_bytes   = $fileInfo.Length
+                content_type = Get-ContentType -Path $localPath
+            }
+            
+            # Queue as single file batch upload
+            $this.QueueBatchUpload($runId, @($fileEntry))
         }
-        
-        # Calculate SHA256 hash
-        $sha256 = $this.CalculateSHA256($localPath)
-        $fileInfo = Get-Item $localPath
-        
-        $fileEntry = @{
-            path         = $relativePath
-            local_path   = $localPath
-            sha256       = $sha256
-            size_bytes   = $fileInfo.Length
-            content_type = Get-ContentType -Path $localPath
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue artifact upload for $relativePath`: $_")
+            # Don't rethrow - prevent agent crash
         }
-        
-        # Queue as single file batch upload
-        $this.QueueBatchUpload($runId, @($fileEntry))
     }
     
     [void] UploadRunFolder([string]$runId, [string]$runFolderPath) {
-        if (-not (Test-Path $runFolderPath)) {
-            Write-Warning "Run folder not found: $runFolderPath"
-            return
-        }
-        
-        # Standard artifacts to look for
-        $standardArtifacts = @(
-            "plan-*.md",
-            "report.md",
-            "output.log",
-            "output.txt",
-            "prompt.md",
-            "prompt.txt",
-            "*.patch",
-            "context.md",
-            "context.txt"
-        )
-        
-        $files = @()
-        
-        foreach ($pattern in $standardArtifacts) {
-            $matches = Get-ChildItem -Path $runFolderPath -Filter $pattern -File -ErrorAction SilentlyContinue
-            foreach ($match in $matches) {
-                $relativePath = $match.Name
-                $sha256 = $this.CalculateSHA256($match.FullName)
-                
-                $files += @{
-                    path         = $relativePath
-                    local_path   = $match.FullName
-                    sha256       = $sha256
-                    size_bytes   = $match.Length
-                    content_type = Get-ContentType -Path $match.FullName
+        try {
+            if (-not (Test-Path $runFolderPath)) {
+                $this.WriteLog("WARNING", "Run folder not found: $runFolderPath")
+                return
+            }
+            
+            # Standard artifacts to look for
+            $standardArtifacts = @(
+                "plan-*.md",
+                "report.md",
+                "output.log",
+                "output.txt",
+                "prompt.md",
+                "prompt.txt",
+                "*.patch",
+                "context.md",
+                "context.txt"
+            )
+            
+            $files = @()
+            
+            foreach ($pattern in $standardArtifacts) {
+                $matches = Get-ChildItem -Path $runFolderPath -Filter $pattern -File -ErrorAction SilentlyContinue
+                foreach ($match in $matches) {
+                    $relativePath = $match.Name
+                    $sha256 = $this.CalculateSHA256($match.FullName)
+                    
+                    $files += @{
+                        path         = $relativePath
+                        local_path   = $match.FullName
+                        sha256       = $sha256
+                        size_bytes   = $match.Length
+                        content_type = Get-ContentType -Path $match.FullName
+                    }
                 }
             }
+            
+            if ($files.Count -gt 0) {
+                $this.QueueBatchUpload($runId, $files)
+                Write-Verbose "Queued $($files.Count) artifacts from run folder"
+            }
+            else {
+                Write-Verbose "No standard artifacts found in run folder"
+            }
         }
-        
-        if ($files.Count -gt 0) {
-            $this.QueueBatchUpload($runId, $files)
-            Write-Verbose "Queued $($files.Count) artifacts from run folder"
-        }
-        else {
-            Write-Verbose "No standard artifacts found in run folder"
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue run folder upload for $runId`: $_")
+            # Don't rethrow - prevent agent crash
         }
     }
     
     [void] Flush() {
-        $this.TrySendOutbox()
+        try {
+            $this.TrySendOutbox()
+        }
+        catch {
+            $this.WriteLog("WARNING", "Error during outbox flush: $_")
+            # Don't rethrow - prevent agent crash
+        }
     }
     
     #region Helper Methods
@@ -267,92 +348,131 @@ class FastApiReporter : IRunReporter {
                 $stream.Close()
             }
         }
+        catch {
+            $this.WriteLog("WARNING", "Failed to calculate SHA256 for $filePath`: $_")
+            throw  # Re-throw - caller needs to handle missing hash
+        }
         finally {
             $hasher.Dispose()
         }
     }
     
     hidden [void] QueueRequest([hashtable]$request) {
-        # Add timestamp for ordering
-        $request["timestamp"] = [System.DateTime]::UtcNow.ToString("o")
-        
-        # Filename format: {timestamp}.jsonl
-        $timestamp = [System.DateTime]::UtcNow.ToString("yyyyMMddHHmmssfff")
-        $filename = "$timestamp.jsonl"
-        $filePath = Join-Path $this.OutboxPath $filename
-        
-        $json = $request | ConvertTo-Json -Depth 10 -Compress
-        Add-Content -Path $filePath -Value $json -Encoding UTF8
-        
-        Write-Verbose "Queued request to $($request.endpoint)"
+        try {
+            # Add timestamp for ordering
+            $request["timestamp"] = [System.DateTime]::UtcNow.ToString("o")
+            
+            # Filename format: {timestamp}.jsonl
+            $timestamp = [System.DateTime]::UtcNow.ToString("yyyyMMddHHmmssfff")
+            $filename = "$timestamp.jsonl"
+            $filePath = Join-Path $this.OutboxPath $filename
+            
+            $json = $request | ConvertTo-Json -Depth 10 -Compress
+            Add-Content -Path $filePath -Value $json -Encoding UTF8
+            
+            Write-Verbose "Queued request to $($request.endpoint)"
+        }
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue request to $($request.endpoint): $_")
+            throw  # Re-throw to let caller handle it
+        }
     }
     
     hidden [void] QueueBatchUpload([string]$runId, [array]$files) {
-        # Batch upload filename format: {timestamp}-batch-upload.jsonl
-        $timestamp = [System.DateTime]::UtcNow.ToString("yyyyMMddHHmmssfff")
-        $filename = "$timestamp-batch-upload.jsonl"
-        $filePath = Join-Path $this.OutboxPath $filename
-        
-        $request = @{
-            timestamp = [System.DateTime]::UtcNow.ToString("o")
-            run_id    = $runId
-            files     = $files
+        try {
+            # Batch upload filename format: {timestamp}-batch-upload.jsonl
+            $timestamp = [System.DateTime]::UtcNow.ToString("yyyyMMddHHmmssfff")
+            $filename = "$timestamp-batch-upload.jsonl"
+            $filePath = Join-Path $this.OutboxPath $filename
+            
+            $request = @{
+                timestamp = [System.DateTime]::UtcNow.ToString("o")
+                run_id    = $runId
+                files     = $files
+            }
+            
+            $json = $request | ConvertTo-Json -Depth 10 -Compress
+            Add-Content -Path $filePath -Value $json -Encoding UTF8
+            
+            Write-Verbose "Queued batch upload for run $runId with $($files.Count) files"
         }
-        
-        $json = $request | ConvertTo-Json -Depth 10 -Compress
-        Add-Content -Path $filePath -Value $json -Encoding UTF8
-        
-        Write-Verbose "Queued batch upload for run $runId with $($files.Count) files"
+        catch {
+            $this.WriteLog("WARNING", "Failed to queue batch upload for run $runId`: $_")
+            throw  # Re-throw to let caller handle it
+        }
     }
     
     hidden [void] AppendToRunOutbox([string]$runId, [hashtable]$event) {
-        # Run-specific events use filename: run-{runId}.jsonl
-        $filename = "run-$runId.jsonl"
-        $filePath = Join-Path $this.OutboxPath $filename
-        
-        # Add timestamp if not present
-        if (-not $event["timestamp"]) {
-            $event["timestamp"] = [System.DateTime]::UtcNow.ToString("o")
+        try {
+            # Run-specific events use filename: run-{runId}.jsonl
+            $filename = "run-$runId.jsonl"
+            $filePath = Join-Path $this.OutboxPath $filename
+            
+            # Add timestamp if not present
+            if (-not $event["timestamp"]) {
+                $event["timestamp"] = [System.DateTime]::UtcNow.ToString("o")
+            }
+            
+            $json = $event | ConvertTo-Json -Depth 10 -Compress
+            Add-Content -Path $filePath -Value $json -Encoding UTF8
+            
+            Write-Verbose "Appended event to run outbox: $runId"
         }
-        
-        $json = $event | ConvertTo-Json -Depth 10 -Compress
-        Add-Content -Path $filePath -Value $json -Encoding UTF8
-        
-        Write-Verbose "Appended event to run outbox: $runId"
+        catch {
+            $this.WriteLog("WARNING", "Failed to append event to run outbox $runId`: $_")
+            throw  # Re-throw to let caller handle it
+        }
     }
     
     hidden [void] FlushRunEvents([string]$runId) {
-        # Check for run-specific event file
-        $filename = "run-$runId.jsonl"
-        $filePath = Join-Path $this.OutboxPath $filename
-        
-        if (-not (Test-Path $filePath)) {
-            return
-        }
-        
-        # Read all events from the file
-        $events = @()
-        $lines = Get-Content -Path $filePath -Encoding UTF8 -ErrorAction SilentlyContinue
-        foreach ($line in $lines) {
-            if ($line.Trim()) {
-                try {
-                    $events += ($line | ConvertFrom-Json)
-                }
-                catch {
-                    Write-Warning "Failed to parse event line: $line"
-                }
-            }
-        }
-        
-        if ($events.Count -gt 0) {
-            # Send events batch
-            $success = $this.SendJsonRequest("POST", "/api/runs/$runId/events", @{ events = $events })
+        try {
+            # Check for run-specific event file
+            $filename = "run-$runId.jsonl"
+            $filePath = Join-Path $this.OutboxPath $filename
             
-            if ($success) {
-                # Delete the run events file
-                Remove-Item -Path $filePath -Force -ErrorAction SilentlyContinue
-                Write-Verbose "Flushed $($events.Count) events for run $runId"
+            if (-not (Test-Path $filePath)) {
+                return
             }
+            
+            # Read all events from the file
+            $events = @()
+            $skippedLines = 0
+            $lines = Get-Content -Path $filePath -Encoding UTF8 -ErrorAction SilentlyContinue
+            foreach ($line in $lines) {
+                if ($line.Trim()) {
+                    try {
+                        $events += ($line | ConvertFrom-Json)
+                    }
+                    catch {
+                        $skippedLines++
+                        $this.WriteLog("WARNING", "Skipping corrupted event line in run-$runId.jsonl")
+                    }
+                }
+            }
+            
+            if ($skippedLines -gt 0) {
+                $this.WriteLog("WARNING", "Skipped $skippedLines corrupted event lines for run $runId")
+            }
+            
+            if ($events.Count -gt 0) {
+                # Send events batch
+                $success = $this.SendJsonRequest("POST", "/api/runs/$runId/events", @{ events = $events })
+                
+                if ($success) {
+                    # Delete the run events file
+                    Remove-Item -Path $filePath -Force -ErrorAction SilentlyContinue
+                    Write-Verbose "Flushed $($events.Count) events for run $runId"
+                }
+            }
+            elseif ($skippedLines -gt 0 -and $events.Count -eq 0) {
+                # All lines were corrupted - remove the file to prevent repeated failures
+                $this.WriteLog("WARNING", "All events in run-$runId.jsonl were corrupted - removing file")
+                Remove-Item -Path $filePath -Force -ErrorAction SilentlyContinue
+            }
+        }
+        catch {
+            $this.WriteLog("WARNING", "Error flushing events for run $runId`: $_")
+            # Don't rethrow - continue with other operations
         }
     }
     
@@ -403,10 +523,28 @@ class FastApiReporter : IRunReporter {
     }
     
     hidden [void] TrySendOutbox() {
+        # Check if config is valid before attempting to send
+        if (-not $this.IsConfigValid) {
+            # Silently skip sending - requests remain queued for when config is fixed
+            Write-Verbose "Sync config invalid - requests remain queued in outbox"
+            return
+        }
+        
         # List all .jsonl files in outbox sorted by name (oldest first)
-        $outboxFiles = Get-ChildItem -Path $this.OutboxPath -Filter "*.jsonl" -File -ErrorAction SilentlyContinue | 
-            Where-Object { $_.Name -notlike "run-*.jsonl" } |  # Skip run event files (handled by FlushRunEvents)
-            Sort-Object Name
+        $outboxFiles = $null
+        try {
+            $outboxFiles = Get-ChildItem -Path $this.OutboxPath -Filter "*.jsonl" -File -ErrorAction SilentlyContinue | 
+                Where-Object { $_.Name -notlike "run-*.jsonl" } |  # Skip run event files (handled by FlushRunEvents)
+                Sort-Object Name
+        }
+        catch {
+            $this.WriteLog("WARNING", "Failed to list outbox files: $_")
+            return
+        }
+        
+        if (-not $outboxFiles -or $outboxFiles.Count -eq 0) {
+            return
+        }
         
         $maxRetries = $this.GetMaxRetries()
         
@@ -502,17 +640,21 @@ class FastApiReporter : IRunReporter {
                 }
             }
             elseif ($isPermanentFailure) {
-                # Permanent failure - keep file in outbox but log and continue to next file
-                $this.WriteLog("ERROR", "Permanent failure for $($file.Name) - file remains in outbox for investigation")
-                Write-Warning "Permanent error for $($file.Name) - file remains in outbox"
+                # Check if this was a corrupt JSON file - skip it and continue to next
+                if ($lastError -match "Corrupt JSON") {
+                    $this.WriteLog("WARNING", "Skipping corrupted outbox file $($file.Name) - file will be retained for investigation")
+                    # Continue to next file - corrupted files won't magically fix themselves
+                    continue
+                }
+                # Permanent API failure - keep file in outbox but continue to next file
+                $this.WriteLog("WARNING", "Permanent API failure for $($file.Name) - file remains in outbox")
                 # Continue to next file - don't block other requests
             }
             else {
-                # Transient failure after max retries - keep file in outbox and stop processing
-                $this.WriteLog("ERROR", "Max retries ($maxRetries) exceeded for $($file.Name) - file remains in outbox")
-                Write-Warning "Failed to process $($file.Name) after $maxRetries attempts - will retry later"
-                # Break loop to preserve ordering for remaining files
-                break
+                # Transient failure after max retries - keep file in outbox
+                $this.WriteLog("WARNING", "Max retries ($maxRetries) exceeded for $($file.Name) - file remains in outbox, will retry later")
+                # Don't break - continue trying other files that might succeed
+                # This is more resilient than blocking all syncs when one file fails
             }
         }
     }
