@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { marked } from "marked";
 import { PageLoading } from "./ui/page-loading";
 import { Button } from "./ui/button";
@@ -21,6 +21,7 @@ import {
   AlertTriangle as IconAlertTriangle,
   Info as IconInfo,
   Bug as IconBug,
+  ChevronUp,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -62,6 +63,12 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const eventTimelineRef = useRef<HTMLDivElement>(null);
+
+  // State for sidebar collapse on mobile
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+
+  // Ref for sidebar file list container (for keyboard navigation focus)
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Fetch file list on mount
   useEffect(() => {
@@ -197,6 +204,54 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
     const other = files.filter((f) => f.kind !== "artifact" && f.kind !== "log");
     return { artifacts, logs, other };
   }, [files]);
+
+  // Flat list of files for keyboard navigation (in display order)
+  const flatFileList = React.useMemo(() => {
+    return [...groupedFiles.artifacts, ...groupedFiles.logs, ...groupedFiles.other];
+  }, [groupedFiles]);
+
+  // Keyboard navigation handler for file list
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!flatFileList.length) return;
+
+      const currentIndex = selectedFile
+        ? flatFileList.findIndex((f) => f.path === selectedFile.path)
+        : -1;
+
+      switch (e.key) {
+        case "ArrowDown":
+        case "j": // vim-style navigation
+          e.preventDefault();
+          if (currentIndex < flatFileList.length - 1) {
+            setSelectedFile(flatFileList[currentIndex + 1]);
+          } else if (currentIndex === -1 && flatFileList.length > 0) {
+            setSelectedFile(flatFileList[0]);
+          }
+          break;
+        case "ArrowUp":
+        case "k": // vim-style navigation
+          e.preventDefault();
+          if (currentIndex > 0) {
+            setSelectedFile(flatFileList[currentIndex - 1]);
+          }
+          break;
+        case "Home":
+          e.preventDefault();
+          if (flatFileList.length > 0) {
+            setSelectedFile(flatFileList[0]);
+          }
+          break;
+        case "End":
+          e.preventDefault();
+          if (flatFileList.length > 0) {
+            setSelectedFile(flatFileList[flatFileList.length - 1]);
+          }
+          break;
+      }
+    },
+    [flatFileList, selectedFile]
+  );
 
   // Format file size
   const formatFileSize = (bytes: number): string => {
@@ -597,8 +652,8 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
     <div className="flex-1 flex flex-col bg-[var(--bg-base)] overflow-hidden">
       {/* Header - only show if onClose is provided */}
       {onClose && (
-        <div className="h-14 border-b border-[var(--border)] flex items-center px-6 justify-between bg-[var(--bg-base)]/95 backdrop-blur flex-shrink-0">
-          <div className="flex items-center gap-4">
+        <div className="h-14 border-b border-[var(--border)] flex items-center px-4 md:px-6 justify-between bg-[var(--bg-base)]/95 backdrop-blur flex-shrink-0">
+          <div className="flex items-center gap-3 md:gap-4">
             <Button
               type="button"
               variant="ghost"
@@ -612,18 +667,46 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
               <h2 className="text-sm font-bold text-[var(--text-light)]">
                 Run Artifacts
               </h2>
-              <p className="text-[10px] font-mono text-[var(--text-muted)] truncate max-w-md">
+              <p className="text-[10px] font-mono text-[var(--text-muted)] truncate max-w-[200px] md:max-w-md">
                 {runId}
               </p>
             </div>
           </div>
+          {/* Mobile sidebar toggle */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarExpanded(!sidebarExpanded)}
+            className="p-2 h-9 w-9 hover:bg-[var(--bg-surface-200)] rounded-lg transition-all text-[var(--text-muted)] hover:text-[var(--text-light)] md:hidden"
+            aria-label={sidebarExpanded ? "Hide file list" : "Show file list"}
+          >
+            {sidebarExpanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </Button>
         </div>
       )}
 
-      {/* Split layout: sidebar + content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Split layout: sidebar + content - responsive: stack on mobile, side-by-side on desktop */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Sidebar - file list + event timeline */}
-        <div className="w-64 flex-shrink-0 border-r border-[var(--border)] flex flex-col bg-[var(--bg-base)]">
+        {/* On mobile: collapsible above content. On desktop: fixed width sidebar */}
+        <div
+          ref={sidebarRef}
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          className={cn(
+            "flex-shrink-0 border-b md:border-b-0 md:border-r border-[var(--border)] flex flex-col bg-[var(--bg-base)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-500)]",
+            // Mobile: collapsible with max-height
+            sidebarExpanded ? "max-h-[50vh] md:max-h-none" : "max-h-0 md:max-h-none overflow-hidden md:overflow-visible",
+            // Desktop: fixed width
+            "md:w-64"
+          )}
+          aria-label="File list navigation. Use arrow keys to navigate files."
+        >
           {/* File list area - scrollable */}
           <div className="flex-1 overflow-y-auto custom-scrollbar py-4">
             {renderFileList("Artifacts", groupedFiles.artifacts)}
@@ -635,11 +718,11 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
         </div>
 
         {/* Content viewer */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6">
           {/* File path header */}
           {selectedFile && (
             <div className="mb-4 pb-3 border-b border-[var(--border)]">
-              <h3 className="text-sm font-semibold text-[var(--text-light)]">
+              <h3 className="text-sm font-semibold text-[var(--text-light)] break-all">
                 {selectedFile.path}
               </h3>
               <p className="text-[10px] text-[var(--text-muted)]">
