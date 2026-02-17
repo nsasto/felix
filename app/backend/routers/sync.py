@@ -34,6 +34,102 @@ from database.db import get_db
 # Configure logger
 logger = logging.getLogger(__name__)
 
+
+# ============================================================================
+# STRUCTURED LOGGING HELPERS
+# ============================================================================
+
+def log_sync_info(message: str, *, run_id: Optional[str] = None, agent_id: Optional[str] = None, **extra):
+    """
+    Log info message with structured context for sync operations.
+    
+    Args:
+        message: Log message
+        run_id: Optional run ID for context
+        agent_id: Optional agent ID for context
+        **extra: Additional key-value pairs to include in log context
+    """
+    context_parts = []
+    if run_id:
+        context_parts.append(f"run_id={run_id}")
+    if agent_id:
+        context_parts.append(f"agent_id={agent_id}")
+    for key, value in extra.items():
+        context_parts.append(f"{key}={value}")
+    
+    context_str = f"[{' '.join(context_parts)}] " if context_parts else ""
+    logger.info(f"{context_str}{message}")
+
+
+def log_sync_warning(message: str, *, run_id: Optional[str] = None, agent_id: Optional[str] = None, **extra):
+    """
+    Log warning message with structured context for sync operations.
+    
+    Args:
+        message: Log message
+        run_id: Optional run ID for context
+        agent_id: Optional agent ID for context
+        **extra: Additional key-value pairs to include in log context
+    """
+    context_parts = []
+    if run_id:
+        context_parts.append(f"run_id={run_id}")
+    if agent_id:
+        context_parts.append(f"agent_id={agent_id}")
+    for key, value in extra.items():
+        context_parts.append(f"{key}={value}")
+    
+    context_str = f"[{' '.join(context_parts)}] " if context_parts else ""
+    logger.warning(f"{context_str}{message}")
+
+
+def log_sync_error(message: str, *, run_id: Optional[str] = None, agent_id: Optional[str] = None, exc: Optional[Exception] = None, **extra):
+    """
+    Log error message with structured context for sync operations.
+    
+    Args:
+        message: Log message
+        run_id: Optional run ID for context
+        agent_id: Optional agent ID for context
+        exc: Optional exception to include (logs stack trace)
+        **extra: Additional key-value pairs to include in log context
+    """
+    context_parts = []
+    if run_id:
+        context_parts.append(f"run_id={run_id}")
+    if agent_id:
+        context_parts.append(f"agent_id={agent_id}")
+    for key, value in extra.items():
+        context_parts.append(f"{key}={value}")
+    
+    context_str = f"[{' '.join(context_parts)}] " if context_parts else ""
+    if exc:
+        logger.error(f"{context_str}{message}", exc_info=exc)
+    else:
+        logger.error(f"{context_str}{message}")
+
+
+def log_sync_debug(message: str, *, run_id: Optional[str] = None, agent_id: Optional[str] = None, **extra):
+    """
+    Log debug message with structured context for sync operations.
+    
+    Args:
+        message: Log message
+        run_id: Optional run ID for context
+        agent_id: Optional agent ID for context
+        **extra: Additional key-value pairs to include in log context
+    """
+    context_parts = []
+    if run_id:
+        context_parts.append(f"run_id={run_id}")
+    if agent_id:
+        context_parts.append(f"agent_id={agent_id}")
+    for key, value in extra.items():
+        context_parts.append(f"{key}={value}")
+    
+    context_str = f"[{' '.join(context_parts)}] " if context_parts else ""
+    logger.debug(f"{context_str}{message}")
+
 router = APIRouter(tags=["sync"])
 
 
@@ -234,14 +330,23 @@ async def register_agent(
             }
         )
         
-        logger.info(f"Agent registered: {request.agent_id} on {request.hostname}")
+        log_sync_info(
+            f"Agent registered on {request.hostname}",
+            agent_id=request.agent_id,
+            platform=request.platform,
+            version=request.version
+        )
         
         return AgentRegistrationResponse(
             status="registered",
             agent_id=request.agent_id,
         )
     except Exception as e:
-        logger.error(f"Failed to register agent {request.agent_id}: {e}")
+        log_sync_error(
+            "Failed to register agent",
+            agent_id=request.agent_id,
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Database error during agent registration: {str(e)}"
@@ -338,7 +443,13 @@ async def create_run(
         
         await db.execute(event_query, {"run_id": run_id})
         
-        logger.info(f"Run created: {run_id} for agent {request.agent_id}")
+        log_sync_info(
+            "Run created",
+            run_id=run_id,
+            agent_id=request.agent_id,
+            project_id=request.project_id,
+            requirement_id=request.requirement_id
+        )
         
         return RunCreateResponse(
             run_id=run_id,
@@ -347,7 +458,12 @@ async def create_run(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create run: {e}")
+        log_sync_error(
+            "Failed to create run",
+            agent_id=request.agent_id,
+            project_id=request.project_id,
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Database error during run creation: {str(e)}"
@@ -418,7 +534,11 @@ async def append_events(
         
         await db.execute_many(event_query, event_values)
         
-        logger.debug(f"Appended {len(events)} events to run {run_id}")
+        log_sync_debug(
+            f"Appended {len(events)} events",
+            run_id=run_id,
+            event_count=len(events)
+        )
         
         return EventAppendResponse(
             status="appended",
@@ -427,7 +547,12 @@ async def append_events(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to append events to run {run_id}: {e}")
+        log_sync_error(
+            "Failed to append events",
+            run_id=run_id,
+            event_count=len(events),
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Database error during event append: {str(e)}"
@@ -524,7 +649,13 @@ async def finish_run(
             }
         )
         
-        logger.info(f"Run finished: {run_id} with status {request.status}")
+        log_sync_info(
+            f"Run finished with status {request.status}",
+            run_id=run_id,
+            status=request.status,
+            exit_code=request.exit_code,
+            duration_sec=request.duration_sec
+        )
         
         return RunCompletionResponse(
             status="finished",
@@ -533,7 +664,12 @@ async def finish_run(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to finish run {run_id}: {e}")
+        log_sync_error(
+            "Failed to finish run",
+            run_id=run_id,
+            status=request.status,
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Database error during run completion: {str(e)}"
@@ -670,7 +806,11 @@ async def upload_files(
             # Get uploaded file
             upload_file = files_by_name.get(file_path)
             if not upload_file:
-                logger.warning(f"File in manifest but not uploaded: {file_path}")
+                log_sync_warning(
+                    f"File in manifest but not uploaded: {file_path}",
+                    run_id=run_id,
+                    file_path=file_path
+                )
                 continue
             
             # Read file content
@@ -723,7 +863,13 @@ async def upload_files(
             ))
             uploaded_count += 1
         
-        logger.info(f"Uploaded {uploaded_count} files to run {run_id} ({skipped_count} skipped)")
+        log_sync_info(
+            f"Uploaded {uploaded_count} files ({skipped_count} skipped)",
+            run_id=run_id,
+            uploaded=uploaded_count,
+            skipped=skipped_count,
+            total=len(manifest_data)
+        )
         
         return FileUploadResponse(
             run_id=run_id,
@@ -735,7 +881,11 @@ async def upload_files(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to upload files to run {run_id}: {e}")
+        log_sync_error(
+            "Failed to upload files",
+            run_id=run_id,
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Error during file upload: {str(e)}"
@@ -810,7 +960,11 @@ async def list_files(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to list files for run {run_id}: {e}")
+        log_sync_error(
+            "Failed to list files",
+            run_id=run_id,
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Database error during file listing: {str(e)}"
@@ -889,7 +1043,12 @@ async def download_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to download file {file_path} from run {run_id}: {e}")
+        log_sync_error(
+            f"Failed to download file: {file_path}",
+            run_id=run_id,
+            file_path=file_path,
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Error during file download: {str(e)}"
@@ -986,7 +1145,11 @@ async def list_events(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to list events for run {run_id}: {e}")
+        log_sync_error(
+            "Failed to list events",
+            run_id=run_id,
+            exc=e
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Database error during event listing: {str(e)}"
