@@ -19,6 +19,7 @@ These endpoints are designed for CLI agent sync workflows.
 import hashlib
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -32,6 +33,41 @@ from pydantic import BaseModel, Field
 from artifact_storage import get_artifact_storage, ArtifactStorage
 from database.db import get_db
 from middleware.rate_limit import rate_limit_dependency
+
+
+# ============================================================================
+# FEATURE FLAG
+# ============================================================================
+
+def is_sync_feature_enabled() -> bool:
+    """
+    Check if the sync feature is enabled globally.
+    
+    Reads from FELIX_SYNC_FEATURE_ENABLED environment variable.
+    Default is enabled (True) for backward compatibility.
+    
+    Returns:
+        True if sync is enabled, False otherwise
+    """
+    env_value = os.environ.get("FELIX_SYNC_FEATURE_ENABLED", "true").lower()
+    return env_value in ("true", "1", "yes", "on")
+
+
+def verify_sync_enabled() -> None:
+    """
+    FastAPI dependency to verify sync feature is enabled.
+    
+    This should be added as a dependency to all sync endpoints.
+    When sync is disabled globally, all endpoints return 503 Service Unavailable.
+    
+    Raises:
+        HTTPException 503: If sync feature is disabled
+    """
+    if not is_sync_feature_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Sync feature is temporarily disabled. Set FELIX_SYNC_FEATURE_ENABLED=true to enable."
+        )
 
 
 # ============================================================================
@@ -676,6 +712,7 @@ async def register_agent(
     db: Database = Depends(get_db),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     Register or update a CLI agent.
@@ -766,6 +803,7 @@ async def create_run(
     db: Database = Depends(get_db),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     Create a new run record.
@@ -899,6 +937,7 @@ async def append_events(
     db: Database = Depends(get_db),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     Append events to a run.
@@ -1003,6 +1042,7 @@ async def finish_run(
     db: Database = Depends(get_db),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     Mark a run as finished.
@@ -1258,6 +1298,7 @@ async def upload_files(
     storage: ArtifactStorage = Depends(get_artifact_storage),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     Upload files for a run.
@@ -1524,6 +1565,7 @@ async def list_files(
     db: Database = Depends(get_db),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     List files for a run.
@@ -1619,6 +1661,7 @@ async def download_file(
     storage: ArtifactStorage = Depends(get_artifact_storage),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     Download a file from a run.
@@ -1730,6 +1773,7 @@ async def list_events(
     db: Database = Depends(get_db),
     api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
     rate_limit: None = Depends(rate_limit_dependency),
+    sync_enabled: None = Depends(verify_sync_enabled),
 ):
     """
     Query events for a run.

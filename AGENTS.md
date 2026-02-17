@@ -290,7 +290,9 @@ Select-String -Path .felix\sync.log -Pattern "ERROR|WARN"
 
 ### Disabling Sync in Emergency
 
-To immediately disable sync without code changes:
+**CLI-Side Disable (per-agent)**
+
+To disable sync on a specific CLI agent:
 
 ```powershell
 $env:FELIX_SYNC_ENABLED = "false"
@@ -299,6 +301,38 @@ $env:FELIX_SYNC_ENABLED = "false"
 Or edit **.felix/config.json** and set `"enabled": false`.
 
 Existing queued files in **.felix/outbox/** will remain but won't be sent until sync is re-enabled.
+
+**Server-Side Disable (global)**
+
+To disable sync globally on the backend (affects all agents):
+
+```bash
+# Linux/macOS
+export FELIX_SYNC_FEATURE_ENABLED=false
+
+# Windows PowerShell
+$env:FELIX_SYNC_FEATURE_ENABLED = "false"
+```
+
+When disabled at the server level:
+
+- All sync endpoints return 503 Service Unavailable
+- Agents will queue uploads locally and retry when sync is re-enabled
+- Non-sync endpoints (health check, metrics) remain operational
+
+**Cleanup Orphaned Artifacts**
+
+If you need to clean up storage files that no longer have database references:
+
+```powershell
+# Preview orphaned files (dry run)
+.\scripts\cleanup-orphan-artifacts.ps1
+
+# Actually delete orphaned files
+.\scripts\cleanup-orphan-artifacts.ps1 -Force
+```
+
+See **docs/SYNC_OPERATIONS.md** for full rollback procedures.
 
 ## Repository Conventions
 
