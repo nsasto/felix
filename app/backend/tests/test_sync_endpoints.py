@@ -20,6 +20,7 @@ from io import BytesIO
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import sys
@@ -35,6 +36,8 @@ from routers.sync import (
     RunCompletion,
     determine_file_kind,
     determine_content_type,
+    is_safe_file_path,
+    validate_file_path,
 )
 
 
@@ -291,6 +294,164 @@ class TestHelperFunctions:
         """determine_content_type returns octet-stream for unknown"""
         assert determine_content_type("binary.bin") == "application/octet-stream"
         assert determine_content_type("file") == "application/octet-stream"
+
+
+# ============================================================================
+# Path Traversal Prevention Tests
+# ============================================================================
+
+class TestPathTraversalPrevention:
+    """Tests for path traversal prevention functions"""
+
+    def test_safe_path_simple_filename(self):
+        """is_safe_file_path accepts simple filenames"""
+        assert is_safe_file_path("output.log") is True
+        assert is_safe_file_path("plan.md") is True
+        assert is_safe_file_path("data.json") is True
+
+    def test_safe_path_nested_directories(self):
+        """is_safe_file_path accepts nested directory paths"""
+        assert is_safe_file_path("artifacts/output.log") is True
+        assert is_safe_file_path("runs/2024/01/plan.md") is True
+        assert is_safe_file_path("deep/nested/path/file.txt") is True
+
+    def test_safe_path_with_dashes_underscores(self):
+        """is_safe_file_path accepts paths with dashes and underscores"""
+        assert is_safe_file_path("my-file_name.log") is True
+        assert is_safe_file_path("project-v2/output_final.json") is True
+
+    def test_unsafe_path_parent_traversal(self):
+        """is_safe_file_path rejects parent directory traversal"""
+        assert is_safe_file_path("../secret.txt") is False
+        assert is_safe_file_path("path/../secret.txt") is False
+        assert is_safe_file_path("./path/../../etc/passwd") is False
+        assert is_safe_file_path("..") is False
+
+    def test_unsafe_path_windows_traversal(self):
+        """is_safe_file_path rejects Windows-style path traversal"""
+        assert is_safe_file_path("..\\secret.txt") is False
+        assert is_safe_file_path("path\\..\\secret.txt") is False
+
+    def test_unsafe_path_absolute_unix(self):
+        """is_safe_file_path rejects absolute Unix paths"""
+        assert is_safe_file_path("/etc/passwd") is False
+        assert is_safe_file_path("/var/log/secret.log") is False
+
+    def test_unsafe_path_absolute_windows(self):
+        """is_safe_file_path rejects absolute Windows paths"""
+        assert is_safe_file_path("C:\\Windows\\System32\\config") is False
+        assert is_safe_file_path("D:/secret/file.txt") is False
+        assert is_safe_file_path("c:/autoexec.bat") is False
+
+    def test_unsafe_path_unc(self):
+        """is_safe_file_path rejects UNC paths"""
+        assert is_safe_file_path("\\\\server\\share\\file.txt") is False
+        assert is_safe_file_path("//server/share/file.txt") is False
+
+    def test_unsafe_path_null_byte(self):
+        """is_safe_file_path rejects paths with null bytes"""
+        assert is_safe_file_path("file.txt\x00.jpg") is False
+        assert is_safe_file_path("test\x00../etc/passwd") is False
+
+    def test_unsafe_path_empty_or_whitespace(self):
+        """is_safe_file_path rejects empty or whitespace-only paths"""
+        assert is_safe_file_path("") is False
+        assert is_safe_file_path("   ") is False
+        assert is_safe_file_path("\t\n") is False
+
+    def test_validate_file_path_safe(self):
+        """validate_file_path does not raise for safe paths"""
+        # Should not raise any exception
+        validate_file_path("output.log")
+        validate_file_path("artifacts/plan.md")
+        validate_file_path("nested/path/file.txt")
+
+    def test_validate_file_path_unsafe_raises_400(self):
+        """validate_file_path raises HTTPException 400 for unsafe paths"""
+        with pytest.raises(HTTPException) as exc_info:
+            validate_file_path("../secret.txt")
+        assert exc_info.value.status_code == 400
+        assert ".." in exc_info.value.detail
+
+        with pytest.raises(HTTPException) as exc_info:
+            validate_file_path("/etc/passwd")
+        assert exc_info.value.status_code == 400
+
+        with pytest.raises(HTTPException) as exc_info:
+            validate_file_path("C:\\Windows\\System32")
+        assert exc_info.value.status_code == 400
+
+
+class TestPathTraversalInEndpoints:
+    """Integration tests for path traversal protection in endpoints"""
+
+    def test_upload_rejects_path_traversal(self, client):
+        """POST /api/runs/{run_id}/files returns 400 for path traversal in manifest"""
+        fake_db = FakeDatabase(fetch_one_results=[
+            {"id": "run-001", "project_id": "project-001"},  # Run exists
+        ])
+        fake_storage = FakeStorage()
+        app.dependency_overrides[get_db] = lambda: fake_db
+        app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
+        
+        # Manifest with path traversal
+        manifest = json.dumps([{"path": "../../../etc/passwd", "sha256": "abc123"}])
+        
+        response = client.post(
+            "/api/runs/run-001/files",
+            data={"manifest": manifest},
+            files=[("files", ("../../../etc/passwd", BytesIO(b"content"), "text/plain"))]
+        )
+        
+        assert response.status_code == 400
+        assert ".." in response.json()["detail"] or "absolute" in response.json()["detail"]
+
+    def test_upload_rejects_absolute_path(self, client):
+        """POST /api/runs/{run_id}/files returns 400 for absolute paths in manifest"""
+        fake_db = FakeDatabase(fetch_one_results=[
+            {"id": "run-001", "project_id": "project-001"},
+        ])
+        fake_storage = FakeStorage()
+        app.dependency_overrides[get_db] = lambda: fake_db
+        app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
+        
+        manifest = json.dumps([{"path": "/etc/passwd", "sha256": "abc123"}])
+        
+        response = client.post(
+            "/api/runs/run-001/files",
+            data={"manifest": manifest},
+            files=[("files", ("/etc/passwd", BytesIO(b"content"), "text/plain"))]
+        )
+        
+        assert response.status_code == 400
+
+    def test_download_rejects_path_traversal(self, client):
+        """GET /api/runs/{run_id}/files/{path} returns 400 for path traversal"""
+        fake_db = FakeDatabase()
+        fake_storage = FakeStorage()
+        app.dependency_overrides[get_db] = lambda: fake_db
+        app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
+        
+        # Note: FastAPI normalizes URL paths, so "/../.." gets resolved.
+        # We test with URL-encoded path to bypass URL normalization.
+        # This tests the case where a client manually encodes the traversal.
+        # Use %2e%2e for ".." encoded
+        response = client.get("/api/runs/run-001/files/subdir%2F..%2F..%2Fetc%2Fpasswd")
+        
+        assert response.status_code == 400
+        assert ".." in response.json()["detail"] or "absolute" in response.json()["detail"]
+
+    def test_download_rejects_absolute_path(self, client):
+        """GET /api/runs/{run_id}/files/{path} returns 400 for absolute paths"""
+        fake_db = FakeDatabase()
+        fake_storage = FakeStorage()
+        app.dependency_overrides[get_db] = lambda: fake_db
+        app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
+        
+        # Test Windows absolute path
+        response = client.get("/api/runs/run-001/files/C%3A%5CWindows%5CSystem32%5Cconfig")
+        
+        assert response.status_code == 400
 
 
 # ============================================================================

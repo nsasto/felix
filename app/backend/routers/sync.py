@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 from artifact_storage import get_artifact_storage, ArtifactStorage
 from database.db import get_db
+from middleware.rate_limit import rate_limit_dependency
 
 
 # ============================================================================
@@ -484,6 +485,7 @@ async def register_agent(
     request: AgentRegistration,
     db: Database = Depends(get_db),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     Register or update a CLI agent.
@@ -568,6 +570,7 @@ async def create_run(
     request: RunCreate,
     db: Database = Depends(get_db),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     Create a new run record.
@@ -695,6 +698,7 @@ async def append_events(
     events: List[RunEvent],
     db: Database = Depends(get_db),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     Append events to a run.
@@ -793,6 +797,7 @@ async def finish_run(
     request: RunCompletion,
     db: Database = Depends(get_db),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     Mark a run as finished.
@@ -945,6 +950,95 @@ def determine_content_type(path: str) -> str:
     return "application/octet-stream"
 
 
+# ============================================================================
+# FILE UPLOAD SIZE LIMITS
+# ============================================================================
+
+# Maximum size for a single file upload (100 MB)
+MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
+
+# Maximum total size for all files in a single upload request (500 MB)
+MAX_TOTAL_UPLOAD_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB
+
+
+# ============================================================================
+# PATH TRAVERSAL PREVENTION
+# ============================================================================
+
+def is_safe_file_path(path: str) -> bool:
+    """
+    Check if a file path is safe from path traversal attacks.
+    
+    Rejects paths that:
+    - Contain '..' (parent directory traversal)
+    - Start with '/' or '\\' (absolute Unix/Windows paths)
+    - Start with a drive letter like 'C:' (Windows absolute paths)
+    - Contain null bytes (path truncation attacks)
+    - Are empty or contain only whitespace
+    
+    Args:
+        path: File path to validate
+        
+    Returns:
+        True if the path is safe, False otherwise
+    """
+    if not path or not path.strip():
+        return False
+    
+    # Normalize path separators for consistent checking
+    normalized = path.replace("\\", "/")
+    
+    # Check for null bytes (path truncation attack)
+    if "\x00" in path:
+        return False
+    
+    # Check for parent directory traversal
+    # This catches "..", "../", "..\\", and embedded patterns
+    if ".." in normalized:
+        return False
+    
+    # Check for absolute Unix paths (starts with /)
+    if normalized.startswith("/"):
+        return False
+    
+    # Check for absolute Windows paths (starts with drive letter like C:)
+    # Allow paths without drive letters but with colons elsewhere
+    if len(normalized) >= 2 and normalized[1] == ":" and normalized[0].isalpha():
+        return False
+    
+    # Check for UNC paths (\\server\share or //server/share)
+    if path.startswith("\\\\") or normalized.startswith("//"):
+        return False
+    
+    return True
+
+
+def validate_file_path(path: str, *, run_id: Optional[str] = None) -> None:
+    """
+    Validate a file path and raise HTTPException if it's unsafe.
+    
+    This function should be called before using any user-provided file path
+    to construct storage keys or file paths.
+    
+    Args:
+        path: File path to validate
+        run_id: Optional run ID for logging context
+        
+    Raises:
+        HTTPException 400: If the path is unsafe
+    """
+    if not is_safe_file_path(path):
+        log_sync_warning(
+            f"Rejected unsafe file path: {path}",
+            run_id=run_id,
+            path=path
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file path: paths containing '..' or absolute paths are not allowed"
+        )
+
+
 @router.post("/api/runs/{run_id}/files", response_model=FileUploadResponse)
 async def upload_files(
     run_id: str,
@@ -953,12 +1047,17 @@ async def upload_files(
     db: Database = Depends(get_db),
     storage: ArtifactStorage = Depends(get_artifact_storage),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     Upload files for a run.
     
     Accepts multipart form with manifest JSON and file uploads.
     Uses SHA256 for idempotency - skips unchanged files.
+    
+    Size limits:
+    - Maximum 100 MB per file
+    - Maximum 500 MB total per upload request
     
     Manifest format:
     [
@@ -980,6 +1079,7 @@ async def upload_files(
     Raises:
         HTTPException 400: If manifest JSON is invalid
         HTTPException 404: If run not found
+        HTTPException 413: If file or total upload size exceeds limits
         HTTPException 500: On database or storage error
     """
     try:
@@ -990,6 +1090,62 @@ async def upload_files(
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid manifest JSON: {str(e)}"
+            )
+        
+        # Validate file sizes before processing
+        # We need to check each file individually and calculate total size
+        total_size = 0
+        oversized_files = []
+        
+        for upload_file in files:
+            # Read file content to check size (we'll cache this for later use)
+            # Note: FastAPI UploadFile doesn't provide size until read
+            # We seek back to start after reading
+            content = await upload_file.read()
+            file_size = len(content)
+            await upload_file.seek(0)  # Reset for later reading
+            
+            # Check individual file size limit
+            if file_size > MAX_FILE_SIZE_BYTES:
+                oversized_files.append({
+                    "filename": upload_file.filename,
+                    "size_bytes": file_size,
+                    "limit_bytes": MAX_FILE_SIZE_BYTES,
+                })
+            
+            total_size += file_size
+        
+        # Report any oversized individual files
+        if oversized_files:
+            max_mb = MAX_FILE_SIZE_BYTES // (1024 * 1024)
+            file_details = ", ".join(
+                f"{f['filename']} ({f['size_bytes'] // (1024 * 1024)}MB)"
+                for f in oversized_files
+            )
+            log_sync_warning(
+                f"File upload rejected: oversized files",
+                run_id=run_id,
+                oversized_count=len(oversized_files),
+                max_file_size_mb=max_mb
+            )
+            raise HTTPException(
+                status_code=413,
+                detail=f"File size exceeds {max_mb}MB limit: {file_details}"
+            )
+        
+        # Check total upload size limit
+        if total_size > MAX_TOTAL_UPLOAD_SIZE_BYTES:
+            max_total_mb = MAX_TOTAL_UPLOAD_SIZE_BYTES // (1024 * 1024)
+            actual_mb = total_size // (1024 * 1024)
+            log_sync_warning(
+                f"File upload rejected: total size exceeds limit",
+                run_id=run_id,
+                total_size_mb=actual_mb,
+                max_total_size_mb=max_total_mb
+            )
+            raise HTTPException(
+                status_code=413,
+                detail=f"Total upload size ({actual_mb}MB) exceeds {max_total_mb}MB limit"
             )
         
         # Verify run exists and get project_id
@@ -1018,6 +1174,9 @@ async def upload_files(
             
             if not file_path:
                 continue
+            
+            # Validate file path for path traversal attacks
+            validate_file_path(file_path, run_id=run_id)
             
             # Check existing file record
             existing = await db.fetch_one(
@@ -1149,6 +1308,7 @@ async def list_files(
     run_id: str,
     db: Database = Depends(get_db),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     List files for a run.
@@ -1238,6 +1398,7 @@ async def download_file(
     db: Database = Depends(get_db),
     storage: ArtifactStorage = Depends(get_artifact_storage),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     Download a file from a run.
@@ -1255,10 +1416,14 @@ async def download_file(
         StreamingResponse with file content
         
     Raises:
+        HTTPException 400: If file path contains path traversal sequences
         HTTPException 404: If file not found in DB or storage
         HTTPException 500: On database or storage error
     """
     try:
+        # Validate file path for path traversal attacks
+        validate_file_path(file_path, run_id=run_id)
+        
         # Fetch file record
         file_record = await db.fetch_one(
             "SELECT storage_key, content_type, size_bytes FROM run_files WHERE run_id = :run_id AND path = :path",
@@ -1339,6 +1504,7 @@ async def list_events(
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of events to return"),
     db: Database = Depends(get_db),
     api_key: Optional[str] = Depends(verify_api_key),
+    rate_limit: None = Depends(rate_limit_dependency),
 ):
     """
     Query events for a run.
