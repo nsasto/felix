@@ -223,6 +223,37 @@ function Get-RunReporter {
         api_key  = if ($env:FELIX_SYNC_KEY) { $env:FELIX_SYNC_KEY } elseif ($syncConfig.api_key) { $syncConfig.api_key } else { $null }
     }
     
+    # Validate API key is provided when sync is enabled
+    if (-not $finalConfig.api_key) {
+        Write-Error @"
+Sync enabled but no API key configured.
+
+To fix this issue, choose one of the following options:
+
+1. Set environment variable:
+   `$env:FELIX_SYNC_KEY = "fsk_your_key_here"
+
+2. Add to .felix/config.json:
+   {
+     "sync": {
+       "enabled": true,
+       "provider": "fastapi",
+       "base_url": "$($finalConfig.base_url)",
+       "api_key": "fsk_your_key_here"
+     }
+   }
+
+To generate an API key:
+- Open Felix UI at http://localhost:3000
+- Navigate to your project settings
+- Go to "API Keys" tab
+- Click "Generate New Key"
+
+For development without sync, set sync.enabled=false in .felix/config.json
+"@
+        throw "API key required when sync is enabled. Set FELIX_SYNC_KEY environment variable or sync.api_key in config.json"
+    }
+    
     # Determine which plugin to load
     $provider = if ($syncConfig.provider) { $syncConfig.provider } else { "fastapi" }
     

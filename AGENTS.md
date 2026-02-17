@@ -76,14 +76,22 @@ Run the agent locally with PowerShell (examples):
 
 ### Sync Configuration (Optional)
 
-Enable artifact mirroring to server for team collaboration:
+Enable artifact mirroring to server for team collaboration. **API keys are required when sync is enabled.**
+
+**Generate API Key:**
+
+1. Open Felix UI at http://localhost:3000
+2. Navigate to your project settings
+3. Go to "API Keys" tab
+4. Click "Generate New Key"
+5. Copy the generated key (starts with `fsk_`)
 
 **Environment Variables:**
 
 ```powershell
 $env:FELIX_SYNC_ENABLED = "true"
 $env:FELIX_SYNC_URL = "http://localhost:8080"
-$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"  # Optional
+$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"  # Required when sync enabled
 ```
 
 **Temporary Sync Override (CLI Flag):**
@@ -92,6 +100,7 @@ Use the `--Sync` flag to enable sync for a single run without modifying config.j
 
 ```powershell
 # Enable sync just for this run (overrides config.json)
+# Note: FELIX_SYNC_KEY must still be set in environment
 felix run S-0001 --sync
 
 # Combine with other flags
@@ -108,10 +117,12 @@ The flag sets `FELIX_SYNC_ENABLED` environment variable for the agent subprocess
     "enabled": true,
     "provider": "fastapi",
     "base_url": "http://localhost:8080",
-    "api_key": null
+    "api_key": "fsk_your_api_key_here"
   }
 }
 ```
+
+**Important:** Each API key is scoped to a single project. Generate separate keys for each project you want to sync.
 
 **How It Works:**
 

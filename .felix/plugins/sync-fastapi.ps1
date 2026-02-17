@@ -93,7 +93,13 @@ class FastApiReporter : IRunReporter {
                 $this.BaseUrl = $config.base_url
             }
             
-            $this.ApiKey = $config.api_key  # Optional, can be null
+            # API key is required - validated upstream in sync-interface.ps1
+            if (-not $config.api_key) {
+                $configErrors += "Missing required 'api_key' in sync configuration"
+            }
+            else {
+                $this.ApiKey = $config.api_key
+            }
         }
         
         if ($configErrors.Count -gt 0) {
