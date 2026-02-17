@@ -101,6 +101,7 @@ from routers import (
 from database.db import startup as db_startup, shutdown as db_shutdown, get_db, database
 from artifact_storage import get_artifact_storage
 from auth import get_current_user
+from middleware.request_size import RequestSizeLimitMiddleware
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
@@ -152,6 +153,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Request size limit middleware (defense-in-depth)
+# Default: 512 MB, configurable via FELIX_MAX_REQUEST_SIZE_MB environment variable
+# Note: Sync endpoints have additional per-file limits (100MB per file, 500MB total)
+app.add_middleware(RequestSizeLimitMiddleware)
 
 # Include routers
 app.include_router(projects.router)
