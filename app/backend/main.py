@@ -6,7 +6,9 @@ Provides HTTP API and WebSocket for observing and controlling Felix agents.
 import logging
 import logging.handlers
 import os
+import uuid
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -95,7 +97,8 @@ from routers import (
     org_members,
     sync,
 )
-from database.db import startup as db_startup, shutdown as db_shutdown, get_db
+from database.db import startup as db_startup, shutdown as db_shutdown, get_db, database
+from artifact_storage import get_artifact_storage
 from auth import get_current_user
 
 # Configure logger for this module
@@ -165,8 +168,71 @@ app.include_router(sync.router)
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "service": "felix-backend", "version": "0.1.0"}
+    """
+    Enhanced health check endpoint with database and storage verification.
+    
+    Checks:
+    - Database connectivity: Executes a simple SELECT 1 query
+    - Storage availability: Write/read/delete test key
+    
+    Returns:
+    - 200 with {"status": "healthy", ...} if all systems operational
+    - 503 with {"status": "unhealthy", ...} if database or storage unavailable
+    
+    Response includes:
+    - status: "healthy" or "unhealthy"
+    - service: "felix-backend"
+    - version: "0.1.0"
+    - database: true/false - database connectivity status
+    - storage: true/false - storage availability status
+    """
+    db_healthy = False
+    storage_healthy = False
+    
+    # Check database connectivity
+    try:
+        await database.fetch_one("SELECT 1")
+        db_healthy = True
+    except Exception as e:
+        logger.warning(f"Health check: database unreachable - {e}")
+    
+    # Check storage availability (write/read/delete test key)
+    try:
+        storage = get_artifact_storage()
+        test_key = f"_health_check/{uuid.uuid4().hex}"
+        test_content = b"health_check_test"
+        
+        # Write test key
+        await storage.put(test_key, test_content, "application/octet-stream")
+        
+        # Read test key
+        read_content = await storage.get(test_key)
+        
+        # Delete test key
+        await storage.delete(test_key)
+        
+        # Verify content matches
+        if read_content == test_content:
+            storage_healthy = True
+        else:
+            logger.warning("Health check: storage read/write mismatch")
+    except Exception as e:
+        logger.warning(f"Health check: storage unavailable - {e}")
+    
+    # Build response
+    response_data = {
+        "status": "healthy" if (db_healthy and storage_healthy) else "unhealthy",
+        "service": "felix-backend",
+        "version": "0.1.0",
+        "database": db_healthy,
+        "storage": storage_healthy,
+    }
+    
+    # Return 503 if any system is unhealthy
+    if not (db_healthy and storage_healthy):
+        return JSONResponse(status_code=503, content=response_data)
+    
+    return response_data
 
 
 @app.get("/")
