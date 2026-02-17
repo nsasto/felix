@@ -1905,9 +1905,33 @@ function Invoke-Setup {
 
     # Load existing config
     $configPath = Join-Path $RepoRoot ".felix\config.json"
-    $config = @{
-        agent = @{ agent_id = $null }
-        sync = @{
+    $config = $null
+
+    if (Test-Path $configPath) {
+        try {
+            $config = Get-Content $configPath -Raw | ConvertFrom-Json
+        }
+        catch {
+            Write-Warning "Could not parse existing config: $($_.Exception.Message)"
+        }
+    }
+
+    # Initialize config if not exists or failed to load
+    if (-not $config) {
+        $config = @{
+            agent = @{ agent_id = $null }
+            sync = @{
+                enabled = $false
+                provider = "fastapi"
+                base_url = "http://localhost:8080"
+                api_key = $null
+            }
+        }
+    }
+
+    # Ensure sync section exists
+    if (-not $config.sync) {
+        $config | Add-Member -NotePropertyName sync -NotePropertyValue @{
             enabled = $false
             provider = "fastapi"
             base_url = "http://localhost:8080"
@@ -1915,21 +1939,18 @@ function Invoke-Setup {
         }
     }
 
-    if (Test-Path $configPath) {
-        try {
-            $existingConfig = Get-Content $configPath -Raw | ConvertFrom-Json
-            if ($existingConfig.sync) {
-                if ($existingConfig.sync.base_url) {
-                    $config.sync.base_url = $existingConfig.sync.base_url
-                }
-                if ($existingConfig.sync.api_key) {
-                    $config.sync.api_key = $existingConfig.sync.api_key
-                }
-            }
-        }
-        catch {
-            Write-Warning "Could not parse existing config: $($_.Exception.Message)"
-        }
+    # Ensure required sync properties exist with defaults
+    if (-not $config.sync.base_url) {
+        $config.sync | Add-Member -NotePropertyName base_url -NotePropertyValue "http://localhost:8080" -Force
+    }
+    if (-not $config.sync.provider) {
+        $config.sync | Add-Member -NotePropertyName provider -NotePropertyValue "fastapi" -Force
+    }
+    if (-not ($config.sync.PSObject.Properties.Name -contains "enabled")) {
+        $config.sync | Add-Member -NotePropertyName enabled -NotePropertyValue $false -Force
+    }
+    if (-not ($config.sync.PSObject.Properties.Name -contains "api_key")) {
+        $config.sync | Add-Member -NotePropertyName api_key -NotePropertyValue $null -Force
     }
 
     # Prompt for backend URL

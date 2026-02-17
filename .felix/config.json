@@ -37,6 +37,6 @@
     "enabled": false,
     "provider": "fastapi",
     "base_url": "http://localhost:8080",
-    "api_key": null
+    "api_key": "fsk_c0b75cfbe5035d290b1237a51525546bd524ac96eb123e09b73415440d1f45fe"
   }
 }
