@@ -116,60 +116,70 @@ async def validate_api_key(
     Raises:
         HTTPException 401: If key is invalid or expired
     """
-    # Parse Authorization header
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Authorization header format. Use: Bearer fsk_...",
-        )
-
-    plain_key = authorization[7:]  # Strip "Bearer "
-    key_hash = hash_api_key(plain_key)
-
-    # Look up key
-    api_key_repo = PostgresApiKeyRepository(db)
-    key_record = await api_key_repo.get_by_key_hash(key_hash)
-
-    if not key_record:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API key",
-        )
-
-    # Check if expired
-    if key_record.get("expires_at"):
-        expires_at = key_record["expires_at"]
-        if expires_at < datetime.now(timezone.utc):
+    try:
+        # Parse Authorization header
+        if not authorization.startswith("Bearer "):
             raise HTTPException(
                 status_code=401,
-                detail="API key has expired",
+                detail="Invalid Authorization header format. Use: Bearer fsk_...",
             )
 
-    # Fetch project details
-    project_repo = PostgresProjectRepository(db)
-    project_id = str(key_record["project_id"])
-    # We don't have org_id in the project fetch, so let's get it from the query
-    project_row = await db.fetch_one(
-        """
-        SELECT p.id, p.name, p.org_id
-        FROM projects p
-        WHERE p.id = :project_id
-        """,
-        values={"project_id": project_id},
-    )
+        plain_key = authorization[7:]  # Strip "Bearer "
+        key_hash = hash_api_key(plain_key)
 
-    if not project_row:
-        raise HTTPException(
-            status_code=401,
-            detail="API key references non-existent project",
+        # Look up key
+        api_key_repo = PostgresApiKeyRepository(db)
+        key_record = await api_key_repo.get_by_key_hash(key_hash)
+
+        if not key_record:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid API key",
+            )
+
+        # Check if expired
+        if key_record.get("expires_at"):
+            expires_at = key_record["expires_at"]
+            if expires_at < datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=401,
+                    detail="API key has expired",
+                )
+
+        # Fetch project details
+        project_id = str(key_record["project_id"])
+        project_row = await db.fetch_one(
+            """
+            SELECT p.id, p.name, p.org_id
+            FROM projects p
+            WHERE p.id = :project_id::uuid
+            """,
+            values={"project_id": project_id},
         )
 
-    return ApiKeyValidate(
-        project_id=str(project_row["id"]),
-        project_name=project_row.get("name"),
-        org_id=str(project_row["org_id"]),
-        expires_at=key_record.get("expires_at"),
-    )
+        if not project_row:
+            raise HTTPException(
+                status_code=401,
+                detail="API key references non-existent project",
+            )
+
+        return ApiKeyValidate(
+            project_id=str(project_row["id"]),
+            project_name=project_row.get("name"),
+            org_id=str(project_row["org_id"]),
+            expires_at=key_record.get("expires_at"),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log the error for debugging
+        import traceback
+        print(f"Error in validate_api_key: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to validate API key: {str(e)}",
+        )
 
 
 # ============================================================================
