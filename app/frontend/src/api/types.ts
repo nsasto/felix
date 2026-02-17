@@ -165,3 +165,14 @@ export interface RunEvent {
   /** Event payload as JSON object (optional) */
   payload: Record<string, unknown> | null;
 }
+
+/**
+ * Response for listing run files from the sync API.
+ * Matches FileListResponse in backend routers/sync.py.
+ */
+export interface RunFilesResponse {
+  /** Run ID */
+  run_id: string;
+  /** List of files in the run */
+  files: RunFile[];
+}
