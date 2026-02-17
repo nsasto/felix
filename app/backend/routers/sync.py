@@ -621,32 +621,6 @@ async def log_api_key_usage(
 # ============================================================================
 
 
-class AgentRegistration(BaseModel):
-    """Request body for CLI agent registration."""
-
-    agent_id: str = Field(..., description="Unique agent identifier")
-    hostname: str = Field(..., description="Hostname where agent is running")
-    platform: str = Field(
-        ..., description="Operating system platform (e.g., 'windows', 'linux')"
-    )
-    version: str = Field(..., description="Agent version string")
-    felix_root: Optional[str] = Field(None, description="Felix repository root path")
-    adapter: Optional[str] = Field(
-        None, description="LLM adapter name (e.g., 'droid', 'openai')"
-    )
-    executable: Optional[str] = Field(
-        None, description="Agent executable (e.g., 'droid', 'claude')"
-    )
-    model: Optional[str] = Field(None, description="LLM model identifier")
-
-
-class AgentRegistrationResponse(BaseModel):
-    """Response for agent registration."""
-
-    status: str = Field(..., description="Registration status ('registered')")
-    agent_id: str = Field(..., description="Agent ID that was registered")
-
-
 class RunCreate(BaseModel):
     """Request body for creating a new run."""
 
@@ -773,102 +747,11 @@ class EventListResponse(BaseModel):
 
 
 # ============================================================================
-# AGENT REGISTRATION ENDPOINT
-# ============================================================================
-
-
-@router.post("/api/agents/register", response_model=AgentRegistrationResponse)
-async def register_agent(
-    body: AgentRegistration,
-    http_request: Request,
-    db: Database = Depends(get_db),
-    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
-    rate_limit: None = Depends(rate_limit_dependency),
-    sync_enabled: None = Depends(verify_sync_enabled),
-):
-    """
-    Register or update a CLI agent.
-
-    Uses INSERT ... ON CONFLICT for idempotent upsert behavior.
-    On conflict, updates hostname, platform, version, and last_seen_at.
-
-    Args:
-        body: Agent registration data
-        http_request: FastAPI request object
-        db: Database connection
-        api_key: Optional API key for authentication
-
-    Returns:
-        Registration status and agent ID
-
-    Raises:
-        HTTPException 500: On database error
-    """
-    # Log API key usage for audit trail
-    await log_api_key_usage(
-        db, api_key, "/api/agents/register", http_request, agent_id=body.agent_id
-    )
-
-    try:
-        # Upsert agent record
-        query = """
-            INSERT INTO agents (id, name, hostname, platform, version, adapter, executable, model, last_seen_at, type, status, created_at, updated_at)
-            VALUES (:id, :name, :hostname, :platform, :version, :adapter, :executable, :model, :last_seen_at, 'cli', 'idle', NOW(), NOW())
-            ON CONFLICT (id) DO UPDATE SET
-                hostname = EXCLUDED.hostname,
-                platform = EXCLUDED.platform,
-                version = EXCLUDED.version,
-                adapter = EXCLUDED.adapter,
-                executable = EXCLUDED.executable,
-                model = EXCLUDED.model,
-                last_seen_at = EXCLUDED.last_seen_at,
-                updated_at = NOW()
-            RETURNING id
-        """
-
-        await db.execute(
-            query,
-            {
-                "id": body.agent_id,
-                "name": body.agent_id,  # Use agent_id as name for CLI agents
-                "hostname": body.hostname,
-                "platform": body.platform,
-                "version": body.version,
-                "adapter": body.adapter,
-                "executable": body.executable,
-                "model": body.model,
-                "last_seen_at": datetime.now(timezone.utc),
-            },
-        )
-
-        log_sync_info(
-            f"Agent registered on {body.hostname}",
-            agent_id=body.agent_id,
-            platform=body.platform,
-            version=body.version,
-            adapter=body.adapter,
-            model=body.model,
-        )
-
-        return AgentRegistrationResponse(
-            status="registered",
-            agent_id=body.agent_id,
-        )
-    except Exception as e:
-        # Check for database connection errors - return 503 for transient failures
-        if is_database_connection_error(e):
-            raise_database_unavailable("agent registration", e, agent_id=body.agent_id)
-        # Log and return 500 for other database errors
-        log_sync_error("Failed to register agent", agent_id=body.agent_id, exc=e)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Database error during agent registration: {str(e)}",
-        )
-
-
-# ============================================================================
 # RUN CREATION ENDPOINT
 # ============================================================================
+# NOTE: Agent registration has been moved to routers/agents.py to consolidate
+# authentication and eliminate path shadowing. CLI agents now call the same
+# /api/agents/register endpoint as the UI, with AUTH_MODE controlling access.
 
 
 @router.post("/api/runs", response_model=RunCreateResponse)

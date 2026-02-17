@@ -589,7 +589,7 @@ function Emit-AgentExecutionStarted {
     #>
     param(
         [string]$AgentName,
-        [int]$AgentId
+        [string]$AgentId
     )
     
     Emit-Event -EventType "agent_execution_started" -Data @{

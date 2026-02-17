@@ -32,11 +32,7 @@ function Exit-FelixAgent {
         [string]$ProjectPath,
         
         [Parameter(Mandatory = $false)]
-        [int]$AgentId,
-
-        [Parameter(Mandatory = $false)]
-        [string]$BackendBaseUrl,
-        
+    [string]$AgentId,
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.Job]$HeartbeatJob
     )

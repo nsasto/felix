@@ -1,7 +1,7 @@
 {
   "agents": [
     {
-      "id": 0,
+      "id": "39535ce5-e344-5a8c-9f3f-44776b998939",
       "name": "droid",
       "adapter": "droid",
       "executable": "droid",
@@ -11,7 +11,7 @@
       "description": "Factory.ai Droid - Fast, reliable, JSON event stream"
     },
     {
-      "id": 1,
+      "id": "55420bd0-d1fd-53ab-b58b-3c890ac28b24",
       "name": "claude",
       "adapter": "claude",
       "executable": "claude",
@@ -21,7 +21,7 @@
       "description": "Anthropic Claude Code - Excellent reasoning, OAuth auth"
     },
     {
-      "id": 2,
+      "id": "a6413f92-8c5e-5229-abaf-6abfc5e6f964",
       "name": "codex",
       "adapter": "codex",
       "executable": "codex",
@@ -30,7 +30,7 @@
       "description": "OpenAI Codex CLI - Diff-based workflow, OAuth auth"
     },
     {
-      "id": 3,
+      "id": "7a5702bd-a332-5d53-bded-c99692efe9ae",
       "name": "gemini",
       "adapter": "gemini",
       "executable": "gemini",

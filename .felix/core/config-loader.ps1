@@ -203,7 +203,7 @@ function Get-AgentConfig {
         $AgentsData,
         
         [Parameter(Mandatory = $true)]
-        [int]$AgentId,
+        [string]$AgentId,
         
         [Parameter(Mandatory = $false)]
         [string]$ConfigFile = $null
@@ -213,21 +213,21 @@ function Get-AgentConfig {
     $agentConfig = $AgentsData.agents | Where-Object { $_.id -eq $AgentId }
     
     if (-not $agentConfig) {
-        Emit-Log -Level "warn" -Message "Agent ID $AgentId not found in agents.json. Falling back to system default (ID 0)" -Component "config"
-        $agentConfig = $AgentsData.agents | Where-Object { $_.id -eq 0 }
+        Emit-Log -Level "warn" -Message "Agent ID $AgentId not found in agents.json. Falling back to first agent (droid)" -Component "config"
+        $agentConfig = $AgentsData.agents | Select-Object -First 1
         
         if (-not $agentConfig) {
-            Emit-Error -ErrorType "DefaultAgentNotFound" -Message "System default agent (ID 0) not found in agents.json" -Severity "fatal"
+            Emit-Error -ErrorType "DefaultAgentNotFound" -Message "No agents found in agents.json" -Severity "fatal"
             return $null
         }
         
-        # Auto-correct config.json to reference agent ID 0 if path provided
+        # Auto-correct config.json to reference first agent if path provided
         if ($ConfigFile) {
             try {
                 $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-                $config.agent.agent_id = 0
+                $config.agent.agent_id = $agentConfig.id
                 $config | ConvertTo-Json -Depth 10 | Set-Content $ConfigFile
-                Emit-Log -Level "info" -Message "Auto-corrected config.json to reference agent ID 0" -Component "config"
+                Emit-Log -Level "info" -Message "Auto-corrected config.json to reference agent ID $($agentConfig.id)" -Component "config"
             }
             catch {
                 Emit-Log -Level "warn" -Message "Could not auto-correct config.json: $_" -Component "config"

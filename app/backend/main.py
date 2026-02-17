@@ -20,60 +20,59 @@ load_dotenv()
 def setup_logging():
     """
     Configure logging with rotating file handler.
-    
+
     Log rotation settings:
     - Max file size: 10MB
     - Backup count: 5 (keeps 5 rotated files)
     - Log file: logs/felix-backend.log (relative to backend directory)
     - Console output: INFO level
     - File output: DEBUG level (more detail for troubleshooting)
-    
+
     Environment variables:
     - FELIX_LOG_DIR: Override log directory (default: ./logs)
     - FELIX_LOG_LEVEL: Override log level (default: INFO)
     """
     # Determine log directory
-    log_dir = os.environ.get("FELIX_LOG_DIR", os.path.join(os.path.dirname(__file__), "logs"))
+    log_dir = os.environ.get(
+        "FELIX_LOG_DIR", os.path.join(os.path.dirname(__file__), "logs")
+    )
     os.makedirs(log_dir, exist_ok=True)
-    
+
     log_file = os.path.join(log_dir, "felix-backend.log")
     log_level_str = os.environ.get("FELIX_LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
-    
+
     # Create formatter with timestamp, level, logger name, and message
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
-    
+
     # Create rotating file handler
     # maxBytes: 10MB (10 * 1024 * 1024)
     # backupCount: 5 (keeps felix-backend.log.1, .2, .3, .4, .5)
     file_handler = logging.handlers.RotatingFileHandler(
-        log_file,
-        maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5,
-        encoding="utf-8"
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"  # 10MB
     )
     file_handler.setLevel(logging.DEBUG)  # File gets all details
     file_handler.setFormatter(formatter)
-    
+
     # Create console handler for stdout
     console_handler = logging.StreamHandler()
     console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
-    
+
     # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)  # Allow all levels through
-    
+
     # Remove any existing handlers to avoid duplicates on reload
     root_logger.handlers.clear()
-    
+
     # Add handlers
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
-    
+
     # Log startup message
     logging.info(f"Logging configured: file={log_file}, level={log_level_str}")
 
@@ -178,15 +177,15 @@ app.include_router(metrics.router)
 async def health_check():
     """
     Enhanced health check endpoint with database and storage verification.
-    
+
     Checks:
     - Database connectivity: Executes a simple SELECT 1 query
     - Storage availability: Write/read/delete test key
-    
+
     Returns:
     - 200 with {"status": "healthy", ...} if all systems operational
     - 503 with {"status": "unhealthy", ...} if database or storage unavailable
-    
+
     Response includes:
     - status: "healthy" or "unhealthy"
     - service: "felix-backend"
@@ -196,29 +195,29 @@ async def health_check():
     """
     db_healthy = False
     storage_healthy = False
-    
+
     # Check database connectivity
     try:
         await database.fetch_one("SELECT 1")
         db_healthy = True
     except Exception as e:
         logger.warning(f"Health check: database unreachable - {e}")
-    
+
     # Check storage availability (write/read/delete test key)
     try:
         storage = get_artifact_storage()
         test_key = f"_health_check/{uuid.uuid4().hex}"
         test_content = b"health_check_test"
-        
+
         # Write test key
         await storage.put(test_key, test_content, "application/octet-stream")
-        
+
         # Read test key
         read_content = await storage.get(test_key)
-        
+
         # Delete test key
         await storage.delete(test_key)
-        
+
         # Verify content matches
         if read_content == test_content:
             storage_healthy = True
@@ -226,7 +225,7 @@ async def health_check():
             logger.warning("Health check: storage read/write mismatch")
     except Exception as e:
         logger.warning(f"Health check: storage unavailable - {e}")
-    
+
     # Build response
     response_data = {
         "status": "healthy" if (db_healthy and storage_healthy) else "unhealthy",
@@ -235,11 +234,11 @@ async def health_check():
         "database": db_healthy,
         "storage": storage_healthy,
     }
-    
+
     # Return 503 if any system is unhealthy
     if not (db_healthy and storage_healthy):
         return JSONResponse(status_code=503, content=response_data)
-    
+
     return response_data
 
 

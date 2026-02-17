@@ -33,7 +33,7 @@ function Register-Agent {
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [int]$AgentId,
+        [string]$AgentId,
         
         [Parameter(Mandatory = $true)]
         [string]$AgentName,
@@ -93,7 +93,7 @@ function Send-AgentHeartbeat {
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [int]$AgentId,
+        [string]$AgentId,
         
         [Parameter(Mandatory = $false)]
         [string]$CurrentRequirementId,
@@ -137,7 +137,7 @@ function Start-HeartbeatJob {
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [int]$AgentId,
+        [string]$AgentId,
         
         [Parameter(Mandatory = $true)]
         [string]$BackendBaseUrl
@@ -211,7 +211,7 @@ function Unregister-Agent {
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [int]$AgentId,
+        [string]$AgentId,
         
         [Parameter(Mandatory = $true)]
         [string]$BackendBaseUrl

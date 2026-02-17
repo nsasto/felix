@@ -375,7 +375,7 @@ try {
         $config.agent.agent_id 
     }
     else { 
-        0  # Default to agent ID 0
+        "39535ce5-e344-5a8c-9f3f-44776b998939"  # Default to droid agent UUID
     }
     Emit-Log -Level "debug" -Message "Using agent ID: $agentId" -Component "init"
 
@@ -409,7 +409,7 @@ try {
     $isSyncEnabled = $script:SyncReporter.GetType().Name -ne "NoOpReporter"
     if ($isSyncEnabled) {
         $syncUrl = $script:SyncReporter.BaseUrl
-        Emit-Log -Level "info" -Message "Sync enabled → $syncUrl" -Component "sync"
+        Emit-Log -Level "info" -Message "Sync enabled -> $syncUrl" -Component "sync"
     }
 
     # Register agent with sync service (non-blocking, best-effort)
@@ -429,22 +429,48 @@ try {
                 "unknown"
             }
             
-            $syncAgentInfo = @{
-                agent_id   = $agentConfig.id.ToString()  # Convert to string for API
-                hostname   = $env:COMPUTERNAME
-                platform   = $platform
-                version    = "0.7"  # Felix version
-                felix_root = $ProjectPath
-                adapter    = $agentConfig.adapter
-                executable = $agentConfig.executable
-                model      = $agentConfig.model
+            # Get hostname with robust fallback
+            $hostname = $env:COMPUTERNAME
+            if (-not $hostname) { $hostname = $env:HOSTNAME }
+            if (-not $hostname) { 
+                try { $hostname = [System.Net.Dns]::GetHostName() } catch { $hostname = "unknown" }
             }
+            
+            # Build registration payload for agents router (not sync router)
+            # Matches AgentRegisterRequest model with metadata field
+            $metadata = @{
+                hostname = $hostname
+                platform = $platform
+                version  = $config.version
+            }
+            
+            # Add optional fields to metadata
+            if ($ProjectPath -and $ProjectPath -ne "") {
+                $metadata["felix_root"] = $ProjectPath
+            }
+            if ($agentConfig.adapter -and $agentConfig.adapter -ne "") {
+                $metadata["adapter"] = $agentConfig.adapter
+            }
+            if ($agentConfig.executable -and $agentConfig.executable -ne "") {
+                $metadata["executable"] = $agentConfig.executable
+            }
+            if ($agentConfig.model -and $agentConfig.model -ne "") {
+                $metadata["model"] = $agentConfig.model
+            }
+            
+            $syncAgentInfo = @{
+                agent_id = $agentConfig.id.ToString()
+                name     = $agentConfig.name
+                type     = "cli"
+                metadata = $metadata
+            }
+            
             $script:SyncReporter.RegisterAgent($syncAgentInfo)
             Emit-Log -Level "info" -Message "Agent registered successfully" -Component "sync"
         }
         catch {
             # Handle registration failures gracefully - log warning but continue execution
-            Emit-Log -Level "warn" -Message "Agent registration failed (backend may be unavailable): $_" -Component "sync"
+            Emit-Log -Level "warn" -Message "Agent registration failed: $_" -Component "sync"
         }
     }
 
