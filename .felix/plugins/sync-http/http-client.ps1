@@ -800,7 +800,15 @@ class HttpSync : IRunReporter {
                 $statusCode = [int]$Matches[1]
             }
             
-            $this.WriteLog("ERROR", "Sync request failed: $method $endpoint - $errorMsg")
+            # Check ErrorDetails.Message for response body (PowerShell Core)
+            if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                try {
+                    $errorJson = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction Stop
+                    if ($errorJson.detail) { $errorMsg = $errorJson.detail }
+                } catch { }
+            }
+            
+            $this.WriteLog("ERROR", "Sync request failed: $method $endpoint - HTTP $statusCode - $errorMsg")
             
             # Emit visible error for critical operations like agent registration
             if ($endpoint -eq "/api/agents/register-sync") {
@@ -928,7 +936,15 @@ class HttpSync : IRunReporter {
                 $statusCode = [int]$Matches[1]
             }
             
-            $this.WriteLog("ERROR", "Batch upload failed for run $runId - $errorMsg")
+            # Check ErrorDetails.Message for response body (PowerShell Core)
+            if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                try {
+                    $errorJson = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction Stop
+                    if ($errorJson.detail) { $errorMsg = $errorJson.detail }
+                } catch { }
+            }
+            
+            $this.WriteLog("ERROR", "Batch upload failed for run $runId - HTTP $statusCode - $errorMsg")
             return @{
                 Success    = $false
                 StatusCode = $statusCode
