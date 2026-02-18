@@ -261,9 +261,11 @@ For development without sync, set sync.enabled=false in .felix/config.json
     switch ($provider) {
         { $_ -in @("http", "fastapi") } {
             # Support both "http" (new) and "fastapi" (legacy) for backward compatibility
-            $pluginPath = Join-Path $FelixDir "plugins\sync-http.ps1"
+            $pluginPath = Join-Path $FelixDir "plugins\sync-http\http-client.ps1"
             if (-not (Test-Path $pluginPath)) {
-                Write-Warning "Sync plugin not found at $pluginPath - falling back to NoOpReporter"
+                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                    Emit-Log -Level "warn" -Message "Sync plugin not found at $pluginPath - falling back to NoOpReporter" -Component "sync" | Out-Null
+                }
                 return [NoOpReporter]::new()
             }
             
@@ -272,7 +274,9 @@ For development without sync, set sync.enabled=false in .felix/config.json
                 
                 # Plugin should export New-PluginReporter function
                 if (-not (Get-Command "New-PluginReporter" -ErrorAction SilentlyContinue)) {
-                    Write-Warning "Sync plugin missing New-PluginReporter function - falling back to NoOpReporter"
+                    if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                        Emit-Log -Level "warn" -Message "Sync plugin missing New-PluginReporter function - falling back to NoOpReporter" -Component "sync" | Out-Null
+                    }
                     return [NoOpReporter]::new()
                 }
                 
@@ -281,12 +285,16 @@ For development without sync, set sync.enabled=false in .felix/config.json
                 return $reporter
             }
             catch {
-                Write-Warning "Failed to load sync plugin: $_ - falling back to NoOpReporter"
+                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                    Emit-Log -Level "warn" -Message "Failed to load sync plugin: $_ - falling back to NoOpReporter" -Component "sync" | Out-Null
+                }
                 return [NoOpReporter]::new()
             }
         }
         default {
-            Write-Warning "Unknown sync provider '$provider' - falling back to NoOpReporter"
+            if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                Emit-Log -Level "warn" -Message "Unknown sync provider '$provider' - falling back to NoOpReporter" -Component "sync" | Out-Null
+            }
             return [NoOpReporter]::new()
         }
     }
