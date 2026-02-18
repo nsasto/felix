@@ -807,33 +807,32 @@ async def create_run(
     if body.git_url:
         # Validate against API key's project by git URL
         from services.projects import normalize_git_url
-        
+
         # Get project from API key
         if not api_key:
             raise HTTPException(
-                status_code=401, detail="API key required when using git_url authentication"
+                status_code=401,
+                detail="API key required when using git_url authentication",
             )
-        
+
         key_project = await db.fetch_one(
             "SELECT id, git_url FROM projects WHERE id = :project_id",
-            {"project_id": api_key.project_id}
+            {"project_id": api_key.project_id},
         )
-        
+
         if not key_project:
-            raise HTTPException(
-                status_code=403, detail="API key's project not found"
-            )
-        
+            raise HTTPException(status_code=403, detail="API key's project not found")
+
         # Normalize and compare git URLs
         normalized_request = normalize_git_url(body.git_url)
         normalized_project = normalize_git_url(key_project["git_url"])
-        
+
         if normalized_request != normalized_project:
             raise HTTPException(
                 status_code=403,
-                detail=f"Git URL mismatch: API key is for {normalized_project}, request is for {normalized_request}"
+                detail=f"Git URL mismatch: API key is for {normalized_project}, request is for {normalized_request}",
             )
-        
+
         project_id = api_key.project_id
     elif body.project_id:
         # Fallback to explicit project_id (validate against API key if present)
@@ -842,8 +841,7 @@ async def create_run(
             require_project_access(api_key, project_id)
     else:
         raise HTTPException(
-            status_code=400,
-            detail="Either git_url or project_id must be provided"
+            status_code=400, detail="Either git_url or project_id must be provided"
         )
 
     try:

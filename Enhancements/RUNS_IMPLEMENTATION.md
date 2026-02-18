@@ -1,2372 +1,1097 @@
-# Runs Migration - Step-by-Step Implementation Plan
+# Run Artifact Sync - Production Implementation
 
-> **✅ COMPLETED**: This implementation plan has been executed. The production system now uses a **hook-based plugin architecture** (sync-http) instead of the IRunReporter approach described here.
->
-> **Current Implementation**: See [.felix/plugins/sync-http/README.md](../.felix/plugins/sync-http/README.md) for the active plugin documentation.
->
-> **What Changed**:
->
-> - Plugin hooks replace direct IRunReporter calls
-> - Event batching (5s) via background timer instead of immediate sends
-> - Status throttling (1/sec) to reduce backend load
-> - Artifacts upload only on run completion (not during execution)
-> - Plugin manifest (plugin.json) for discovery and configuration
->
-> This document remains as historical reference for the implementation journey.
-
-**Goal:** Implement agent-to-server run artifact mirroring with minimal disruption to existing functionality.
-
-**Strategy:** Incremental implementation with feature flags, backward compatibility at each step, and continuous testing.
+**Version:** 1.0.0  
+**Status:** ✅ Production Ready  
+**Last Updated:** 2026-02-18
 
 ---
 
-## Overview
+## Executive Summary
 
-This document provides concrete implementation steps for the [runs_migration.md](runs_migration.md) specification. Each phase includes:
+The Run Artifact Sync system enables Felix CLI agents to mirror run data (events, status, artifacts) to a central backend server for team visibility, audit trails, and collaboration. The system maintains Felix's **local-first philosophy** - all operations work offline, sync is optional and gracefully degrades on failure.
 
-- **Files to create/modify** with exact paths
-- **Testing checkpoints** to verify progress
-- **Rollback strategy** if issues arise
-- **Estimated effort** (person-days)
+**Key Achievements:**
+
+- ✅ **Plugin Architecture**: Hook-based lifecycle integration (OnPreIteration, OnEvent, OnRunComplete, etc.)
+- ✅ **Event Batching**: 5-second heartbeat with background timer reduces backend load
+- ✅ **Git URL Authentication**: Projects identified by git remote URL (no manual UUID config)
+- ✅ **Idempotent Uploads**: SHA256-based file deduplication prevents duplicate storage
+- ✅ **Outbox Queue**: Eventual consistency via retry queue (.felix/outbox/\*.jsonl)
+- ✅ **Zero Runtime Dependency**: Local operations never blocked by sync failures
 
 ---
 
-## Phase 0: Preparation (1 day)
+## Architecture Overview
 
-### Objectives
+### Design Principles
 
-- Set up feature branch
-- Create database migration stub
-- Add feature flag to config
-- Document baseline state
+1. **Local First**: CLI always writes to local filesystem first; sync is secondary
+2. **Graceful Degradation**: Network failures don't break runs (queue for retry)
+3. **Event-Driven**: Plugin hooks observe lifecycle, core executor remains clean
+4. **Secure by Default**: API keys scoped to single project, git URL validation prevents misuse
+5. **Zero Config (Almost)**: Git remote URL auto-discovered, only API key needed
 
-### Steps
+### System Components
 
-#### 1. Create Feature Branch
-
-```bash
-git checkout -b feature/run-artifact-sync
-git push -u origin feature/run-artifact-sync
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Felix CLI Agent (.felix/ directory)                         │
+│                                                              │
+│  ┌──────────────┐    Hook Events    ┌──────────────────┐   │
+│  │   Core       │───────────────────>│  Sync Plugin     │   │
+│  │   Executor   │                    │  (sync-http)     │   │
+│  │              │                    │                  │   │
+│  │  • Runs      │                    │  • Queue Events  │   │
+│  │  • Plans     │                    │  • Batch Send    │   │
+│  │  • Commits   │                    │  • Upload Files  │   │
+│  └──────────────┘                   └────────┬─────────┘   │
+│                                                │             │
+│                                                │ HTTP/REST   │
+└────────────────────────────────────────────────┼─────────────┘
+                                                 │
+                                                 ▼
+                        ┌─────────────────────────────────────┐
+                        │  Backend API (FastAPI)              │
+                        │                                     │
+                        │  • /api/runs (create/finish)        │
+                        │  • /api/runs/{id}/events (batch)    │
+                        │  • /api/runs/{id}/files (upload)    │
+                        │                                     │
+                        └──────────┬──────────────────────────┘
+                                   │
+                   ┌───────────────┴───────────────┐
+                   │                               │
+                   ▼                               ▼
+        ┌──────────────────┐          ┌──────────────────────┐
+        │  PostgreSQL      │          │  Storage Backend     │
+        │                  │          │  (filesystem/S3)     │
+        │  • runs          │          │                      │
+        │  • run_events    │          │  • artifacts/*.md    │
+        │  • run_files     │          │  • logs/*.log        │
+        │  • agents        │          │  • diffs/*.patch     │
+        └──────────────────┘          └──────────────────────┘
 ```
 
-#### 2. Add Feature Flag to Config Schema
+---
 
-**File:** `.felix/config.json` (add sync section)
+## Plugin Architecture
+
+### Hook-Based Integration
+
+The sync system uses Felix's plugin architecture with lifecycle hooks:
+
+| Hook                     | Trigger                          | Purpose                                                                            |
+| ------------------------ | -------------------------------- | ---------------------------------------------------------------------------------- |
+| **OnPreIteration**       | First iteration only             | Initialize HTTP client, register agent, create run record, start event flush timer |
+| **OnEvent**              | Every event emission             | Queue events for batch sending (flush immediately for errors)                      |
+| **OnPostModeSelection**  | Mode changes (planning↔building) | Update run status (throttled to max 1/sec)                                         |
+| **OnBackpressureFailed** | Validation/test failures         | Queue validation_failed event, force status update                                 |
+| **OnRunComplete**        | Run finishes (success/failure)   | Flush events, mark run complete, upload artifacts, stop timer                      |
+
+### Plugin Discovery and Configuration
+
+**Plugin Manifest** (`plugins/sync-http/plugin.json`):
 
 ```json
 {
-  "agent": {
-    "agent_id": null
-  },
-  "sync": {
-    "enabled": false,
-    "provider": "fastapi",
-    "base_url": "http://localhost:8080",
-    "api_key": null
+  "id": "sync-http",
+  "name": "HTTP Sync Plugin",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "hooks": [
+    {
+      "name": "OnPreIteration",
+      "type": "powershell",
+      "script": "on-prediteration.ps1"
+    },
+    {
+      "name": "OnEvent",
+      "type": "powershell",
+      "script": "on-event.ps1"
+    },
+    {
+      "name": "OnPostModeSelection",
+      "type": "powershell",
+      "script": "on-postmodeselection.ps1"
+    },
+    {
+      "name": "OnBackpressureFailed",
+      "type": "powershell",
+      "script": "on-backpressurefailed.ps1"
+    },
+    {
+      "name": "OnRunComplete",
+      "type": "powershell",
+      "script": "on-runcomplete.ps1"
+    }
+  ],
+  "config": {
+    "event_batch_interval": 5,
+    "status_throttle_ms": 1000,
+    "retry_attempts": 3
   }
 }
 ```
 
-**File:** `app/backend/.env.example` (add storage config)
+**Felix Configuration** (`.felix/config.json`):
 
-```
-STORAGE_TYPE=filesystem
-STORAGE_BASE_PATH=storage/runs
-```
-
-#### 3. Create Database Migration File
-
-**File:** `app/backend/migrations/014_run_artifact_mirroring.sql`
-
-```sql
--- Phase 1: Extend existing tables
--- To be implemented in steps
-
--- Placeholder for migration tracking
-INSERT INTO schema_migrations (version, applied_at)
-VALUES (14, NOW());
+```json
+{
+  "sync": {
+    "enabled": true,
+    "provider": "http",
+    "base_url": "http://localhost:8080",
+    "api_key": "fsk_51d8e1482650cd3f595353e0ed6774de59baf0e3ca4c552db82e95398cb70e11"
+  },
+  "plugins": {
+    "enabled": true,
+    "discovery_path": ".felix/plugins"
+  }
+}
 ```
 
-#### 4. Document Current State
+**Environment Variables** (override config file):
 
-**Command:**
+```powershell
+# Windows PowerShell
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "https://felix.example.com"
+$env:FELIX_SYNC_KEY = "fsk_your_api_key_here"
 
-```bash
-# Count existing runs data
-ls runs | measure-object
-
-# Check database schema
-psql -U postgres -d felix -c "\d runs"
-psql -U postgres -d felix -c "\d agents"
-psql -U postgres -d felix -c "\d run_artifacts"
+# Linux/macOS
+export FELIX_SYNC_ENABLED=true
+export FELIX_SYNC_URL=https://felix.example.com
+export FELIX_SYNC_KEY=fsk_your_api_key_here
 ```
-
-**File:** `Enhancements/RUNS_BASELINE.md` (snapshot current behavior)
-
-### Testing Checkpoint
-
-- [ ] Feature branch created and pushed
-- [ ] Config schema accepts sync settings (parse test)
-- [ ] Baseline metrics documented
-- [ ] Migration file exists (doesn't break setup-db.ps1)
-
-### Rollback
-
-- Delete branch: `git branch -D feature/run-artifact-sync`
-- No production impact (all changes local)
 
 ---
 
-## Phase 1: Database Schema Extensions (2 days)
+## Authentication & Security
 
-### Objectives
+### Git URL-Based Project Identity
 
-- Extend `runs` table with new columns
-- Extend `agents` table with registration fields
-- Create `run_events` table
-- Create `run_files` table
-- Maintain backward compatibility (nullable columns)
+**Eliminates manual project configuration** by using git remote URL as project identifier:
 
-### Steps
+1. **CLI extracts git URL** on run start:
 
-#### 1. Extend Runs Table
+   ```powershell
+   $gitUrl = git config --get remote.origin.url
+   # Example: "git@github.com:owner/repo.git"
+   ```
 
-**File:** `app/backend/migrations/014_run_artifact_mirroring.sql`
+2. **CLI sends git URL in RunCreate request**:
 
-```sql
--- Extend runs table (all nullable for backward compatibility)
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id);
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS phase TEXT;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS scenario TEXT;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS branch TEXT;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS commit_sha TEXT;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS error_summary TEXT;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS summary_json JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS duration_sec INTEGER;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS exit_code INTEGER;
-ALTER TABLE runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ;
+   ```json
+   POST /api/runs
+   {
+     "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+     "requirement_id": "S-0058",
+     "git_url": "git@github.com:owner/repo.git"
+   }
+   ```
 
--- Add indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_runs_org_project ON runs(org_id, project_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_runs_requirement ON runs(project_id, requirement_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_runs_status_time ON runs(status, created_at DESC);
+3. **Backend normalizes URLs for comparison**:
 
--- Extend status enum
-ALTER TABLE runs DROP CONSTRAINT IF EXISTS runs_status_check;
-ALTER TABLE runs ADD CONSTRAINT runs_status_check
-  CHECK (status IN ('pending', 'queued', 'running', 'completed', 'succeeded', 'failed', 'cancelled', 'stopped', 'rejected', 'blocked'));
+   ```python
+   # Converts SSH to HTTPS, removes .git, lowercases domain
+   "git@github.com:owner/repo.git" → "https://github.com/owner/repo"
+   "https://github.com/Owner/Repo/" → "https://github.com/owner/repo"
+   ```
+
+4. **Backend validates git URL matches API key's project**:
+   ```python
+   key_project = get_project_from_api_key(api_key)
+   if normalize_git_url(key_project.git_url) != normalize_git_url(request.git_url):
+       raise HTTPException(403, "Git URL mismatch")
+   ```
+
+**Security Benefits:**
+
+- ✅ **Auto-discovery**: No manual project UUID in CLI config
+- ✅ **Key scoping**: API key prevents usage in wrong git repository
+- ✅ **Machine portability**: Same git remote URL → same project across machines
+- ✅ **Zero-trust**: Backend validates all requests, clients cannot forge project_id
+
+### API Key Management
+
+**Key Format:** `fsk_` + 64 hex characters (256-bit entropy)
+
+**Key Properties:**
+
+- **Project-scoped**: Each key authenticates to exactly ONE project
+- **SHA256 hashed**: Plain-text shown only once at generation
+- **Expirable**: Optional expiration (30/90/180/365 days or never)
+- **Revocable**: Immediate via UI or API
+
+**Generating Keys:**
+
+```bash
+# Via UI: Project Settings → API Keys → Generate New Key
+# Via API:
+curl -X POST "http://localhost:8080/api/projects/{project_id}/keys" \
+  -H "Authorization: Bearer {user_token}" \
+  -d '{"name": "CI Pipeline", "expires_days": 365}'
 ```
 
-#### 2. Extend Agents Table
+**Authentication Flow:**
 
-**File:** `app/backend/migrations/014_run_artifact_mirroring.sql` (continue)
-
-```sql
--- Extend agents table
-ALTER TABLE agents ADD COLUMN IF NOT EXISTS hostname TEXT;
-ALTER TABLE agents ADD COLUMN IF NOT EXISTS platform TEXT;
-ALTER TABLE agents ADD COLUMN IF NOT EXISTS version TEXT;
-ALTER TABLE agents ADD COLUMN IF NOT EXISTS profile_id UUID;
-ALTER TABLE agents ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ DEFAULT NOW();
-
--- Make project_id nullable (agents can register before assignment)
-ALTER TABLE agents ALTER COLUMN project_id DROP NOT NULL;
-
--- Add index for last_seen queries
-CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(status, last_seen_at DESC);
+```
+CLI Request → Backend extracts Bearer token
+           → SHA256 hash token
+           → Lookup in api_keys table
+           → Get project_id from key
+           → Validate git_url matches project
+           → Authorize operation
 ```
 
-#### 3. Create Run Events Table
+---
 
-**File:** `app/backend/migrations/014_run_artifact_mirroring.sql` (continue)
+## Event Batching & Status Updates
+
+### Event Batching (Heartbeat Proxy)
+
+**Problem:** Sending 1 HTTP request per event creates network overhead and backend load.
+
+**Solution:** Batch events in memory, flush every 5 seconds via background timer.
+
+**Implementation:**
+
+- **In-Memory Queue**: Events added to `$Global:HttpSyncState.EventQueue`
+- **Background Timer**: PowerShell timer flushes queue every 5 seconds
+- **Immediate Flush**: Critical events (errors, validation failures) bypass batching
+- **Batch API**: `POST /api/runs/{run_id}/events` accepts array of events
+
+**Example Event Batch:**
+
+```json
+POST /api/runs/{run_id}/events
+{
+  "events": [
+    {"ts": "2026-02-18T10:00:05Z", "type": "task_started", "level": "info", "message": "Starting task 1.2"},
+    {"ts": "2026-02-18T10:00:42Z", "type": "task_completed", "level": "info", "message": "Task 1.2 complete"},
+    {"ts": "2026-02-18T10:01:03Z", "type": "heartbeat", "level": "debug"}
+  ]
+}
+```
+
+### Status Throttling
+
+**Problem:** Mode changes and task updates can trigger status updates multiple times per second.
+
+**Solution:** Throttle to max 1 status update per second.
+
+**Implementation:**
+
+- Track last status update timestamp in `$Global:HttpSyncState.LastStatusUpdate`
+- Skip status updates if < 1000ms since last update
+- Critical events (errors, completion) bypass throttle
+
+---
+
+## Database Schema
+
+### Tables
+
+#### runs
+
+Extended from baseline schema with sync-specific columns:
 
 ```sql
--- Run events for timeline tracking
-CREATE TABLE IF NOT EXISTS run_events (
+CREATE TABLE runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    requirement_id UUID REFERENCES requirements(id) ON DELETE SET NULL,
+    org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
+
+    -- Status and timing
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
+        'pending', 'running', 'completed', 'failed', 'cancelled',
+        'succeeded', 'stopped', 'queued', 'rejected', 'blocked'
+    )),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- Run metadata
+    phase TEXT,                    -- 'planning', 'building', etc.
+    scenario TEXT,                 -- Run scenario identifier
+    branch TEXT,                   -- Git branch
+    commit_sha TEXT,               -- Git commit at run start
+    error TEXT,                    -- Legacy error field
+    error_summary TEXT,            -- Structured error summary
+    summary_json JSONB DEFAULT '{}',
+    duration_sec INTEGER,
+    exit_code INTEGER,
+    metadata JSONB DEFAULT '{}'
+);
+```
+
+#### run_events
+
+Timeline of events during run execution:
+
+```sql
+CREATE TABLE run_events (
     id BIGSERIAL PRIMARY KEY,
     run_id UUID NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
     ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    level TEXT NOT NULL DEFAULT 'info' CHECK (level IN ('info', 'warn', 'error', 'debug')),
-    type TEXT NOT NULL CHECK (type ~ '^[a-z_]+$'),
+    level TEXT NOT NULL CHECK (level IN ('info', 'warn', 'error', 'debug')),
+    type TEXT NOT NULL CHECK (type IN (
+        'started', 'plan_loaded', 'task_started', 'task_completed',
+        'validation_started', 'validation_passed', 'validation_failed',
+        'completed', 'failed', 'cancelled', 'heartbeat'
+    )),
     message TEXT,
-    payload JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    payload JSONB
 );
 
 CREATE INDEX idx_run_events_run_ts ON run_events(run_id, ts DESC);
-CREATE INDEX idx_run_events_type ON run_events(type, ts DESC);
-CREATE INDEX idx_run_events_level ON run_events(level, ts DESC) WHERE level IN ('error', 'warn');
-
-COMMENT ON TABLE run_events IS 'Timeline of events during run execution for real-time streaming and analysis';
+CREATE INDEX idx_run_events_type_ts ON run_events(type, ts DESC);
+CREATE INDEX idx_run_events_level_ts ON run_events(level, ts DESC) WHERE level IN ('error', 'warn');
 ```
 
-#### 4. Create Run Files Table
+#### run_files
 
-**File:** `app/backend/migrations/014_run_artifact_mirroring.sql` (continue)
+Metadata for uploaded artifacts (content stored in storage backend):
 
 ```sql
--- Run files for artifact tracking (replaces run_artifacts usage)
-CREATE TABLE IF NOT EXISTS run_files (
-    id BIGSERIAL PRIMARY KEY,
+CREATE TABLE run_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id UUID NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
-    path TEXT NOT NULL,
-    kind TEXT NOT NULL DEFAULT 'artifact' CHECK (kind IN ('artifact', 'log')),
-    storage_key TEXT NOT NULL,
-    size_bytes BIGINT NOT NULL,
-    sha256 TEXT,
-    content_type TEXT DEFAULT 'application/octet-stream',
+    path TEXT NOT NULL,            -- Relative path within run (e.g., "plan.md")
+    kind TEXT NOT NULL CHECK (kind IN ('artifact', 'log')),
+    size_bytes INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,          -- For deduplication
+    content_type TEXT NOT NULL,    -- MIME type
+    storage_key TEXT NOT NULL,     -- Storage backend key
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    UNIQUE (run_id, path)
+    UNIQUE(run_id, path)
 );
 
-CREATE INDEX idx_run_files_run ON run_files(run_id);
-CREATE INDEX idx_run_files_kind ON run_files(run_id, kind);
-CREATE INDEX idx_run_files_sha ON run_files(sha256) WHERE sha256 IS NOT NULL;
-CREATE INDEX idx_run_files_updated ON run_files(updated_at DESC);
-
-COMMENT ON TABLE run_files IS 'Artifact storage tracking with SHA256 integrity and deduplication';
+CREATE INDEX idx_run_files_run_id ON run_files(run_id);
+CREATE INDEX idx_run_files_sha256 ON run_files(sha256);
 ```
 
-#### 5. Apply Migration
+#### agents
 
-```bash
-# Backup database first
-pg_dump -U postgres felix > backup_pre_014_$(date +%Y%m%d).sql
+Extended with registration metadata:
 
-# Apply migration
-psql -U postgres -d felix -f app/backend/migrations/014_run_artifact_mirroring.sql
-
-# Verify tables exist
-psql -U postgres -d felix -c "\d+ run_events"
-psql -U postgres -d felix -c "\d+ run_files"
-psql -U postgres -d felix -c "\d runs" | grep -E "(phase|scenario|branch|duration_sec)"
+```sql
+ALTER TABLE agents
+    ADD COLUMN hostname TEXT,
+    ADD COLUMN platform TEXT,      -- 'windows', 'linux', 'macos'
+    ADD COLUMN version TEXT,        -- Felix version
+    ADD COLUMN last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    ALTER COLUMN project_id DROP NOT NULL;  -- Allow registration before project assignment
 ```
 
-### Testing Checkpoint
+### Indexes
 
-- [ ] Migration applies without errors
-- [ ] All new columns exist with correct types
-- [ ] Indexes created successfully
-- [ ] Existing data preserved (row count unchanged)
-- [ ] Backend still starts without errors
-- [ ] Existing run queries still work
+```sql
+-- Run queries
+CREATE INDEX idx_runs_org_project_created ON runs(org_id, project_id, created_at DESC);
+CREATE INDEX idx_runs_project_requirement_created ON runs(project_id, requirement_id, created_at DESC);
+CREATE INDEX idx_runs_agent_created ON runs(agent_id, created_at DESC);
+CREATE INDEX idx_runs_status_created ON runs(status, created_at DESC);
 
-**Verification:**
-
-```bash
-# Check record counts before/after
-psql -U postgres -d felix -c "SELECT COUNT(*) FROM runs;"
-psql -U postgres -d felix -c "SELECT COUNT(*) FROM agents;"
-
-# Test nullable columns don't break existing queries
-psql -U postgres -d felix -c "SELECT id, status, created_at FROM runs LIMIT 5;"
-```
-
-### Rollback
-
-```bash
-# Restore from backup
-psql -U postgres -d felix < backup_pre_014_$(date +%Y%m%d).sql
-
-# Or manual rollback
-psql -U postgres -d felix << EOF
-DROP TABLE IF EXISTS run_files CASCADE;
-DROP TABLE IF EXISTS run_events CASCADE;
-ALTER TABLE runs DROP COLUMN IF EXISTS phase, DROP COLUMN IF EXISTS scenario,
-  DROP COLUMN IF EXISTS branch, DROP COLUMN IF EXISTS commit_sha,
-  DROP COLUMN IF EXISTS error_summary, DROP COLUMN IF EXISTS summary_json,
-  DROP COLUMN IF EXISTS duration_sec, DROP COLUMN IF EXISTS exit_code,
-  DROP COLUMN IF EXISTS finished_at, DROP COLUMN IF EXISTS org_id;
-ALTER TABLE agents DROP COLUMN IF EXISTS hostname, DROP COLUMN IF EXISTS platform,
-  DROP COLUMN IF EXISTS version, DROP COLUMN IF EXISTS profile_id,
-  DROP COLUMN IF EXISTS last_seen_at;
-EOF
+-- Agent queries
+CREATE INDEX idx_agents_last_seen ON agents(status, last_seen_at DESC);
 ```
 
 ---
 
-## Phase 2: Storage Abstraction Layer (2 days)
+## API Endpoints
 
-### Objectives
+### Run Lifecycle
 
-- Create storage interface
-- Implement filesystem storage
-- Implement Supabase storage (stub for now)
-- Add storage factory with config
+#### POST /api/runs
 
-### Steps
+Create new run record.
 
-#### 1. Create Storage Base Interface
+**Request:**
 
-**File:** `app/backend/storage/__init__.py`
-
-```python
-"""Storage abstraction for run artifacts"""
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000", // Optional, generated if omitted
+  "agent_id": "agent-uuid",
+  "requirement_id": "S-0058",
+  "git_url": "git@github.com:owner/repo.git", // Required for authentication
+  "branch": "feature/sync",
+  "commit_sha": "abc123def456",
+  "phase": "planning",
+  "scenario": "auto"
+}
 ```
 
-**File:** `app/backend/storage/base.py`
+**Response:**
 
-```python
-from abc import ABC, abstractmethod
-from typing import BinaryIO, Optional
-
-class ArtifactStorage(ABC):
-    """Abstract interface for artifact storage"""
-
-    @abstractmethod
-    async def put(
-        self,
-        key: str,
-        content: BinaryIO,
-        content_type: str,
-        metadata: dict[str, str]
-    ) -> None:
-        """Upload artifact to storage"""
-        pass
-
-    @abstractmethod
-    async def get(self, key: str) -> bytes:
-        """Download artifact from storage"""
-        pass
-
-    @abstractmethod
-    async def exists(self, key: str) -> bool:
-        """Check if artifact exists"""
-        pass
-
-    @abstractmethod
-    async def delete(self, key: str) -> None:
-        """Delete artifact from storage"""
-        pass
-
-    @abstractmethod
-    async def list_keys(self, prefix: str) -> list[str]:
-        """List all keys with given prefix"""
-        pass
-
-    @abstractmethod
-    async def get_metadata(self, key: str) -> Optional[dict]:
-        """Get metadata for a key without downloading content"""
-        pass
+```json
+{
+  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "created"
+}
 ```
 
-#### 2. Implement Filesystem Storage
+**Validation:**
 
-**File:** `app/backend/storage/filesystem.py`
+- API key required (`Authorization: Bearer fsk_...`)
+- Git URL must match API key's project (normalized comparison)
+- Agent must exist or be auto-registered
+- Idempotent: repeated calls with same ID update metadata
 
-```python
-import aiofiles
-import json
-from pathlib import Path
-from typing import BinaryIO, Optional
-from .base import ArtifactStorage
+#### POST /api/runs/{run_id}/events
 
-class FilesystemStorage(ArtifactStorage):
-    """Local filesystem storage for artifacts"""
+Append events to run timeline (batch operation).
 
-    def __init__(self, base_path: str = "storage/runs"):
-        self.base_path = Path(base_path)
-        self.base_path.mkdir(parents=True, exist_ok=True)
+**Request:**
 
-    def _get_path(self, key: str) -> Path:
-        """Convert storage key to safe filesystem path"""
-        # Normalize and validate to prevent directory traversal
-        safe_key = key.replace("..", "").lstrip("/\\")
-        return self.base_path / safe_key
-
-    async def put(
-        self,
-        key: str,
-        content: BinaryIO,
-        content_type: str,
-        metadata: dict[str, str]
-    ) -> None:
-        path = self._get_path(key)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write content
-        async with aiofiles.open(path, 'wb') as f:
-            await f.write(content.read())
-
-        # Write metadata sidecar
-        meta_path = path.with_suffix(path.suffix + '.meta.json')
-        async with aiofiles.open(meta_path, 'w') as f:
-            await f.write(json.dumps({
-                'content_type': content_type,
-                **metadata
-            }))
-
-    async def get(self, key: str) -> bytes:
-        path = self._get_path(key)
-        if not path.exists():
-            raise FileNotFoundError(f"Artifact not found: {key}")
-
-        async with aiofiles.open(path, 'rb') as f:
-            return await f.read()
-
-    async def exists(self, key: str) -> bool:
-        return self._get_path(key).exists()
-
-    async def delete(self, key: str) -> None:
-        path = self._get_path(key)
-        if path.exists():
-            path.unlink()
-
-        # Also delete metadata sidecar
-        meta_path = path.with_suffix(path.suffix + '.meta.json')
-        if meta_path.exists():
-            meta_path.unlink()
-
-    async def list_keys(self, prefix: str) -> list[str]:
-        prefix_path = self._get_path(prefix)
-        if not prefix_path.exists():
-            return []
-
-        keys = []
-        for path in prefix_path.rglob("*"):
-            if path.is_file() and not path.name.endswith('.meta.json'):
-                rel_path = path.relative_to(self.base_path)
-                keys.append(str(rel_path).replace("\\", "/"))
-        return sorted(keys)
-
-    async def get_metadata(self, key: str) -> Optional[dict]:
-        path = self._get_path(key)
-        meta_path = path.with_suffix(path.suffix + '.meta.json')
-
-        if not meta_path.exists():
-            return None
-
-        async with aiofiles.open(meta_path, 'r') as f:
-            return json.loads(await f.read())
+```json
+{
+  "events": [
+    {
+      "ts": "2026-02-18T10:00:05.123Z",
+      "type": "task_started",
+      "level": "info",
+      "message": "Starting task: Add input validation",
+      "payload": { "task_id": "1.2", "title": "Add input validation" }
+    },
+    {
+      "ts": "2026-02-18T10:00:42.789Z",
+      "type": "task_completed",
+      "level": "info",
+      "message": "Task complete: Add input validation",
+      "payload": { "task_id": "1.2", "duration_sec": 37 }
+    }
+  ]
+}
 ```
 
-#### 3. Create Supabase Storage Stub
+**Response:**
 
-**File:** `app/backend/storage/supabase.py`
+```json
+{
+  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+  "inserted": 2,
+  "status": "ok"
+}
+```
+
+#### POST /api/runs/{run_id}/finish
+
+Mark run as complete/failed.
+
+**Request:**
+
+```json
+{
+  "status": "succeeded", // or "failed", "cancelled"
+  "exit_code": 0,
+  "duration_sec": 127,
+  "error_summary": null,
+  "summary_json": {
+    "tasks_completed": 3,
+    "files_changed": 5
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "succeeded",
+  "finished_at": "2026-02-18T10:02:15.456Z"
+}
+```
+
+### Artifact Management
+
+#### POST /api/runs/{run_id}/files
+
+Batch upload artifacts (multipart/form-data).
+
+**Request (manifest-first approach):**
+
+```json
+POST /api/runs/{run_id}/files
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="manifest"
+
+{
+  "files": [
+    {
+      "path": "plan.md",
+      "sha256": "abc123...",
+      "size_bytes": 1024,
+      "content_type": "text/markdown"
+    },
+    {
+      "path": "diff.patch",
+      "sha256": "def456...",
+      "size_bytes": 2048,
+      "content_type": "text/x-patch"
+    }
+  ]
+}
+
+--boundary
+Content-Disposition: form-data; name="plan.md"; filename="plan.md"
+Content-Type: text/markdown
+
+# Plan content here...
+
+--boundary
+Content-Disposition: form-data; name="diff.patch"; filename="diff.patch"
+Content-Type: text/x-patch
+
+diff --git a/file.py b/file.py
+...
+```
+
+**Response:**
+
+```json
+{
+  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+  "files": [
+    { "path": "plan.md", "status": "uploaded", "size_bytes": 1024 },
+    {
+      "path": "diff.patch",
+      "status": "skipped",
+      "size_bytes": 2048,
+      "reason": "unchanged"
+    }
+  ],
+  "total": 2,
+  "uploaded": 1,
+  "skipped": 1
+}
+```
+
+**Deduplication:**
+
+- Backend checks `run_files.sha256` before accepting upload
+- If file with same SHA256 exists for this run, skip upload (idempotent)
+- Storage backend may deduplicate at storage layer (content-addressed)
+
+#### GET /api/runs/{run_id}/files
+
+List artifacts for a run.
+
+**Response:**
+
+```json
+{
+  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+  "files": [
+    {
+      "path": "plan.md",
+      "kind": "artifact",
+      "size_bytes": 1024,
+      "sha256": "abc123...",
+      "content_type": "text/markdown",
+      "updated_at": "2026-02-18T10:02:15.456Z"
+    }
+  ]
+}
+```
+
+#### GET /api/runs/{run_id}/files/{path:path}
+
+Download artifact content.
+
+**Response:** Raw file content with appropriate Content-Type header.
+
+---
+
+## Storage Backend
+
+### Abstraction Layer
 
 ```python
-from typing import BinaryIO, Optional
-from .base import ArtifactStorage
+# app/backend/storage.py
+class ArtifactStorage(Protocol):
+    async def store_artifact(
+        self, run_id: str, file_path: str, content: bytes
+    ) -> str:
+        """Store artifact, return storage key"""
+        ...
 
-class SupabaseStorage(ArtifactStorage):
-    """Supabase Storage implementation (TODO)"""
+    async def get_artifact(self, storage_key: str) -> bytes:
+        """Retrieve artifact by storage key"""
+        ...
 
-    def __init__(self, project_url: str, api_key: str, bucket: str = "run-artifacts"):
-        self.project_url = project_url
-        self.api_key = api_key
+    async def delete_artifact(self, storage_key: str) -> None:
+        """Delete artifact (for cleanup)"""
+        ...
+```
+
+### Filesystem Backend (Default)
+
+```python
+class FilesystemStorage:
+    def __init__(self, base_path: str):
+        self.base_path = Path(base_path)  # e.g., "storage/runs"
+
+    async def store_artifact(self, run_id: str, file_path: str, content: bytes) -> str:
+        # Storage key: runs/{run_id}/{file_path}
+        storage_key = f"runs/{run_id}/{file_path}"
+        full_path = self.base_path / storage_key
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(content)
+        return storage_key
+```
+
+**Directory Structure:**
+
+```
+storage/
+└── runs/
+    ├── 550e8400-e29b-41d4-a716-446655440000/
+    │   ├── plan.md
+    │   ├── diff.patch
+    │   ├── output.log
+    │   └── report.md
+    └── 660f9511-f3ac-52e5-b827-557766551111/
+        └── ...
+```
+
+### S3 Backend (Future)
+
+```python
+class S3Storage:
+    def __init__(self, bucket: str, prefix: str):
+        self.s3 = boto3.client('s3')
         self.bucket = bucket
-        raise NotImplementedError("Supabase storage not yet implemented - use filesystem for now")
+        self.prefix = prefix
 
-    async def put(self, key: str, content: BinaryIO, content_type: str, metadata: dict[str, str]) -> None:
-        raise NotImplementedError()
-
-    async def get(self, key: str) -> bytes:
-        raise NotImplementedError()
-
-    async def exists(self, key: str) -> bool:
-        raise NotImplementedError()
-
-    async def delete(self, key: str) -> None:
-        raise NotImplementedError()
-
-    async def list_keys(self, prefix: str) -> list[str]:
-        raise NotImplementedError()
-
-    async def get_metadata(self, key: str) -> Optional[dict]:
-        raise NotImplementedError()
+    async def store_artifact(self, run_id: str, file_path: str, content: bytes) -> str:
+        storage_key = f"{self.prefix}/runs/{run_id}/{file_path}"
+        self.s3.put_object(Bucket=self.bucket, Key=storage_key, Body=content)
+        return storage_key
 ```
 
-#### 4. Create Storage Factory
-
-**File:** `app/backend/storage/factory.py`
-
-```python
-import os
-from .base import ArtifactStorage
-from .filesystem import FilesystemStorage
-from .supabase import SupabaseStorage
-
-def get_storage() -> ArtifactStorage:
-    """Factory to create storage implementation from environment config"""
-
-    storage_type = os.getenv('STORAGE_TYPE', 'filesystem')
-
-    if storage_type == 'filesystem':
-        base_path = os.getenv('STORAGE_BASE_PATH', 'storage/runs')
-        return FilesystemStorage(base_path=base_path)
-
-    elif storage_type == 'supabase':
-        project_url = os.getenv('SUPABASE_PROJECT_URL')
-        api_key = os.getenv('SUPABASE_API_KEY')
-        bucket = os.getenv('SUPABASE_BUCKET', 'run-artifacts')
-
-        if not project_url or not api_key:
-            raise ValueError("SUPABASE_PROJECT_URL and SUPABASE_API_KEY required for supabase storage")
-
-        return SupabaseStorage(
-            project_url=project_url,
-            api_key=api_key,
-            bucket=bucket
-        )
-
-    else:
-        raise ValueError(f"Unknown storage type: {storage_type}")
-
-# Singleton instance
-_storage_instance: Optional[ArtifactStorage] = None
-
-def get_artifact_storage() -> ArtifactStorage:
-    """Get or create singleton storage instance"""
-    global _storage_instance
-    if _storage_instance is None:
-        _storage_instance = get_storage()
-    return _storage_instance
-```
-
-#### 5. Create Storage Tests
-
-**File:** `app/backend/tests/test_storage.py`
-
-```python
-import pytest
-import tempfile
-import shutil
-from pathlib import Path
-from io import BytesIO
-from app.backend.storage.filesystem import FilesystemStorage
-
-@pytest.fixture
-def temp_storage():
-    """Create temporary storage for testing"""
-    temp_dir = tempfile.mkdtemp()
-    storage = FilesystemStorage(base_path=temp_dir)
-    yield storage
-    shutil.rmtree(temp_dir)
-
-@pytest.mark.asyncio
-async def test_put_and_get(temp_storage):
-    """Test basic put and get operations"""
-    content = b"Hello, World!"
-    key = "test/file.txt"
-
-    await temp_storage.put(
-        key=key,
-        content=BytesIO(content),
-        content_type="text/plain",
-        metadata={"test": "true"}
-    )
-
-    assert await temp_storage.exists(key)
-
-    retrieved = await temp_storage.get(key)
-    assert retrieved == content
-
-@pytest.mark.asyncio
-async def test_list_keys(temp_storage):
-    """Test listing keys with prefix"""
-    files = [
-        "test/file1.txt",
-        "test/file2.txt",
-        "other/file3.txt"
-    ]
-
-    for key in files:
-        await temp_storage.put(
-            key=key,
-            content=BytesIO(b"test"),
-            content_type="text/plain",
-            metadata={}
-        )
-
-    test_keys = await temp_storage.list_keys("test/")
-    assert len(test_keys) == 2
-    assert all("test/" in k for k in test_keys)
-
-@pytest.mark.asyncio
-async def test_delete(temp_storage):
-    """Test file deletion"""
-    key = "test/delete-me.txt"
-
-    await temp_storage.put(
-        key=key,
-        content=BytesIO(b"delete me"),
-        content_type="text/plain",
-        metadata={}
-    )
-
-    assert await temp_storage.exists(key)
-
-    await temp_storage.delete(key)
-
-    assert not await temp_storage.exists(key)
-
-@pytest.mark.asyncio
-async def test_get_metadata(temp_storage):
-    """Test metadata retrieval"""
-    key = "test/meta.txt"
-    metadata = {"author": "test", "version": "1.0"}
-
-    await temp_storage.put(
-        key=key,
-        content=BytesIO(b"content"),
-        content_type="text/plain",
-        metadata=metadata
-    )
-
-    retrieved_meta = await temp_storage.get_metadata(key)
-    assert retrieved_meta is not None
-    assert retrieved_meta['author'] == "test"
-    assert retrieved_meta['version'] == "1.0"
-    assert retrieved_meta['content_type'] == "text/plain"
-```
-
-### Testing Checkpoint
-
-- [ ] Storage module imports without errors
-- [ ] Filesystem storage creates directories correctly
-- [ ] Put/get operations work for text and binary files
-- [ ] List operations return correct keys
-- [ ] Metadata sidecar files created and readable
-- [ ] All storage tests pass
-
-**Verification:**
+**Configuration:**
 
 ```bash
-# Run storage tests
-cd app/backend
-pytest tests/test_storage.py -v
-
-# Manual test
-python -c "
-import asyncio
-from storage.filesystem import FilesystemStorage
-from io import BytesIO
-
-async def test():
-    storage = FilesystemStorage('test_storage')
-    await storage.put('test.txt', BytesIO(b'Hello'), 'text/plain', {})
-    content = await storage.get('test.txt')
-    print(f'Retrieved: {content}')
-    exists = await storage.exists('test.txt')
-    print(f'Exists: {exists}')
-
-asyncio.run(test())
-"
-
-# Cleanup
-rm -rf test_storage
-```
-
-### Rollback
-
-```bash
-# Remove storage module
-rm -rf app/backend/storage/
-git checkout app/backend/storage/  # if previously existed
+# .env
+STORAGE_TYPE=s3
+STORAGE_S3_BUCKET=felix-artifacts
+STORAGE_S3_PREFIX=production
+AWS_REGION=us-west-2
 ```
 
 ---
 
-## Phase 3: Backend Sync Endpoints (3 days)
+## Outbox Queue & Retry Logic
 
-### Objectives
+### Outbox Pattern
 
-- Create sync router with artifact upload endpoints
-- Implement agent registration
-- Implement run lifecycle endpoints (create, events, finish)
-- Add basic authentication (API key)
+**Problem:** Network failures during sync shouldn't break runs.
 
-### Steps
+**Solution:** Queue failed requests to `.felix/outbox/` directory for later retry.
 
-#### 1. Create Sync Router
+**Format:** NDJSON (newline-delimited JSON) files
 
-**File:** `app/backend/routers/sync.py`
-
-```python
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Header
-from fastapi.responses import StreamingResponse
-from databases import Database
-from typing import Optional
-import uuid
-import json
-from datetime import datetime
-from io import BytesIO
-
-from app.backend.database import get_db
-from app.backend.storage.factory import get_artifact_storage
-from app.backend.storage.base import ArtifactStorage
-from pydantic import BaseModel
-
-router = APIRouter(prefix="/api", tags=["sync"])
-
-# --- Models ---
-
-class AgentRegistration(BaseModel):
-    agent_id: str
-    hostname: str
-    platform: str
-    version: str
-    felix_root: Optional[str] = None
-
-class RunCreate(BaseModel):
-    id: Optional[str] = None
-    requirement_id: str
-    agent_id: str
-    # REMOVED: project_id (backend derives from API key)
-    branch: Optional[str] = None
-    commit_sha: Optional[str] = None
-    scenario: Optional[str] = "autonomous"
-    phase: Optional[str] = "planning"
-
-class RunEvent(BaseModel):
-    type: str
-    level: str = "info"
-    message: Optional[str] = None
-    payload: Optional[dict] = None
-
-class RunCompletion(BaseModel):
-    status: str
-    exit_code: int
-    duration_sec: Optional[int] = None
-    error_summary: Optional[str] = None
-    summary_json: Optional[dict] = None
-
-# --- Authentication ---
-
-from datetime import datetime
-import hashlib
-
-class ApiKeyInfo(BaseModel):
-    """API key validation result with project context"""
-    key_id: str
-    project_id: str
-    org_id: str
-    name: Optional[str] = None
-
-async def verify_api_key(authorization: str = Header(None)) -> ApiKeyInfo:
-    """
-    Verify API key and return project context.
-
-    API keys are project-scoped (NOT NULL project_id).
-    Backend derives project context from key, client cannot override.
-
-    Raises:
-        HTTPException 401: Missing or invalid API key
-        HTTPException 403: API key expired
-    """
-    if not authorization:
-        raise HTTPException(401, "Authorization header required (Bearer fsk_...)")
-
-    # Extract token
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer":
-        token = authorization  # Allow plain token without Bearer prefix
-
-    if not token.startswith("fsk_"):
-        raise HTTPException(401, "Invalid API key format (expected fsk_...)")
-
-    # Hash and lookup
-    key_hash = hashlib.sha256(token.encode()).hexdigest()
-
-    db = await get_db()
-    result = await db.fetch_one(
-        """
-        SELECT
-            ak.id as key_id,
-            ak.project_id,
-            p.org_id,
-            ak.name,
-            ak.expires_at
-        FROM api_keys ak
-        JOIN projects p ON ak.project_id = p.id
-        WHERE ak.key_hash = :key_hash
-        """,
-        {"key_hash": key_hash}
-    )
-
-    if not result:
-        raise HTTPException(401, "Invalid API key")
-
-    # Check expiration
-    if result["expires_at"] and datetime.now() > result["expires_at"]:
-        raise HTTPException(403, "API key expired")
-
-    # Update last_used_at (fire and forget)
-    await db.execute(
-        "UPDATE api_keys SET last_used_at = NOW() WHERE id = :key_id",
-        {"key_id": result["key_id"]}
-    )
-
-    return ApiKeyInfo(
-        key_id=str(result["key_id"]),
-        project_id=str(result["project_id"]),
-        org_id=str(result["org_id"]),
-        name=result["name"]
-    )
-
-def require_project_access(key_info: ApiKeyInfo, requested_project_id: str):
-    """
-    Validate API key grants access to requested project.
-
-    Raises:
-        HTTPException 403: Project mismatch
-    """
-    if str(key_info.project_id) != requested_project_id:
-        raise HTTPException(
-            403,
-            f"API key not authorized for project {requested_project_id}"
-        )
-
-# --- Endpoints ---
-
-@router.post("/agents/register")
-async def register_agent(
-    agent: AgentRegistration,
-    db: Database = Depends(get_db),
-    key_info: ApiKeyInfo = Depends(verify_api_key)
-):
-    """
-    Register or update agent (idempotent).
-
-    Agent automatically assigned to API key's project.
-    No client-provided project_id accepted.
-    """
-
-    try:
-        # Use API key's project_id (single source of truth)
-        project_id = key_info.project_id
-
-        # Use INSERT ... ON CONFLICT for idempotent upsert
-        await db.execute(
-            """
-            INSERT INTO agents (id, name, type, hostname, platform, version, project_id, status, last_seen_at, metadata)
-            VALUES (:id, :name, 'felix', :hostname, :platform, :version, :project_id, 'idle', NOW(), :metadata)
-            ON CONFLICT (id) DO UPDATE SET
-                hostname = EXCLUDED.hostname,
-                platform = EXCLUDED.platform,
-                version = EXCLUDED.version,
-                project_id = EXCLUDED.project_id,
-                last_seen_at = NOW(),
-                updated_at = NOW()
-            """,
-            {
-                "id": agent.agent_id,
-                "name": f"agent-{agent.hostname}",
-                "hostname": agent.hostname,
-                "platform": agent.platform,
-                "version": agent.version,
-                "project_id": project_id,
-                "metadata": json.dumps({"felix_root": agent.felix_root})
-            }
-        )
-
-        return {
-            "status": "registered",
-            "agent_id": agent.agent_id,
-            "project_id": project_id
-        }
-
-    except Exception as e:
-        raise HTTPException(500, f"Failed to register agent: {str(e)}")
-
-@router.post("/runs")
-async def create_run(
-    run: RunCreate,
-    db: Database = Depends(get_db),
-    key_info: ApiKeyInfo = Depends(verify_api_key)
-):
-    """
-    Create new run record.
-
-    project_id derived from API key (not client request).
-    """
-
-    run_id = run.id or str(uuid.uuid4())
-    project_id = key_info.project_id  # API key determines project
-
-    try:
-        # Verify agent exists
-        agent = await db.fetch_one("SELECT id FROM agents WHERE id = :id", {"id": run.agent_id})
-        if not agent:
-            raise HTTPException(404, f"Agent not found: {run.agent_id}")
-
-        # Create run record (project_id from key_info)
-        await db.execute(
-            """
-            INSERT INTO runs (id, agent_id, project_id, org_id, requirement_id, branch, commit_sha,
-                            status, phase, scenario, created_at, started_at)
-            VALUES (:id, :agent_id, :project_id, :org_id, :requirement_id, :branch, :commit_sha,
-                    'running', :phase, :scenario, NOW(), NOW())
-            """,
-            {
-                "id": run_id,
-                "agent_id": run.agent_id,
-                "project_id": project_id,
-                "org_id": key_info.org_id,
-                "requirement_id": run.requirement_id,
-                "branch": run.branch,
-                "commit_sha": run.commit_sha,
-                "phase": run.phase,
-                "scenario": run.scenario
-            }
-        )
-
-        # Log initial event
-        await db.execute(
-            """
-            INSERT INTO run_events (run_id, type, level, message, ts)
-            VALUES (:run_id, 'run_started', 'info', :message, NOW())
-            """,
-            {
-                "run_id": run_id,
-                "message": f"Run started on {run.agent_id} in project {project_id}"
-            }
-        )
-
-        return {"run_id": run_id, "status": "created", "project_id": project_id}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Failed to create run: {str(e)}")
-
-@router.post("/runs/{run_id}/events")
-async def append_events(
-    run_id: str,
-    events: list[RunEvent],
-    db: Database = Depends(get_db),
-    _auth: bool = Depends(verify_api_key)
-):
-    """Append events to run timeline (batch insert)"""
-
-    try:
-        # Verify run exists
-        run = await db.fetch_one("SELECT id FROM runs WHERE id = :run_id", {"run_id": run_id})
-        if not run:
-            raise HTTPException(404, "Run not found")
-
-        if not events:
-            return {"status": "ok", "count": 0}
-
-        # Batch insert events
-        values = []
-        for event in events:
-            values.append({
-                "run_id": run_id,
-                "type": event.type,
-                "level": event.level,
-                "message": event.message,
-                "payload": json.dumps(event.payload) if event.payload else None
-            })
-
-        await db.execute_many(
-            """
-            INSERT INTO run_events (run_id, type, level, message, payload, ts)
-            VALUES (:run_id, :type, :level, :message, :payload, NOW())
-            """,
-            values
-        )
-
-        return {"status": "appended", "count": len(events)}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Failed to append events: {str(e)}")
-
-@router.post("/runs/{run_id}/finish")
-async def finish_run(
-    run_id: str,
-    completion: RunCompletion,
-    db: Database = Depends(get_db),
-    _auth: bool = Depends(verify_api_key)
-):
-    """Mark run as complete with final status"""
-
-    try:
-        result = await db.execute(
-            """
-            UPDATE runs SET
-                status = :status,
-                finished_at = NOW(),
-                completed_at = NOW(),
-                exit_code = :exit_code,
-                duration_sec = :duration_sec,
-                error_summary = :error_summary,
-                summary_json = :summary_json
-            WHERE id = :run_id
-            """,
-            {
-                "run_id": run_id,
-                "status": completion.status,
-                "exit_code": completion.exit_code,
-                "duration_sec": completion.duration_sec,
-                "error_summary": completion.error_summary,
-                "summary_json": json.dumps(completion.summary_json) if completion.summary_json else None
-            }
-        )
-
-        # Log completion event
-        await db.execute(
-            """
-            INSERT INTO run_events (run_id, type, level, message, ts)
-            VALUES (:run_id, 'run_finished', :level, :message, NOW())
-            """,
-            {
-                "run_id": run_id,
-                "level": "info" if completion.status == "succeeded" else "error",
-                "message": f"Run {completion.status} with exit code {completion.exit_code}"
-            }
-        )
-
-        return {"status": "finished", "run_id": run_id}
-
-    except Exception as e:
-        raise HTTPException(500, f"Failed to finish run: {str(e)}")
-
-@router.post("/runs/{run_id}/files")
-async def upload_artifacts_batch(
-    run_id: str,
-    manifest: str = Form(...),
-    files: list[UploadFile] = File(...),
-    db: Database = Depends(get_db),
-    storage: ArtifactStorage = Depends(get_artifact_storage),
-    key_info: ApiKeyInfo = Depends(verify_api_key)
-):
-    """
-    Batch upload run artifacts with SHA256 manifest.
-
-    Validates run belongs to API key's project.
-    """
-
-    try:
-        # Verify run exists and belongs to key's project
-        run = await db.fetch_one(
-            "SELECT id, project_id FROM runs WHERE id = :run_id",
-            {"run_id": run_id}
-        )
-        if not run:
-            raise HTTPException(404, "Run not found")
-
-        # Authorize project access
-        require_project_access(key_info, str(run["project_id"]))
-
-        project_id = run["project_id"]
-
-        # Parse manifest
-        try:
-            manifest_data = json.loads(manifest)
-        except json.JSONDecodeError:
-            raise HTTPException(400, "Invalid manifest JSON")
-
-        # Create lookup for uploaded files
-        files_by_name = {f.filename: f for f in files}
-
-        results = []
-
-        for file_meta in manifest_data:
-            path = file_meta["path"]
-            sha256 = file_meta["sha256"]
-            size_bytes = file_meta["size_bytes"]
-            content_type = file_meta.get("content_type", "application/octet-stream")
-
-            # Check for existing file with same SHA256 (idempotency)
-            existing = await db.fetch_one(
-                "SELECT sha256 FROM run_files WHERE run_id = :run_id AND path = :path",
-                {"run_id": run_id, "path": path}
-            )
-
-            if existing and existing["sha256"] == sha256:
-                results.append({"path": path, "status": "skipped", "reason": "unchanged"})
-                continue
-
-            # Find uploaded file
-            file_data = files_by_name.get(path)
-            if not file_data:
-                results.append({"path": path, "status": "missing", "reason": "file not in upload"})
-                continue
-
-            # Build storage key
-            storage_key = f"runs/{project_id}/{run_id}/{path}"
-
-            # Upload to storage
-            content = await file_data.read()
-            await storage.put(
-                key=storage_key,
-                content=BytesIO(content),
-                content_type=content_type,
-                metadata={
-                    "sha256": sha256,
-                    "size_bytes": str(size_bytes),
-                    "run_id": run_id
-                }
-            )
-
-            # Determine kind
-            kind = "log" if path.endswith(".log") else "artifact"
-
-            # Record in database (upsert)
-            await db.execute(
-                """
-                INSERT INTO run_files (run_id, path, kind, storage_key, size_bytes, sha256, content_type, updated_at)
-                VALUES (:run_id, :path, :kind, :storage_key, :size_bytes, :sha256, :content_type, NOW())
-                ON CONFLICT (run_id, path) DO UPDATE SET
-                    storage_key = EXCLUDED.storage_key,
-                    size_bytes = EXCLUDED.size_bytes,
-                    sha256 = EXCLUDED.sha256,
-                    content_type = EXCLUDED.content_type,
-                    updated_at = NOW()
-                """,
-                {
-                    "run_id": run_id,
-                    "path": path,
-                    "kind": kind,
-                    "storage_key": storage_key,
-                    "size_bytes": size_bytes,
-                    "sha256": sha256,
-                    "content_type": content_type
-                }
-            )
-
-            results.append({"path": path, "status": "uploaded", "size_bytes": size_bytes})
-
-        return {
-            "run_id": run_id,
-            "files": results,
-            "total": len(manifest_data),
-            "uploaded": len([r for r in results if r["status"] == "uploaded"]),
-            "skipped": len([r for r in results if r["status"] == "skipped"])
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Failed to upload artifacts: {str(e)}")
-
-@router.get("/runs/{run_id}/files")
-async def list_run_files(
-    run_id: str,
-    db: Database = Depends(get_db)
-):
-    """List all files for a run"""
-
-    files = await db.fetch_all(
-        """
-        SELECT path, kind, size_bytes, sha256, content_type, updated_at
-        FROM run_files
-        WHERE run_id = :run_id
-        ORDER BY CASE kind WHEN 'artifact' THEN 0 ELSE 1 END, path
-        """,
-        {"run_id": run_id}
-    )
-
-    return {
-        "run_id": run_id,
-        "files": [dict(f) for f in files]
-    }
-
-@router.get("/runs/{run_id}/files/{file_path:path}")
-async def download_artifact(
-    run_id: str,
-    file_path: str,
-    db: Database = Depends(get_db),
-    storage: ArtifactStorage = Depends(get_artifact_storage)
-):
-    """Download run artifact"""
-
-    # Get storage key from database
-    file_record = await db.fetch_one(
-        """
-        SELECT storage_key, size_bytes, path, content_type
-        FROM run_files
-        WHERE run_id = :run_id AND path = :file_path
-        """,
-        {"run_id": run_id, "file_path": file_path}
-    )
-
-    if not file_record:
-        raise HTTPException(404, "File not found")
-
-    # Check storage
-    if not await storage.exists(file_record["storage_key"]):
-        raise HTTPException(404, "Artifact not found in storage")
-
-    # Stream from storage
-    content = await storage.get(file_record["storage_key"])
-
-    return StreamingResponse(
-        iter([content]),
-        media_type=file_record["content_type"] or "application/octet-stream",
-        headers={
-            "Content-Disposition": f'inline; filename="{file_path}"',
-            "Content-Length": str(len(content))
-        }
-    )
-
-@router.get("/runs/{run_id}/events")
-async def get_run_events(
-    run_id: str,
-    after: Optional[int] = None,
-    limit: int = 100,
-    db: Database = Depends(get_db)
-):
-    """Get run event timeline"""
-
-    query = """
-        SELECT id, ts, type, level, message, payload
-        FROM run_events
-        WHERE run_id = :run_id
-    """
-    params = {"run_id": run_id, "limit": limit}
-
-    if after is not None:
-        query += " AND id > :after"
-        params["after"] = after
-
-    query += " ORDER BY id ASC LIMIT :limit"
-
-    events = await db.fetch_all(query, params)
-
-    return {
-        "run_id": run_id,
-        "events": [dict(e) for e in events],
-        "has_more": len(events) == limit
-    }
+```
+.felix/outbox/
+├── sync_20260218_100215_abc123.jsonl
+├── sync_20260218_100230_def456.jsonl
+└── sync_20260218_100245_ghi789.jsonl
 ```
 
-#### 2. Register Sync Router in Main
+**File Content (NDJSON):**
 
-**File:** `app/backend/main.py` (modify)
-
-Find the router registration section and add:
-
-```python
-from app.backend.routers import sync
-
-app.include_router(sync.router)
+```jsonl
+{"method":"POST","endpoint":"/api/runs/550e8400-e29b-41d4-a716-446655440000/events","body":{"events":[{"ts":"...","type":"task_started","level":"info"}]},"timestamp":"2026-02-18T10:02:15.456Z","retry_count":0}
+{"method":"POST","endpoint":"/api/runs/550e8400-e29b-41d4-a716-446655440000/events","body":{"events":[{"ts":"...","type":"task_completed","level":"info"}]},"timestamp":"2026-02-18T10:02:42.789Z","retry_count":0}
 ```
 
-#### 3. Create Sync Endpoint Tests
-
-**File:** `app/backend/tests/test_sync_endpoints.py`
-
-```python
-import pytest
-from fastapi.testclient import TestClient
-from app.backend.main import app
-
-client = TestClient(app)
-
-def test_agent_registration():
-    """Test agent registration endpoint"""
-    response = client.post("/api/agents/register", json={
-        "agent_id": "test-agent-001",
-        "hostname": "test-machine",
-        "platform": "windows",
-        "version": "0.8.0"
-    })
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "registered"
-
-def test_create_run():
-    """Test run creation endpoint"""
-    # First register agent
-    client.post("/api/agents/register", json={
-        "agent_id": "test-agent-001",
-        "hostname": "test-machine",
-        "platform": "windows",
-        "version": "0.8.0"
-    })
-
-    # Create run
-    response = client.post("/api/runs", json={
-        "requirement_id": "S-0001",
-        "agent_id": "test-agent-001",
-        "project_id": "test-project-001",
-        "branch": "main"
-    })
-
-    assert response.status_code == 200
-    json_data = response.json()
-    assert "run_id" in json_data
-    assert json_data["status"] == "created"
-
-# Add more tests for events, finish, file upload/download
-```
-
-### Testing Checkpoint
-
-- [ ] Sync router imports successfully
-- [ ] Backend starts without errors
-- [ ] Agent registration endpoint works
-- [ ] Run creation endpoint works
-- [ ] Event append endpoint works
-- [ ] File upload endpoint accepts multipart data
-- [ ] File download endpoint streams content
-- [ ] All sync tests pass
-
-**Verification:**
-
-```bash
-# Start backend
-cd app/backend
-python main.py
-
-# In another terminal - test endpoints
-curl http://localhost:8080/docs  # Check Swagger UI shows sync endpoints
-
-# Test agent registration
-curl -X POST http://localhost:8080/api/agents/register \
-  -H "Content-Type: application/json" \
-  -d '{"agent_id":"test-001","hostname":"my-machine","platform":"windows","version":"0.8.0"}'
-
-# Run tests
-pytest tests/test_sync_endpoints.py -v
-```
-
-### Rollback
-
-```bash
-# Remove sync router
-rm app/backend/routers/sync.py
-
-# Remove router registration from main.py
-git checkout app/backend/main.py
-```
-
----
-
-## Phase 4: CLI Sync Plugin (3 days)
-
-### Objectives
-
-- Create sync interface in PowerShell
-- Implement NoOp reporter (default)
-- Implement FastAPI reporter with outbox queue
-- Integrate with felix-agent.ps1
-
-### Steps
-
-#### 1. Create Core Sync Interface
-
-**File:** `.felix/core/sync-interface.ps1`
+### Retry Logic
 
 ```powershell
-# Abstract interface for run reporting/syncing
-class IRunReporter {
-    # Agent registration (once per session)
-    [void] RegisterAgent([hashtable]$agentInfo) { }
-
-    # Run lifecycle
-    [string] StartRun([hashtable]$metadata) { return $null }
-    [void] AppendEvent([hashtable]$event) { }
-    [void] FinishRun([string]$runId, [hashtable]$result) { }
-
-    # Artifact upload
-    [void] UploadArtifact([string]$runId, [string]$relativePath, [string]$localPath) { }
-    [void] UploadRunFolder([string]$runId, [string]$runFolderPath) { }
-
-    # Force delivery
-    [void] Flush() { }
-}
-
-# Default: does nothing (sync disabled)
-class NoOpReporter : IRunReporter {
-    NoOpReporter() {
-        Write-Verbose "Sync disabled - using NoOp reporter"
-    }
-}
-
-# Factory: load reporter from config
-function Get-RunReporter {
-    param(
-        [string]$ConfigPath = ".felix/config.json"
-    )
-
-    if (-not (Test-Path $ConfigPath)) {
-        Write-Verbose "Config not found, sync disabled"
-        return [NoOpReporter]::new()
-    }
-
-    $config = Get-Content $ConfigPath | ConvertFrom-Json
-
-    if (-not $config.sync -or -not $config.sync.enabled) {
-        Write-Verbose "Sync not enabled in config"
-        return [NoOpReporter]::new()
-    }
-
-    # Check environment variable override
-    if ($env:FELIX_SYNC_ENABLED -eq "false") {
-        Write-Verbose "Sync disabled via environment variable"
-        return [NoOpReporter]::new()
-    }
-
-    # Load plugin
-    $provider = $config.sync.provider
-    $pluginPath = ".felix/plugins/sync-$provider.ps1"
-
-    if (Test-Path $pluginPath) {
-        Write-Host "Loading sync plugin: $provider" -ForegroundColor Cyan
-        . $pluginPath
-
-        # Merge env vars with config
-        $syncConfig = $config.sync
-        if ($env:FELIX_SYNC_URL) {
-            $syncConfig.base_url = $env:FELIX_SYNC_URL
-        }
-        if ($env:FELIX_SYNC_KEY) {
-            $syncConfig.api_key = $env:FELIX_SYNC_KEY
-        }
-
-        return New-PluginReporter -Config $syncConfig
-    }
-
-    Write-Warning "Sync enabled but plugin not found: $pluginPath"
-    return [NoOpReporter]::new()
-}
-
-# Export
-Export-ModuleMember -Function Get-RunReporter
-```
-
-#### 2. Create FastAPI Sync Plugin
-
-**File:** `.felix/plugins/sync-fastapi.ps1`
-
-```powershell
-# Load interface
-. "$PSScriptRoot/../core/sync-interface.ps1"
-
-class FastApiReporter : IRunReporter {
-    [string]$BaseUrl
-    [string]$ApiKey
-    [string]$OutboxPath
-    [string]$ProjectId  # Cached from key validation
-
-    FastApiReporter([hashtable]$config) {
-        $this.BaseUrl = $config.base_url
-        $this.ApiKey = $config.api_key
-        $this.OutboxPath = ".felix/outbox"
-
-        # Ensure outbox exists
-        New-Item -ItemType Directory -Path $this.OutboxPath -Force | Out-Null
-
-        # Validate API key and cache project_id
-        try {
-            $validateUrl = "$($this.BaseUrl)/api/keys/validate"
-            $headers = @{ "Authorization" = "Bearer $($this.ApiKey)" }
-            $response = Invoke-RestMethod -Uri $validateUrl -Method Get -Headers $headers
-
-            $this.ProjectId = $response.project_id
-            Write-Host "[SYNC] Validated API key → Project: $($response.project_name) ($($this.ProjectId))" -ForegroundColor Cyan
-        }
-        catch {
-            Write-Warning "[SYNC] API key validation failed: $($_.Exception.Message)"
-            Write-Warning "[SYNC] Sync disabled - run 'felix setup' to configure"
-            throw "API key validation failed"
-        }
-    }
-
-    [void] RegisterAgent([hashtable]$agentInfo) {
-        $this.QueueRequest("POST", "/api/agents/register", $agentInfo)
-        $this.TrySendOutbox()
-    }
-
-    [string] StartRun([hashtable]$metadata) {
-        # Generate client-side run ID
-        $runId = [guid]::NewGuid().ToString()
-        $metadata.id = $runId
-
-        # REMOVED: project_id from request body (backend derives from API key)
-        # Backend will use key's project_id automatically
-
-        $this.QueueRequest("POST", "/api/runs", $metadata)
-        $this.TrySendOutbox()
-        return $runId
-    }
-
-    [void] AppendEvent([hashtable]$event) {
-        $runId = $event.run_id
-        $this.AppendToRunOutbox($runId, @{
-            type = "event"
-            data = $event
-        })
-    }
-
-    [void] FinishRun([string]$runId, [hashtable]$result) {
-        # Flush pending events first
-        $this.FlushRunOutbox($runId)
-
-        $this.QueueRequest("POST", "/api/runs/$runId/finish", $result)
-        $this.Flush()
-    }
-
-    [void] UploadArtifact([string]$runId, [string]$relativePath, [string]$localPath) {
-        if (-not (Test-Path $localPath)) {
-            Write-Warning "Artifact not found: $localPath"
-            return
-        }
-
-        $hash = (Get-FileHash $localPath -Algorithm SHA256).Hash.ToLower()
-        $size = (Get-Item $localPath).Length
-
-        $this.QueueFileUpload($runId, $relativePath, $localPath, @{
-            sha256 = $hash
-            size_bytes = $size
-            content_type = Get-ContentType $relativePath
-        })
-    }
-
-    [void] UploadRunFolder([string]$runId, [string]$runFolderPath) {
-        $artifacts = @(
-            "requirement_id.txt",
-            "plan.md",
-            "report.md",
-            "diff.patch",
-            "output.log",
-            "backpressure.log",
-            "commit.txt"
-        )
-
-        $filesToUpload = @()
-        foreach ($fileName in $artifacts) {
-            $fullPath = Join-Path $runFolderPath $fileName
-            if (Test-Path $fullPath) {
-                $hash = (Get-FileHash $fullPath -Algorithm SHA256).Hash.ToLower()
-                $size = (Get-Item $fullPath).Length
-
-                $filesToUpload += @{
-                    relative_path = $fileName
-                    local_path = $fullPath
-                    sha256 = $hash
-                    size_bytes = $size
-                    content_type = Get-ContentType $fileName
-                }
-            }
-        }
-
-        if ($filesToUpload.Count -gt 0) {
-            $this.QueueBatchUpload($runId, $filesToUpload)
-        }
-    }
-
-    [void] Flush() {
-        $this.TrySendOutbox()
-    }
-
-    # --- Private methods ---
-
-    hidden [void] QueueRequest([string]$method, [string]$path, [hashtable]$body) {
-        $request = @{
-            method = $method
-            path = $path
-            body = $body
-            timestamp = (Get-Date -Format o)
-        } | ConvertTo-Json -Compress -Depth 10
-
-        $filename = "{0:yyyyMMdd-HHmmss-fff}.jsonl" -f (Get-Date)
-        Add-Content -Path "$($this.OutboxPath)/$filename" -Value $request
-    }
-
-    hidden [void] AppendToRunOutbox([string]$runId, [hashtable]$item) {
-        $filename = "run-$runId.jsonl"
-        $item.timestamp = (Get-Date -Format o)
-        $line = $item | ConvertTo-Json -Compress -Depth 10
-        Add-Content -Path "$($this.OutboxPath)/$filename" -Value $line
-    }
-
-    hidden [void] FlushRunOutbox([string]$runId) {
-        $filename = "run-$runId.jsonl"
-        $filepath = "$($this.OutboxPath)/$filename"
-
-        if (-not (Test-Path $filepath)) { return }
-
-        try {
-            $lines = Get-Content $filepath
-            $events = @()
-
-            foreach ($line in $lines) {
-                $item = $line | ConvertFrom-Json
-                if ($item.type -eq "event") {
-                    $events += $item.data
-                }
-            }
-
-            if ($events.Count -gt 0) {
-                $this.SendJsonRequest(@{
-                    method = "POST"
-                    path = "/api/runs/$runId/events"
-                    body = $events
-                })
-            }
-
-            Remove-Item $filepath -Force
-        }
-        catch {
-            Write-Warning "Failed to flush events for run $runId : $_"
-        }
-    }
-
-    hidden [void] QueueBatchUpload([string]$runId, [array]$files) {
-        $request = @{
-            method = "POST"
-            path = "/api/runs/$runId/files"
-            files = $files
-            timestamp = (Get-Date -Format o)
-        } | ConvertTo-Json -Compress -Depth 10
-
-        $filename = "{0:yyyyMMdd-HHmmss-fff}-batch-upload.jsonl" -f (Get-Date)
-        Add-Content -Path "$($this.OutboxPath)/$filename" -Value $request
-    }
-
-    hidden [void] TrySendOutbox() {
-        $files = Get-ChildItem -Path $this.OutboxPath -Filter "*.jsonl" -ErrorAction SilentlyContinue |
-                 Sort-Object Name
-
-        if (-not $files) { return }
-
-        foreach ($file in $files) {
-            try {
-                $lines = Get-Content $file.FullName
-                foreach ($line in $lines) {
-                    $req = $line | ConvertFrom-Json
-
-                    if ($req.method -eq "POST" -and $req.path -match '/files$' -and $req.files) {
-                        $this.UploadBatch($req)
-                    } else {
-                        $this.SendJsonRequest($req)
-                    }
-                }
-
-                Remove-Item $file.FullName -Force
-                Write-Verbose "Synced outbox file: $($file.Name)"
-            }
-            catch {
-                Write-Warning "Sync failed (will retry): $_"
-                break
-            }
-        }
-    }
-
-    hidden [void] SendJsonRequest([object]$req) {
-        $headers = @{
-            "Content-Type" = "application/json"
-        }
-
-        if ($this.ApiKey) {
-            $headers["Authorization"] = "Bearer $($this.ApiKey)"
-        }
-
-        $url = "$($this.BaseUrl)$($req.path)"
-        $body = $req.body | ConvertTo-Json -Depth 10 -Compress
-
-        Invoke-RestMethod -Uri $url -Method $req.method `
-            -Headers $headers -Body $body `
-            -TimeoutSec 10 | Out-Null
-    }
-
-    hidden [void] UploadBatch([object]$req) {
-        $headers = @{}
-
-        if ($this.ApiKey) {
-            $headers["Authorization"] = "Bearer $($this.ApiKey)"
-        }
-
-        $url = "$($this.BaseUrl)$($req.path)"
-
-        # Build manifest and form
-        $manifest = @()
-        $form = @{}
-
-        foreach ($fileInfo in $req.files) {
-            if (-not (Test-Path $fileInfo.local_path)) {
-                Write-Warning "File no longer exists: $($fileInfo.local_path)"
-                continue
-            }
-
-            $manifest += @{
-                path = $fileInfo.relative_path
-                sha256 = $fileInfo.sha256
-                size_bytes = $fileInfo.size_bytes
-                content_type = $fileInfo.content_type
-            }
-
-            $form[$fileInfo.relative_path] = Get-Item $fileInfo.local_path
-        }
-
-        if ($form.Count -eq 0) {
-            Write-Warning "No valid files to upload"
-            return
-        }
-
-        $form.manifest = ($manifest | ConvertTo-Json -Compress)
-
-        Invoke-RestMethod -Uri $url -Method Post `
-            -Headers $headers -Form $form `
-            -TimeoutSec 120 | Out-Null
-    }
-}
-
-function Get-ContentType([string]$filename) {
-    switch -Regex ($filename) {
-        '\.md$'    { return "text/markdown" }
-        '\.log$'   { return "text/plain; charset=utf-8" }
-        '\.txt$'   { return "text/plain; charset=utf-8" }
-        '\.patch$' { return "text/x-patch" }
-        '\.json$'  { return "application/json" }
-        default    { return "application/octet-stream" }
-    }
-}
-
-function New-PluginReporter([hashtable]$config) {
-    return [FastApiReporter]::new($config)
-}
-```
-
-#### 3. Integrate with Felix Agent
-
-**File:** `.felix/felix-agent.ps1` (modify)
-
-Add at the top after sourcing other modules:
-
-```powershell
-# Load sync interface
-. "$PSScriptRoot/core/sync-interface.ps1"
-
-# Initialize sync reporter
-$global:SyncReporter = Get-RunReporter -ConfigPath "$PSScriptRoot/config.json"
-
-# Register agent on startup
-if ($SyncReporter) {
+# Exponential backoff with max 5 attempts
+$maxRetries = $env:FELIX_SYNC_MAX_RETRIES ?? 5
+$delays = @(1, 2, 4, 8, 16)  # seconds
+
+for ($i = 0; $i -lt $maxRetries; $i++) {
     try {
-        $SyncReporter.RegisterAgent(@{
-            agent_id = if ($env:FELIX_AGENT_ID) { $env:FELIX_AGENT_ID } else { [guid]::NewGuid().ToString() }
-            hostname = $env:COMPUTERNAME
-            platform = "windows"
-            version = "0.8.0"
-            felix_root = $PSScriptRoot
-        })
+        Send-HttpRequest -Method $request.method -Endpoint $request.endpoint -Body $request.body
+        # Success - delete from outbox
+        Remove-Item $outboxFile
+        break
     }
     catch {
-        Write-Warning "Failed to register agent: $_"
+        if (Is-PermanentError $_) {
+            # 400, 401, 403, 404 - don't retry
+            Remove-Item $outboxFile
+            break
+        }
+
+        if ($i -lt $maxRetries - 1) {
+            # Transient error (503, network) - retry with backoff
+            Start-Sleep -Seconds $delays[$i]
+        }
     }
 }
 ```
 
-### Testing Checkpoint
+**Error Classification:**
 
-- [ ] Sync interface loads without errors
-- [ ] NoOp reporter works (default behavior)
-- [ ] FastAPI plugin loads when enabled
-- [ ] Outbox directory created automatically
-- [ ] Queue operations write .jsonl files
-- [ ] TrySendOutbox successfully sends to backend
-- [ ] Agent registration works via plugin
-
-**Verification:**
-
-```powershell
-# Test interface loading
-. .felix/core/sync-interface.ps1
-$reporter = Get-RunReporter
-Write-Host "Reporter type: $($reporter.GetType().Name)"
-
-# Test with sync enabled
-$env:FELIX_SYNC_ENABLED = "true"
-$env:FELIX_SYNC_URL = "http://localhost:8080"
-
-# Enable in config
-$config = Get-Content .felix/config.json | ConvertFrom-Json
-$config.sync.enabled = $true
-$config | ConvertTo-Json -Depth 10 | Set-Content .felix/config.json
-
-# Run agent and check outbox
-.\.felix\felix-agent.ps1 C:\dev\felix
-
-# Check outbox created
-ls .felix\outbox\*.jsonl
-```
-
-### Rollback
-
-```bash
-# Remove sync files
-rm .felix/core/sync-interface.ps1
-rm .felix/plugins/sync-fastapi.ps1
-rm -rf .felix/outbox/
-
-# Restore felix-agent.ps1
-git checkout .felix/felix-agent.ps1
-```
+| Status Code               | Type      | Retry?                            |
+| ------------------------- | --------- | --------------------------------- |
+| 400 Bad Request           | Permanent | ❌ No (malformed request)         |
+| 401 Unauthorized          | Permanent | ❌ No (invalid API key)           |
+| 403 Forbidden             | Permanent | ❌ No (git URL mismatch)          |
+| 404 Not Found             | Permanent | ❌ No (run/agent doesn't exist)   |
+| 429 Too Many Requests     | Transient | ✅ Yes (rate limit, wait + retry) |
+| 500 Internal Server Error | Permanent | ❌ No (backend bug)               |
+| 503 Service Unavailable   | Transient | ✅ Yes (DB/storage down)          |
+| Network Error             | Transient | ✅ Yes (connection failed)        |
 
 ---
 
-## Phase 5: End-to-End Testing (2 days)
-
-### Objectives
-
-- Test complete flow: CLI → Outbox → Backend → Database → Storage
-- Verify idempotency (re-run same data)
-- Test failure scenarios (network down, invalid data)
-- Performance test (100+ runs)
-
-### Test Scenarios
-
-#### 1. Happy Path Test
-
-```powershell
-# Setup
-$env:FELIX_SYNC_ENABLED = "true"
-$env:FELIX_SYNC_URL = "http://localhost:8080"
-$env:FELIX_SYNC_KEY = "fsk_your_generated_key_here"
-
-# Run a single requirement
-.\.felix\felix.ps1 run S-0001
-
-# Verify
-ls .felix\outbox\  # Should be empty (sent successfully)
-
-# Check backend
-curl http://localhost:8080/api/runs | jq '.runs[] | select(.requirement_id == "S-0001")'
-
-# Check database
-psql -U postgres -d felix -c "
-  SELECT r.id, r.requirement_id, r.status, COUNT(rf.id) as file_count
-  FROM runs r
-  LEFT JOIN run_files rf ON rf.run_id = r.id
-  WHERE r.requirement_id = 'S-0001'
-  GROUP BY r.id;
-"
-
-# Check storage
-ls storage/runs/  # Should have project/run folders
-```
-
-#### 2. Idempotency Test
-
-```powershell
-# Run same requirement twice
-.\.felix\felix.ps1 run S-0001  # First run
-.\.felix\felix.ps1 run S-0001  # Second run
-
-# Verify only new/changed files uploaded
-psql -U postgres -d felix -c "
-  SELECT path, sha256, updated_at
-  FROM run_files
-  WHERE run_id IN (
-    SELECT id FROM runs WHERE requirement_id = 'S-0001'
-    ORDER BY created_at DESC LIMIT 2
-  );
-"
-```
-
-#### 3. Network Failure Test
-
-```powershell
-# Stop backend
-# (backend process killed)
-
-# Run with backend down
-.\.felix\felix.ps1 run S-0002
-
-# Verify outbox has queued requests
-ls .felix\outbox\*.jsonl  # Should have files
-
-# Restart backend
-cd app/backend; python main.py
-
-# Run another requirement (triggers flush)
-.\.felix\felix.ps1 run S-0003
-
-# Verify outbox cleared
-ls .felix\outbox\*.jsonl  # Should be empty
-
-# Verify both runs in database
-psql -U postgres -d felix -c "
-  SELECT requirement_id, status FROM runs
-  WHERE requirement_id IN ('S-0002', 'S-0003');
-"
-```
-
-#### 4. API Key Scoping Tests
-
-**Test:** Project isolation via API keys
-
-```bash
-# Generate keys for two different projects
-python scripts/generate-sync-key.py --project-id 00000000-0000-0000-0000-000000000001 --name "Project A Key"
-python scripts/generate-sync-key.py --project-id 00000000-0000-0000-0000-000000000002 --name "Project B Key"
-
-# Save keys
-$keyA = "fsk_..."  # Project A key
-$keyB = "fsk_..."  # Project B key
-
-# Configure Agent A with Project A key
-$env:FELIX_SYNC_KEY = $keyA
-.\.felix\felix.ps1 run S-0001
-
-# Verify run created in Project A
-curl -H "Authorization: Bearer $keyA" http://localhost:8080/api/keys/validate
-
-# Configure Agent B with Project B key
-$env:FELIX_SYNC_KEY = $keyB
-.\.felix\felix.ps1 run S-0002
-
-# Verify run created in Project B
-psql -U postgres -d felix -c "
-  SELECT r.id, r.requirement_id, r.project_id
-  FROM runs r
-  WHERE r.requirement_id IN ('S-0001', 'S-0002')
-  ORDER BY r.created_at;
-"
-
-# Expected: Two different project_id values
-
-# Attempt cross-project access (should fail)
-# Get run_id from Project A
-$runIdA = "..."
-# Try to upload artifact using Project B key
-curl -X POST -H "Authorization: Bearer $keyB" \
-  -F "manifest=[{\"path\":\"test.txt\",\"sha256\":\"abc\",\"size_bytes\":100}]" \
-  -F "files=@test.txt" \
-  http://localhost:8080/api/runs/$runIdA/files
-
-# Expected: 403 Forbidden (project mismatch)
-```
-
-**Test:** Local-only mode (no API key)
-
-```powershell
-# Remove or null api_key in .felix/config.json
-$config = Get-Content .felix/config.json | ConvertFrom-Json
-$config.sync.api_key = $null
-$config | ConvertTo-Json -Depth 10 | Set-Content .felix/config.json
-
-# Run agent locally
-.\.felix\felix.ps1 run S-0004
-
-# Expected: Agent runs successfully
-# Expected log: "Sync disabled (local-only mode)" or "Sync not enabled in config"
-
-# Verify: run artifacts written to local runs/ folder only
-Test-Path "runs/**/S-0004"  # Should be True
-
-# Verify: No outbox files created
-ls .felix/outbox/*.jsonl  # Should be empty or not exist
-```
-
-**Test:** Invalid API key handling
-
-```powershell
-# Set invalid API key in config
-$env:FELIX_SYNC_KEY = "fsk_invalid_key_12345678901234567890"
-
-# Run agent
-.\.felix\felix.ps1 run S-0005
-
-# Expected: Startup validation fails, error logged
-# Expected log: "API key validation failed: 401 Invalid API key"
-# Expected: Sync disabled gracefully, agent continues in local-only mode
-
-# Verify agent still ran locally
-Test-Path "runs/**/S-0005"  # Should be True
-```
-
-**Test:** Agent re-assignment to new project
-
-```powershell
-# Register agent with Project A key
-$env:FELIX_SYNC_KEY = $keyA
-.\.felix\felix.ps1 run S-0006
-
-# Check agent's project_id
-psql -U postgres -d felix -c "
-  SELECT id, name, project_id FROM agents WHERE hostname = '$env:COMPUTERNAME';
-"
-# Expected: project_id = Project A ID
-
-# Switch to Project B key
-$env:FELIX_SYNC_KEY = $keyB
-.\.felix\felix.ps1 run S-0007
-
-# Check agent's project_id again
-psql -U postgres -d felix -c "
-  SELECT id, name, project_id, updated_at FROM agents WHERE hostname = '$env:COMPUTERNAME';
-"
-# Expected: project_id = Project B ID (updated)
-# Expected: updated_at timestamp changed
-
-# Verify new runs go to Project B
-psql -U postgres -d felix -c "
-  SELECT r.requirement_id, r.project_id
-  FROM runs r
-  JOIN agents a ON r.agent_id = a.id
-  WHERE a.hostname = '$env:COMPUTERNAME'
-  ORDER BY r.created_at DESC LIMIT 2;
-"
-# Expected: Latest run has Project B ID
-```
-
-#### 5. Large File Test
-
-```powershell
-# Create large output file
-$largeContent = "x" * (5 * 1024 * 1024)  # 5MB
-Set-Content -Path "runs/test-large/output.log" -Value $largeContent
-
-# Upload via reporter
-$reporter = Get-RunReporter
-$reporter.UploadRunFolder("test-run-large", "runs/test-large")
-$reporter.Flush()
-
-# Verify upload succeeded
-curl http://localhost:8080/api/runs/test-run-large/files | jq '.files[] | select(.path == "output.log")'
-```
-
-### Performance Benchmarks
-
-```powershell
-# Benchmark: 100 runs
-Measure-Command {
-    1..100 | ForEach-Object {
-        .\.felix\felix.ps1 run S-0001
-    }
-}
-
-# Benchmark: Batch upload vs individual
-# (Compare old approach with new batch approach)
-```
-
-### Testing Checkpoint
-
-- [ ] Happy path works end-to-end
-- [ ] Idempotency prevents duplicate uploads
-- [ ] Network failures queue requests properly
-- [ ] Large files (>5MB) upload successfully
-- [ ] 100+ runs complete without errors
-- [ ] Database has correct counts and relationships
-- [ ] Storage has all artifacts accessible
-
-### Rollback
-
-N/A - test phase only
-
----
-
-## Phase 6: Frontend Integration (3 days)
-
-### Objectives
-
-- Add API client methods for sync endpoints
-- Create run detail component with file viewer
-- Add event timeline component
-- Implement SSE streaming (optional - can defer to Phase 7)
-
-### Steps
-
-#### 1. Update API Client
-
-**File:** `app/frontend/services/felixApi.ts`
-
-Add these interfaces and methods:
-
-```typescript
-export interface RunFile {
-  path: string;
-  kind: "artifact" | "log";
-  size_bytes: number;
-  sha256?: string;
-  content_type?: string;
-  updated_at: string;
-}
-
-export interface RunEvent {
-  id: number;
-  ts: string;
-  type: string;
-  level: "info" | "warn" | "error" | "debug";
-  message?: string;
-  payload?: any;
-}
-
-// Add to felixApi object:
-async getRunFiles(runId: string): Promise<{ run_id: string; files: RunFile[] }> {
-  const response = await fetch(`${API_BASE_URL}/api/runs/${runId}/files`);
-  if (!response.ok) throw new Error("Failed to fetch run files");
-  return response.json();
-},
-
-async getRunFile(runId: string, filePath: string): Promise<string> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/runs/${runId}/files/${encodeURIComponent(filePath)}`
-  );
-  if (!response.ok) throw new Error(`Failed to fetch file: ${filePath}`);
-  return response.text();
-},
-
-async getRunEvents(
-  runId: string,
-  after?: number
-): Promise<{ run_id: string; events: RunEvent[]; has_more: boolean }> {
-  const url = new URL(`${API_BASE_URL}/api/runs/${runId}/events`);
-  if (after !== undefined) url.searchParams.set("after", after.toString());
-
-  const response = await fetch(url.toString());
-  if (!response.ok) throw new Error("Failed to fetch run events");
-  return response.json();
-}
-```
-
-#### 2. Create Run Detail Component (stub for now)
-
-**File:** `app/frontend/components/RunDetail.tsx`
-
-```typescript
-import React, { useState, useEffect } from 'react';
-import { felixApi, RunFile, RunEvent } from '../services/felixApi';
-
-interface RunDetailProps {
-  runId: string;
-  onClose: () => void;
-}
-
-export const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
-  const [files, setFiles] = useState<RunFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [fileContent, setFileContent] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!runId) return;
-
-    setLoading(true);
-    felixApi.getRunFiles(runId)
-      .then(data => {
-        setFiles(data.files);
-        // Auto-select report.md
-        const report = data.files.find(f => f.path === 'report.md');
-        if (report) setSelectedFile(report.path);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [runId]);
-
-  useEffect(() => {
-    if (!runId || !selectedFile) return;
-
-    felixApi.getRunFile(runId, selectedFile)
-      .then(content => setFileContent(content))
-      .catch(console.error);
-  }, [runId, selectedFile]);
-
-  if (loading) {
-    return <div>Loading...</div>;
+## Configuration Reference
+
+### Complete Config Example
+
+```json
+{
+  "version": "0.1.0",
+  "executor": {
+    "mode": "local",
+    "max_iterations": 100,
+    "default_mode": "planning",
+    "commit_on_complete": true
+  },
+  "agent": {
+    "agent_id": "550e8400-e29b-41d4-a716-446655440000"
+  },
+  "sync": {
+    "enabled": true,
+    "provider": "http",
+    "base_url": "http://localhost:8080",
+    "api_key": "fsk_51d8e1482650cd3f595353e0ed6774de59baf0e3ca4c552db82e95398cb70e11"
+  },
+  "plugins": {
+    "enabled": true,
+    "discovery_path": ".felix/plugins",
+    "api_version": "v1",
+    "disabled": ["prompt-enhancer", "metrics-collector"]
   }
-
-  return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      {/* File list */}
-      <div style={{ width: '200px', borderRight: '1px solid #ccc', padding: '10px' }}>
-        <h3>Artifacts</h3>
-        {files.map(file => (
-          <div
-            key={file.path}
-            onClick={() => setSelectedFile(file.path)}
-            style={{
-              padding: '5px',
-              cursor: 'pointer',
-              background: selectedFile === file.path ? '#e0e0e0' : 'transparent'
-            }}
-          >
-            {file.path}
-          </div>
-        ))}
-      </div>
-
-      {/* File content */}
-      <div style={{ flex: 1, padding: '20px', overflow: 'auto' }}>
-        {selectedFile && (
-          <>
-            <h2>{selectedFile}</h2>
-            <pre>{fileContent}</pre>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
+}
 ```
 
-### Testing Checkpoint
+### Environment Variables
 
-- [ ] API methods fetch data correctly
-- [ ] Run detail component renders
-- [ ] File list displays all artifacts
-- [ ] Selected file content displays
-- [ ] Large files don't freeze UI
+| Variable                     | Description                 | Default |
+| ---------------------------- | --------------------------- | ------- |
+| `FELIX_SYNC_ENABLED`         | Enable/disable sync         | `false` |
+| `FELIX_SYNC_URL`             | Backend base URL            | none    |
+| `FELIX_SYNC_KEY`             | API key (fsk\_...)          | none    |
+| `FELIX_SYNC_MAX_RETRIES`     | Max retry attempts          | `5`     |
+| `FELIX_SYNC_FEATURE_ENABLED` | Global backend feature flag | `true`  |
 
-**Verification:**
+---
 
-```bash
-# Start frontend
-cd app/frontend
-npm run dev
+## Testing & Validation
 
-# Navigate to run detail
-# http://localhost:3000 (with a valid run ID)
+### Unit Tests
+
+```powershell
+# Backend tests
+cd app/backend
+pytest tests/test_sync_endpoints.py -v
+
+# Expected output:
+# test_create_run_with_git_url ✓
+# test_append_events_batch ✓
+# test_upload_files_idempotent ✓
+# test_unauthorized_without_api_key ✓
+# test_git_url_mismatch_403 ✓
 ```
 
-### Rollback
+### Integration Tests
 
-```bash
-git checkout app/frontend/services/felixApi.ts
-rm app/frontend/components/RunDetail.tsx
+```powershell
+# Run Felix agent with sync enabled (dev backend)
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "http://localhost:8080"
+$env:FELIX_SYNC_KEY = "fsk_..."
+
+.\felix\felix-agent.ps1 C:\dev\felix
+
+# Expected console output:
+# [10:00:15.123] INFO [sync] Sync enabled → http://localhost:8080
+# [10:00:15.456] INFO [sync] Agent registered successfully
+# [10:00:15.789] INFO [sync] Run started: 550e8400-e29b-41d4-a716-446655440000
+# [10:02:30.000] INFO [sync] Run complete: uploaded 5 files
+```
+
+### Validation Checks
+
+```powershell
+# 1. Verify outbox is empty (all sent successfully)
+Get-ChildItem .felix\outbox\*.jsonl
+# Expected: 0 files
+
+# 2. Query backend for run
+curl http://localhost:8080/api/runs?limit=1 | ConvertFrom-Json
+# Expected: Run record with correct requirement_id
+
+# 3. Check events timeline
+curl http://localhost:8080/api/runs/550e8400-e29b-41d4-a716-446655440000/events | ConvertFrom-Json
+# Expected: Array of events (started, task_started, task_completed, completed)
+
+# 4. Verify artifacts uploaded
+curl http://localhost:8080/api/runs/550e8400-e29b-41d4-a716-446655440000/files | ConvertFrom-Json
+# Expected: Files array with plan.md, diff.patch, report.md
 ```
 
 ---
 
-## Phase 7: Production Readiness (3 days)
+## Troubleshooting
 
-### Objectives
+### Sync Not Working
 
-- Add proper error handling and logging
-- Implement retry logic with exponential backoff
-- Add monitoring/metrics
-- Write operations documentation
-- Security review
+**Symptom:** No data appearing in backend, but run completes locally.
 
-### Tasks
+**Diagnosis:**
 
-1. **Error Handling**
-   - Backend: Structured error responses
-   - CLI: Graceful degradation when sync fails
-   - Frontend: User-friendly error messages
+```powershell
+# 1. Check sync enabled
+Get-Content .felix\config.json | ConvertFrom-Json | Select-Object -ExpandProperty sync
 
-2. **Logging**
-   - Backend: Structured logs for sync operations
-   - CLI: Verbose mode for debugging sync
-   - Metrics: Track sync success/failure rates
+# 2. Check outbox for queued requests
+Get-ChildItem .felix\outbox\*.jsonl
 
-3. **Documentation**
-   - Update AGENTS.md with sync troubleshooting
-   - Add sync configuration examples
-   - Document outbox format for debugging
-
-4. **Security**
-   - API key rotation procedure
-   - Rate limiting on sync endpoints
-   - Input validation for all endpoints
-
-### Testing Checkpoint
-
-- [ ] All error cases handled gracefully
-- [ ] Logs provide actionable debugging info
-- [ ] Documentation complete and accurate
-- [ ] Security review passed
-
----
-
-## Rollout Plan
-
-### Week 1: Opt-In Beta
-
-- Enable sync on 1 developer machine
-- Monitor for issues
-- Collect feedback
-
-### Week 2: Team Rollout
-
-- Enable sync for all team members (opt-in)
-- CI/CD agents enabled
-- Verify no disruption to workflows
-
-### Week 3: Default On
-
-- Make sync default (can still disable)
-- Monitor system load
-- Tune performance if needed
-
-### Week 4: Deprecate Legacy
-
-- Remove old filesystem-only code paths
-- Update all documentation
-- Celebrate launch! 🎉
-
----
-
-## Success Criteria
-
-- [ ] Agent can register with backend
-- [ ] Run lifecycle tracked in database
-- [ ] Artifacts uploaded and retrievable
-- [ ] Events timeline visible in UI
-- [ ] Idempotent uploads (no duplicates)
-- [ ] Works offline (queues for later)
-- [ ] < 10% overhead on run time
-- [ ] Zero data loss
-- [ ] Team using it daily
-
----
-
-## Rollback Procedures
-
-### Emergency Rollback (Production Down)
-
-```bash
-# Disable sync globally
-export FELIX_SYNC_ENABLED=false
-
-# Or in config
-jq '.sync.enabled = false' .felix/config.json > tmp && mv tmp .felix/config.json
-
-# Backend: Remove sync router registration
-git revert <sync-router-commit>
-
-# Database: No rollback needed (backward compatible)
+# 3. Check sync log for errors
+Get-Content .felix\sync.log -Tail 50
 ```
 
-### Partial Rollback (Issues with Specific Feature)
+**Common Causes:**
 
-- Disable file uploads only: Comment out batch upload in plugin
-- Disable events only: Comment out event append in plugin
-- Keep everything local: Set `sync.enabled = false`
+- `sync.enabled = false` in config
+- Missing or invalid API key (401/403 errors in log)
+- Backend not running (connection refused)
+- Git URL mismatch (403 error - key scoped to different project)
+
+### Events Not Appearing
+
+**Symptom:** Run created, but no events in timeline.
+
+**Cause:** Events batched but not flushed (background timer not started or agent crashed before flush).
+
+**Fix:** Events flush every 5 seconds during run. Check:
+
+```powershell
+# Verify flush timer started
+Select-String -Path .felix\sync.log -Pattern "event flush timer"
+
+# Check for queued events
+Select-String -Path .felix\outbox\*.jsonl -Pattern "events"
+```
+
+### Artifacts Not Uploading
+
+**Symptom:** Run complete, but files missing from backend.
+
+**Cause:** Artifact upload happens in OnRunComplete hook. If agent crashes/exits early, upload skipped.
+
+**Fix:**
+
+```powershell
+# Manual retry: re-upload artifacts for a run
+.\scripts\retry-artifact-upload.ps1 -RunId "550e8400-..." -RunDir "runs\S-0058-20260218-100215-it1"
+```
+
+### Git URL Mismatch (403)
+
+**Symptom:** `403 Forbidden: Git URL mismatch` error.
+
+**Cause:** API key scoped to project A, trying to sync from project B.
+
+**Fix:**
+
+1. Verify git remote URL matches project:
+
+   ```powershell
+   git config --get remote.origin.url
+   # Compare with project's git_url in backend
+   ```
+
+2. Generate new API key for correct project (or use correct key for current project)
 
 ---
 
-## Estimated Timeline
+## Migration Path
 
-| Phase                | Duration    | Dependencies | Risk   |
-| -------------------- | ----------- | ------------ | ------ |
-| Phase 0: Preparation | 1 day       | None         | Low    |
-| Phase 1: Database    | 2 days      | Phase 0      | Low    |
-| Phase 2: Storage     | 2 days      | Phase 1      | Medium |
-| Phase 3: Backend API | 3 days      | Phase 1, 2   | Medium |
-| Phase 4: CLI Plugin  | 3 days      | Phase 3      | Medium |
-| Phase 5: E2E Testing | 2 days      | Phase 4      | Low    |
-| Phase 6: Frontend    | 3 days      | Phase 3      | Low    |
-| Phase 7: Production  | 3 days      | All phases   | High   |
-| **Total**            | **19 days** |              |        |
+### From Local-Only to Synced
 
-**Note:** Timeline assumes 1 developer working full-time. Can parallelize Phases 4 & 6 with 2 developers to save 3 days.
+**Prerequisites:**
+
+- Backend running with database migrated to 015+
+- Project registered in backend with git_url
+- API key generated for project
+
+**Steps:**
+
+1. **Update config:**
+
+   ```json
+   {
+     "sync": {
+       "enabled": true,
+       "provider": "http",
+       "base_url": "https://felix.example.com",
+       "api_key": "fsk_..."
+     }
+   }
+   ```
+
+2. **Verify git remote:**
+
+   ```powershell
+   git config --get remote.origin.url
+   # Must match project.git_url in backend
+   ```
+
+3. **Test connection:**
+
+   ```powershell
+   $env:FELIX_SYNC_ENABLED = "true"
+   $env:FELIX_SYNC_URL = "https://felix.example.com"
+   $env:FELIX_SYNC_KEY = "fsk_..."
+
+   .\felix\felix-agent.ps1 --dry-run
+   # Should show "Sync enabled → https://felix.example.com"
+   ```
+
+4. **Run with sync:**
+   ```powershell
+   .\felix\felix-agent.ps1 C:\dev\myproject
+   ```
+
+### Rollback to Local-Only
+
+**Emergency disable:**
+
+```powershell
+# Disable via environment
+$env:FELIX_SYNC_ENABLED = "false"
+
+# Or edit config
+$config = Get-Content .felix\config.json | ConvertFrom-Json
+$config.sync.enabled = $false
+$config | ConvertTo-Json | Set-Content .felix\config.json
+```
+
+**No data loss:** All runs still written to local `runs/` directory. Sync is additive.
 
 ---
 
-## Next Steps
+## Performance Characteristics
 
-1. **Review this plan** with team
-2. **Create tracking tickets** for each phase
-3. **Set up test environment** (separate DB for testing)
-4. **Begin Phase 0** - Preparation
-5. **Daily standups** to track progress
+### Benchmarks (Local Network)
+
+| Operation                              | Latency | Throughput |
+| -------------------------------------- | ------- | ---------- |
+| Create run                             | ~50ms   | 20 req/sec |
+| Append events (batch of 10)            | ~30ms   | 33 req/sec |
+| Upload artifacts (5 files, 10KB total) | ~200ms  | 5 req/sec  |
+| Finish run                             | ~40ms   | 25 req/sec |
+
+### Optimization Techniques
+
+1. **Event Batching**: Reduces HTTP requests by 10-20x
+2. **Status Throttling**: Prevents status update storms (max 1/sec)
+3. **Deduplication**: SHA256 check skips unchanged file uploads
+4. **Async I/O**: Backend uses async database + storage operations
+5. **Connection Pooling**: HTTP client reuses connections
+
+### Scaling Considerations
+
+**Single Backend Server:**
+
+- ~50 concurrent agents (event batching reduces load)
+- ~1000 runs/day with 5KB avg artifacts each = ~5MB/day storage
+
+**Bottlenecks:**
+
+- Database writes (runs, events, run_files inserts)
+- Storage backend I/O (artifact writes)
+- Network bandwidth (large artifacts from many agents)
+
+**Scaling Strategies:**
+
+- **Database**: Read replicas for queries, write to primary
+- **Storage**: S3/object storage instead of filesystem
+- **Load Balancer**: Horizontal scaling with multiple backend instances
+- **Rate Limiting**: Prevent abuse (100 req/min per API key)
 
 ---
 
-## Support & Questions
+## Future Enhancements
 
-- **Documentation**: See [runs_migration.md](runs_migration.md) for architecture details
-- **Issues**: Create GitHub issue with `sync` label
-- **Questions**: Ask in team chat or weekly sync meeting
+### Planned Features
+
+- **WebSocket Event Streaming**: Real-time event stream to UI (replace polling)
+- **Artifact Compression**: Gzip artifacts before upload (reduce bandwidth)
+- **Incremental Diffs**: Only upload changed file portions for large files
+- **Retention Policies**: Auto-delete old runs/artifacts after 90 days
+- **Analytics Dashboard**: Run statistics, success rates, duration trends
+
+### Extensibility Points
+
+- **Storage Backends**: Azure Blob, GCS, MinIO
+- **Authentication Methods**: OAuth, JWT tokens
+- **Event Formats**: Custom event types, plugin-specific events
+- **UI Customization**: Pluggable UI components for artifact viewers
+
+---
+
+## Related Documentation
+
+- **[AGENTS.md](../AGENTS.md)**: Agent operations, sync configuration
+- **[docs/SYNC_OPERATIONS.md](../docs/SYNC_OPERATIONS.md)**: Operational runbook, monitoring, troubleshooting
+- **[.felix/plugins/sync-http/README.md](../.felix/plugins/sync-http/README.md)**: Plugin-specific documentation
+- **[Enhancements/RUNS_BASELINE.md](./RUNS_BASELINE.md)**: Pre-sync baseline state
+
+---
+
+## Changelog
+
+### v1.0.0 (2026-02-18)
+
+- ✅ **Git URL Authentication**: Replaced manual project_id with git remote URL discovery
+- ✅ **Database Migration 019**: Removed path column, made git_url mandatory
+- ✅ **Plugin Architecture**: Hook-based lifecycle integration complete
+- ✅ **Event Batching**: 5-second heartbeat with background timer
+- ✅ **Idempotent Uploads**: SHA256-based deduplication
+- ✅ **Outbox Queue**: Eventual consistency via retry queue
+- ✅ **API Key Management**: Project-scoped keys with UI generation
+- ✅ **Storage Abstraction**: Filesystem backend with S3 extensibility
+
+### v0.8.0 (2026-02-16)
+
+- ✅ **Database Schema**: Migration 015 (run_events, run_files tables)
+- ✅ **Sync Endpoints**: POST /api/runs, POST /api/runs/{id}/events, POST /api/runs/{id}/files
+- ✅ **Plugin Discovery**: Auto-load from .felix/plugins/ directory
+
+### v0.7.0 (2026-02-15)
+
+- ✅ **Initial Implementation**: Hook-based sync plugin
+- ✅ **Local Write Module**: Core executor lifecycle hooks
+- ✅ **Configuration**: .felix/config.json sync section
+
+---
+
+**Document Version:** 1.0.0  
+**Last Updated:** 2026-02-18  
+**Maintained By:** Felix Team
