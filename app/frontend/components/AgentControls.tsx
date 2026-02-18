@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { felixApi, AgentStatus, RunHistoryEntry } from "../services/felixApi";
+import { listAgents, listRuns, createRun, stopRun } from "../src/api/client";
+import type { Agent, Run } from "../src/api/types";
 import {
   AlertCircle,
   Bot as IconFelix,
@@ -10,19 +11,24 @@ import {
 } from "lucide-react";
 import RunCard from "./RunCard";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
 import { PageLoading } from "./ui/page-loading";
 
 interface AgentControlsProps {
   projectId: string;
   /** Called when agent status changes */
-  onStatusChange?: (status: AgentStatus) => void;
+  onStatusChange?: (status: AgentStatusView) => void;
   /** Compact mode for embedding in smaller spaces */
   compact?: boolean;
   /** Called when a run is selected from history */
   onSelectRun?: (runId: string) => void;
 }
+
+type AgentStatusView = {
+  running: boolean;
+  current_run_id: string | null;
+  started_at: string | null;
+};
 
 const AgentControls: React.FC<AgentControlsProps> = ({
   projectId,
@@ -30,15 +36,30 @@ const AgentControls: React.FC<AgentControlsProps> = ({
   compact = false,
   onSelectRun,
 }) => {
-  const [status, setStatus] = useState<AgentStatus | null>(null);
+  const [status, setStatus] = useState<AgentStatusView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<
     "start" | "stop" | null
   >(null);
-  const [runs, setRuns] = useState<RunHistoryEntry[]>([]);
+  const [runs, setRuns] = useState<Run[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
+
+  const buildStatus = useCallback(
+    (runList: Run[]) => {
+      const runningRun = runList.find((run) => run.status === "running");
+      const nextStatus = {
+        running: !!runningRun,
+        current_run_id: runningRun?.id ?? null,
+        started_at: runningRun?.started_at ?? null,
+      };
+      setStatus(nextStatus);
+      onStatusChange?.(nextStatus);
+    },
+    [onStatusChange],
+  );
 
   // Fetch run history
   const fetchRunHistory = useCallback(async () => {
@@ -46,54 +67,55 @@ const AgentControls: React.FC<AgentControlsProps> = ({
 
     setRunsLoading(true);
     try {
-      const response = await felixApi.listRuns(projectId);
+      const response = await listRuns({ limit: 50, projectId });
       setRuns(response.runs);
+      buildStatus(response.runs);
     } catch (err) {
       console.error("Failed to fetch run history:", err);
     } finally {
       setRunsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, buildStatus]);
 
-  // Fetch status on mount and set up polling
-  const fetchStatus = useCallback(async () => {
+  const fetchAgents = useCallback(async () => {
     if (!projectId) return;
 
     try {
-      const agentStatus = await felixApi.getAgentStatus(projectId);
-      setStatus(agentStatus);
+      const response = await listAgents({ scope: "project", projectId });
+      setAgents(response.agents);
       setError(null);
-      onStatusChange?.(agentStatus);
     } catch (err) {
-      console.error("Failed to fetch agent status:", err);
-      // Only set error if this is the initial load
+      console.error("Failed to fetch agents:", err);
       if (loading) {
-        setError(
-          err instanceof Error ? err.message : "Failed to fetch agent status",
-        );
+        setError(err instanceof Error ? err.message : "Failed to fetch agents");
       }
     } finally {
       setLoading(false);
     }
-  }, [projectId, loading, onStatusChange]);
+  }, [projectId, loading]);
 
   useEffect(() => {
     // Initial fetch on mount - no polling (removed for Phase -1 cleanup)
     // Real-time updates will be added via Supabase Realtime in Phase 3
-    fetchStatus();
+    fetchAgents();
     fetchRunHistory();
-  }, [projectId]); // Only depend on projectId for initial fetch
+  }, [projectId, fetchAgents, fetchRunHistory]); // Only depend on projectId for initial fetch
 
   const handleStartAgent = async () => {
     setActionInProgress("start");
     setError(null);
 
     try {
-      const result = await felixApi.startRun(projectId);
+      const agentId = agents[0]?.id;
+      if (!agentId) {
+        throw new Error("No agents available for this project");
+      }
+
+      const result = await createRun(agentId);
       console.log("Agent started:", result);
 
       // Fetch updated status and run history
-      await fetchStatus();
+      await fetchAgents();
       await fetchRunHistory();
     } catch (err) {
       console.error("Failed to start agent:", err);
@@ -108,11 +130,16 @@ const AgentControls: React.FC<AgentControlsProps> = ({
     setError(null);
 
     try {
-      await felixApi.stopRun(projectId);
+      const runningRun = runs.find((run) => run.status === "running");
+      if (!runningRun) {
+        throw new Error("No running run found");
+      }
+
+      await stopRun(runningRun.id);
       console.log("Agent stopped");
 
       // Fetch updated status and run history
-      await fetchStatus();
+      await fetchAgents();
       await fetchRunHistory();
     } catch (err) {
       console.error("Failed to stop agent:", err);
@@ -133,21 +160,6 @@ const AgentControls: React.FC<AgentControlsProps> = ({
       });
     } catch {
       return "";
-    }
-  };
-
-  // Format datetime for run history display
-  const formatRunDateTime = (isoString: string): string => {
-    try {
-      const date = new Date(isoString);
-      const now = new Date();
-      const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-      if (diff < 60) return `${diff}s ago`;
-      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-      return `${Math.floor(diff / 86400)}d ago`;
-    } catch {
-      return isoString;
     }
   };
 
@@ -226,7 +238,10 @@ const AgentControls: React.FC<AgentControlsProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          onClick={fetchStatus}
+          onClick={() => {
+            fetchAgents();
+            fetchRunHistory();
+          }}
           className="mt-2 text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-light)] h-auto p-0"
         >
           Retry
@@ -347,16 +362,6 @@ const AgentControls: React.FC<AgentControlsProps> = ({
       {isRunning && status && (
         <div className="px-6 py-4 border-b bg-[var(--bg-base)] border-[var(--border-default)]">
           <div className="grid grid-cols-2 gap-4">
-            {status.pid && (
-              <div>
-                <span className="text-[9px] font-mono text-[var(--text-lighter)] uppercase">
-                  Process ID
-                </span>
-                <p className="text-sm font-mono text-[var(--text-light)]">
-                  {status.pid}
-                </p>
-              </div>
-            )}
             {status.started_at && (
               <div>
                 <span className="text-[9px] font-mono text-[var(--text-lighter)] uppercase">
@@ -397,7 +402,10 @@ const AgentControls: React.FC<AgentControlsProps> = ({
           <Button
             variant="ghost"
             size="sm"
-            onClick={fetchStatus}
+            onClick={() => {
+              fetchAgents();
+              fetchRunHistory();
+            }}
             className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-light)] flex items-center gap-1.5 h-auto py-1 px-2 -ml-2"
           >
             <IconCpu className="w-3 h-3" />
@@ -494,7 +502,7 @@ const AgentControls: React.FC<AgentControlsProps> = ({
             ) : (
               runs.map((run) => (
                 <RunCard
-                  key={run.run_id}
+                  key={run.id}
                   run={run}
                   onClick={(runId) => onSelectRun?.(runId)}
                 />

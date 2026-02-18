@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { felixApi, API_BASE_URL } from "../services/felixApi";
+import { felixApi } from "../services/felixApi";
+import { getRunFile } from "../src/api/client";
 import { marked } from "marked";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { PageLoading } from "./ui/page-loading";
@@ -27,6 +28,8 @@ interface RunArtifactViewerProps {
 }
 
 type ArtifactTab = "report" | "log" | "plan" | "spec";
+
+const SYNC_BASE_URL = "http://localhost:8080/api";
 
 /** Parse error message to determine error type */
 function getErrorType(error: Error | string): ErrorType {
@@ -98,12 +101,8 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
   useEffect(() => {
     const fetchRequirementInfo = async () => {
       try {
-        const result = await felixApi.getRunArtifact(
-          projectId,
-          runId,
-          "requirement_id.txt",
-        );
-        const reqId = result.content.trim();
+        const content = await getRunFile(runId, "requirement_id.txt");
+        const reqId = content.trim();
         setRequirementId(reqId);
 
         // Fetch requirements to get spec_path for this requirement
@@ -157,12 +156,8 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
       } else {
         // Fetch from run artifacts
         const filename = getFilename(activeTab);
-        const result = await felixApi.getRunArtifact(
-          projectId,
-          runId,
-          filename,
-        );
-        setContent(result.content);
+        const result = await getRunFile(runId, filename);
+        setContent(result);
       }
     } catch (err) {
       console.error("Failed to fetch artifact:", err);
@@ -189,8 +184,8 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
       return null; // Specs aren't run artifacts, no direct download
     }
     const filename = getFilename(activeTab);
-    return `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(filename)}`;
-  }, [activeTab, projectId, runId, requirementId]);
+    return `${SYNC_BASE_URL}/runs/${encodeURIComponent(runId)}/files/${encodeURIComponent(filename)}`;
+  }, [activeTab, runId, requirementId]);
 
   // Parse markdown content for report, plan, and spec tabs
   useEffect(() => {

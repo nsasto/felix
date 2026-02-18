@@ -145,9 +145,27 @@ export async function stopRun(run_id: string): Promise<Run> {
  * @param limit - Maximum number of runs to return (default: no limit)
  * @returns List of runs and count
  */
-export async function listRuns(limit?: number): Promise<RunListResponse> {
-  const params = limit ? `?limit=${limit}` : '';
-  return request<RunListResponse>(`/agents/runs${params}`);
+export async function listRuns(options?: {
+  limit?: number;
+  projectId?: string;
+  requirementId?: string;
+  status?: string[];
+}): Promise<RunListResponse> {
+  const params = new URLSearchParams();
+  if (options?.limit) {
+    params.append('limit', options.limit.toString());
+  }
+  if (options?.projectId) {
+    params.append('project_id', options.projectId);
+  }
+  if (options?.requirementId) {
+    params.append('requirement_id', options.requirementId);
+  }
+  if (options?.status && options.status.length > 0) {
+    params.append('status', options.status.join(','));
+  }
+  const query = params.toString();
+  return request<RunListResponse>(`/agents/runs${query ? `?${query}` : ''}`);
 }
 
 /**

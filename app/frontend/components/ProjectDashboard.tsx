@@ -1,12 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  felixApi,
-  ProjectDetails,
-  Requirement,
-  RunHistoryEntry,
-} from "../services/felixApi";
-import { listAgents } from "../src/api/client";
-import type { Agent } from "../src/api/types";
+import { felixApi, ProjectDetails, Requirement } from "../services/felixApi";
+import { listAgents, listRuns } from "../src/api/client";
+import type { Agent, Run } from "../src/api/types";
 import {
   Kanban as IconKanban,
   FileText as IconFileText,
@@ -57,7 +52,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onNavigate,
 }) => {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
-  const [runs, setRuns] = useState<RunHistoryEntry[]>([]);
+  const [runs, setRuns] = useState<Run[]>([]);
   const [registryAgents, setRegistryAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +68,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
       setError(null);
       const results = await Promise.allSettled([
         felixApi.getRequirements(projectId),
-        felixApi.listRuns(projectId),
+        listRuns({ limit: 50, projectId }),
         listAgents({ scope: "project", projectId }),
       ]);
 
@@ -479,7 +474,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             <div className="space-y-3">
               {recentRuns.map((run) => (
                 <div
-                  key={run.run_id}
+                  key={run.id}
                   className="flex items-center justify-between text-xs"
                 >
                   <div className="flex flex-col">
