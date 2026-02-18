@@ -500,36 +500,17 @@ async def read_requirements(
     db: Database = Depends(get_db),
 ):
     """
-    Read the project's requirements and enrich with plan status.
+    Read the project's requirements from the database.
 
-    NOTE: Performance optimization for Phase 0.
-    Embeds plan status (has_plan, timestamps) in single response to avoid N+1 queries.
+    Plans are just artifacts from runs - if you need plan info, query run_files separately.
     """
     project_path = await get_project_path(db, project_id)
     try:
         service = RequirementService(db)
         requirements = await service.list_requirements(project_id)
 
-        requirement_ids = [req["id"] for req in requirements]
-        plan_map = await build_plan_map(db, project_id, requirement_ids)
-
-        # Enrich each requirement with plan status
+        # Add spec_modified_at for drift detection (cheap filesystem stat)
         for req in requirements:
-            req_id = req["id"]
-
-            # Lookup plan from pre-built map (O(1) instead of O(m) per requirement)
-            plan_info = plan_map.get(req_id)
-
-            req["has_plan"] = plan_info is not None
-
-            if plan_info:
-                req["plan_path"] = plan_info["path"]
-                req["plan_modified_at"] = str(plan_info["updated_at"])
-            else:
-                req["plan_path"] = None
-                req["plan_modified_at"] = None
-
-            # Get spec timestamp for drift detection
             spec_path = req.get("spec_path")
             if spec_path:
                 spec_file = project_path / spec_path
@@ -544,6 +525,65 @@ async def read_requirements(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to read requirements: {str(e)}"
+        )
+
+
+@router.get("/{project_id}/requirements/{requirement_id}/latest-plan")
+async def get_latest_plan(
+    project_id: str = PathParam(..., description="Project ID"),
+    requirement_id: str = PathParam(..., description="Requirement ID (e.g., S-0001)"),
+    db: Database = Depends(get_db),
+):
+    """
+    Get the most recent plan artifact for a requirement.
+
+    Returns the plan content from the latest run that produced a plan file.
+    Looks for plan.md, plan.snapshot.md, or plan-{requirement_id}.md files.
+    """
+    try:
+        # Find the most recent plan artifact for this requirement
+        query = """
+            SELECT rf.storage_key, rf.path, rf.updated_at, r.id as run_id
+            FROM run_files rf
+            JOIN runs r ON rf.run_id = r.id
+            WHERE r.project_id = :project_id
+              AND r.requirement_id = :requirement_id
+              AND (rf.path = 'plan.md' OR rf.path = 'plan.snapshot.md' OR rf.path LIKE 'plan-%')
+            ORDER BY rf.updated_at DESC
+            LIMIT 1
+        """
+
+        row = await db.fetch_one(
+            query,
+            values={
+                "project_id": project_id,
+                "requirement_id": requirement_id,
+            },
+        )
+
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No plan found for requirement {requirement_id}",
+            )
+
+        # Fetch content from storage
+        storage = get_artifact_storage()
+        content_bytes = await storage.get(row["storage_key"])
+        content = content_bytes.decode("utf-8", errors="replace")
+
+        return {
+            "content": content,
+            "path": row["path"],
+            "updated_at": str(row["updated_at"]),
+            "run_id": str(row["run_id"]),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch latest plan: {str(e)}"
         )
 
 
@@ -1024,7 +1064,7 @@ async def build_plan_map(
         FROM run_files rf
         JOIN runs r ON rf.run_id = r.id
         WHERE r.project_id = :project_id
-          AND r.requirement_id = ANY(:requirement_ids)
+          AND r.requirement_id = ANY(:requirement_ids::text[])
           AND (rf.path = :plan_md OR rf.path = :plan_snapshot OR rf.path LIKE :plan_prefix)
         ORDER BY rf.updated_at DESC
     """
