@@ -641,7 +641,12 @@ class RunCreate(BaseModel):
         None, description="Requirement ID being worked on"
     )
     agent_id: str = Field(..., description="Agent ID executing the run")
-    project_id: str = Field(..., description="Project ID the run belongs to")
+    project_id: Optional[str] = Field(
+        None, description="Project ID (optional if git_url provided)"
+    )
+    git_url: Optional[str] = Field(
+        None, description="Git repository URL for project identity (recommended)"
+    )
     branch: Optional[str] = Field(None, description="Git branch name")
     commit_sha: Optional[str] = Field(None, description="Git commit SHA")
     scenario: Optional[str] = Field(None, description="Run scenario identifier")
@@ -797,8 +802,49 @@ async def create_run(
         db, api_key, "/api/runs", http_request, agent_id=body.agent_id
     )
 
-    # Require API key and validate project access
-    require_project_access(api_key, body.project_id)
+    # Determine project_id: Use git_url if provided (preferred), else explicit project_id
+    project_id = None
+    if body.git_url:
+        # Validate against API key's project by git URL
+        from services.projects import normalize_git_url
+        
+        # Get project from API key
+        if not api_key:
+            raise HTTPException(
+                status_code=401, detail="API key required when using git_url authentication"
+            )
+        
+        key_project = await db.fetch_one(
+            "SELECT id, git_url FROM projects WHERE id = :project_id",
+            {"project_id": api_key.project_id}
+        )
+        
+        if not key_project:
+            raise HTTPException(
+                status_code=403, detail="API key's project not found"
+            )
+        
+        # Normalize and compare git URLs
+        normalized_request = normalize_git_url(body.git_url)
+        normalized_project = normalize_git_url(key_project["git_url"])
+        
+        if normalized_request != normalized_project:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Git URL mismatch: API key is for {normalized_project}, request is for {normalized_request}"
+            )
+        
+        project_id = api_key.project_id
+    elif body.project_id:
+        # Fallback to explicit project_id (validate against API key if present)
+        project_id = body.project_id
+        if api_key:
+            require_project_access(api_key, project_id)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Either git_url or project_id must be provided"
+        )
 
     try:
         # Generate run ID if not provided
@@ -813,14 +859,14 @@ async def create_run(
                 status_code=404, detail=f"Agent not found: {body.agent_id}"
             )
 
-        # Verify project exists
+        # Verify project exists (using determined project_id from git URL or explicit value)
         project = await db.fetch_one(
             "SELECT id FROM projects WHERE id = :project_id",
-            {"project_id": body.project_id},
+            {"project_id": project_id},
         )
         if not project:
             raise HTTPException(
-                status_code=404, detail=f"Project not found: {body.project_id}"
+                status_code=404, detail=f"Project not found: {project_id}"
             )
 
         # Insert run record
@@ -841,7 +887,7 @@ async def create_run(
             run_query,
             {
                 "id": run_id,
-                "project_id": body.project_id,
+                "project_id": project_id,  # Use determined project_id
                 "agent_id": body.agent_id,
                 "requirement_id": body.requirement_id,
                 "branch": body.branch,

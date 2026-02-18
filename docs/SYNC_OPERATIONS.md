@@ -60,6 +60,66 @@ This guide covers operational procedures for the Felix Run Artifact Sync feature
 
 ## Authentication & Security
 
+### Project Identity: Git URL Validation
+
+Felix identifies projects using **git repository URLs** instead of folder paths. This enables:
+
+- **Remote operation**: No local file system dependency
+- **Automatic discovery**: CLI extracts URL from `git remote get-url origin`
+- **Security**: Prevents API key misuse across different projects
+- **Simplicity**: No manual project UUID configuration needed
+
+**How It Works:**
+
+1. **CLI extracts git URL** (when starting a run):
+
+   ```powershell
+   $gitUrl = git config --get remote.origin.url
+   # Example: "git@github.com:owner/repo.git"
+   ```
+
+2. **CLI sends git URL in RunCreate request**:
+
+   ```json
+   POST /api/runs
+   {
+     "requirement_id": "...",
+     "agent_id": "...",
+     "git_url": "git@github.com:owner/repo.git"
+   }
+   ```
+
+3. **Backend normalizes URLs for comparison**:
+
+   ```python
+   # Converts SSH to HTTPS, removes .git, lowercases domain
+   "git@github.com:owner/repo.git" → "https://github.com/owner/repo"
+   "https://github.com/Owner/Repo.git" → "https://github.com/owner/repo"
+   ```
+
+4. **Backend validates git URL matches project**:
+   ```python
+   project = get_project_by_api_key(api_key)
+   if normalize_git_url(project.git_url) != normalize_git_url(request.git_url):
+       raise HTTPException(403, "Git URL mismatch")
+   ```
+
+**Benefits:**
+
+- CLI doesn't need to know project UUID
+- API key prevents usage in wrong git repo
+- Works seamlessly across machines (same git remote URL)
+- Protects against accidental syncs to wrong project
+
+**Git URL Normalization Rules:**
+
+| Original Format                     | Normalized                       |
+| ----------------------------------- | -------------------------------- |
+| `git@github.com:owner/repo.git`     | `https://github.com/owner/repo`  |
+| `https://github.com/Owner/Repo/`    | `https://github.com/owner/repo`  |
+| `ssh://git@gitlab.com/owner/repo`   | `https://gitlab.com/owner/repo`  |
+| `http://gitlab.example.com/a/b.git` | `https://gitlab.example.com/a/b` |
+
 ### Project-Scoped API Keys
 
 Felix sync endpoints require project-scoped API keys for authentication. Each API key grants access to a single project's artifacts and data.

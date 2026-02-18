@@ -18,10 +18,7 @@ from auth import get_current_user
 from database import get_db
 from repositories import PostgresProjectRepository
 from services.projects import (
-    normalize_project_path,
-    validate_project_structure,
-    ensure_project_path_exists,
-    validate_git_repo,
+    validate_git_url,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -34,32 +31,32 @@ async def register_project(
     user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Register a project directory with Felix.
+    Register a project with Felix using its git repository URL.
 
-    The directory must have a valid Felix structure:
-    - .felix/ directory
-    - specs/ directory
+    The git URL is used for project identity and authentication.
     """
     try:
-        project_path = normalize_project_path(request.path)
-        validate_project_structure(project_path)
+        git_url = request.git_url.strip()
+        if not git_url:
+            raise ValueError("Git URL is required")
+
+        validate_git_url(git_url)
 
         repo = PostgresProjectRepository(db)
         project_name = (
             request.name.strip()
             if request.name and request.name.strip()
-            else project_path.name
+            else "Untitled Project"
         )
         project = await repo.create_project(
             org_id=user["org_id"],
             name=project_name,
-            path=str(project_path),
+            git_url=git_url,
         )
         return Project(
             id=str(project["id"]),
-            path=project["path"],
+            git_url=project["git_url"],
             name=project.get("name"),
-            git_repo=project.get("git_repo"),
             registered_at=project["created_at"],
         )
     except ValueError as e:
@@ -83,13 +80,11 @@ async def list_projects(
     return [
         Project(
             id=str(project["id"]),
-            path=project["path"],
+            git_url=project["git_url"],
             name=project.get("name"),
-            git_repo=project.get("git_repo"),
             registered_at=project["created_at"],
         )
         for project in projects
-        if project.get("path")
     ]
 
 
@@ -107,28 +102,16 @@ async def get_project(
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
 
-    project_path = project.get("path")
-    if not project_path:
-        raise HTTPException(
-            status_code=404, detail=f"Project path not set: {project_id}"
-        )
-
-    try:
-        project_dir = ensure_project_path_exists(project_path)
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-    specs_dir = project_dir / "specs"
-    spec_count = len(list(specs_dir.glob("*.md"))) if specs_dir.exists() else 0
-
+    # Note: Spec count and has_specs would require file system access for remote projects
+    # For now, return basic details. In future, this could query run_artifacts for spec files.
     return ProjectDetails(
         id=str(project["id"]),
-        path=project["path"],
+        git_url=project["git_url"],
         name=project.get("name"),
         registered_at=project["created_at"],
-        has_specs=specs_dir.exists(),
+        has_specs=False,
         has_requirements=False,
-        spec_count=spec_count,
+        spec_count=0,
         status=None,
     )
 
@@ -141,44 +124,34 @@ async def update_project(
     user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Update project metadata (name, path, git_repo).
+    Update project metadata (name, git_url).
     """
     try:
-        new_path = None
-        if request.path is not None and request.path.strip():
-            project_path = normalize_project_path(request.path)
-            validate_project_structure(project_path)
-            new_path = str(project_path)
-
         name_value = request.name
         if name_value is not None:
             name_value = name_value.strip()
             if not name_value:
                 name_value = ""
 
-        # Validate git repo if provided
-        git_repo_value = None
-        if request.git_repo is not None:
-            git_repo_value = (
-                request.git_repo.strip() if request.git_repo.strip() else None
-            )
-            if git_repo_value:
-                validate_git_repo(git_repo_value)
+        # Validate git URL if provided
+        git_url_value = None
+        if request.git_url is not None:
+            git_url_value = request.git_url.strip() if request.git_url.strip() else None
+            if git_url_value:
+                validate_git_url(git_url_value)
 
         repo = PostgresProjectRepository(db)
         project = await repo.update_project(
             user["org_id"],
             project_id,
             name=name_value,
-            path=new_path,
-            git_repo=git_repo_value,
+            git_url=git_url_value,
         )
         if project:
             return Project(
                 id=str(project["id"]),
-                path=project["path"],
+                git_url=project["git_url"],
                 name=project.get("name"),
-                git_repo=project.get("git_repo"),
                 registered_at=project["created_at"],
             )
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")

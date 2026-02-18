@@ -26,16 +26,17 @@ class IProjectRepository(Protocol):
 
     async def get_by_id_any(self, project_id: str) -> Optional[Dict[str, Any]]: ...
 
-    async def get_by_path(self, org_id: str, path: str) -> Optional[Dict[str, Any]]: ...
+    async def get_by_git_url(
+        self, org_id: str, git_url: str
+    ) -> Optional[Dict[str, Any]]: ...
 
     async def create_project(
         self,
         org_id: str,
         name: str,
-        path: str,
+        git_url: str,
         description: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        git_repo: Optional[str] = None,
     ) -> Dict[str, Any]: ...
 
     async def update_project(
@@ -43,8 +44,7 @@ class IProjectRepository(Protocol):
         org_id: str,
         project_id: str,
         name: Optional[str],
-        path: Optional[str],
-        git_repo: Optional[str] = None,
+        git_url: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]: ...
 
     async def delete_project(self, org_id: str, project_id: str) -> bool: ...
@@ -59,7 +59,7 @@ class PostgresProjectRepository:
             """
             SELECT *
             FROM projects
-            WHERE org_id = :org_id AND path IS NOT NULL
+            WHERE org_id = :org_id
             ORDER BY created_at DESC
             """,
             values={"org_id": org_id},
@@ -84,14 +84,16 @@ class PostgresProjectRepository:
         )
         return dict(row) if row else None
 
-    async def get_by_path(self, org_id: str, path: str) -> Optional[Dict[str, Any]]:
+    async def get_by_git_url(
+        self, org_id: str, git_url: str
+    ) -> Optional[Dict[str, Any]]:
         row = await self.db.fetch_one(
             """
             SELECT *
             FROM projects
-            WHERE org_id = :org_id AND path = :path
+            WHERE org_id = :org_id AND git_url = :git_url
             """,
-            values={"org_id": org_id, "path": path},
+            values={"org_id": org_id, "git_url": git_url},
         )
         return dict(row) if row else None
 
@@ -115,11 +117,11 @@ class PostgresProjectRepository:
         self,
         org_id: str,
         name: str,
-        path: str,
+        git_url: str,
         description: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        existing = await self.get_by_path(org_id, path)
+        existing = await self.get_by_git_url(org_id, git_url)
         if existing:
             if name and name != existing.get("name"):
                 slug = await self._find_unique_slug(org_id, name)
@@ -139,8 +141,8 @@ class PostgresProjectRepository:
         metadata_payload = json.dumps(metadata or {})
         row = await self.db.fetch_one(
             """
-            INSERT INTO projects (org_id, name, slug, description, metadata, path, git_repo)
-            VALUES (:org_id, :name, :slug, :description, CAST(:metadata AS JSONB), :path, :git_repo)
+            INSERT INTO projects (org_id, name, slug, description, metadata, git_url)
+            VALUES (:org_id, :name, :slug, :description, CAST(:metadata AS JSONB), :git_url)
             RETURNING *
             """,
             values={
@@ -149,8 +151,7 @@ class PostgresProjectRepository:
                 "slug": slug,
                 "description": description,
                 "metadata": metadata_payload,
-                "path": path,
-                "git_repo": git_repo,
+                "git_url": git_url,
             },
         )
         return dict(row) if row else {}
@@ -160,8 +161,7 @@ class PostgresProjectRepository:
         org_id: str,
         project_id: str,
         name: Optional[str],
-        path: Optional[str],
-        git_repo: Optional[str] = None,
+        git_url: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         existing = await self.get_by_id(org_id, project_id)
         if not existing:
@@ -182,23 +182,19 @@ class PostgresProjectRepository:
                 assignments.append("name = :name")
                 assignments.append("slug = :slug")
 
-        if path is not None:
-            existing_path = await self.db.fetch_one(
+        if git_url is not None:
+            existing_git = await self.db.fetch_one(
                 """
                 SELECT id
                 FROM projects
-                WHERE org_id = :org_id AND path = :path AND id <> :id
+                WHERE org_id = :org_id AND git_url = :git_url AND id <> :id
                 """,
-                values={"org_id": org_id, "path": path, "id": project_id},
+                values={"org_id": org_id, "git_url": git_url, "id": project_id},
             )
-            if existing_path:
-                raise ValueError("Path is already registered for another project.")
-            updates["path"] = path
-            assignments.append("path = :path")
-
-        if git_repo is not None:
-            updates["git_repo"] = git_repo
-            assignments.append("git_repo = :git_repo")
+            if existing_git:
+                raise ValueError("Git URL is already registered for another project.")
+            updates["git_url"] = git_url
+            assignments.append("git_url = :git_url")
 
         if not assignments:
             return existing

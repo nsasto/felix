@@ -11,6 +11,7 @@ from pathlib import Path
 
 class OrganizationMember(BaseModel):
     """Organization member record with profile details."""
+
     id: str
     org_id: str
     user_id: str
@@ -24,6 +25,7 @@ class OrganizationMember(BaseModel):
 
 class OrganizationInvite(BaseModel):
     """Organization invite record."""
+
     id: str
     org_id: str
     email: str
@@ -51,12 +53,12 @@ class OrganizationInviteUpdate(BaseModel):
 class OrganizationMemberRoleUpdate(BaseModel):
     role: str = Field(..., description="Updated role for member")
 
+
 class ProjectBase(BaseModel):
     """Base project data"""
 
-    path: str = Field(..., description="Absolute path to project directory")
+    git_url: str = Field(..., description="Git repository URL for project identity")
     name: Optional[str] = Field(None, description="Project display name")
-    git_repo: Optional[str] = Field(None, description="Git repository URL")
 
 
 class ProjectRegister(ProjectBase):
@@ -69,14 +71,13 @@ class ProjectUpdate(BaseModel):
     """Request body for updating a project"""
 
     name: Optional[str] = Field(None, description="New project display name")
-    path: Optional[str] = Field(None, description="New project path")
-    git_repo: Optional[str] = Field(None, description="New git repository URL")
+    git_url: Optional[str] = Field(None, description="New git repository URL")
 
 
 class Project(ProjectBase):
     """Full project model with computed fields"""
 
-    id: str = Field(..., description="Unique project identifier (derived from path)")
+    id: str = Field(..., description="Unique project identifier (UUID)")
     registered_at: datetime = Field(default_factory=datetime.now)
 
     class Config:

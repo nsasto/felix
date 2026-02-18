@@ -41,11 +41,27 @@ try {
     # Record start time
     $Global:HttpSyncState.RunStartTime = Get-Date
     
+    # Extract git URL for project identity
+    $gitUrl = $null
+    try {
+        $gitUrl = git config --get remote.origin.url 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $gitUrl) {
+            Emit-Log -Level "warn" -Message "No git remote origin configured - project identity unavailable" -Component "sync" | Out-Null
+        }
+    }
+    catch {
+        Emit-Log -Level "warn" -Message "Failed to read git remote URL: $_" -Component "sync" | Out-Null
+    }
+    
     # Create run record
     $runData = @{
         requirement_id = $Data.Requirement.id
         agent_id = $Data.AgentConfig.id
-        project_id = if ($Data.Config.project_id) { $Data.Config.project_id } else { "default" }
+    }
+    
+    # Add git_url for project authentication (preferred over project_id)
+    if ($gitUrl) {
+        $runData.git_url = $gitUrl.Trim()
     }
     
     $syncRunId = $Global:HttpSyncState.Client.StartRun($runData)

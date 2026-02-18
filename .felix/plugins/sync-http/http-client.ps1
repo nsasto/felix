@@ -366,7 +366,7 @@ class HttpSync : IRunReporter {
             
             $json = $request | ConvertTo-Json -Depth 10 -Compress
             Add-Content -Path $filePath -Value $json -Encoding UTF8
-            
+        }
         catch {
             $this.WriteLog("WARNING", "Failed to queue request to $($request.endpoint): $_")
             throw

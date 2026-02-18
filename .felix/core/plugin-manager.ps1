@@ -143,7 +143,25 @@ function Invoke-PluginHook {
             if ($hook.type -eq "powershell") {
                 $hookScript = Join-Path $plugin.Path $hook.script
                 if (Test-Path $hookScript) {
-                    $result = & $hookScript -HookName $HookName -RunId $RunId -Data $HookData -Config $plugin.Config
+                    $hookParams = @{
+                        HookName = $HookName
+                        RunId = $RunId
+                        Data = $HookData
+                    }
+                    # Convert PSCustomObject config to hashtable for hook parameters
+                    if ($null -ne $plugin.Config) {
+                        if ($plugin.Config -is [PSCustomObject]) {
+                            $configHash = @{}
+                            $plugin.Config.PSObject.Properties | ForEach-Object {
+                                $configHash[$_.Name] = $_.Value
+                            }
+                            $hookParams['Config'] = $configHash
+                        }
+                        else {
+                            $hookParams['Config'] = $plugin.Config
+                        }
+                    }
+                    $result = & $hookScript @hookParams
                 }
             }
             

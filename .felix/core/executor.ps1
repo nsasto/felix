@@ -131,6 +131,10 @@ function Invoke-FelixIteration {
             MaxIterations      = $MaxIterations
             CurrentRequirement = $CurrentRequirement
             State              = $State
+            Config             = $Config
+            Paths              = $Paths
+            AgentConfig        = $AgentConfig
+            Requirement        = $CurrentRequirement
         }
     }
     catch {

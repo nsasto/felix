@@ -139,6 +139,11 @@ The flag sets `FELIX_SYNC_ENABLED` environment variable for the agent subprocess
 **How It Works:**
 
 - Agent writes artifacts locally first (always)
+- **Project authentication**: Git URL from `git remote get-url origin` identifies the project
+  - No manual project UUID configuration needed
+  - API key validates you're syncing to correct project
+  - Backend normalizes git URLs (SSH→HTTPS, removes .git, case-insensitive)
+  - Prevents accidental syncs to wrong project
 - **Event batching**: Events queued and flushed every 5 seconds (heartbeat proxy)
 - **Status throttling**: Max 1 status update per second to prevent spam
 - **Critical events**: Errors/failures bypass batching for immediate sync
