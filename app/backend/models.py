@@ -114,6 +114,10 @@ class AgentRegisterRequest(BaseModel):
     profile_id: Optional[str] = Field(
         None, description="Agent profile ID (UUID string)"
     )
+    git_url: Optional[str] = Field(
+        None,
+        description="Git repository URL for project authentication (alternative to explicit project_id)",
+    )
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Optional JSON metadata for the agent"
     )

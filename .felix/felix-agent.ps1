@@ -436,6 +436,21 @@ try {
                 try { $hostname = [System.Net.Dns]::GetHostName() } catch { $hostname = "unknown" }
             }
             
+            # Extract git URL for project identity
+            $gitUrl = $null
+            try {
+                $gitUrl = git config --get remote.origin.url 2>$null
+                if ($LASTEXITCODE -ne 0 -or -not $gitUrl) {
+                    Emit-Log -Level "warn" -Message "No git remote origin configured - project identity unavailable for agent registration" -Component "sync"
+                }
+                else {
+                    $gitUrl = $gitUrl.Trim()
+                }
+            }
+            catch {
+                Emit-Log -Level "warn" -Message "Failed to read git remote URL: $_" -Component "sync"
+            }
+            
             # Build registration payload for agents router (not sync router)
             # Matches AgentRegisterRequest model with metadata field
             $metadata = @{
@@ -463,6 +478,16 @@ try {
                 name     = $agentConfig.name
                 type     = "cli"
                 metadata = $metadata
+            }
+            
+            # Add git_url for project authentication (preferred over explicit project_id)
+            if ($gitUrl) {
+                $syncAgentInfo["git_url"] = $gitUrl
+            }
+            
+            # Add git_url for project authentication (when API key is used)
+            if ($gitUrl) {
+                $syncAgentInfo["git_url"] = $gitUrl
             }
             
             $script:SyncReporter.RegisterAgent($syncAgentInfo)

@@ -39,7 +39,7 @@
                 },
     "sync":  {
                  "enabled":  true,
-                 "provider":  "fastapi",
+                 "provider":  "http",
                  "base_url":  "http://localhost:8080",
                  "api_key":  "fsk_51d8e1482650cd3f595353e0ed6774de59baf0e3ca4c552db82e95398cb70e11"
              }

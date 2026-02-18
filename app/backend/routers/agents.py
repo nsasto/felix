@@ -368,8 +368,39 @@ async def register_agent(
         AgentResponse with the created/updated agent data
     """
     try:
-        # Get project_id from config (dev mode)
-        project_id = config.DEV_PROJECT_ID
+        # Determine project_id: Use git_url if provided (preferred), else DEV_PROJECT_ID
+        project_id = None
+
+        if request.git_url:
+            # Validate git_url and find matching project
+            from services.projects import normalize_git_url
+
+            normalized_request_url = normalize_git_url(request.git_url)
+
+            # Find project by git_url
+            project = await db.fetch_one(
+                "SELECT id FROM projects WHERE git_url ILIKE :git_url",
+                {"git_url": normalized_request_url},
+            )
+
+            if not project:
+                # Try to find by normalized URL comparison
+                all_projects = await db.fetch_all("SELECT id, git_url FROM projects")
+                for proj in all_projects:
+                    if normalize_git_url(proj["git_url"]) == normalized_request_url:
+                        project = proj
+                        break
+
+            if not project:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No project found with git URL: {request.git_url}",
+                )
+
+            project_id = project["id"]
+        else:
+            # Fallback to dev mode project
+            project_id = config.DEV_PROJECT_ID
 
         agent_repo = PostgresAgentRepository(db)
         machine_repo = PostgresMachineRepository(db)
