@@ -32,13 +32,13 @@ const renderWithTheme = (ui: React.ReactElement) => {
 const mockProjects = (): Project[] => [
   {
     id: "project-1",
-    path: "C:\\dev\\Project1",
+    git_url: "https://github.com/user/project1.git",
     name: "Project One",
     registered_at: "2026-01-20T10:00:00Z",
   },
   {
     id: "project-2",
-    path: "C:\\dev\\Project2",
+    git_url: "https://github.com/user/project2.git",
     name: "Project Two",
     registered_at: "2026-01-22T14:30:00Z",
   },
@@ -75,7 +75,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Project One")).toBeInTheDocument();
     expect(screen.getByText("Project Two")).toBeInTheDocument();
-    expect(screen.getByText("C:\\dev\\Project1")).toBeInTheDocument();
+    expect(screen.getByText("https://github.com/user/project1.git")).toBeInTheDocument();
   });
 
   it("shows empty state when no projects are registered", async () => {
@@ -139,7 +139,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
   it("registers a new project", async () => {
     vi.mocked(felixApi.registerProject).mockResolvedValue({
       id: "project-3",
-      path: "C:\\dev\\Project3",
+      git_url: "https://github.com/user/project3.git",
       name: "Project Three",
       registered_at: "2026-01-25T08:00:00Z",
     });

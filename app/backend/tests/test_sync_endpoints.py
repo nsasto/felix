@@ -508,10 +508,12 @@ class TestRunCreationEndpoint:
     def test_create_run_success(self, client):
         """POST /api/runs creates run and event"""
         # Mock agent and project existence
+        # Note: requirement_id "S-0060" is not a UUID, so it triggers a lookup
         fake_db = FakeDatabase(
             fetch_one_results=[
                 {"id": "agent-001"},  # Agent exists
                 {"id": "project-001"},  # Project exists
+                {"id": "req-uuid-001"},  # Requirement code lookup result
             ]
         )
         app.dependency_overrides[get_db] = lambda: fake_db

@@ -640,10 +640,24 @@ class HttpSync : IRunReporter {
                         # Check if this is a transient error (retry with backoff)
                         if ($this.IsTransientError($result.StatusCode, $lastError)) {
                             $this.WriteLog("WARNING", "Transient error for $($file.Name): HTTP $($result.StatusCode) - $lastError (attempt $attempt/$maxRetries)")
+                            
+                            # Emit visible warning on first failure for critical operations
+                            if ($attempt -eq 1 -and ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent")) {
+                                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                                    Emit-Log -Level "warn" -Message "Sync error (HTTP $($result.StatusCode)): $lastError - retrying..." -Component "sync" | Out-Null
+                                }
+                            }
                         }
                         else {
                             # Unknown error type - treat as transient but log it
                             $this.WriteLog("WARNING", "Unknown error for $($file.Name): HTTP $($result.StatusCode) - $lastError (attempt $attempt/$maxRetries)")
+                            
+                            # Emit visible warning on first failure for critical operations
+                            if ($attempt -eq 1 -and ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent")) {
+                                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                                    Emit-Log -Level "warn" -Message "Sync error: $lastError - retrying..." -Component "sync" | Out-Null
+                                }
+                            }
                         }
                     }
                 }

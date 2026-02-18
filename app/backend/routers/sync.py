@@ -960,10 +960,10 @@ async def create_run(
 
         project_id = api_key.project_id
     elif body.project_id:
-        # Fallback to explicit project_id (validate against API key if present)
+        # Fallback to explicit project_id (requires API key)
         project_id = body.project_id
-        if api_key:
-            require_project_access(api_key, project_id)
+        # Always require API key and validate project access
+        require_project_access(api_key, project_id)
     else:
         raise HTTPException(
             status_code=400, detail="Either git_url or project_id must be provided"
@@ -1064,6 +1064,31 @@ async def create_run(
         )
     except HTTPException:
         raise
+    except asyncpg.exceptions.UniqueViolationError as e:
+        # Duplicate run ID - this is idempotent, return existing run
+        # This can happen if client retries request with same UUID
+        if "runs_pkey" in str(e):
+            log_sync_warning(
+                f"Duplicate run creation attempt (idempotent)",
+                run_id=run_id,
+                agent_id=body.agent_id,
+                project_id=body.project_id,
+            )
+            # Return success with existing run ID (idempotent behavior)
+            return RunCreateResponse(
+                run_id=run_id,
+                status="existing",
+            )
+        # Other unique violations should still error
+        log_sync_error(
+            "Unique constraint violation during run creation",
+            agent_id=body.agent_id,
+            project_id=body.project_id,
+            exc=e,
+        )
+        raise HTTPException(
+            status_code=409, detail=f"Unique constraint violation: {str(e)}"
+        )
     except Exception as e:
         # Check for database connection errors - return 503 for transient failures
         if is_database_connection_error(e):
