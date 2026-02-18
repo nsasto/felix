@@ -650,7 +650,7 @@ class HttpSync : IRunReporter {
                             $this.WriteLog("WARNING", "Transient error for $($file.Name): HTTP $($result.StatusCode) - $lastError (attempt $attempt/$maxRetries)")
                             
                             # Emit visible warning on first failure for critical operations
-                            if ($attempt -eq 1 -and ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent")) {
+                            if ($attempt -eq 1 -and ($file.Name -match "^\d{17}" -or $file.Name -match "agent")) {
                                 if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
                                     Emit-Log -Level "warn" -Message "Sync error (HTTP $($result.StatusCode)): $lastError - retrying..." -Component "sync" | Out-Null
                                 }
@@ -661,7 +661,7 @@ class HttpSync : IRunReporter {
                             $this.WriteLog("WARNING", "Unknown error for $($file.Name): HTTP $($result.StatusCode) - $lastError (attempt $attempt/$maxRetries)")
                             
                             # Emit visible warning on first failure for critical operations
-                            if ($attempt -eq 1 -and ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent")) {
+                            if ($attempt -eq 1 -and ($file.Name -match "^\d{17}" -or $file.Name -match "agent")) {
                                 if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
                                     Emit-Log -Level "warn" -Message "Sync error: $lastError - retrying..." -Component "sync" | Out-Null
                                 }
@@ -701,8 +701,9 @@ class HttpSync : IRunReporter {
                 # Permanent API failure - keep file in outbox but continue to next file
                 $this.WriteLog("WARNING", "Permanent API failure for $($file.Name) - file remains in outbox")
                 
-                # Notify user of permanent failure for critical operations
-                if ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent") {
+                # Notify user of permanent failure for critical operations (run files, agent registration, batch uploads)
+                # Pattern matches: 20260218191241123.jsonl (timestamp), 20260218191241123-batch-upload.jsonl, or agent files
+                if ($file.Name -match "^\d{17}" -or $file.Name -match "agent") {
                     if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
                         Emit-Log -Level "error" -Message "Sync permanently failed (HTTP $lastStatusCode): $lastError" -Component "sync" | Out-Null
                     }
@@ -714,7 +715,8 @@ class HttpSync : IRunReporter {
                 $this.WriteLog("WARNING", "Max retries ($maxRetries) exceeded for $($file.Name) - file remains in outbox, will retry later")
                 
                 # Notify user that sync is having issues with critical operations
-                if ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent") {
+                # Pattern matches: 20260218191241123.jsonl (timestamp), batch uploads, or agent files
+                if ($file.Name -match "^\d{17}" -or $file.Name -match "agent") {
                     if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
                         Emit-Log -Level "warn" -Message "Sync operation failed after $maxRetries retries - will retry later" -Component "sync" | Out-Null
                     }
