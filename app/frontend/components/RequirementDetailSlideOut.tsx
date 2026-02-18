@@ -207,7 +207,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
   // Fetch spec content when requirement changes
   useEffect(() => {
-    if (!requirement || !requirement.spec_path) {
+    if (!requirement) {
       setSpecContent("");
       return;
     }
@@ -217,9 +217,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
       setSpecError(null);
 
       try {
-        const filename =
-          requirement.spec_path.split("/").pop() || requirement.spec_path;
-        const result = await felixApi.getSpec(projectId, filename);
+        // Use requirement code or ID (not the spec_path filename)
+        const requirementIdOrCode = requirement.code || requirement.id;
+        const result = await felixApi.getSpec(projectId, requirementIdOrCode);
         setSpecContent(result.content);
       } catch (err) {
         console.error("Failed to fetch spec:", err);
@@ -232,7 +232,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
     };
 
     fetchSpec();
-  }, [projectId, requirement?.id, requirement?.spec_path]);
+  }, [projectId, requirement?.id]);
 
   // Parse spec markdown
   useEffect(() => {

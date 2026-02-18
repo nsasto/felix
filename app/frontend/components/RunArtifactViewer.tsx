@@ -112,7 +112,6 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
   const [errorType, setErrorType] = useState<ErrorType>("unknown");
   const [parsedHtml, setParsedHtml] = useState<string>("");
   const [requirementId, setRequirementId] = useState<string | null>(null);
-  const [specPath, setSpecPath] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
   // Fetch requirement ID and spec path from requirement_id.txt
@@ -123,18 +122,7 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
         const reqId = content.trim();
         setRequirementId(reqId);
 
-        // Fetch requirements to get spec_path for this requirement
-        if (reqId) {
-          try {
-            const requirements = await felixApi.getRequirements(projectId);
-            const req = requirements.requirements.find((r) => r.id === reqId);
-            if (req) {
-              setSpecPath(req.spec_path);
-            }
-          } catch (err) {
-            console.error("Failed to fetch requirements:", err);
-          }
-        }
+        // Note: requirementId is now all we need to fetch spec content
       } catch (err) {
         console.error("Failed to fetch requirement ID:", err);
         // Not critical - plan and spec tabs just won't work
@@ -166,10 +154,9 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
     setContent("");
 
     try {
-      if (activeTab === "spec" && specPath) {
-        // Fetch spec directly from specs directory
-        const filename = specPath.split("/").pop() || specPath;
-        const result = await felixApi.getSpec(projectId, filename);
+      if (activeTab === "spec" && requirementId) {
+        // Fetch spec using requirement ID
+        const result = await felixApi.getSpec(projectId, requirementId);
         setContent(result.content);
       } else {
         // Fetch from run artifacts
@@ -186,7 +173,7 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [projectId, runId, activeTab, requirementId, specPath]);
+  }, [projectId, runId, activeTab, requirementId]);
 
   useEffect(() => {
     fetchArtifact();
