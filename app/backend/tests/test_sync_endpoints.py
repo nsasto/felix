@@ -11,6 +11,7 @@ Tests for:
 - GET /api/runs/{run_id}/files/{path} - File download
 - GET /api/runs/{run_id}/events - Event query with pagination
 """
+
 import json
 import pytest
 import hashlib
@@ -24,13 +25,14 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from main import app
 from database.db import get_db
 from artifact_storage import get_artifact_storage
+from routers.agents import AgentRegistration
 from routers.sync import (
-    AgentRegistration,
     RunCreate,
     RunEvent,
     RunCompletion,
@@ -43,7 +45,7 @@ from routers.sync import (
 
 class FakeDatabase:
     """Fake database implementation for testing"""
-    
+
     def __init__(
         self,
         fetch_one_results: Optional[List[Optional[Dict[str, Any]]]] = None,
@@ -62,7 +64,7 @@ class FakeDatabase:
         self.last_query = query
         self.last_values = values
         self.executed_queries.append((query, values))
-        
+
         if self.fetch_one_index < len(self.fetch_one_results):
             result = self.fetch_one_results[self.fetch_one_index]
             self.fetch_one_index += 1
@@ -93,7 +95,7 @@ class FakeDatabase:
 
 class FakeStorage:
     """Fake storage implementation for testing"""
-    
+
     def __init__(
         self,
         exists_result: bool = True,
@@ -102,13 +104,19 @@ class FakeStorage:
         self.exists_result = exists_result
         self.get_result = get_result
         self.put_calls: List[tuple] = []
-        
-    async def put(self, key: str, content: bytes, content_type: str, metadata: Optional[Dict] = None):
+
+    async def put(
+        self,
+        key: str,
+        content: bytes,
+        content_type: str,
+        metadata: Optional[Dict] = None,
+    ):
         self.put_calls.append((key, content, content_type, metadata))
-        
+
     async def get(self, key: str) -> bytes:
         return self.get_result
-        
+
     async def exists(self, key: str) -> bool:
         return self.exists_result
 
@@ -127,6 +135,7 @@ def client():
 # Pydantic Model Validation Tests
 # ============================================================================
 
+
 class TestAgentRegistrationModel:
     """Tests for AgentRegistration model validation"""
 
@@ -136,9 +145,9 @@ class TestAgentRegistrationModel:
             agent_id="agent-001",
             hostname="workstation-1",
             platform="windows",
-            version="0.8.0"
+            version="0.8.0",
         )
-        
+
         assert model.agent_id == "agent-001"
         assert model.hostname == "workstation-1"
         assert model.platform == "windows"
@@ -158,11 +167,8 @@ class TestRunCreateModel:
 
     def test_valid_run_create_minimal(self):
         """RunCreate accepts minimal required fields"""
-        model = RunCreate(
-            agent_id="agent-001",
-            project_id="project-001"
-        )
-        
+        model = RunCreate(agent_id="agent-001", project_id="project-001")
+
         assert model.agent_id == "agent-001"
         assert model.project_id == "project-001"
         assert model.id is None
@@ -179,9 +185,9 @@ class TestRunCreateModel:
             branch="feature/test",
             commit_sha="abc123def",
             scenario="building",
-            phase="implement"
+            phase="implement",
         )
-        
+
         assert model.id == "run-001"
         assert model.requirement_id == "S-0060"
         assert model.branch == "feature/test"
@@ -195,11 +201,8 @@ class TestRunEventModel:
 
     def test_valid_run_event_minimal(self):
         """RunEvent accepts required type and level"""
-        model = RunEvent(
-            type="started",
-            level="info"
-        )
-        
+        model = RunEvent(type="started", level="info")
+
         assert model.type == "started"
         assert model.level == "info"
         assert model.message is None
@@ -211,9 +214,9 @@ class TestRunEventModel:
             type="task_completed",
             level="info",
             message="Completed task 1",
-            payload={"task_id": "1", "duration_ms": 1500}
+            payload={"task_id": "1", "duration_ms": 1500},
         )
-        
+
         assert model.type == "task_completed"
         assert model.message == "Completed task 1"
         assert model.payload["task_id"] == "1"
@@ -225,7 +228,7 @@ class TestRunCompletionModel:
     def test_valid_run_completion_minimal(self):
         """RunCompletion accepts required status"""
         model = RunCompletion(status="completed")
-        
+
         assert model.status == "completed"
         assert model.exit_code is None
         assert model.duration_sec is None
@@ -239,9 +242,9 @@ class TestRunCompletionModel:
             exit_code=1,
             duration_sec=120,
             error_summary="Tests failed",
-            summary_json={"failed_tests": 3, "passed_tests": 10}
+            summary_json={"failed_tests": 3, "passed_tests": 10},
         )
-        
+
         assert model.status == "failed"
         assert model.exit_code == 1
         assert model.duration_sec == 120
@@ -252,6 +255,7 @@ class TestRunCompletionModel:
 # ============================================================================
 # Helper Function Tests
 # ============================================================================
+
 
 class TestHelperFunctions:
     """Tests for helper functions in sync router"""
@@ -299,6 +303,7 @@ class TestHelperFunctions:
 # ============================================================================
 # Path Traversal Prevention Tests
 # ============================================================================
+
 
 class TestPathTraversalPrevention:
     """Tests for path traversal prevention functions"""
@@ -387,42 +392,50 @@ class TestPathTraversalInEndpoints:
 
     def test_upload_rejects_path_traversal(self, client):
         """POST /api/runs/{run_id}/files returns 400 for path traversal in manifest"""
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "run-001", "project_id": "project-001"},  # Run exists
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "run-001", "project_id": "project-001"},  # Run exists
+            ]
+        )
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         # Manifest with path traversal
         manifest = json.dumps([{"path": "../../../etc/passwd", "sha256": "abc123"}])
-        
+
         response = client.post(
             "/api/runs/run-001/files",
             data={"manifest": manifest},
-            files=[("files", ("../../../etc/passwd", BytesIO(b"content"), "text/plain"))]
+            files=[
+                ("files", ("../../../etc/passwd", BytesIO(b"content"), "text/plain"))
+            ],
         )
-        
+
         assert response.status_code == 400
-        assert ".." in response.json()["detail"] or "absolute" in response.json()["detail"]
+        assert (
+            ".." in response.json()["detail"] or "absolute" in response.json()["detail"]
+        )
 
     def test_upload_rejects_absolute_path(self, client):
         """POST /api/runs/{run_id}/files returns 400 for absolute paths in manifest"""
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "run-001", "project_id": "project-001"},
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "run-001", "project_id": "project-001"},
+            ]
+        )
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         manifest = json.dumps([{"path": "/etc/passwd", "sha256": "abc123"}])
-        
+
         response = client.post(
             "/api/runs/run-001/files",
             data={"manifest": manifest},
-            files=[("files", ("/etc/passwd", BytesIO(b"content"), "text/plain"))]
+            files=[("files", ("/etc/passwd", BytesIO(b"content"), "text/plain"))],
         )
-        
+
         assert response.status_code == 400
 
     def test_download_rejects_path_traversal(self, client):
@@ -431,15 +444,17 @@ class TestPathTraversalInEndpoints:
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         # Note: FastAPI normalizes URL paths, so "/../.." gets resolved.
         # We test with URL-encoded path to bypass URL normalization.
         # This tests the case where a client manually encodes the traversal.
         # Use %2e%2e for ".." encoded
         response = client.get("/api/runs/run-001/files/subdir%2F..%2F..%2Fetc%2Fpasswd")
-        
+
         assert response.status_code == 400
-        assert ".." in response.json()["detail"] or "absolute" in response.json()["detail"]
+        assert (
+            ".." in response.json()["detail"] or "absolute" in response.json()["detail"]
+        )
 
     def test_download_rejects_absolute_path(self, client):
         """GET /api/runs/{run_id}/files/{path} returns 400 for absolute paths"""
@@ -447,10 +462,12 @@ class TestPathTraversalInEndpoints:
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         # Test Windows absolute path
-        response = client.get("/api/runs/run-001/files/C%3A%5CWindows%5CSystem32%5Cconfig")
-        
+        response = client.get(
+            "/api/runs/run-001/files/C%3A%5CWindows%5CSystem32%5Cconfig"
+        )
+
         assert response.status_code == 400
 
 
@@ -468,27 +485,30 @@ class TestPathTraversalInEndpoints:
 # Run Creation Endpoint Tests
 # ============================================================================
 
+
 class TestRunCreationEndpoint:
     """Tests for POST /api/runs endpoint"""
 
     def test_create_run_success(self, client):
         """POST /api/runs creates run and event"""
         # Mock agent and project existence
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "agent-001"},  # Agent exists
-            {"id": "project-001"},  # Project exists
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "agent-001"},  # Agent exists
+                {"id": "project-001"},  # Project exists
+            ]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
             "/api/runs",
             json={
                 "agent_id": "agent-001",
                 "project_id": "project-001",
-                "requirement_id": "S-0060"
-            }
+                "requirement_id": "S-0060",
+            },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "created"
@@ -496,21 +516,23 @@ class TestRunCreationEndpoint:
 
     def test_create_run_generates_uuid(self, client):
         """POST /api/runs generates UUID when id not provided"""
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "agent-001"},
-            {"id": "project-001"},
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "agent-001"},
+                {"id": "project-001"},
+            ]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
             "/api/runs",
             json={
                 "agent_id": "agent-001",
-                "project_id": "project-001"
+                "project_id": "project-001",
                 # No id provided
-            }
+            },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         # UUID should be 36 characters (8-4-4-4-12 format)
@@ -518,21 +540,23 @@ class TestRunCreationEndpoint:
 
     def test_create_run_with_provided_id(self, client):
         """POST /api/runs uses provided id when given"""
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "agent-001"},
-            {"id": "project-001"},
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "agent-001"},
+                {"id": "project-001"},
+            ]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
             "/api/runs",
             json={
                 "id": "custom-run-id-001",
                 "agent_id": "agent-001",
-                "project_id": "project-001"
-            }
+                "project_id": "project-001",
+            },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["run_id"] == "custom-run-id-001"
@@ -541,34 +565,28 @@ class TestRunCreationEndpoint:
         """POST /api/runs returns 404 for unknown agent"""
         fake_db = FakeDatabase(fetch_one_results=[None])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
-            "/api/runs",
-            json={
-                "agent_id": "unknown-agent",
-                "project_id": "project-001"
-            }
+            "/api/runs", json={"agent_id": "unknown-agent", "project_id": "project-001"}
         )
-        
+
         assert response.status_code == 404
         assert "Agent not found" in response.json()["detail"]
 
     def test_create_run_unknown_project(self, client):
         """POST /api/runs returns 404 for unknown project"""
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "agent-001"},  # Agent exists
-            None,  # Project does not exist
-        ])
-        app.dependency_overrides[get_db] = lambda: fake_db
-        
-        response = client.post(
-            "/api/runs",
-            json={
-                "agent_id": "agent-001",
-                "project_id": "unknown-project"
-            }
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "agent-001"},  # Agent exists
+                None,  # Project does not exist
+            ]
         )
-        
+        app.dependency_overrides[get_db] = lambda: fake_db
+
+        response = client.post(
+            "/api/runs", json={"agent_id": "agent-001", "project_id": "unknown-project"}
+        )
+
         assert response.status_code == 404
         assert "Project not found" in response.json()["detail"]
 
@@ -577,6 +595,7 @@ class TestRunCreationEndpoint:
 # Event Append Endpoint Tests
 # ============================================================================
 
+
 class TestEventAppendEndpoint:
     """Tests for POST /api/runs/{run_id}/events endpoint"""
 
@@ -584,15 +603,19 @@ class TestEventAppendEndpoint:
         """POST /api/runs/{run_id}/events appends events"""
         fake_db = FakeDatabase(fetch_one_results=[{"id": "run-001"}])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
             "/api/runs/run-001/events",
             json=[
                 {"type": "task_started", "level": "info", "message": "Starting task 1"},
-                {"type": "task_completed", "level": "info", "message": "Task 1 complete"}
-            ]
+                {
+                    "type": "task_completed",
+                    "level": "info",
+                    "message": "Task 1 complete",
+                },
+            ],
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "appended"
@@ -602,12 +625,11 @@ class TestEventAppendEndpoint:
         """POST /api/runs/{run_id}/events returns 404 for unknown run"""
         fake_db = FakeDatabase(fetch_one_results=[None])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
-            "/api/runs/unknown-run/events",
-            json=[{"type": "started", "level": "info"}]
+            "/api/runs/unknown-run/events", json=[{"type": "started", "level": "info"}]
         )
-        
+
         assert response.status_code == 404
         assert "Run not found" in response.json()["detail"]
 
@@ -615,12 +637,9 @@ class TestEventAppendEndpoint:
         """POST /api/runs/{run_id}/events handles empty event list"""
         fake_db = FakeDatabase(fetch_one_results=[{"id": "run-001"}])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
-        response = client.post(
-            "/api/runs/run-001/events",
-            json=[]
-        )
-        
+
+        response = client.post("/api/runs/run-001/events", json=[])
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "appended"
@@ -631,6 +650,7 @@ class TestEventAppendEndpoint:
 # Run Completion Endpoint Tests
 # ============================================================================
 
+
 class TestRunCompletionEndpoint:
     """Tests for POST /api/runs/{run_id}/finish endpoint"""
 
@@ -638,16 +658,12 @@ class TestRunCompletionEndpoint:
         """POST /api/runs/{run_id}/finish updates run and inserts event"""
         fake_db = FakeDatabase(fetch_one_results=[{"id": "run-001"}])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
             "/api/runs/run-001/finish",
-            json={
-                "status": "completed",
-                "exit_code": 0,
-                "duration_sec": 120
-            }
+            json={"status": "completed", "exit_code": 0, "duration_sec": 120},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "finished"
@@ -657,16 +673,12 @@ class TestRunCompletionEndpoint:
         """POST /api/runs/{run_id}/finish handles failed status"""
         fake_db = FakeDatabase(fetch_one_results=[{"id": "run-002"}])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
             "/api/runs/run-002/finish",
-            json={
-                "status": "failed",
-                "exit_code": 1,
-                "error_summary": "Tests failed"
-            }
+            json={"status": "failed", "exit_code": 1, "error_summary": "Tests failed"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "finished"
@@ -675,12 +687,11 @@ class TestRunCompletionEndpoint:
         """POST /api/runs/{run_id}/finish returns 404 for unknown run"""
         fake_db = FakeDatabase(fetch_one_results=[None])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
-            "/api/runs/unknown-run/finish",
-            json={"status": "completed"}
+            "/api/runs/unknown-run/finish", json={"status": "completed"}
         )
-        
+
         assert response.status_code == 404
         assert "Run not found" in response.json()["detail"]
 
@@ -689,31 +700,34 @@ class TestRunCompletionEndpoint:
 # File Upload Endpoint Tests
 # ============================================================================
 
+
 class TestFileUploadEndpoint:
     """Tests for POST /api/runs/{run_id}/files endpoint"""
 
     def test_upload_files_success(self, client):
         """POST /api/runs/{run_id}/files uploads files successfully"""
         # Mock run exists with project_id
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "run-001", "project_id": "project-001"},  # Run exists
-            None,  # No existing file (first query for idempotency)
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "run-001", "project_id": "project-001"},  # Run exists
+                None,  # No existing file (first query for idempotency)
+            ]
+        )
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         file_content = b"Test file content"
         sha256 = hashlib.sha256(file_content).hexdigest()
-        
+
         manifest = json.dumps([{"path": "test.txt", "sha256": sha256}])
-        
+
         response = client.post(
             "/api/runs/run-001/files",
             data={"manifest": manifest},
-            files=[("files", ("test.txt", BytesIO(file_content), "text/plain"))]
+            files=[("files", ("test.txt", BytesIO(file_content), "text/plain"))],
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["run_id"] == "run-001"
@@ -725,24 +739,26 @@ class TestFileUploadEndpoint:
         """POST /api/runs/{run_id}/files skips unchanged files (SHA256 match)"""
         file_content = b"Unchanged content"
         sha256 = hashlib.sha256(file_content).hexdigest()
-        
+
         # Mock run exists and file already exists with same hash
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "run-001", "project_id": "project-001"},  # Run exists
-            {"sha256": sha256},  # Existing file with same hash
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "run-001", "project_id": "project-001"},  # Run exists
+                {"sha256": sha256},  # Existing file with same hash
+            ]
+        )
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         manifest = json.dumps([{"path": "unchanged.txt", "sha256": sha256}])
-        
+
         response = client.post(
             "/api/runs/run-001/files",
             data={"manifest": manifest},
-            files=[("files", ("unchanged.txt", BytesIO(file_content), "text/plain"))]
+            files=[("files", ("unchanged.txt", BytesIO(file_content), "text/plain"))],
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["uploaded"] == 0
@@ -756,13 +772,13 @@ class TestFileUploadEndpoint:
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         response = client.post(
             "/api/runs/run-001/files",
             data={"manifest": "not valid json {{{"},
-            files=[("files", ("test.txt", BytesIO(b"content"), "text/plain"))]
+            files=[("files", ("test.txt", BytesIO(b"content"), "text/plain"))],
         )
-        
+
         assert response.status_code == 400
         assert "Invalid manifest JSON" in response.json()["detail"]
 
@@ -772,15 +788,15 @@ class TestFileUploadEndpoint:
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         manifest = json.dumps([{"path": "test.txt", "sha256": "abc123"}])
-        
+
         response = client.post(
             "/api/runs/unknown-run/files",
             data={"manifest": manifest},
-            files=[("files", ("test.txt", BytesIO(b"content"), "text/plain"))]
+            files=[("files", ("test.txt", BytesIO(b"content"), "text/plain"))],
         )
-        
+
         assert response.status_code == 404
         assert "Run not found" in response.json()["detail"]
 
@@ -788,6 +804,7 @@ class TestFileUploadEndpoint:
 # ============================================================================
 # File List Endpoint Tests
 # ============================================================================
+
 
 class TestFileListEndpoint:
     """Tests for GET /api/runs/{run_id}/files endpoint"""
@@ -803,7 +820,7 @@ class TestFileListEndpoint:
                     "size_bytes": 1024,
                     "sha256": "abc123",
                     "content_type": "application/json",
-                    "updated_at": datetime.now(timezone.utc)
+                    "updated_at": datetime.now(timezone.utc),
                 },
                 {
                     "path": "debug.log",
@@ -811,14 +828,14 @@ class TestFileListEndpoint:
                     "size_bytes": 512,
                     "sha256": "def456",
                     "content_type": "text/plain",
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            ]
+                    "updated_at": datetime.now(timezone.utc),
+                },
+            ],
         )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/run-001/files")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["run_id"] == "run-001"
@@ -831,9 +848,9 @@ class TestFileListEndpoint:
         """GET /api/runs/{run_id}/files returns 404 for unknown run"""
         fake_db = FakeDatabase(fetch_one_results=[None])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/unknown-run/files")
-        
+
         assert response.status_code == 404
         assert "Run not found" in response.json()["detail"]
 
@@ -842,22 +859,27 @@ class TestFileListEndpoint:
 # File Download Endpoint Tests
 # ============================================================================
 
+
 class TestFileDownloadEndpoint:
     """Tests for GET /api/runs/{run_id}/files/{path} endpoint"""
 
     def test_download_file_success(self, client):
         """GET /api/runs/{run_id}/files/{path} streams content with headers"""
-        fake_db = FakeDatabase(fetch_one_results=[{
-            "storage_key": "runs/project-001/run-001/output.json",
-            "content_type": "application/json",
-            "size_bytes": 17
-        }])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {
+                    "storage_key": "runs/project-001/run-001/output.json",
+                    "content_type": "application/json",
+                    "size_bytes": 17,
+                }
+            ]
+        )
         fake_storage = FakeStorage(exists_result=True, get_result=b"File content here")
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         response = client.get("/api/runs/run-001/files/output.json")
-        
+
         assert response.status_code == 200
         assert response.content == b"File content here"
         assert response.headers["content-type"] == "application/json"
@@ -869,25 +891,29 @@ class TestFileDownloadEndpoint:
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         response = client.get("/api/runs/run-001/files/nonexistent.txt")
-        
+
         assert response.status_code == 404
         assert "File not found in database" in response.json()["detail"]
 
     def test_download_file_missing_from_storage(self, client):
         """GET /api/runs/{run_id}/files/{path} returns 404 when file missing from storage"""
-        fake_db = FakeDatabase(fetch_one_results=[{
-            "storage_key": "runs/project-001/run-001/missing.txt",
-            "content_type": "text/plain",
-            "size_bytes": 100
-        }])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {
+                    "storage_key": "runs/project-001/run-001/missing.txt",
+                    "content_type": "text/plain",
+                    "size_bytes": 100,
+                }
+            ]
+        )
         fake_storage = FakeStorage(exists_result=False)
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         response = client.get("/api/runs/run-001/files/missing.txt")
-        
+
         assert response.status_code == 404
         assert "File not found in storage" in response.json()["detail"]
 
@@ -895,6 +921,7 @@ class TestFileDownloadEndpoint:
 # ============================================================================
 # Event Query Endpoint Tests
 # ============================================================================
+
 
 class TestEventQueryEndpoint:
     """Tests for GET /api/runs/{run_id}/events endpoint"""
@@ -910,7 +937,7 @@ class TestEventQueryEndpoint:
                     "type": "started",
                     "level": "info",
                     "message": "Run started",
-                    "payload": None
+                    "payload": None,
                 },
                 {
                     "id": 2,
@@ -918,14 +945,14 @@ class TestEventQueryEndpoint:
                     "type": "task_completed",
                     "level": "info",
                     "message": "Task 1 done",
-                    "payload": '{"task": "1"}'
-                }
-            ]
+                    "payload": '{"task": "1"}',
+                },
+            ],
         )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/run-001/events")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["run_id"] == "run-001"
@@ -946,14 +973,14 @@ class TestEventQueryEndpoint:
                     "type": "task_started",
                     "level": "info",
                     "message": None,
-                    "payload": None
+                    "payload": None,
                 }
-            ]
+            ],
         )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/run-001/events?after=10")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["events"][0]["id"] == 11
@@ -968,18 +995,17 @@ class TestEventQueryEndpoint:
                 "type": "heartbeat",
                 "level": "debug",
                 "message": None,
-                "payload": None
+                "payload": None,
             }
             for i in range(1, 6)  # 5 events (limit+1)
         ]
         fake_db = FakeDatabase(
-            fetch_one_results=[{"id": "run-001"}],
-            fetch_all_result=events
+            fetch_one_results=[{"id": "run-001"}], fetch_all_result=events
         )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/run-001/events?limit=4")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data["events"]) == 4  # Only limit events returned
@@ -989,9 +1015,9 @@ class TestEventQueryEndpoint:
         """GET /api/runs/{run_id}/events returns 404 for unknown run"""
         fake_db = FakeDatabase(fetch_one_results=[None])
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/unknown-run/events")
-        
+
         assert response.status_code == 404
         assert "Run not found" in response.json()["detail"]
 
@@ -1000,23 +1026,24 @@ class TestEventQueryEndpoint:
 # Database Error Handling Tests (S-0064: Production Readiness)
 # ============================================================================
 
+
 class FakeDatabaseConnectionError(FakeDatabase):
     """Fake database that simulates connection errors."""
-    
+
     def __init__(self, error_on_query: Optional[str] = None):
         super().__init__()
         self.error_on_query = error_on_query
-    
+
     async def fetch_one(self, query: str, values: Dict[str, Any] | None = None):
         if self.error_on_query is None or self.error_on_query in query:
             raise ConnectionError("Database connection refused")
         return await super().fetch_one(query, values)
-    
+
     async def execute(self, query: str, values: Dict[str, Any] | None = None):
         if self.error_on_query is None or self.error_on_query in query:
             raise ConnectionError("Database connection refused")
         return await super().execute(query, values)
-    
+
     async def execute_many(self, query: str, values: List[Dict[str, Any]]):
         if self.error_on_query is None or self.error_on_query in query:
             raise ConnectionError("Database connection refused")
@@ -1030,15 +1057,11 @@ class TestDatabaseConnectionErrors:
         """POST /api/runs returns 503 when database is unavailable."""
         fake_db = FakeDatabaseConnectionError()
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
-            "/api/runs",
-            json={
-                "agent_id": "agent-001",
-                "project_id": "project-001"
-            }
+            "/api/runs", json={"agent_id": "agent-001", "project_id": "project-001"}
         )
-        
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
@@ -1046,12 +1069,11 @@ class TestDatabaseConnectionErrors:
         """POST /api/runs/{run_id}/events returns 503 when database is unavailable."""
         fake_db = FakeDatabaseConnectionError()
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.post(
-            "/api/runs/run-001/events",
-            json=[{"type": "task_started", "level": "info"}]
+            "/api/runs/run-001/events", json=[{"type": "task_started", "level": "info"}]
         )
-        
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
@@ -1059,12 +1081,9 @@ class TestDatabaseConnectionErrors:
         """POST /api/runs/{run_id}/finish returns 503 when database is unavailable."""
         fake_db = FakeDatabaseConnectionError()
         app.dependency_overrides[get_db] = lambda: fake_db
-        
-        response = client.post(
-            "/api/runs/run-001/finish",
-            json={"status": "completed"}
-        )
-        
+
+        response = client.post("/api/runs/run-001/finish", json={"status": "completed"})
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
@@ -1072,9 +1091,9 @@ class TestDatabaseConnectionErrors:
         """GET /api/runs/{run_id}/files returns 503 when database is unavailable."""
         fake_db = FakeDatabaseConnectionError()
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/run-001/files")
-        
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
@@ -1084,9 +1103,9 @@ class TestDatabaseConnectionErrors:
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         response = client.get("/api/runs/run-001/files/test.txt")
-        
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
@@ -1094,9 +1113,9 @@ class TestDatabaseConnectionErrors:
         """GET /api/runs/{run_id}/events returns 503 when database is unavailable."""
         fake_db = FakeDatabaseConnectionError()
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         response = client.get("/api/runs/run-001/events")
-        
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
@@ -1105,12 +1124,19 @@ class TestDatabaseConnectionErrors:
 # Storage Error Handling Tests (S-0064: Production Readiness)
 # ============================================================================
 
+
 class FakeStorageError(FakeStorage):
     """Fake storage that simulates transient errors."""
-    
-    async def put(self, key: str, content: bytes, content_type: str, metadata: Optional[Dict] = None):
+
+    async def put(
+        self,
+        key: str,
+        content: bytes,
+        content_type: str,
+        metadata: Optional[Dict] = None,
+    ):
         raise IOError("Storage disk full")
-    
+
     async def get(self, key: str) -> bytes:
         raise IOError("Storage unavailable")
 
@@ -1120,46 +1146,53 @@ class TestStorageErrors:
 
     def test_upload_files_returns_503_on_storage_error(self, client):
         """POST /api/runs/{run_id}/files returns 503 when storage is unavailable."""
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "run-001", "project_id": "project-001"},  # Run exists
-            None,  # No existing file
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "run-001", "project_id": "project-001"},  # Run exists
+                None,  # No existing file
+            ]
+        )
         fake_storage = FakeStorageError()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         file_content = b"Test content"
         sha256 = hashlib.sha256(file_content).hexdigest()
         manifest = json.dumps([{"path": "test.txt", "sha256": sha256}])
-        
+
         response = client.post(
             "/api/runs/run-001/files",
             data={"manifest": manifest},
-            files=[("files", ("test.txt", BytesIO(file_content), "text/plain"))]
+            files=[("files", ("test.txt", BytesIO(file_content), "text/plain"))],
         )
-        
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
     def test_download_file_returns_503_on_storage_error(self, client):
         """GET /api/runs/{run_id}/files/{path} returns 503 when storage errors occur."""
-        fake_db = FakeDatabase(fetch_one_results=[{
-            "storage_key": "runs/project-001/run-001/test.txt",
-            "content_type": "text/plain",
-            "size_bytes": 100
-        }])
-        
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {
+                    "storage_key": "runs/project-001/run-001/test.txt",
+                    "content_type": "text/plain",
+                    "size_bytes": 100,
+                }
+            ]
+        )
+
         class FakeStorageGetError:
             async def exists(self, key: str) -> bool:
                 return True
+
             async def get(self, key: str) -> bytes:
                 raise IOError("Storage read error")
-        
+
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: FakeStorageGetError()
-        
+
         response = client.get("/api/runs/run-001/files/test.txt")
-        
+
         assert response.status_code == 503
         assert "unavailable" in response.json()["detail"].lower()
 
@@ -1168,35 +1201,38 @@ class TestStorageErrors:
 # File Upload Size Limit Tests (S-0064: Production Readiness)
 # ============================================================================
 
+
 class TestFileUploadSizeLimits:
     """Tests for file upload size limits (100MB per file, 500MB total)."""
 
     def test_upload_rejects_oversized_single_file(self, client):
         """POST /api/runs/{run_id}/files returns 413 for file over 100MB."""
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "run-001", "project_id": "project-001"},
-        ])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "run-001", "project_id": "project-001"},
+            ]
+        )
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
-        
+
         # Create a "file" that would be over 100MB
         # We can't actually create 100MB in tests, so we mock the check
         # The actual size check happens in the endpoint
-        
+
         # Create 1MB file for this test (actual limit is 100MB but we test the mechanism)
         # The endpoint reads the file and checks size_bytes > MAX_FILE_SIZE_BYTES
         # For this test, we'll verify the manifest/error handling works
         file_content = b"x" * 1024  # 1KB for test (won't hit limit)
         sha256 = hashlib.sha256(file_content).hexdigest()
         manifest = json.dumps([{"path": "test.txt", "sha256": sha256}])
-        
+
         response = client.post(
             "/api/runs/run-001/files",
             data={"manifest": manifest},
-            files=[("files", ("test.txt", BytesIO(file_content), "text/plain"))]
+            files=[("files", ("test.txt", BytesIO(file_content), "text/plain"))],
         )
-        
+
         # This file is within limits, should be 200
         assert response.status_code == 200
 
@@ -1205,48 +1241,44 @@ class TestFileUploadSizeLimits:
 # Sync Feature Flag Tests (S-0064: Production Readiness)
 # ============================================================================
 
+
 class TestSyncFeatureFlag:
     """Tests for FELIX_SYNC_FEATURE_ENABLED environment variable."""
 
     def test_endpoints_return_503_when_sync_disabled(self, client):
         """Sync endpoints return 503 when FELIX_SYNC_FEATURE_ENABLED=false."""
         import os
-        
+
         # Set the feature flag to disabled
         with patch.dict(os.environ, {"FELIX_SYNC_FEATURE_ENABLED": "false"}):
             response = client.post(
-                "/api/runs",
-                json={
-                    "agent_id": "agent-001",
-                    "project_id": "project-001"
-                }
+                "/api/runs", json={"agent_id": "agent-001", "project_id": "project-001"}
             )
-            
+
             assert response.status_code == 503
             assert "disabled" in response.json()["detail"].lower()
 
     def test_endpoints_work_when_sync_enabled(self, client):
         """Sync endpoints work normally when FELIX_SYNC_FEATURE_ENABLED=true."""
         import os
-        
-        fake_db = FakeDatabase(fetch_one_results=[
-            {"id": "agent-001"},  # Agent exists
-            {"id": "project-001"},  # Project exists
-        ])
+
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                {"id": "agent-001"},  # Agent exists
+                {"id": "project-001"},  # Project exists
+            ]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
-        
+
         # Reset rate limiter
         from middleware.rate_limit import reset_rate_limiter
+
         reset_rate_limiter()
-        
+
         with patch.dict(os.environ, {"FELIX_SYNC_FEATURE_ENABLED": "true"}):
             response = client.post(
-                "/api/runs",
-                json={
-                    "agent_id": "agent-001",
-                    "project_id": "project-001"
-                }
+                "/api/runs", json={"agent_id": "agent-001", "project_id": "project-001"}
             )
-            
+
             # Should not be 503
             assert response.status_code != 503
