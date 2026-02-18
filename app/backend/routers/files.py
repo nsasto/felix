@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from database import get_db
 from services.requirements import RequirementService
 from services.projects import get_project_path as get_db_project_path
+from artifact_storage import get_artifact_storage
 
 router = APIRouter(prefix="/api/projects", tags=["files"])
 
@@ -509,8 +510,8 @@ async def read_requirements(
         service = RequirementService(db)
         requirements = await service.list_requirements(project_id)
 
-        # Build plan map once (efficient for many run directories)
-        plan_map = build_plan_map(project_path)
+        requirement_ids = [req["id"] for req in requirements]
+        plan_map = await build_plan_map(db, project_id, requirement_ids)
 
         # Enrich each requirement with plan status
         for req in requirements:
@@ -522,9 +523,8 @@ async def read_requirements(
             req["has_plan"] = plan_info is not None
 
             if plan_info:
-                plan_file, run_id = plan_info
-                req["plan_path"] = str(plan_file.relative_to(project_path))
-                req["plan_modified_at"] = str(plan_file.stat().st_mtime)
+                req["plan_path"] = plan_info["path"]
+                req["plan_modified_at"] = str(plan_info["updated_at"])
             else:
                 req["plan_path"] = None
                 req["plan_modified_at"] = None
@@ -977,92 +977,75 @@ class PlanDeleteResponse(BaseModel):
     deleted_path: Optional[str] = None
 
 
-def find_plan_for_requirement(
-    project_path: Path, requirement_id: str
-) -> Optional[tuple[Path, str]]:
+async def fetch_plan_for_requirement(
+    db: Database, project_id: str, requirement_id: str
+) -> Optional[Dict[str, Any]]:
     """
-    Find the most recent plan file for a requirement.
+    Fetch the most recent plan file record for a requirement from storage-backed run_files.
 
-    Plans are stored in runs/<run-id>/plan-<requirement-id>.md
-    Returns (plan_path, run_id) or None if not found.
+    Returns dict with path, run_id, updated_at, storage_key or None if not found.
     """
-    runs_dir = project_path / "runs"
-    if not runs_dir.exists():
-        return None
-
-    # Find all plan files for this requirement across all runs
-    plan_files: list[tuple[Path, str]] = []
-    for run_dir in runs_dir.iterdir():
-        if run_dir.is_dir():
-            plan_file = run_dir / f"plan-{requirement_id}.md"
-            if plan_file.exists():
-                plan_files.append((plan_file, run_dir.name))
-
-    if not plan_files:
-        return None
-
-    # Sort by run_id (which is a timestamp) and return the most recent
-    plan_files.sort(key=lambda x: x[1], reverse=True)
-    return plan_files[0]
-
-
-def build_plan_map(
-    project_path: Path, max_runs: int = 100
-) -> dict[str, tuple[Path, str]]:
+    query = """
+        SELECT rf.path, rf.updated_at, rf.storage_key, r.id AS run_id
+        FROM run_files rf
+        JOIN runs r ON rf.run_id = r.id
+        WHERE r.project_id = :project_id
+          AND r.requirement_id = :requirement_id
+          AND (rf.path = :plan_md OR rf.path = :plan_snapshot OR rf.path LIKE :plan_prefix)
+        ORDER BY rf.updated_at DESC
+        LIMIT 1
     """
-    Build a map of requirement_id -> (plan_path, run_id) by scanning runs directory once.
+    row = await db.fetch_one(
+        query,
+        values={
+            "project_id": project_id,
+            "requirement_id": requirement_id,
+            "plan_md": "plan.md",
+            "plan_snapshot": "plan.snapshot.md",
+            "plan_prefix": "plan-%",
+        },
+    )
+    return dict(row) if row else None
 
-    This is much more efficient than calling find_plan_for_requirement() for each requirement
-    when there are many run directories. Reduces O(n*m) to O(m) where n=requirements, m=runs.
 
-    Performance optimization: Only scans the most recent max_runs directories to avoid
-    slow filesystem traversal when there are hundreds of old runs.
-
-    Returns dict mapping requirement_id to (plan_path, run_id) for the most recent plan.
+async def build_plan_map(
+    db: Database, project_id: str, requirement_ids: List[str]
+) -> Dict[str, Dict[str, Any]]:
     """
-    runs_dir = project_path / "runs"
-    if not runs_dir.exists():
+    Build a map of requirement_id -> plan record using run_files + runs.
+
+    Returns dict mapping requirement_id to a plan record (most recent by updated_at).
+    """
+    if not requirement_ids:
         return {}
 
-    # Map: requirement_id -> list of (plan_path, run_id)
-    plan_files_by_req: dict[str, list[tuple[Path, str]]] = {}
-
-    # Get all run directories and sort by name (most recent first)
-    # Run directory names are timestamps, so lexicographic sort works
-    all_run_dirs = sorted(
-        [d for d in runs_dir.iterdir() if d.is_dir()],
-        key=lambda d: d.name,
-        reverse=True,
+    query = """
+        SELECT r.requirement_id, r.id AS run_id, rf.path, rf.updated_at, rf.storage_key
+        FROM run_files rf
+        JOIN runs r ON rf.run_id = r.id
+        WHERE r.project_id = :project_id
+          AND r.requirement_id = ANY(:requirement_ids)
+          AND (rf.path = :plan_md OR rf.path = :plan_snapshot OR rf.path LIKE :plan_prefix)
+        ORDER BY rf.updated_at DESC
+    """
+    rows = await db.fetch_all(
+        query,
+        values={
+            "project_id": project_id,
+            "requirement_ids": requirement_ids,
+            "plan_md": "plan.md",
+            "plan_snapshot": "plan.snapshot.md",
+            "plan_prefix": "plan-%",
+        },
     )
 
-    # Only scan the most recent runs (performance optimization)
-    recent_run_dirs = all_run_dirs[:max_runs]
+    plan_map: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        req_id = row["requirement_id"]
+        if req_id not in plan_map:
+            plan_map[req_id] = dict(row)
 
-    # Single pass through recent run directories
-    for run_dir in recent_run_dirs:
-        if not run_dir.is_dir():
-            continue
-
-        # Find all plan files in this run directory
-        for plan_file in run_dir.glob("plan-*.md"):
-            # Extract requirement ID from filename: plan-{req_id}.md
-            filename = plan_file.name
-            if filename.startswith("plan-") and filename.endswith(".md"):
-                req_id = filename[5:-3]  # Remove "plan-" prefix and ".md" suffix
-
-                if req_id not in plan_files_by_req:
-                    plan_files_by_req[req_id] = []
-
-                plan_files_by_req[req_id].append((plan_file, run_dir.name))
-
-    # For each requirement, keep only the most recent plan
-    result: dict[str, tuple[Path, str]] = {}
-    for req_id, plans in plan_files_by_req.items():
-        # Sort by run_id (timestamp) and take most recent
-        plans.sort(key=lambda x: x[1], reverse=True)
-        result[req_id] = plans[0]
-
-    return result
+    return plan_map
 
 
 @router.get(
@@ -1087,14 +1070,10 @@ async def get_requirement_status(
             detail=f"Requirement {requirement_id} not found in project {project_id}",
         )
 
-    plan_info = find_plan_for_requirement(project_path, requirement_id)
+    plan_info = await fetch_plan_for_requirement(db, project_id, requirement_id)
     has_plan = plan_info is not None
-    plan_path = None
-    plan_modified_at = None
-    if plan_info:
-        plan_file, _run_id = plan_info
-        plan_path = str(plan_file.relative_to(project_path))
-        plan_modified_at = str(plan_file.stat().st_mtime)
+    plan_path = plan_info["path"] if plan_info else None
+    plan_modified_at = str(plan_info["updated_at"]) if plan_info else None
 
     spec_modified_at = None
     spec_path = requirement.get("spec_path")
@@ -1161,14 +1140,10 @@ async def update_requirement_status(
             detail=f"Requirement {requirement_id} not found in project {project_id}",
         )
 
-    plan_info = find_plan_for_requirement(project_path, requirement_id)
+    plan_info = await fetch_plan_for_requirement(db, project_id, requirement_id)
     has_plan = plan_info is not None
-    plan_path = None
-    plan_modified_at = None
-    if plan_info:
-        plan_file, _run_id = plan_info
-        plan_path = str(plan_file.relative_to(project_path))
-        plan_modified_at = str(plan_file.stat().st_mtime)
+    plan_path = plan_info["path"] if plan_info else None
+    plan_modified_at = str(plan_info["updated_at"]) if plan_info else None
 
     spec_modified_at = None
     spec_path = updated.get("spec_path")
@@ -1198,19 +1173,16 @@ async def get_plan_info(
     Get information about a requirement's plan, including whether it exists
     and its metadata.
     """
-    project_path = await get_project_path(db, project_id)
-
-    plan_info = find_plan_for_requirement(project_path, requirement_id)
+    plan_info = await fetch_plan_for_requirement(db, project_id, requirement_id)
 
     if not plan_info:
         return PlanInfo(requirement_id=requirement_id, exists=False)
 
-    plan_file, run_id = plan_info
-
-    # Read first 500 chars of content as preview
     content_preview = None
+    storage = get_artifact_storage()
     try:
-        content = plan_file.read_text(encoding="utf-8")
+        content_bytes = await storage.get(plan_info["storage_key"])
+        content = content_bytes.decode("utf-8", errors="replace")
         content_preview = content[:500] + ("..." if len(content) > 500 else "")
     except Exception:
         pass
@@ -1218,9 +1190,9 @@ async def get_plan_info(
     return PlanInfo(
         requirement_id=requirement_id,
         exists=True,
-        plan_path=str(plan_file.relative_to(project_path)),
-        run_id=run_id,
-        modified_at=str(plan_file.stat().st_mtime),
+        plan_path=plan_info["path"],
+        run_id=str(plan_info["run_id"]),
+        modified_at=str(plan_info["updated_at"]),
         content_preview=content_preview,
     )
 
@@ -1239,36 +1211,46 @@ async def delete_plan(
     This is used when acceptance criteria change to invalidate stale plans,
     or when user manually requests a plan reset.
 
-    Deletes plan-<requirement-id>.md from all run directories.
+    Deletes plan artifacts from storage-backed run_files.
     """
-    project_path = await get_project_path(db, project_id)
-    runs_dir = project_path / "runs"
+    query = """
+        SELECT rf.id, rf.path, rf.storage_key
+        FROM run_files rf
+        JOIN runs r ON rf.run_id = r.id
+        WHERE r.project_id = :project_id
+          AND r.requirement_id = :requirement_id
+          AND (rf.path = :plan_md OR rf.path = :plan_snapshot OR rf.path LIKE :plan_prefix)
+    """
+    rows = await db.fetch_all(
+        query,
+        values={
+            "project_id": project_id,
+            "requirement_id": requirement_id,
+            "plan_md": "plan.md",
+            "plan_snapshot": "plan.snapshot.md",
+            "plan_prefix": "plan-%",
+        },
+    )
 
-    if not runs_dir.exists():
-        return PlanDeleteResponse(
-            message="No plans found (runs directory does not exist)",
-            requirement_id=requirement_id,
-        )
-
-    deleted_paths = []
-    for run_dir in runs_dir.iterdir():
-        if run_dir.is_dir():
-            plan_file = run_dir / f"plan-{requirement_id}.md"
-            if plan_file.exists():
-                try:
-                    plan_file.unlink()
-                    deleted_paths.append(str(plan_file.relative_to(project_path)))
-                except Exception as e:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to delete plan file {plan_file}: {str(e)}",
-                    )
-
-    if not deleted_paths:
+    if not rows:
         return PlanDeleteResponse(
             message="No plan files found for this requirement",
             requirement_id=requirement_id,
         )
+
+    storage = get_artifact_storage()
+    deleted_paths = []
+    for row in rows:
+        try:
+            await storage.delete(row["storage_key"])
+        except FileNotFoundError:
+            pass
+        deleted_paths.append(row["path"])
+
+    await db.execute(
+        "DELETE FROM run_files WHERE id = ANY(:ids)",
+        {"ids": [row["id"] for row in rows]},
+    )
 
     return PlanDeleteResponse(
         message=f"Deleted {len(deleted_paths)} plan file(s)",

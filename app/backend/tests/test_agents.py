@@ -12,7 +12,7 @@ Database-backed endpoints implemented in S-0038:
 The following functionality is preserved:
 - GET /api/agents/config -> Returns agent configuration profiles from the database
 - GET /api/agents/workflow-config -> Returns workflow configuration
-- WebSocket /api/agents/{id}/console -> Console streaming from runs/ directory
+- WebSocket /api/agents/{id}/console -> Console streaming from run_events
 """
 import json
 import pytest

@@ -1049,13 +1049,13 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ projectId }) => {
   // Fetch runs from database-backed API (S-0042)
   const fetchDbRuns = useCallback(async () => {
     try {
-      const response = await apiListRuns(20);
+      const response = await apiListRuns({ limit: 20, projectId });
       setDbRuns(response.runs);
     } catch (err) {
       console.error("Failed to fetch database runs:", err);
       // Don't set error - runs panel will show empty state
     }
-  }, []);
+  }, [projectId]);
 
   // Fetch agents from database-backed API
   const fetchAgents = useCallback(async () => {

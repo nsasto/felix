@@ -1,15 +1,23 @@
 import React from "react";
-import { RunHistoryEntry } from "../services/felixApi";
 import { cn } from "../lib/utils";
 import { getRunStatusVariant } from "../lib/status";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 
 interface RunCardProps {
-  run: RunHistoryEntry;
+  run: RunCardRun;
   isSelected?: boolean;
   onClick: (runId: string) => void;
 }
+
+type RunCardRun = {
+  run_id?: string;
+  id?: string;
+  requirement_id?: string | null;
+  started_at?: string | null;
+  status: string;
+  exit_code?: number | null;
+};
 
 const RunCard: React.FC<RunCardProps> = ({
   run,
@@ -34,7 +42,7 @@ const RunCard: React.FC<RunCardProps> = ({
     <Button
       type="button"
       variant="ghost"
-      onClick={() => onClick(run.run_id)}
+      onClick={() => onClick(run.run_id || run.id || "")}
       className={cn(
         "w-full h-auto text-left px-3 py-2 rounded-lg border transition-all duration-200 justify-start",
         isSelected
@@ -45,7 +53,7 @@ const RunCard: React.FC<RunCardProps> = ({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="text-[10px] font-mono text-[var(--text-muted)] truncate mb-0.5">
-            {run.run_id}
+            {run.run_id || run.id}
           </div>
           <div className="flex items-center gap-2 text-[10px] text-[var(--text-lighter)]">
             {run.requirement_id && (
@@ -53,7 +61,7 @@ const RunCard: React.FC<RunCardProps> = ({
                 {run.requirement_id}
               </span>
             )}
-            <span>{formatRelativeTime(run.started_at)}</span>
+            {run.started_at && <span>{formatRelativeTime(run.started_at)}</span>}
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">

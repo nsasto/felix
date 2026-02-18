@@ -4,7 +4,7 @@ Handles agent registration, heartbeat, status tracking, and console streaming.
 
 NOTE: S-0032 - File-based agent registry operations have been removed.
 Database-backed endpoints implemented in S-0038.
-The WebSocket console streaming endpoint is preserved for runs/ directory output.
+The WebSocket console streaming endpoint is backed by run_events.
 """
 
 import asyncio
@@ -24,7 +24,6 @@ from fastapi import (
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from databases import Database
-import aiofiles
 
 import sys
 
@@ -907,6 +906,13 @@ async def stop_run(
 @router.get("/runs", response_model=RunListResponse)
 async def list_runs(
     limit: int = 50,
+    project_id: Optional[str] = Query(None, description="Project ID to filter runs"),
+    requirement_id: Optional[str] = Query(
+        None, description="Requirement ID to filter runs"
+    ),
+    status: Optional[str] = Query(
+        None, description="Comma-separated run statuses to include"
+    ),
     db: Database = Depends(get_db),
 ):
     """
@@ -926,12 +932,27 @@ async def list_runs(
         HTTPException 500: On database error
     """
     try:
-        # Get project_id from config (dev mode)
-        project_id = config.DEV_PROJECT_ID
+        # Get project_id from request or config (dev mode)
+        target_project_id = project_id or config.DEV_PROJECT_ID
 
         # Fetch runs from database
         run_writer = RunWriter(db)
-        run_records = await run_writer.list_runs(project_id, limit=limit)
+        run_records = await run_writer.list_runs(target_project_id, limit=limit)
+
+        if requirement_id:
+            run_records = [
+                record
+                for record in run_records
+                if record.get("requirement_id") == requirement_id
+            ]
+
+        if status:
+            status_list = [value.strip().lower() for value in status.split(",")]
+            run_records = [
+                record
+                for record in run_records
+                if record.get("status", "").lower() in status_list
+            ]
 
         # Transform database records to RunResponse objects
         runs = [
@@ -1096,79 +1117,7 @@ async def start_agent(agent_id: str, request: AgentStartRequest):
     )
 
 
-# --- Console Streaming WebSocket ---
-
-
-async def _get_project_path_for_agent(db: Database) -> Optional[Path]:
-    """
-    Get the project path from registered projects.
-    For now, we assume the first registered project is the active one.
-    In the future, this could be extended to track which project each agent is working on.
-    """
-    projects = await PostgresProjectRepository(db).list_by_org(config.DEV_ORG_ID)
-    if projects and projects[0].get("path"):
-        project_path = Path(projects[0]["path"])
-        if project_path.exists():
-            return project_path
-    return None
-
-
-def _find_current_run_dir(project_path: Path, agent_name: str) -> Optional[Path]:
-    """
-    Find the current run directory for an agent.
-
-    Looks for the most recent run directory in the project's runs/ folder.
-    In the future, this could use agent.current_run_id to find the exact run.
-    """
-    runs_dir = project_path / "runs"
-    if not runs_dir.exists():
-        return None
-
-    # Get most recent run directory by name (ISO timestamp format)
-    run_dirs = sorted(
-        [d for d in runs_dir.iterdir() if d.is_dir()],
-        key=lambda d: d.name,
-        reverse=True,
-    )
-
-    if run_dirs:
-        return run_dirs[0]
-    return None
-
-
-async def _tail_file(
-    file_path: Path, last_position: int = 0
-) -> tuple[str, int, str | None]:
-    """
-    Read new content from a file starting from last_position using async I/O.
-
-    Handles file rotation: if the file size shrinks (indicating truncation or rotation),
-    resets position to the beginning of the file.
-
-    Returns:
-        tuple: (new_content, new_position, error_message or None)
-    """
-    try:
-        if not file_path.exists():
-            return "", last_position, None
-
-        file_size = file_path.stat().st_size
-
-        # If file was truncated/rotated (size shrunk), start from beginning
-        if file_size < last_position:
-            last_position = 0
-
-        # Read new content using async file I/O
-        async with aiofiles.open(
-            file_path, "r", encoding="utf-8", errors="replace"
-        ) as f:
-            await f.seek(last_position)
-            new_content = await f.read()
-            new_position = await f.tell()
-
-        return new_content, new_position, None
-    except (IOError, OSError) as e:
-        return "", last_position, f"File I/O error: {e}"
+# --- Console Streaming WebSocket (run_events-based) ---
 
 
 @router.websocket("/{agent_id}/console")
@@ -1182,50 +1131,36 @@ async def agent_console_stream(
     """
     WebSocket endpoint for streaming agent console output.
 
-    Streams console output from runs/{run_id}/output.log in real-time.
+    Streams console output from run_events for the specified run.
 
     Query parameters:
     - run_id: Run ID to stream logs for (required)
-    - from_start: If true, stream from beginning of file (default: false, stream from end)
+    - from_start: If true, stream from beginning of event history (default: false)
 
     Messages sent to client:
     - {"type": "connected", "agent_id": 0, "message": "...", "run_id": "..."}
-    - {"type": "output", "content": "...", "run_id": "..."}
+    - {"type": "output", "content": "...", "run_id": "...", "event": {...}}
     - {"error": "..."} - Error message
 
     Error responses:
     - {"error": "run_id query parameter is required"} - when run_id is not provided
-    - {"error": "Log file not found: runs/{run_id}/output.log"} - when log file doesn't exist
+    - {"error": "Run not found: <run_id>"} - when run_id is invalid
     """
     await websocket.accept()
 
-    # Validate run_id is provided (required parameter)
     if not run_id:
         await websocket.send_json({"error": "run_id query parameter is required"})
         await websocket.close()
         return
 
-    # Get project path
-    project_path = await _get_project_path_for_agent(db)
-    if not project_path:
-        await websocket.send_json(
-            {"error": "No project registered. Cannot stream console output."}
-        )
+    run = await db.fetch_one(
+        "SELECT id FROM runs WHERE id = :run_id", {"run_id": run_id}
+    )
+    if not run:
+        await websocket.send_json({"error": f"Run not found: {run_id}"})
         await websocket.close()
         return
 
-    # Construct log path from run_id
-    log_path = project_path / "runs" / run_id / "output.log"
-
-    # Check if log file exists
-    if not log_path.exists():
-        await websocket.send_json(
-            {"error": f"Log file not found: runs/{run_id}/output.log"}
-        )
-        await websocket.close()
-        return
-
-    # Send connected message
     await websocket.send_json(
         {
             "type": "connected",
@@ -1235,47 +1170,68 @@ async def agent_console_stream(
         }
     )
 
-    # State for tailing
-    last_file_position: int = 0
-
-    # If not starting from beginning, seek to end of file
+    last_event_id = 0
     if not from_start:
-        try:
-            last_file_position = log_path.stat().st_size
-        except (IOError, OSError):
-            last_file_position = 0
+        row = await db.fetch_one(
+            "SELECT MAX(id) AS max_id FROM run_events WHERE run_id = :run_id",
+            {"run_id": run_id},
+        )
+        if row and row.get("max_id"):
+            last_event_id = int(row["max_id"])
 
-    # Logger for console WebSocket errors
     logger = logging.getLogger(__name__)
 
     try:
         while True:
-            # Read new output from the log file
-            new_content, last_file_position, file_error = await _tail_file(
-                log_path, last_file_position
+            rows = await db.fetch_all(
+                """
+                SELECT id, ts, type, level, message, payload
+                FROM run_events
+                WHERE run_id = :run_id AND id > :last_id
+                ORDER BY id ASC
+                """,
+                {"run_id": run_id, "last_id": last_event_id},
             )
 
-            # Handle file I/O errors
-            if file_error:
-                logger.error(
-                    f"Console WebSocket file I/O error for run {run_id}: {file_error}"
-                )
-                await websocket.send_json({"error": file_error})
-                # Continue polling - file may become available again
+            for row in rows:
+                last_event_id = row["id"]
+                payload = row["payload"]
+                if isinstance(payload, str):
+                    try:
+                        payload = json.loads(payload)
+                    except json.JSONDecodeError:
+                        payload = None
 
-            if new_content:
-                await websocket.send_json(
-                    {"type": "output", "content": new_content, "run_id": run_id}
-                )
+                content = None
+                if isinstance(payload, dict):
+                    content = (
+                        payload.get("content")
+                        or payload.get("text")
+                        or payload.get("message")
+                    )
+                if not content:
+                    content = row["message"] or ""
 
-            # Poll interval - 100ms for responsive streaming
-            await asyncio.sleep(0.1)
+                if content:
+                    await websocket.send_json(
+                        {
+                            "type": "output",
+                            "content": content,
+                            "run_id": run_id,
+                            "event": {
+                                "id": row["id"],
+                                "ts": row["ts"],
+                                "type": row["type"],
+                                "level": row["level"],
+                            },
+                        }
+                    )
+
+            await asyncio.sleep(0.25)
 
     except WebSocketDisconnect:
-        # Client disconnected normally
         logger.debug(f"Console WebSocket client disconnected for run {run_id}")
     except asyncio.CancelledError:
-        # Task was cancelled
         logger.debug(f"Console WebSocket task cancelled for run {run_id}")
     except Exception as e:
         logger.error(f"Console WebSocket unexpected error for run {run_id}: {e}")

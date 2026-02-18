@@ -144,7 +144,10 @@ describe("AgentDashboard (database-backed agents)", () => {
       expect(apiClient.listAgents).toHaveBeenCalled();
     });
     await waitFor(() => {
-      expect(apiClient.listRuns).toHaveBeenCalledWith(20);
+      expect(apiClient.listRuns).toHaveBeenCalledWith({
+        limit: 20,
+        projectId: mockProjectId,
+      });
     });
 
     vi.mocked(apiClient.listAgents).mockClear();

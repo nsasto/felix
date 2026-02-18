@@ -63,41 +63,6 @@ export interface RequirementsData {
   requirements: Requirement[];
 }
 
-export interface RunInfo {
-  run_id: string;
-  requirement_id: string | null;
-  started_at: string;
-  artifacts: string[];
-}
-
-export type RunStatus = "running" | "completed" | "failed" | "stopped";
-
-export interface RunHistoryEntry {
-  run_id: string;
-  project_id: string;
-  pid: number;
-  status: RunStatus;
-  started_at: string;
-  ended_at: string | null;
-  exit_code: number | null;
-  project_path: string;
-  error_message: string | null;
-  requirement_id: string | null;
-  agent_name: string | null;
-}
-
-export interface RunHistoryResponse {
-  project_id: string;
-  runs: RunHistoryEntry[];
-  total: number;
-}
-
-export interface RunArtifactContent {
-  run_id: string;
-  filename: string;
-  content: string;
-  size: number;
-}
 
 export interface ApiKeyInfo {
   id: string;
@@ -127,12 +92,6 @@ export interface ApiKeyCreateRequest {
   expires_days?: number;
 }
 
-export interface AgentStatus {
-  running: boolean;
-  pid: number | null;
-  started_at: string | null;
-  current_run_id: string | null;
-}
 
 export interface UserProfile {
   user_id: string;
@@ -662,72 +621,6 @@ class FelixApiService {
         method: "PATCH",
         body: JSON.stringify({ field, value }),
       },
-    );
-  }
-
-  // --- Run Endpoints ---
-
-  async listRuns(
-    projectId: string,
-    filters?: {
-      requirementId?: string;
-      agentName?: string;
-      status?: string[];
-      startDate?: string;
-      endDate?: string;
-    },
-  ): Promise<RunHistoryResponse> {
-    const params = new URLSearchParams();
-    if (filters?.requirementId) {
-      params.append("requirement_id", filters.requirementId);
-    }
-    if (filters?.agentName) {
-      params.append("agent_name", filters.agentName);
-    }
-    if (filters?.status && filters.status.length > 0) {
-      params.append("status", filters.status.join(","));
-    }
-    if (filters?.startDate) {
-      params.append("start_date", filters.startDate);
-    }
-    if (filters?.endDate) {
-      params.append("end_date", filters.endDate);
-    }
-    const queryString = params.toString();
-    return this.request<RunHistoryResponse>(
-      `/projects/${projectId}/runs${queryString ? `?${queryString}` : ""}`,
-    );
-  }
-
-  async startRun(projectId: string): Promise<{ run_id: string; pid: number }> {
-    return this.request<{ run_id: string; pid: number }>(
-      `/projects/${projectId}/runs/start`,
-      {
-        method: "POST",
-      },
-    );
-  }
-
-  async stopRun(projectId: string): Promise<void> {
-    await this.request<{ message: string }>(
-      `/projects/${projectId}/runs/stop`,
-      {
-        method: "POST",
-      },
-    );
-  }
-
-  async getAgentStatus(projectId: string): Promise<AgentStatus> {
-    return this.request<AgentStatus>(`/projects/${projectId}/runs/status`);
-  }
-
-  async getRunArtifact(
-    projectId: string,
-    runId: string,
-    filename: string,
-  ): Promise<RunArtifactContent> {
-    return this.request<RunArtifactContent>(
-      `/projects/${projectId}/runs/${runId}/artifacts/${filename}`,
     );
   }
 

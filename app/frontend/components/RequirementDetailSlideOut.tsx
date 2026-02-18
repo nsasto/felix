@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { felixApi, Requirement, RunHistoryEntry } from "../services/felixApi";
+import { felixApi, Requirement } from "../services/felixApi";
 import { marked } from "marked";
 import RunArtifactViewer from "./RunArtifactViewer";
 import RunDetail from "./RunDetail";
-import { getRunFiles } from "../src/api/client";
+import { getRunFiles, listRuns } from "../src/api/client";
+import type { Run } from "../src/api/types";
 import RunCard from "./RunCard";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -145,7 +146,7 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
   const [specHtml, setSpecHtml] = useState<string>("");
 
   // History state
-  const [runHistory, setRunHistory] = useState<RunHistoryEntry[]>([]);
+  const [runHistory, setRunHistory] = useState<Run[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
@@ -284,7 +285,11 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
 
       try {
         // Filter runs by requirement ID
-        const result = await felixApi.listRuns(projectId, requirement.id);
+        const result = await listRuns({
+          limit: 200,
+          projectId,
+          requirementId: requirement.id,
+        });
         setRunHistory(result.runs || []);
       } catch (err) {
         console.error("Failed to fetch run history:", err);
@@ -581,9 +586,9 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
               <div className="p-2 space-y-1">
                 {runHistory.map((run) => (
                   <RunCard
-                    key={run.run_id}
+                    key={run.id}
                     run={run}
-                    isSelected={run.run_id === selectedRunId}
+                    isSelected={run.id === selectedRunId}
                     onClick={handleSelectRun}
                   />
                 ))}
