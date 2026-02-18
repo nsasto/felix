@@ -178,11 +178,11 @@ class HttpSync : IRunReporter {
         try {
             $request = @{
                 method   = "POST"
-                endpoint = "/api/agents/register"
+                endpoint = "/api/agents/register-sync"
                 body     = $agentInfo
             }
             
-            $this.WriteLog("INFO", "Queueing agent registration request")
+            $this.WriteLog("INFO", "Queueing agent registration request (API key auth)")
             $this.QueueRequest($request)
             $this.WriteLog("INFO", "Attempting to send agent registration")
             $this.TrySendOutbox()
@@ -540,8 +540,8 @@ class HttpSync : IRunReporter {
         $outboxFiles = $null
         try {
             $outboxFiles = Get-ChildItem -Path $this.OutboxPath -Filter "*.jsonl" -File -ErrorAction SilentlyContinue | 
-                Where-Object { $_.Name -notlike "run-*.jsonl" } |  # Skip run event files (handled by FlushRunEvents)
-                Sort-Object Name
+            Where-Object { $_.Name -notlike "run-*.jsonl" } |  # Skip run event files (handled by FlushRunEvents)
+            Sort-Object Name
         }
         catch {
             $this.WriteLog("WARNING", "Failed to list outbox files: $_")
@@ -721,7 +721,7 @@ class HttpSync : IRunReporter {
             $this.WriteLog("ERROR", "Sync request failed: $method $endpoint - $errorMsg")
             
             # Emit visible error for critical operations like agent registration
-            if ($endpoint -eq "/api/agents/register") {
+            if ($endpoint -eq "/api/agents/register-sync") {
                 if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
                     Emit-Log -Level "error" -Message "Agent registration HTTP request failed: $errorMsg" -Component "sync" | Out-Null
                 }

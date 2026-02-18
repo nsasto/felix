@@ -762,11 +762,140 @@ class EventListResponse(BaseModel):
 
 
 # ============================================================================
+# AGENT REGISTRATION ENDPOINT (API KEY AUTH)
+# ============================================================================
+
+
+class AgentRegisterSyncRequest(BaseModel):
+    """Agent registration request for CLI agents with API key auth"""
+
+    agent_id: str = Field(..., description="Unique agent identifier (UUID)")
+    name: str = Field(..., description="Display name for the agent")
+    type: str = Field(default="cli", description="Agent type")
+    git_url: str = Field(
+        ..., description="Git repository URL for project authentication (required)"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Agent metadata")
+
+
+class AgentRegisterSyncResponse(BaseModel):
+    """Agent registration response"""
+
+    id: str
+    project_id: str
+    name: str
+    type: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@router.post("/api/agents/register-sync", response_model=AgentRegisterSyncResponse)
+async def register_agent_with_api_key(
+    request: AgentRegisterSyncRequest,
+    http_request: Request,
+    db: Database = Depends(get_db),
+    api_key: Optional[ApiKeyInfo] = Depends(verify_api_key),
+    sync_enabled: None = Depends(verify_sync_enabled),
+):
+    """
+    Register an agent using API key authentication.
+
+    This endpoint is for CLI agents that authenticate with API keys.
+    It validates that the git_url matches the project associated with the API key.
+
+    Args:
+        request: Agent registration data with git_url
+        http_request: FastAPI request object
+        db: Database connection
+        api_key: API key info from verify_api_key dependency
+
+    Returns:
+        Created agent record
+
+    Raises:
+        HTTPException 401: If API key is missing
+        HTTPException 403: If git_url doesn't match API key's project
+        HTTPException 404: If project not found
+        HTTPException 500: On database error
+    """
+    # API key is required for this endpoint
+    if not api_key:
+        raise HTTPException(
+            status_code=401, detail="API key required for agent registration"
+        )
+
+    # Log API key usage
+    await log_api_key_usage(
+        db, api_key, "/api/agents/register-sync", http_request
+    )
+
+    try:
+        # Get project from API key
+        key_project = await db.fetch_one(
+            "SELECT id, git_url, name FROM projects WHERE id = :project_id",
+            {"project_id": api_key.project_id},
+        )
+
+        if not key_project:
+            raise HTTPException(
+                status_code=404, detail="API key's project not found"
+            )
+
+        # Normalize and compare git URLs
+        from services.projects import normalize_git_url
+
+        normalized_request = normalize_git_url(request.git_url)
+        normalized_project = normalize_git_url(key_project["git_url"])
+
+        if normalized_request != normalized_project:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Git URL mismatch: API key is for {normalized_project}, request git_url is {normalized_request}",
+            )
+
+        # Import agent repository
+        from repositories import PostgresAgentRepository
+
+        agent_repo = PostgresAgentRepository(db)
+
+        # Create/update agent
+        agent_record = await agent_repo.create_agent(
+            agent_id=request.agent_id,
+            project_id=api_key.project_id,
+            name=request.name,
+            type=request.type,
+            profile_id=None,  # CLI agents don't have profiles initially
+            assigned_user_id=None,
+            machine_id=None,
+            registered_by_user_id=None,
+            registered_by_machine_id=None,
+            override_executable=None,
+            override_model=None,
+            metadata=request.metadata,
+        )
+
+        return AgentRegisterSyncResponse(
+            id=str(agent_record["id"]),
+            project_id=str(agent_record["project_id"]),
+            name=agent_record["name"],
+            type=agent_record["type"],
+            status=agent_record["status"],
+            created_at=agent_record["created_at"],
+            updated_at=agent_record["updated_at"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error during agent registration: {str(e)}",
+        )
+
+
+# ============================================================================
 # RUN CREATION ENDPOINT
 # ============================================================================
-# NOTE: Agent registration has been moved to routers/agents.py to consolidate
-# authentication and eliminate path shadowing. CLI agents now call the same
-# /api/agents/register endpoint as the UI, with AUTH_MODE controlling access.
 
 
 @router.post("/api/runs", response_model=RunCreateResponse)

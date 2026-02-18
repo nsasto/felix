@@ -482,14 +482,12 @@ try {
                 metadata = $metadata
             }
             
-            # Add git_url for project authentication (preferred over explicit project_id)
+            # Add git_url for project authentication (required for API key auth)
             if ($gitUrl) {
                 $syncAgentInfo["git_url"] = $gitUrl
             }
-            
-            # Add git_url for project authentication (when API key is used)
-            if ($gitUrl) {
-                $syncAgentInfo["git_url"] = $gitUrl
+            else {
+                Emit-Log -Level "warn" -Message "No git URL available - agent registration may fail with API key auth" -Component "sync"
             }
             
             $script:SyncReporter.RegisterAgent($syncAgentInfo)
