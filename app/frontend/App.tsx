@@ -334,7 +334,9 @@ const App: React.FC = () => {
           }
         : viewMetadata[activeSidebarView];
   const projectHeaderLabel = selectedProject
-    ? selectedProject.name || selectedProject.path.split(/[\\/]/).pop()
+    ? selectedProject.name ||
+      selectedProject.git_url.split("/").pop()?.replace(".git", "") ||
+      selectedProject.id
     : "No project selected";
   const { theme, setTheme } = useTheme();
   const themeOptions: Array<{
@@ -1524,7 +1526,11 @@ export const executeTask = (taskId: string) => {
             projectName={
               selectedProject
                 ? selectedProject.name ||
-                  selectedProject.path.split(/[\\/]/).pop()
+                  selectedProject.git_url
+                    .split("/")
+                    .pop()
+                    ?.replace(".git", "") ||
+                  null
                 : null
             }
             onModeChange={setSidebarMode}

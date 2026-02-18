@@ -104,7 +104,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
   const [showRegisterForm, setShowRegisterForm] = useState(false);
-  const [registerPath, setRegisterPath] = useState("");
+  const [registerGitUrl, setRegisterGitUrl] = useState("");
   const [registerName, setRegisterName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
@@ -116,13 +116,11 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     string | null
   >(null);
   const [configProjectName, setConfigProjectName] = useState("");
-  const [configProjectPath, setConfigProjectPath] = useState("");
-  const [configProjectGitRepo, setConfigProjectGitRepo] = useState("");
+  const [configProjectGitUrl, setConfigProjectGitUrl] = useState("");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [orgConfig, setOrgConfig] = useState<FelixConfig | null>(null);
-  const [orgConfigOriginal, setOrgConfigOriginal] = useState<FelixConfig | null>(
-    null,
-  );
+  const [orgConfigOriginal, setOrgConfigOriginal] =
+    useState<FelixConfig | null>(null);
   const [orgConfigLoading, setOrgConfigLoading] = useState(false);
   const [orgConfigSaving, setOrgConfigSaving] = useState(false);
   const [orgConfigError, setOrgConfigError] = useState<string | null>(null);
@@ -130,7 +128,9 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     Record<string, string>
   >({});
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
-  const [memberFilters, setMemberFilters] = useState<Record<string, Set<string>>>({
+  const [memberFilters, setMemberFilters] = useState<
+    Record<string, Set<string>>
+  >({
     role: new Set(),
     status: new Set(),
   });
@@ -163,7 +163,10 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
       const list = await Promise.race([
         felixApi.listProjects(),
         new Promise<Project[]>((_, reject) =>
-          setTimeout(() => reject(new Error("Project request timed out")), 12000),
+          setTimeout(
+            () => reject(new Error("Project request timed out")),
+            12000,
+          ),
         ),
       ]);
       setProjects(list);
@@ -380,18 +383,19 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
       new Set(rows.map((member) => member.status.toLowerCase())),
     );
 
-    const statusVariant =
-      (status: string): React.ComponentProps<typeof Badge>["variant"] => {
-        switch (status.toLowerCase()) {
-          case "active":
-            return "success";
-          case "invited":
-          case "pending":
-            return "warning";
-          default:
-            return "default";
-        }
-      };
+    const statusVariant = (
+      status: string,
+    ): React.ComponentProps<typeof Badge>["variant"] => {
+      switch (status.toLowerCase()) {
+        case "active":
+          return "success";
+        case "invited":
+        case "pending":
+          return "warning";
+        default:
+          return "default";
+      }
+    };
 
     const handleInviteSubmit = async () => {
       if (!orgId) {
@@ -498,7 +502,11 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     if (membersLoading) {
       return (
         <div className="flex justify-center py-8">
-          <PageLoading message="Loading members..." size="md" fullPage={false} />
+          <PageLoading
+            message="Loading members..."
+            size="md"
+            fullPage={false}
+          />
         </div>
       );
     }
@@ -512,7 +520,11 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               Manage organization access and role assignments.
             </p>
           </div>
-          <Button size="sm" className="uppercase" onClick={() => setInviteOpen(true)}>
+          <Button
+            size="sm"
+            className="uppercase"
+            onClick={() => setInviteOpen(true)}
+          >
             <Plus className="w-4 h-4" />
             Invite Member
           </Button>
@@ -526,7 +538,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
         )}
         <DataSurface
           className="pt-0 -mx-6"
-          search={(
+          search={
             <div className="relative w-full max-w-sm">
               <Input
                 type="text"
@@ -537,8 +549,8 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               />
               <Search className="w-4 h-4 theme-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
-          )}
-          filters={(
+          }
+          filters={
             <FilterPopover
               groups={[
                 {
@@ -562,8 +574,8 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               onChange={setMemberFilters}
               label="Filter members"
             />
-          )}
-          footer={(
+          }
+          footer={
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-semibold theme-text-secondary">
@@ -575,7 +587,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               </div>
               <Badge variant="default">Org Scope</Badge>
             </div>
-          )}
+          }
         >
           <Table>
             <TableHeader>
@@ -713,7 +725,11 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               )}
             </div>
             <DialogFooter>
-              <Button variant="ghost" size="sm" onClick={() => setInviteOpen(false)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setInviteOpen(false)}
+              >
                 Cancel
               </Button>
               <Button
@@ -738,7 +754,9 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
             <DialogHeader>
               <div>
                 <DialogTitle>
-                  {manageMember?.kind === "invite" ? "Manage Invite" : "Manage Member"}
+                  {manageMember?.kind === "invite"
+                    ? "Manage Invite"
+                    : "Manage Member"}
                 </DialogTitle>
                 <DialogDescription>
                   Adjust access level and manage membership.
@@ -823,10 +841,16 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                   setConfirmRemoveOpen(true);
                 }}
               >
-                {manageMember?.kind === "invite" ? "Revoke Invite" : "Remove Member"}
+                {manageMember?.kind === "invite"
+                  ? "Revoke Invite"
+                  : "Remove Member"}
               </Button>
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="sm" onClick={() => setManageMember(null)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setManageMember(null)}
+                >
                   Cancel
                 </Button>
                 <Button
@@ -842,11 +866,16 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
           </DialogContent>
         </Dialog>
 
-        <AlertDialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
+        <AlertDialog
+          open={confirmRemoveOpen}
+          onOpenChange={setConfirmRemoveOpen}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {pendingRemove?.kind === "invite" ? "Revoke Invite" : "Remove Member"}
+                {pendingRemove?.kind === "invite"
+                  ? "Revoke Invite"
+                  : "Remove Member"}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {pendingRemove?.kind === "invite"
@@ -876,14 +905,13 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
     );
   };
 
-
   const renderProjectsTab = () => {
     const filteredProjects = projects.filter((project) => {
       if (!projectSearchQuery.trim()) return true;
       const query = projectSearchQuery.toLowerCase();
       return (
         (project.name || project.id).toLowerCase().includes(query) ||
-        project.path.toLowerCase().includes(query) ||
+        project.git_url.toLowerCase().includes(query) ||
         project.id.toLowerCase().includes(query)
       );
     });
@@ -927,7 +955,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
               <Button
                 onClick={() => {
                   setShowRegisterForm(false);
-                  setRegisterPath("");
+                  setRegisterGitUrl("");
                   setRegisterName("");
                   setRegisterError(null);
                 }}
@@ -941,19 +969,19 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Project Path *
+                  Git Repository URL *
                 </label>
                 <Input
                   type="text"
-                  placeholder="C:\\path\\to\\your\\project"
-                  value={registerPath}
-                  onChange={(e) => setRegisterPath(e.target.value)}
+                  placeholder="https://github.com/username/repo.git"
+                  value={registerGitUrl}
+                  onChange={(e) => setRegisterGitUrl(e.target.value)}
                   className="font-mono"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Full path to the project directory (must contain specs/ and felix/ directories)
+                  Git repository URL for project identity and authentication
                   <br />
-                  Tip: Shift+Right-click folder in Explorer to "Copy as path"
+                  Example: https://github.com/username/projectname.git
                 </p>
               </div>
               <div>
@@ -978,7 +1006,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                 <Button
                   onClick={() => {
                     setShowRegisterForm(false);
-                    setRegisterPath("");
+                    setRegisterGitUrl("");
                     setRegisterName("");
                     setRegisterError(null);
                   }}
@@ -990,16 +1018,16 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                 </Button>
                 <Button
                   onClick={async () => {
-                    if (!registerPath.trim()) return;
+                    if (!registerGitUrl.trim()) return;
                     setIsRegistering(true);
                     setRegisterError(null);
                     try {
                       await felixApi.registerProject({
-                        path: registerPath.trim(),
+                        git_url: registerGitUrl.trim(),
                         name: registerName.trim() || undefined,
                       });
                       setShowRegisterForm(false);
-                      setRegisterPath("");
+                      setRegisterGitUrl("");
                       setRegisterName("");
                       fetchProjects();
                     } catch (err) {
@@ -1012,7 +1040,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                       setIsRegistering(false);
                     }
                   }}
-                  disabled={!registerPath.trim() || isRegistering}
+                  disabled={!registerGitUrl.trim() || isRegistering}
                   size="sm"
                   className="uppercase"
                 >
@@ -1055,19 +1083,22 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
           </Alert>
         )}
 
-        {!projectsLoading && !projectsError && filteredProjects.length === 0 && (
-          <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
-            <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
-              <Folder className="w-6 h-6 theme-text-muted" />
+        {!projectsLoading &&
+          !projectsError &&
+          filteredProjects.length === 0 && (
+            <div className="theme-bg-elevated border border-[var(--border-default)] rounded-xl p-8 text-center">
+              <div className="w-12 h-12 theme-bg-surface rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Folder className="w-6 h-6 theme-text-muted" />
+              </div>
+              <h4 className="text-sm font-bold theme-text-tertiary mb-2">
+                No Projects Registered
+              </h4>
+              <p className="text-xs theme-text-muted max-w-sm mx-auto">
+                Register a Felix project to get started. Projects must have
+                specs/ and felix/ directories.
+              </p>
             </div>
-            <h4 className="text-sm font-bold theme-text-tertiary mb-2">
-              No Projects Registered
-            </h4>
-            <p className="text-xs theme-text-muted max-w-sm mx-auto">
-              Register a Felix project to get started. Projects must have specs/ and felix/ directories.
-            </p>
-          </div>
-        )}
+          )}
 
         {!projectsLoading && !projectsError && filteredProjects.length > 0 && (
           <div className="space-y-3">
@@ -1091,16 +1122,16 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <code className="text-[11px] font-mono theme-text-muted truncate block">
-                          {project.path}
+                          {project.git_url}
                         </code>
                         <Button
                           onClick={() =>
-                            navigator.clipboard.writeText(project.path)
+                            navigator.clipboard.writeText(project.git_url)
                           }
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          title="Copy path"
+                          title="Copy git URL"
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
@@ -1125,8 +1156,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                         onClick={() => {
                           setConfiguringProjectId(project.id);
                           setConfigProjectName(project.name || "");
-                          setConfigProjectPath(project.path);
-                          setConfigProjectGitRepo(project.git_repo || "");
+                          setConfigProjectGitUrl(project.git_url || "");
                         }}
                         variant="secondary"
                         size="sm"
@@ -1158,46 +1188,27 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                             onChange={(e) =>
                               setConfigProjectName(e.target.value)
                             }
-                            placeholder={
-                              project.path.split(/[/\\]/).pop() ||
-                              "Project name"
-                            }
+                            placeholder="My Project"
                           />
                           <p className="mt-1.5 text-[10px] theme-text-muted">
-                            Display name for this project (leave empty to use directory name)
+                            Display name for this project
                           </p>
                         </div>
                         <div>
                           <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                            Project Folder
+                            Git Repository URL *
                           </label>
                           <Input
                             type="text"
-                            value={configProjectPath}
+                            value={configProjectGitUrl}
                             onChange={(e) =>
-                              setConfigProjectPath(e.target.value)
+                              setConfigProjectGitUrl(e.target.value)
                             }
-                            placeholder="C:\\path\\to\\your\\project"
+                            placeholder="https://github.com/username/repo.git"
                             className="font-mono"
                           />
                           <p className="mt-1.5 text-[10px] theme-text-muted">
-                            Full path to the project directory (must contain specs/ and felix/ directories)
-                          </p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                            Git Repository (optional)
-                          </label>
-                          <Input
-                            type="text"
-                            value={configProjectGitRepo}
-                            onChange={(e) =>
-                              setConfigProjectGitRepo(e.target.value)
-                            }
-                            placeholder="https://github.com/username/repo.git"
-                          />
-                          <p className="mt-1.5 text-[10px] theme-text-muted">
-                            Git repository URL (optional). Validated on save.
+                            Git repository URL for project identity
                           </p>
                         </div>
                         <div className="flex justify-end gap-3">
@@ -1205,8 +1216,7 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                             onClick={() => {
                               setConfiguringProjectId(null);
                               setConfigProjectName("");
-                              setConfigProjectPath("");
-                              setConfigProjectGitRepo("");
+                              setConfigProjectGitUrl("");
                             }}
                             variant="ghost"
                             size="sm"
@@ -1218,24 +1228,18 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                             onClick={async () => {
                               setIsSavingConfig(true);
                               try {
-                                const pathChanged =
-                                  configProjectPath.trim() !== project.path;
-                                const gitRepoChanged =
-                                  configProjectGitRepo.trim() !==
-                                  (project.git_repo || "");
+                                const gitUrlChanged =
+                                  configProjectGitUrl.trim() !==
+                                  project.git_url;
                                 await felixApi.updateProject(project.id, {
                                   name: configProjectName.trim() || undefined,
-                                  path: pathChanged
-                                    ? configProjectPath.trim()
-                                    : undefined,
-                                  git_repo: gitRepoChanged
-                                    ? configProjectGitRepo.trim() || null
+                                  git_url: gitUrlChanged
+                                    ? configProjectGitUrl.trim() || null
                                     : undefined,
                                 });
                                 setConfiguringProjectId(null);
                                 setConfigProjectName("");
-                                setConfigProjectPath("");
-                                setConfigProjectGitRepo("");
+                                setConfigProjectGitUrl("");
                                 fetchProjects();
                               } catch (err) {
                                 setProjectsError(
@@ -1269,7 +1273,8 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
                     <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-[var(--status-warning)]">
-                          Remove this project from Felix? Files will remain on disk.
+                          Remove this project from Felix? Files will remain on
+                          disk.
                         </p>
                         <div className="flex items-center gap-2">
                           <Button
@@ -1344,13 +1349,16 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
         orgConfig &&
         orgConfigOriginal &&
         JSON.stringify(orgConfig) !== JSON.stringify(orgConfigOriginal);
-      const hasValidationErrors =
-        Object.keys(orgValidationErrors).length > 0;
+      const hasValidationErrors = Object.keys(orgValidationErrors).length > 0;
 
       if (orgConfigLoading) {
         return (
           <div className="flex justify-center py-8">
-            <PageLoading message="Loading org policies..." size="md" fullPage={false} />
+            <PageLoading
+              message="Loading org policies..."
+              size="md"
+              fullPage={false}
+            />
           </div>
         );
       }
@@ -1603,8 +1611,3 @@ const OrganizationSettingsScreen: React.FC<OrganizationSettingsScreenProps> = ({
 };
 
 export default OrganizationSettingsScreen;
-
-
-
-
-

@@ -69,7 +69,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const [registerPath, setRegisterPath] = useState("");
+  const [registerGitUrl, setRegisterGitUrl] = useState("");
   const [registerName, setRegisterName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [confirmUnregister, setConfirmUnregister] = useState<string | null>(
@@ -119,13 +119,13 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   };
 
   const handleRegister = async () => {
-    if (!registerPath.trim()) return;
+    if (!registerGitUrl.trim()) return;
 
     setIsRegistering(true);
     setError(null);
     try {
       const newProject = await felixApi.registerProject({
-        path: registerPath.trim(),
+        git_url: registerGitUrl.trim(),
         name: registerName.trim() || undefined,
       });
 
@@ -136,7 +136,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       setProjectDetails((prev) => new Map(prev).set(newProject.id, details));
 
       setIsRegisterOpen(false);
-      setRegisterPath("");
+      setRegisterGitUrl("");
       setRegisterName("");
 
       // Auto-select the new project
@@ -186,17 +186,17 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
 
   const getProjectName = (project: Project): string => {
     if (project.name) return project.name;
-    // Extract folder name from path
-    const parts = project.path.replace(/\\/g, "/").split("/");
-    return parts[parts.length - 1] || project.path;
+    // Extract repo name from git URL
+    const match = project.git_url.match(/\/([^\/]+?)(?:\.git)?$/);
+    return match ? match[1] : project.git_url;
   };
 
   // Filter projects based on search query
   const filteredProjects = projects.filter((project) => {
     const name = getProjectName(project).toLowerCase();
-    const path = project.path.toLowerCase();
+    const gitUrl = project.git_url.toLowerCase();
     const query = searchQuery.toLowerCase();
-    const matchesSearch = name.includes(query) || path.includes(query);
+    const matchesSearch = name.includes(query) || gitUrl.includes(query);
     if (!matchesSearch) {
       return false;
     }
@@ -268,10 +268,18 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             }}
             className="border border-[var(--border)] rounded-md"
           >
-            <ToggleGroupItem value="cards" title="Card view" className="h-9 w-9">
+            <ToggleGroupItem
+              value="cards"
+              title="Card view"
+              className="h-9 w-9"
+            >
               <LayoutGrid className="w-4 h-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="table" title="Table view" className="h-9 w-9">
+            <ToggleGroupItem
+              value="table"
+              title="Table view"
+              className="h-9 w-9"
+            >
               <List className="w-4 h-4" />
             </ToggleGroupItem>
           </ToggleGroup>
@@ -358,8 +366,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                     </div>
 
                     <p className="text-xs mb-3 truncate font-mono theme-text-muted">
-                      {project.path.split("\\").pop() ||
-                        project.path.split("/").pop()}
+                      {project.git_url}
                     </p>
 
                     {details?.status && (
@@ -379,11 +386,11 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                         <span className="text-xs theme-text-muted">
                           Project is paused
                         </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto text-[var(--text-muted)]"
-                    >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-auto text-[var(--text-muted)]"
+                        >
                           <HelpCircle className="w-4 h-4" />
                         </Button>
                       </div>
@@ -433,9 +440,9 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                         {getProjectName(project)}
                       </span>
                       <span className="table-secondary text-xs font-mono">
-                        {project.path.length > 40
-                          ? "..." + project.path.slice(-37)
-                          : project.path}
+                        {project.git_url.length > 50
+                          ? "..." + project.git_url.slice(-47)
+                          : project.git_url}
                       </span>
                     </div>
                   ),
@@ -502,18 +509,18 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           <div className="p-4 space-y-4">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider mb-2 theme-text-muted">
-                Project Path *
+                Git Repository URL *
               </label>
               <Input
-                value={registerPath}
-                onChange={(e) => setRegisterPath(e.target.value)}
-                placeholder="C:\path\to\your\project"
+                value={registerGitUrl}
+                onChange={(e) => setRegisterGitUrl(e.target.value)}
+                placeholder="https://github.com/username/repo.git"
                 className="h-10"
               />
               <p className="mt-1.5 text-[9px] theme-text-muted">
-                Enter the absolute path to your Felix project directory
+                Enter the git repository URL for your project
                 <br />
-                Tip: Shift+Right-click folder in Explorer to "Copy as path"
+                Example: https://github.com/username/projectname.git
               </p>
             </div>
 
@@ -544,7 +551,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             </Button>
             <Button
               onClick={handleRegister}
-              disabled={!registerPath.trim() || isRegistering}
+              disabled={!registerGitUrl.trim() || isRegistering}
             >
               {isRegistering ? "Registering..." : "Register"}
             </Button>

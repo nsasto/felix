@@ -23,8 +23,6 @@ const STORAGE_KEY_PREFIX = "felix_copilot_chat_";
 interface CopilotSidebarProps {
   /** Project ID for API calls and localStorage key */
   projectId: string;
-  /** Project path for context loading */
-  projectPath?: string;
   /** Callback when user wants to insert generated spec content */
   onInsertSpec?: (content: string) => void;
 }
@@ -107,7 +105,6 @@ const clearChatHistory = (projectId: string): void => {
  */
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
   projectId,
-  projectPath,
   onInsertSpec,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -223,7 +220,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
       const streamController = felixApi.streamCopilotChat({
         message: trimmedInput,
         history: historyForApi,
-        project_path: projectPath,
       });
 
       streamControllerRef.current = streamController;
@@ -321,7 +317,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
       setTimeout(() => setAvatarState("idle"), 2000);
       setIsStreaming(false);
     }
-  }, [inputValue, isStreaming, messages, projectPath, generateMessageId]);
+  }, [inputValue, isStreaming, messages, generateMessageId]);
 
   // Handle canceling stream
   const handleCancelStream = useCallback(() => {

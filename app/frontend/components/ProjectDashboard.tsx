@@ -285,14 +285,14 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold theme-text-secondary">
-                {project.name || project.path.split(/[\\/]/).pop()}
+                {project.name || project.id}
               </h1>
               <Badge className="text-[10px] uppercase tracking-[0.2em]">
                 {project.status || "active"}
               </Badge>
             </div>
             <p className="text-xs font-mono mt-1 theme-text-muted">
-              {project.path}
+              {project.git_url}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

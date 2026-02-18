@@ -139,8 +139,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     null,
   );
   const [configProjectName, setConfigProjectName] = useState("");
-  const [configProjectPath, setConfigProjectPath] = useState("");
-  const [configProjectGitRepo, setConfigProjectGitRepo] = useState("");
+  const [configProjectGitUrl, setConfigProjectGitUrl] = useState("");
 
   // Agents state (project agents)
   const [projectAgents, setProjectAgents] = useState<Agent[]>([]);
@@ -248,8 +247,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const project = await felixApi.getProject(projectId);
       setCurrentProject(project);
       setConfigProjectName(project.name || "");
-      setConfigProjectPath(project.path);
-      setConfigProjectGitRepo(project.git_repo || "");
+      setConfigProjectGitUrl(project.git_url || "");
     } catch (err) {
       console.error("Failed to fetch project:", err);
       setCurrentProjectError(
@@ -538,8 +536,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const hasProjectChanges =
     !!currentProject &&
     (configProjectName.trim() !== (currentProject.name || "") ||
-      configProjectPath.trim() !== currentProject.path ||
-      configProjectGitRepo.trim() !== (currentProject.git_repo || ""));
+      configProjectGitUrl.trim() !== (currentProject.git_url || ""));
 
   const hasChanges = !!(hasConfigChanges || hasProjectChanges);
 
@@ -567,21 +564,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       if (hasProjectChanges && currentProject) {
         setCurrentProjectError(null);
-        const pathChanged = configProjectPath.trim() !== currentProject.path;
-        const gitRepoChanged =
-          configProjectGitRepo.trim() !== (currentProject.git_repo || "");
+        const gitUrlChanged =
+          configProjectGitUrl.trim() !== (currentProject.git_url || "");
         const updated = await felixApi.updateProject(currentProject.id, {
           name: configProjectName.trim() || undefined,
-          path: pathChanged ? configProjectPath.trim() : undefined,
-          git_repo: gitRepoChanged
-            ? configProjectGitRepo.trim() || null
+          git_url: gitUrlChanged
+            ? configProjectGitUrl.trim() || null
             : undefined,
         });
         setCurrentProject({
           ...currentProject,
           name: updated.name,
-          path: updated.path,
-          git_repo: updated.git_repo,
+          git_url: updated.git_url,
         });
       }
 
@@ -635,8 +629,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
     if (currentProject) {
       setConfigProjectName(currentProject.name || "");
-      setConfigProjectPath(currentProject.path);
-      setConfigProjectGitRepo(currentProject.git_repo || "");
+      setConfigProjectGitUrl(currentProject.git_url || "");
       setCurrentProjectError(null);
     }
   };
@@ -1057,44 +1050,25 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   type="text"
                   value={configProjectName}
                   onChange={(e) => setConfigProjectName(e.target.value)}
-                  placeholder={
-                    currentProject.path.split(/[/\\]/).pop() || "Project name"
-                  }
+                  placeholder="My Project"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Display name for this project (leave empty to use directory
-                  name)
+                  Display name for this project
                 </p>
               </div>
               <div>
                 <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Project Folder
+                  Git Repository URL *
                 </label>
                 <Input
                   type="text"
-                  value={configProjectPath}
-                  onChange={(e) => setConfigProjectPath(e.target.value)}
-                  placeholder="C:\\path\\to\\your\\project"
-                  className="font-mono"
-                />
-                <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Full path to the project directory (must contain specs/ and
-                  felix/ directories)
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold theme-text-tertiary mb-2">
-                  Git Repository
-                </label>
-                <Input
-                  type="text"
-                  value={configProjectGitRepo}
-                  onChange={(e) => setConfigProjectGitRepo(e.target.value)}
+                  value={configProjectGitUrl}
+                  onChange={(e) => setConfigProjectGitUrl(e.target.value)}
                   placeholder="https://github.com/username/repo.git"
                   className="font-mono"
                 />
                 <p className="mt-1.5 text-[10px] theme-text-muted">
-                  Git repository URL (optional). Validated on save.
+                  Git repository URL for project identity
                 </p>
               </div>
               <p className="text-[10px] theme-text-muted">

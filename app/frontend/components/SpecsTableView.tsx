@@ -21,7 +21,7 @@ interface SpecsTableViewProps {
   requirements: Requirement[];
   loading: boolean;
   error: string | null;
-  onSpecClick: (specPath: string) => void;
+  onSpecClick: (requirementCodeOrId: string) => void;
   onNewSpec: () => void;
 }
 
@@ -283,7 +283,7 @@ export default function SpecsTableView({
         <DataTable
           data={filteredAndSortedRequirements}
           rowKey={(req) => req.id}
-          onRowClick={(req) => onSpecClick(req.spec_path)}
+          onRowClick={(req) => onSpecClick(req.code || req.id)}
           columns={[
             {
               key: "id",
@@ -444,7 +444,7 @@ export default function SpecsTableView({
               <Card
                 key={req.id}
                 selectable
-                onClick={() => onSpecClick(req.spec_path)}
+                onClick={() => onSpecClick(req.code || req.id)}
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">

@@ -10,9 +10,8 @@ const ACTIVE_ORG_STORAGE_KEY = "felix_active_org_id";
 
 export interface Project {
   id: string;
-  path: string;
   name: string | null;
-  git_repo: string | null;
+  git_url: string;
   registered_at: string;
 }
 
@@ -25,14 +24,13 @@ export interface ProjectDetails extends Project {
 }
 
 export interface ProjectRegisterRequest {
-  path: string;
+  git_url: string;
   name?: string;
 }
 
 export interface ProjectUpdateRequest {
   name?: string;
-  path?: string;
-  git_repo?: string | null;
+  git_url?: string | null;
 }
 
 export interface SpecFile {
@@ -63,7 +61,6 @@ export interface RequirementsData {
   requirements: Requirement[];
 }
 
-
 export interface ApiKeyInfo {
   id: string;
   project_id: string;
@@ -91,7 +88,6 @@ export interface ApiKeyCreateRequest {
   name?: string;
   expires_days?: number;
 }
-
 
 export interface UserProfile {
   user_id: string;
@@ -545,28 +541,38 @@ class FelixApiService {
     });
   }
 
-  // --- Spec Endpoints ---
+  // --- Spec Endpoints (Requirements-backed) ---
 
   async listSpecs(projectId: string): Promise<SpecFile[]> {
-    return this.request<SpecFile[]>(`/projects/${projectId}/specs`);
+    // List requirements and convert to spec file format
+    const response = await this.request<{ requirements: Requirement[] }>(
+      `/projects/${projectId}/requirements`,
+    );
+    // Convert requirements to spec file format (use requirement ID as filename)
+    return response.requirements
+      .filter((req) => req.spec_path || req.title)
+      .map((req) => ({
+        filename: req.code || req.id,
+        path: req.spec_path || `${req.code || req.id}.md`,
+      }));
   }
 
   async getSpec(
     projectId: string,
-    filename: string,
+    requirementIdOrCode: string,
   ): Promise<{ content: string }> {
     return this.request<{ content: string }>(
-      `/projects/${projectId}/specs/${filename}`,
+      `/projects/${projectId}/requirements/${requirementIdOrCode}/content`,
     );
   }
 
   async updateSpec(
     projectId: string,
-    filename: string,
+    requirementIdOrCode: string,
     content: string,
   ): Promise<void> {
-    await this.request<{ message: string }>(
-      `/projects/${projectId}/specs/${filename}`,
+    await this.request<{ content: string }>(
+      `/projects/${projectId}/requirements/${requirementIdOrCode}/content`,
       {
         method: "PUT",
         body: JSON.stringify({ content }),
@@ -576,16 +582,19 @@ class FelixApiService {
 
   async createSpec(
     projectId: string,
-    filename: string,
+    requirementIdOrCode: string,
     content: string,
   ): Promise<{ filename: string; content: string }> {
-    return this.request<{ filename: string; content: string }>(
-      `/projects/${projectId}/specs`,
+    // For creating new specs, we'd need to create a requirement first
+    // This is a simplified version - real implementation would need requirement creation
+    await this.request<{ content: string }>(
+      `/projects/${projectId}/requirements/${requirementIdOrCode}/content`,
       {
-        method: "POST",
-        body: JSON.stringify({ filename, content }),
+        method: "PUT",
+        body: JSON.stringify({ content }),
       },
     );
+    return { filename: requirementIdOrCode, content };
   }
 
   // --- Plan Endpoints ---

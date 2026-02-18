@@ -215,6 +215,39 @@ class RequirementService:
         await self.requirements.touch_updated_at(requirement_id)
         return True
 
+    async def update_content(
+        self,
+        project_id: str,
+        requirement_id_or_code: str,
+        content: str,
+        author_id: Optional[str] = None,
+        source: str = "api",
+    ) -> bool:
+        """Update requirement content by requirement ID or code."""
+        resolved_project_id = _resolve_project_id(project_id)
+        requirement = await self._resolve_requirement(
+            resolved_project_id, requirement_id_or_code
+        )
+        if not requirement:
+            return False
+
+        requirement_id = requirement["id"]
+        current_version_id = await self.content.get_current_version_id(requirement_id)
+        new_version_id = await self.content.create_version(
+            requirement_id=requirement_id,
+            content=content,
+            author_id=author_id,
+            source=source,
+            diff_from_id=current_version_id,
+        )
+        await self.content.upsert_content(
+            requirement_id=requirement_id,
+            content=content,
+            current_version_id=new_version_id,
+        )
+        await self.requirements.touch_updated_at(requirement_id)
+        return True
+
     async def get_content(
         self, project_id: str, requirement_id_or_code: str
     ) -> Optional[str]:
@@ -260,9 +293,7 @@ class RequirementService:
     ) -> Optional[Dict[str, Any]]:
         project_id = _resolve_project_id(project_id)
         if _is_uuid(requirement_id_or_code):
-            return await self.requirements.get_by_id(
-                project_id, requirement_id_or_code
-            )
+            return await self.requirements.get_by_id(project_id, requirement_id_or_code)
         return await self.requirements.get_by_code(project_id, requirement_id_or_code)
 
     async def _replace_dependencies(
@@ -288,9 +319,7 @@ class RequirementService:
 
         if missing_codes or missing_ids:
             missing = missing_codes + missing_ids
-            raise ValueError(
-                f"Unknown dependency references: {', '.join(missing)}"
-            )
+            raise ValueError(f"Unknown dependency references: {', '.join(missing)}")
 
         depends_on_ids = list(resolved_codes.values()) + resolved_ids
 

@@ -5,6 +5,7 @@ import {
   Requirement,
   RequirementStatusResponse,
 } from "../services/felixApi";
+import { toast } from "sonner";
 import SpecsTableView from "./SpecsTableView";
 import SpecEditorPage from "./SpecEditorPage";
 import SpecCreateDialog, {
@@ -109,9 +110,11 @@ export default function SpecsEditor({
   // Get selected requirement details
   const selectedRequirement = useMemo(() => {
     if (!selectedFilename) return null;
+    // selectedFilename is now the requirement code or ID
     return (
-      requirements.find((req) => req.spec_path.includes(selectedFilename)) ||
-      null
+      requirements.find(
+        (req) => req.code === selectedFilename || req.id === selectedFilename,
+      ) || null
     );
   }, [requirements, selectedFilename]);
 
@@ -160,22 +163,11 @@ export default function SpecsEditor({
     const fetchContent = async () => {
       setContentLoading(true);
       try {
-        const requirementId =
-          selectedRequirement?.uuid || selectedRequirement?.id || null;
-        if (requirementId) {
-          const result = await felixApi.getRequirementContent(
-            projectId,
-            requirementId,
-          );
-          setSpecContent(result.content);
-          setOriginalContent(result.content);
-          setOriginalCriteria(extractCriteriaSections(result.content));
-        } else {
-          const result = await felixApi.getSpec(projectId, selectedFilename);
-          setSpecContent(result.content);
-          setOriginalContent(result.content);
-          setOriginalCriteria(extractCriteriaSections(result.content));
-        }
+        // selectedFilename is now the requirement ID/code
+        const result = await felixApi.getSpec(projectId, selectedFilename);
+        setSpecContent(result.content);
+        setOriginalContent(result.content);
+        setOriginalCriteria(extractCriteriaSections(result.content));
       } catch (err) {
         console.error("Failed to fetch spec content:", err);
         setSpecContent("");
@@ -190,10 +182,9 @@ export default function SpecsEditor({
   }, [projectId, selectedFilename, viewMode, selectedRequirement]);
 
   // Handle spec selection from table
-  const handleSpecClick = useCallback((specPath: string) => {
-    // Extract filename from path
-    const filename = specPath.split("/").pop() || specPath;
-    setSelectedFilename(filename);
+  const handleSpecClick = useCallback((requirementCodeOrId: string) => {
+    // requirementCodeOrId is now the requirement code or ID (not a file path)
+    setSelectedFilename(requirementCodeOrId);
     setViewMode("editor");
   }, []);
 
@@ -215,7 +206,6 @@ export default function SpecsEditor({
     if (!selectedFilename || !hasChanges) return;
 
     setSaving(true);
-    setSaveMessage("");
 
     const criteriaChanged = hasCriteriaChanged;
 
@@ -224,37 +214,31 @@ export default function SpecsEditor({
       setOriginalContent(specContent);
 
       // If criteria changed, invalidate the plan
-      if (criteriaChanged) {
-        const match = selectedFilename.match(/^(S-\d+)/);
-        const reqId = match ? match[1] : null;
+      if (criteriaChanged && selectedRequirement?.code) {
+        const reqCode = selectedRequirement.code;
 
-        if (reqId) {
-          try {
-            const planInfo = await felixApi.getPlanInfo(projectId, reqId);
-            if (planInfo.exists) {
-              await felixApi.deletePlan(projectId, reqId);
-              setSaveMessage(
-                "Saved. Plan invalidated due to criteria changes.",
-              );
-              setOriginalCriteria(extractCriteriaSections(specContent));
-              setTimeout(() => setSaveMessage(""), 5000);
-              // Refresh requirements to update status
-              const reqData = await felixApi.getRequirements(projectId);
-              setRequirements(reqData.requirements);
-              return;
-            }
-          } catch (planErr) {
-            console.log("Plan invalidation skipped:", planErr);
+        try {
+          const planInfo = await felixApi.getPlanInfo(projectId, reqCode);
+          if (planInfo.exists) {
+            await felixApi.deletePlan(projectId, reqCode);
+            toast.success("Saved. Plan invalidated due to criteria changes.");
+            setOriginalCriteria(extractCriteriaSections(specContent));
+            // Refresh requirements to update status
+            const reqData = await felixApi.getRequirements(projectId);
+            setRequirements(reqData.requirements);
+            return;
           }
+        } catch (planErr) {
+          console.log("Plan invalidation skipped:", planErr);
         }
+
         setOriginalCriteria(extractCriteriaSections(specContent));
       }
 
-      setSaveMessage("Saved successfully");
-      setTimeout(() => setSaveMessage(""), 3000);
+      toast.success("Spec saved successfully");
     } catch (err) {
       console.error("Failed to save spec:", err);
-      setSaveMessage(err instanceof Error ? err.message : "Failed to save");
+      toast.error(err instanceof Error ? err.message : "Failed to save spec");
     } finally {
       setSaving(false);
     }
@@ -267,29 +251,23 @@ export default function SpecsEditor({
 
   // Handle reset plan
   const handleResetPlan = async () => {
-    if (!selectedFilename) return;
-
-    const match = selectedFilename.match(/^(S-\d+)/);
-    const reqId = match ? match[1] : null;
-
-    if (!reqId) {
-      console.error("Could not extract requirement ID from filename");
+    if (!selectedRequirement?.code) {
+      console.error("No requirement code available");
       return;
     }
 
+    const reqCode = selectedRequirement.code;
+
     try {
-      await felixApi.deletePlan(projectId, reqId);
-      setSaveMessage("Plan reset successfully");
-      setTimeout(() => setSaveMessage(""), 3000);
+      await felixApi.deletePlan(projectId, reqCode);
+      toast.success("Plan reset successfully");
 
       // Refresh requirements to update status
       const reqData = await felixApi.getRequirements(projectId);
       setRequirements(reqData.requirements);
     } catch (err) {
       console.error("Failed to reset plan:", err);
-      setSaveMessage(
-        err instanceof Error ? err.message : "Failed to reset plan",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to reset plan");
     }
   };
 

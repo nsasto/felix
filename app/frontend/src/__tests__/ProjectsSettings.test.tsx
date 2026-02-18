@@ -1,7 +1,12 @@
-
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import OrganizationSettingsScreen from "../../components/OrganizationSettingsScreen";
 import { ThemeProvider } from "../../hooks/ThemeProvider";
 import { felixApi, Project } from "../../services/felixApi";
@@ -161,14 +166,14 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
       await screen.findByRole("button", { name: "Register New Project" }),
     );
 
-    const pathLabel = await screen.findByText("Project Path *");
-    const pathContainer = pathLabel.closest("div");
-    if (!pathContainer) {
-      throw new Error("Project path input container not found");
+    const gitUrlLabel = await screen.findByText("Git Repository URL *");
+    const gitUrlContainer = gitUrlLabel.closest("div");
+    if (!gitUrlContainer) {
+      throw new Error("Git URL input container not found");
     }
-    const projectPathInput = within(pathContainer).getByRole("textbox");
-    fireEvent.change(projectPathInput, {
-      target: { value: "C:\\dev\\Project3" },
+    const gitUrlInput = within(gitUrlContainer).getByRole("textbox");
+    fireEvent.change(gitUrlInput, {
+      target: { value: "https://github.com/user/project3.git" },
     });
 
     const nameLabel = screen.getByText("Project Name (optional)");
@@ -185,7 +190,7 @@ describe("OrganizationSettingsScreen - Projects Tab", () => {
 
     await waitFor(() => {
       expect(felixApi.registerProject).toHaveBeenCalledWith({
-        path: "C:\\dev\\Project3",
+        git_url: "https://github.com/user/project3.git",
         name: "Project Three",
       });
     });
