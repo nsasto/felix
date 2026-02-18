@@ -260,6 +260,7 @@ class HttpSync : IRunReporter {
             }
             
             $this.QueueRequest($request)
+            $this.WriteLog("INFO", "Queueing run completion for $runId (status: $($result.status))")
             $this.Flush()
         }
         catch {
@@ -482,11 +483,16 @@ class HttpSync : IRunReporter {
             
             if ($events.Count -gt 0) {
                 # Send events batch
+                $this.WriteLog("INFO", "Flushing $($events.Count) queued events for run $runId")
                 $success = $this.SendJsonRequest("POST", "/api/runs/$runId/events", @{ events = $events })
                 
                 if ($success) {
+                    $this.WriteLog("INFO", "Successfully flushed $($events.Count) events for run $runId")
                     # Delete the run events file
                     Remove-Item -Path $filePath -Force -ErrorAction SilentlyContinue
+                }
+                else {
+                    $this.WriteLog("WARNING", "Failed to flush events for run $runId - will retry later")
                 }
             }
             elseif ($skippedLines -gt 0 -and $events.Count -eq 0) {
@@ -583,6 +589,7 @@ class HttpSync : IRunReporter {
             $attempt = 0
             $success = $false
             $lastError = $null
+            $lastStatusCode = 0
             $isPermanentFailure = $false
             
             while (-not $success -and $attempt -lt $maxRetries) {
@@ -629,6 +636,7 @@ class HttpSync : IRunReporter {
                     }
                     else {
                         $lastError = $result.Error
+                        $lastStatusCode = $result.StatusCode
                         
                         # Check if this is a permanent error (don't retry)
                         if ($this.IsPermanentError($result.StatusCode)) {
@@ -696,7 +704,7 @@ class HttpSync : IRunReporter {
                 # Notify user of permanent failure for critical operations
                 if ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent") {
                     if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
-                        Emit-Log -Level "error" -Message "Sync operation permanently failed: $lastError" -Component "sync" | Out-Null
+                        Emit-Log -Level "error" -Message "Sync permanently failed (HTTP $lastStatusCode): $lastError" -Component "sync" | Out-Null
                     }
                 }
                 # Continue to next file - don't block other requests
