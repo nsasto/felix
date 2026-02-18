@@ -23,6 +23,9 @@ function Exit-FelixAgent {
     
     .PARAMETER HeartbeatJob
     Background job to stop
+    
+    .PARAMETER RunContext
+    Optional run context for plugin hooks (requirement, iteration, paths, etc.)
     #>
     param(
         [Parameter(Mandatory = $false)]
@@ -32,9 +35,13 @@ function Exit-FelixAgent {
         [string]$ProjectPath,
         
         [Parameter(Mandatory = $false)]
-    [string]$AgentId,
+        [string]$AgentId,
+        
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.Job]$HeartbeatJob
+        [System.Management.Automation.Job]$HeartbeatJob,
+        
+        [Parameter(Mandatory = $false)]
+        [hashtable]$RunContext
     )
     
     # Clear workflow stage on exit
@@ -76,6 +83,18 @@ function Exit-FelixAgent {
         
         # Brief delay to ensure subprocess can read final output
         Start-Sleep -Milliseconds 100
+    }
+    
+    # Invoke OnRunComplete plugin hook (sync, cleanup, etc.)
+    if ($script:PluginCache -and $script:RunId -and $RunContext) {
+        try {
+            if (Get-Command Invoke-PluginHookSafely -ErrorAction SilentlyContinue) {
+                Invoke-PluginHookSafely -HookName "OnRunComplete" -RunId $script:RunId -HookData $RunContext | Out-Null
+            }
+        }
+        catch {
+            # Silent failure - don't let plugin errors prevent clean exit
+        }
     }
     
     exit $ExitCode

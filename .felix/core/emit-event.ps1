@@ -71,6 +71,18 @@ function Emit-Event {
     
     # Use [Console]::WriteLine for speed + subprocess compatibility
     [Console]::WriteLine($json)
+    
+    # Trigger OnEvent plugin hook (sync, logging, etc.)
+    if ($script:PluginCache -and $script:RunId) {
+        try {
+            Invoke-PluginHookSafely -HookName "OnEvent" -RunId $script:RunId -HookData @{
+                Event = $event
+            } | Out-Null
+        }
+        catch {
+            # Silent failure - plugins shouldn't break event emission
+        }
+    }
 }
 
 function Emit-Log {
