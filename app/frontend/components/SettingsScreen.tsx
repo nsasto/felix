@@ -2064,9 +2064,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     return (
       <div className="flex-1 flex flex-col theme-bg-base overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 theme-bg-surface rounded-2xl flex items-center justify-center mb-4">
-            <AlertTriangle className="w-8 h-8 text-[var(--status-error)]" />
-          </div>
+          <AlertTriangle className="w-12 h-12 text-[var(--status-error)] opacity-20 mb-4" />
           <h3 className="text-sm font-bold theme-text-tertiary mb-2">
             Failed to Load Settings
           </h3>

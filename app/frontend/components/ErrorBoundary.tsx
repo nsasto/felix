@@ -99,9 +99,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       // Default error UI
       return (
         <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center p-8">
-          <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-4">
-            <AlertTriangle className="w-8 h-8 text-amber-500" />
-          </div>
+          <AlertTriangle className="w-12 h-12 text-amber-500 opacity-20 mb-4" />
 
           <h3 className="text-sm font-bold text-slate-300 mb-2">
             {title || "Something went wrong"}

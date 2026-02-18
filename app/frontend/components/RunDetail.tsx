@@ -2,11 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { marked } from "marked";
 import { PageLoading } from "./ui/page-loading";
 import { Button } from "./ui/button";
-import {
-  getRunFiles,
-  getRunFile,
-  getRunEvents,
-} from "../src/api/client";
+import { getRunFiles, getRunFile, getRunEvents } from "../src/api/client";
 import type { RunFile, RunFilesResponse, RunEvent } from "../src/api/types";
 import {
   Bot as IconFelix,
@@ -83,8 +79,8 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
         // Auto-select first file (prioritize report.md, then plan.md)
         if (response.files.length > 0) {
           const reportFile = response.files.find((f) => f.path === "report.md");
-          const planFile = response.files.find((f) =>
-            f.path.includes("plan") && f.path.endsWith(".md")
+          const planFile = response.files.find(
+            (f) => f.path.includes("plan") && f.path.endsWith(".md"),
           );
           const defaultFile = reportFile || planFile || response.files[0];
           setSelectedFile(defaultFile);
@@ -92,7 +88,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
       } catch (err) {
         console.error("Failed to fetch run files:", err);
         setFilesError(
-          err instanceof Error ? err.message : "Failed to load run files"
+          err instanceof Error ? err.message : "Failed to load run files",
         );
       } finally {
         setFilesLoading(false);
@@ -120,7 +116,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
       } catch (err) {
         console.error("Failed to fetch file content:", err);
         setContentError(
-          err instanceof Error ? err.message : "Failed to load file content"
+          err instanceof Error ? err.message : "Failed to load file content",
         );
         setFileContent("");
       } finally {
@@ -145,7 +141,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
       } catch (err) {
         console.error("Failed to fetch run events:", err);
         setEventsError(
-          err instanceof Error ? err.message : "Failed to load events"
+          err instanceof Error ? err.message : "Failed to load events",
         );
       } finally {
         setEventsLoading(false);
@@ -158,7 +154,8 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
   // Auto-scroll to bottom when events change
   useEffect(() => {
     if (eventsExpanded && eventTimelineRef.current && events.length > 0) {
-      eventTimelineRef.current.scrollTop = eventTimelineRef.current.scrollHeight;
+      eventTimelineRef.current.scrollTop =
+        eventTimelineRef.current.scrollHeight;
     }
   }, [events, eventsExpanded]);
 
@@ -184,7 +181,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
         console.error("Markdown rendering error:", err);
         if (isMounted) {
           setParsedHtml(
-            `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`
+            `<div class="text-red-500 font-mono text-xs">Parsing Error: ${err}</div>`,
           );
         }
       }
@@ -201,13 +198,19 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
   const groupedFiles = React.useMemo(() => {
     const artifacts = files.filter((f) => f.kind === "artifact");
     const logs = files.filter((f) => f.kind === "log");
-    const other = files.filter((f) => f.kind !== "artifact" && f.kind !== "log");
+    const other = files.filter(
+      (f) => f.kind !== "artifact" && f.kind !== "log",
+    );
     return { artifacts, logs, other };
   }, [files]);
 
   // Flat list of files for keyboard navigation (in display order)
   const flatFileList = React.useMemo(() => {
-    return [...groupedFiles.artifacts, ...groupedFiles.logs, ...groupedFiles.other];
+    return [
+      ...groupedFiles.artifacts,
+      ...groupedFiles.logs,
+      ...groupedFiles.other,
+    ];
   }, [groupedFiles]);
 
   // Keyboard navigation handler for file list
@@ -250,7 +253,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
           break;
       }
     },
-    [flatFileList, selectedFile]
+    [flatFileList, selectedFile],
   );
 
   // Format file size
@@ -340,7 +343,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
                   "w-full px-3 py-2 text-left rounded-lg transition-all flex items-center gap-2",
                   isSelected
                     ? "bg-[var(--brand-500)]/10 border border-[var(--brand-500)]/30"
-                    : "hover:bg-[var(--bg-surface-200)] border border-transparent"
+                    : "hover:bg-[var(--bg-surface-200)] border border-transparent",
                 )}
               >
                 <FileIcon
@@ -348,7 +351,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
                     "w-4 h-4 flex-shrink-0",
                     isSelected
                       ? "text-[var(--brand-400)]"
-                      : "text-[var(--text-muted)]"
+                      : "text-[var(--text-muted)]",
                   )}
                 />
                 <div className="flex-1 min-w-0">
@@ -357,7 +360,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
                       "text-xs font-medium truncate",
                       isSelected
                         ? "text-[var(--brand-400)]"
-                        : "text-[var(--text-light)]"
+                        : "text-[var(--text-light)]",
                     )}
                   >
                     {file.path}
@@ -408,7 +411,9 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
             {eventsLoading ? (
               <div className="py-4 text-center">
                 <div className="w-4 h-4 border-2 border-[var(--brand-500)] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                <p className="text-[10px] text-[var(--text-muted)]">Loading events...</p>
+                <p className="text-[10px] text-[var(--text-muted)]">
+                  Loading events...
+                </p>
               </div>
             ) : eventsError ? (
               <div className="py-4 text-center">
@@ -417,7 +422,9 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
               </div>
             ) : events.length === 0 ? (
               <div className="py-4 text-center">
-                <p className="text-[10px] text-[var(--text-muted)]">No events recorded</p>
+                <p className="text-[10px] text-[var(--text-muted)]">
+                  No events recorded
+                </p>
               </div>
             ) : (
               <div className="space-y-1.5 pt-1">
@@ -431,19 +438,24 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
                       className={cn(
                         "px-2 py-1.5 rounded border text-[10px]",
                         levelStyles.bgColor,
-                        levelStyles.borderColor
+                        levelStyles.borderColor,
                       )}
                     >
                       <div className="flex items-start gap-1.5">
                         <LevelIcon
                           className={cn(
                             "w-3 h-3 flex-shrink-0 mt-0.5",
-                            levelStyles.textColor
+                            levelStyles.textColor,
                           )}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
-                            <span className={cn("font-medium", levelStyles.textColor)}>
+                            <span
+                              className={cn(
+                                "font-medium",
+                                levelStyles.textColor,
+                              )}
+                            >
                               {event.type}
                             </span>
                             <span className="text-[var(--text-muted)] ml-auto">
@@ -481,9 +493,7 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
     if (contentError) {
       return (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 bg-[var(--bg-surface-200)] rounded-2xl flex items-center justify-center mb-4">
-            <IconFileText className="w-8 h-8 text-[var(--text-muted)]" />
-          </div>
+          <IconFileText className="w-12 h-12 text-[var(--text-muted)] opacity-20 mb-4" />
           <h3 className="text-sm font-bold text-[var(--text-light)] mb-2">
             Failed to Load File
           </h3>
@@ -594,13 +604,13 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
           </div>
         )}
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 bg-[var(--bg-surface-200)] rounded-2xl flex items-center justify-center mb-4">
-            <IconFileText className="w-8 h-8 text-[var(--text-muted)]" />
-          </div>
+          <IconFileText className="w-12 h-12 text-[var(--text-muted)] opacity-20 mb-4" />
           <h3 className="text-sm font-bold text-[var(--text-light)] mb-2">
             Run Not Found
           </h3>
-          <p className="text-xs text-[var(--text-muted)] max-w-md">{filesError}</p>
+          <p className="text-xs text-[var(--text-muted)] max-w-md">
+            {filesError}
+          </p>
         </div>
       </div>
     );
@@ -701,9 +711,11 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onClose }) => {
           className={cn(
             "flex-shrink-0 border-b md:border-b-0 md:border-r border-[var(--border)] flex flex-col bg-[var(--bg-base)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-500)]",
             // Mobile: collapsible with max-height
-            sidebarExpanded ? "max-h-[50vh] md:max-h-none" : "max-h-0 md:max-h-none overflow-hidden md:overflow-visible",
+            sidebarExpanded
+              ? "max-h-[50vh] md:max-h-none"
+              : "max-h-0 md:max-h-none overflow-hidden md:overflow-visible",
             // Desktop: fixed width
-            "md:w-64"
+            "md:w-64",
           )}
           aria-label="File list navigation. Use arrow keys to navigate files."
         >

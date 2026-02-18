@@ -19,7 +19,12 @@ import {
 } from "lucide-react";
 
 /** Error types for better error handling */
-type ErrorType = "not_found" | "load_failed" | "large_file" | "network" | "unknown";
+type ErrorType =
+  | "not_found"
+  | "load_failed"
+  | "large_file"
+  | "network"
+  | "unknown";
 
 interface RunArtifactViewerProps {
   projectId: string;
@@ -35,14 +40,22 @@ const SYNC_BASE_URL = "http://localhost:8080/api";
 function getErrorType(error: Error | string): ErrorType {
   const message = typeof error === "string" ? error : error.message;
   const lowerMessage = message.toLowerCase();
-  
+
   if (lowerMessage.includes("404") || lowerMessage.includes("not found")) {
     return "not_found";
   }
-  if (lowerMessage.includes("too large") || lowerMessage.includes("size limit") || lowerMessage.includes("413")) {
+  if (
+    lowerMessage.includes("too large") ||
+    lowerMessage.includes("size limit") ||
+    lowerMessage.includes("413")
+  ) {
     return "large_file";
   }
-  if (lowerMessage.includes("network") || lowerMessage.includes("fetch") || lowerMessage.includes("failed to fetch")) {
+  if (
+    lowerMessage.includes("network") ||
+    lowerMessage.includes("fetch") ||
+    lowerMessage.includes("failed to fetch")
+  ) {
     return "network";
   }
   if (lowerMessage.includes("failed to load")) {
@@ -52,7 +65,10 @@ function getErrorType(error: Error | string): ErrorType {
 }
 
 /** Get user-friendly error message based on error type */
-function getErrorMessage(errorType: ErrorType, filename: string): { title: string; description: string } {
+function getErrorMessage(
+  errorType: ErrorType,
+  filename: string,
+): { title: string; description: string } {
   switch (errorType) {
     case "not_found":
       return {
@@ -67,12 +83,14 @@ function getErrorMessage(errorType: ErrorType, filename: string): { title: strin
     case "network":
       return {
         title: "Unable to Load Artifacts",
-        description: "A network error occurred while loading the artifact. Please check your connection and try again.",
+        description:
+          "A network error occurred while loading the artifact. Please check your connection and try again.",
       };
     case "load_failed":
       return {
         title: "Unable to Load Artifacts",
-        description: "Failed to load the artifact content. The server may be temporarily unavailable.",
+        description:
+          "Failed to load the artifact content. The server may be temporarily unavailable.",
       };
     default:
       return {
@@ -161,7 +179,8 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
       }
     } catch (err) {
       console.error("Failed to fetch artifact:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to load artifact";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load artifact";
       setError(errorMessage);
       setErrorType(getErrorType(err instanceof Error ? err : errorMessage));
     } finally {
@@ -304,26 +323,24 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
         </div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center h-full text-center p-8">
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
-            errorType === "not_found" ? "bg-slate-800/50" : "bg-amber-500/10"
-          }`}>
-            {errorType === "not_found" ? (
-              <FileWarning className="w-8 h-8 text-slate-600" />
-            ) : (
-              <IconFileText className="w-8 h-8 text-amber-500" />
-            )}
-          </div>
+          {errorType === "not_found" ? (
+            <FileWarning className="w-12 h-12 text-slate-600 opacity-20 mb-4" />
+          ) : (
+            <IconFileText className="w-12 h-12 text-amber-500 opacity-20 mb-4" />
+          )}
           <h3 className="text-sm font-bold text-slate-300 mb-2">
             {getErrorMessage(errorType, getFilename(activeTab)).title}
           </h3>
           <p className="text-xs text-slate-500 max-w-md mb-4">
             {getErrorMessage(errorType, getFilename(activeTab)).description}
           </p>
-          
+
           {/* Action buttons */}
           <div className="flex items-center gap-3">
             {/* Show retry button for recoverable errors */}
-            {(errorType === "network" || errorType === "load_failed" || errorType === "unknown") && (
+            {(errorType === "network" ||
+              errorType === "load_failed" ||
+              errorType === "unknown") && (
               <Button
                 type="button"
                 variant="secondary"
@@ -335,18 +352,19 @@ const RunArtifactViewerInner: React.FC<RunArtifactViewerProps> = ({
                 Retry
               </Button>
             )}
-            
+
             {/* Show download link for large files or as fallback */}
-            {(errorType === "large_file" || errorType === "load_failed") && getDownloadUrl() && (
-              <a
-                href={getDownloadUrl()!}
-                download={getFilename(activeTab)}
-                className="inline-flex items-center gap-2 h-8 px-3 text-xs font-semibold rounded-md border border-[var(--border-default)] bg-[var(--bg-surface-100)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download File
-              </a>
-            )}
+            {(errorType === "large_file" || errorType === "load_failed") &&
+              getDownloadUrl() && (
+                <a
+                  href={getDownloadUrl()!}
+                  download={getFilename(activeTab)}
+                  className="inline-flex items-center gap-2 h-8 px-3 text-xs font-semibold rounded-md border border-[var(--border-default)] bg-[var(--bg-surface-100)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download File
+                </a>
+              )}
           </div>
         </div>
       ) : (

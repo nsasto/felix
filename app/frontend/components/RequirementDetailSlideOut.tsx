@@ -408,12 +408,12 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
           <div className="space-y-4">
             {/* Status and Priority Row */}
             <div className="flex items-center gap-3 flex-wrap">
-                <Badge
-                  variant={getRequirementStatusVariant(requirement.status)}
-                  className={getRequirementStatusBadgeClass(requirement.status)}
-                >
-                  {getStatusLabel(requirement.status)}
-                </Badge>
+              <Badge
+                variant={getRequirementStatusVariant(requirement.status)}
+                className={getRequirementStatusBadgeClass(requirement.status)}
+              >
+                {getStatusLabel(requirement.status)}
+              </Badge>
               <Badge variant={getPriorityVariant(requirement.priority)}>
                 {requirement.priority}
               </Badge>
@@ -601,9 +601,10 @@ const RequirementDetailSlideOut: React.FC<RequirementDetailSlideOutProps> = ({
         <div className="w-[60%] flex flex-col">
           {!selectedRunId ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-[var(--bg-surface-200)] rounded-2xl flex items-center justify-center mb-4">
-                <IconInbox size={32} className="text-[var(--text-muted)]" />
-              </div>
+              <IconInbox
+                size={48}
+                className="text-[var(--text-muted)] opacity-20 mb-4"
+              />
               <h3 className="text-sm font-bold text-[var(--text-muted)] mb-2">
                 Select a Run
               </h3>
