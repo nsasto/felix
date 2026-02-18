@@ -163,10 +163,20 @@ if ($dbAvailable) {
             TRUNCATE TABLE run_events CASCADE;
             TRUNCATE TABLE runs CASCADE;
 "@
+        $originalPref = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -c $truncateQuery 2>&1 | Out-Null
-        $ErrorActionPreference = "Stop"
-        Write-Host "  [OK] Test data cleared" -ForegroundColor Green
+        $truncateResult = & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -c $truncateQuery 2>&1
+        $truncateExitCode = $LASTEXITCODE
+        $ErrorActionPreference = $originalPref
+        
+        if ($truncateExitCode -eq 0) {
+            Write-Host "  [OK] Test data cleared" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  [ERROR] Failed to clear test data" -ForegroundColor Red
+            Write-Host "  $truncateResult" -ForegroundColor Red
+            $dbAvailable = $false
+        }
     }
     else {
         # Create test database by copying from production
@@ -191,7 +201,17 @@ if ($dbAvailable) {
                     TRUNCATE TABLE run_events CASCADE;
                     TRUNCATE TABLE runs CASCADE;
 "@
-                & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -c $truncateQuery 2>&1 | Out-Null
+                $originalPref = $ErrorActionPreference
+                $ErrorActionPreference = "Continue"
+                $truncateResult = & $psqlExe -U $POSTGRES_USER -d $DATABASE_NAME -c $truncateQuery 2>&1
+                $truncateExitCode = $LASTEXITCODE
+                $ErrorActionPreference = $originalPref
+                
+                if ($truncateExitCode -ne 0) {
+                    Write-Host "  [ERROR] Failed to clear test database" -ForegroundColor Red
+                    Write-Host "  $truncateResult" -ForegroundColor Red
+                    $dbAvailable = $false
+                }
             }
             else {
                 Write-Host "  [ERROR] Failed to create test database" -ForegroundColor Red
