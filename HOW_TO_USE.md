@@ -59,7 +59,12 @@ A Felix enabled repository typically looks like this:
 │   ├── core/
 │   │   └── sync-interface.ps1    # Sync plugin interface
 │   ├── plugins/
-│   │   └── sync-http.ps1         # HTTP sync implementation
+│   │   └── sync-http/            # HTTP sync plugin
+│   │       ├── plugin.json       # Plugin manifest
+│   │       ├── http-client.ps1   # HttpSync class
+│   │       ├── sync-state.ps1    # Shared state management
+│   │       ├── on-*.ps1          # Hook implementations
+│   │       └── README.md         # Plugin documentation
 │   ├── prompts/
 │   │   ├── planning.md
 │   │   └── building.md
@@ -1231,35 +1236,68 @@ gemini auth login
 
 ## Run Artifact Sync
 
-Felix optionally syncs run artifacts to the backend server, enabling team collaboration, web-based artifact viewing, and centralized monitoring.
+Felix optionally syncs run artifacts to the backend server via the **sync-http plugin**, enabling team collaboration, web-based artifact viewing, and centralized monitoring.
+
+### How the Plugin Works
+
+The sync-http plugin uses Felix's lifecycle hooks for real-time integration:
+
+1. **OnPreIteration** (run start) - Initializes HTTP client, creates run record, starts event flush timer
+2. **OnEvent** (all events) - Queues events for batch sending every 5 seconds (heartbeat)
+3. **OnPostModeSelection** (mode changes) - Updates run status (throttled to 1/second)
+4. **OnBackpressureFailed** (validation errors) - Immediate error sync (bypasses throttle)
+5. **OnRunComplete** (run end) - Flushes remaining events, uploads artifacts, stops timer
+
+**Key Features:**
+
+- **Event batching**: Queues events, flushes every 5 seconds (configurable)
+- **Status throttling**: Max 1 update per second to prevent backend spam
+- **Critical events**: Errors bypass batching for immediate delivery
+- **Artifact upload**: Only on completion (not during execution)
+- **Idempotent**: SHA256 deduplication skips unchanged files
 
 ### What Gets Synced
 
 When sync is enabled, Felix automatically uploads:
 
 - **Run metadata** - requirement ID, agent, duration, exit code, timestamps
-- **Events** - Timeline of execution steps (task started, completed, validation, etc.)
-- **Artifacts** - All files from runs/ directory:
+- **Events** - Batched timeline of execution steps (task started, completed, validation, etc.)
+- **Status updates** - Throttled run status changes (mode switches, errors)
+- **Artifacts** - All files from runs/ directory (uploaded on completion):
   - `plan-*.md` - Implementation plans
   - `output.log` - Agent execution logs
   - `diff.patch` - Git diffs of changes
   - `report.md` - Run summaries
   - `backpressure.log` - Test/validation results
 
-### How It Works
+### Technical Architecture
+
+**Plugin-Based Integration:**
+
+The sync-http plugin integrates via Felix's lifecycle hook system:
+
+- Hooks trigger at key agent lifecycle points (iteration start, events, mode changes, completion)
+- Shared state management across hooks (event queue, timers, run tracking)
+- Background flush timer for automatic event batching (5 second intervals)
+- Throttling logic prevents excessive status updates (max 1/second)
 
 **Outbox Queue Pattern:**
 
 1. Agent writes artifacts locally first (always works offline)
-2. Sync plugin queues uploads in `.felix/outbox/*.jsonl`
-3. Automatic retry on network failure (exponential backoff)
-4. Idempotent: unchanged files skip upload (SHA256 check)
-5. Batch upload: all run artifacts in single HTTP request
+2. Plugin hooks capture events in real-time via OnEvent
+3. Events queued in memory, flushed every 5 seconds (or immediately for critical events)
+4. Artifacts uploaded only on run completion via OnRunComplete hook
+5. On network failure: operations queued in `.felix/outbox/*.jsonl`
+6. Automatic retry with exponential backoff (1s, 2s, 4s, 8s, 16s)
+7. Idempotent: unchanged files skip upload (SHA256 check)
 
 **Key Features:**
 
 - Non-blocking: sync failures don't stop agent execution
-- Resilient: automatic retry with exponential backoff (1s, 2s, 4s, 8s, 16s)
+- Real-time events: 5-second batching acts as heartbeat proxy
+- Throttled updates: Status updates limited to 1/second
+- Critical event prioritization: Errors bypass batching for immediate sync
+- Resilient: automatic retry with exponential backoff
 - Efficient: SHA256 deduplication skips unchanged files
 - Eventual consistency: queued uploads delivered when backend available
 
@@ -1319,18 +1357,25 @@ felix run S-0001
 **Expected output when sync is enabled:**
 
 ```
-[18:51:16.212] INFO [sync] Sync enabled → http://localhost:8080
-[18:51:16.431] INFO [sync] Agent registered successfully
+[18:51:16.212] INFO [sync-http] Client initialized: http://localhost:8080
+[18:51:16.431] INFO [sync-http] Run started: 550e8400-e29b-41d4-a716-446655440000
+[18:51:16.432] INFO [sync-http] Event flush timer started (5s interval)
+...
+[18:51:21.555] INFO [sync-http] Flushed 12 events
+[18:51:26.678] INFO [sync-http] Flushed 8 events
+...
+[18:52:45.123] INFO [sync-http] Run completed: 550e8400-e29b-41d4-a716-446655440000 (88.7 seconds)
+[18:52:45.890] INFO [sync-http] Uploading artifacts from: C:\dev\felix\runs\2026-02-18T18-51-16
 ```
 
-If the backend is unavailable, you'll see a warning but the agent continues:
+If the backend is unavailable, you'll see verbose warnings (with `-Verbose` flag) but the agent continues:
 
 ```
-[18:51:16.212] INFO [sync] Sync enabled → http://localhost:8080
-[18:51:16.872] WARN [sync] Agent registration failed (backend may be unavailable): ...
+[18:51:16.212] VERBOSE [sync-http] Client initialized: http://localhost:8080
+[18:51:16.872] VERBOSE [sync-http] Flush failed, events re-queued: The remote server returned an error: (503) Service Unavailable.
 ```
 
-Artifacts will be queued in `.felix/outbox/*.jsonl` and uploaded when the backend becomes available.
+Failed operations are queued in `.felix/outbox/*.jsonl` and uploaded when the backend becomes available.
 
 **Production:**
 

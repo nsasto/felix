@@ -1,5 +1,19 @@
 # Run Artifact Mirroring and Storage Migration
 
+> **⚠️ IMPLEMENTATION STATUS**: This document describes the original migration plan. The actual implementation evolved to use Felix's **hook-based plugin architecture** instead of the IRunReporter interface described here.
+>
+> **Current Implementation**: See [.felix/plugins/sync-http/README.md](../.felix/plugins/sync-http/README.md) for the production plugin architecture with lifecycle hooks (OnPreIteration, OnEvent, OnPostModeSelection, OnBackpressureFailed, OnRunComplete).
+>
+> **Key Differences**:
+>
+> - ✅ Uses plugin hooks instead of IRunReporter interface methods
+> - ✅ Event batching (5s intervals) with background flush timer
+> - ✅ Status throttling (max 1/second) to prevent spam
+> - ✅ Critical events bypass batching for immediate sync
+> - ✅ Artifacts uploaded on completion only (not during execution)
+>
+> This document remains as historical context for architecture decisions.
+
 ## Goal
 
 Enable Felix local runner to push run status and artifacts to the server so teammates can view run history, logs, plans, diffs, and reports in a web UI. Keep Felix local and file-based. Server acts as an audit mirror and interrogation surface.

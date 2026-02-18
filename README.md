@@ -47,12 +47,12 @@ npm run dev
 
 **Optional: Enable server sync for run artifacts**
 
-When enabled, Felix automatically mirrors run artifacts (plans, logs, diffs) to the backend server for:
+When enabled, the **sync-http plugin** automatically mirrors run artifacts to the backend server using:
 
-- Team visibility - view run results in the web UI
-- History preservation - runs persist beyond local cleanup
-- Event streaming - real-time progress updates
-- Centralized monitoring - track all agent activity
+- **Event batching** (5s intervals) - Real-time progress updates via heartbeat proxy
+- **Status throttling** (1/sec max) - Efficient status updates without backend spam
+- **Artifact upload** (on completion) - Full run data synced when work finishes
+- Team visibility, history preservation, centralized monitoring
 
 ```json
 // Add to .felix/config.json:
@@ -62,6 +62,9 @@ When enabled, Felix automatically mirrors run artifacts (plans, logs, diffs) to 
     "provider": "http",
     "base_url": "http://localhost:8080",
     "api_key": "fsk_your_api_key_here" // Required: generate in Settings → API Keys
+  },
+  "plugins": {
+    "enabled": true // Required for sync-http plugin
   }
 }
 ```
@@ -83,11 +86,14 @@ felix run S-0001 --sync  # Enables sync just for this execution
 **When sync is enabled, you'll see:**
 
 ```
-[18:51:16.212] INFO [sync] Sync enabled → http://localhost:8080
-[18:51:16.431] INFO [sync] Agent registered successfully
+[18:51:16.212] INFO [sync-http] Client initialized: http://localhost:8080
+[18:51:16.431] INFO [sync-http] Run started: 550e8400-e29b-41d4-a716-446655440000
+[18:51:21.555] INFO [sync-http] Flushed 12 events
+...
+[18:52:45.123] INFO [sync-http] Run completed (88.7 seconds)
 ```
 
-Artifacts are automatically uploaded to the backend and queued locally if the server is unreachable.
+Events are batched every 5 seconds (heartbeat), artifacts uploaded on completion. Failed operations queue locally in `.felix/outbox/*.jsonl` for automatic retry.
 
 📘 **[Complete setup guide →](HOW_TO_USE.md#run-artifact-sync)**
 

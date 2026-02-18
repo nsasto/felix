@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Tests for sync-http.ps1 plugin
+Tests for sync-http plugin
 
 .DESCRIPTION
 Unit tests for the HttpSync class and related functions
@@ -11,12 +11,12 @@ $ErrorActionPreference = "Stop"
 # Get the directory of this test script
 $TestDir = Split-Path $PSScriptRoot -Parent
 $InterfacePath = Join-Path $TestDir "core\sync-interface.ps1"
-$PluginPath = Join-Path $TestDir "plugins\sync-http.ps1"
+$PluginPath = Join-Path $TestDir "plugins\sync-http\http-client.ps1"
 
 # Source the interface first to make IRunReporter available
 . $InterfacePath
 
-Write-Host "=== Testing sync-http.ps1 ===" -ForegroundColor Cyan
+Write-Host "=== Testing sync-http plugin ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Track test results

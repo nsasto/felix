@@ -192,7 +192,7 @@ Write-Host "  [OK] Test directory created: $TestDir" -ForegroundColor Green
 # Source the sync interface and plugin
 $FelixDir = Join-Path $PSScriptRoot ".."
 $SyncInterfacePath = Join-Path $FelixDir "core\sync-interface.ps1"
-$SyncPluginPath = Join-Path $FelixDir "plugins\sync-http.ps1"
+$SyncPluginPath = Join-Path $FelixDir "plugins\sync-http\http-client.ps1"
 
 if (-not (Test-Path $SyncInterfacePath)) {
     Write-Host "  [ERROR] Sync interface not found: $SyncInterfacePath" -ForegroundColor Red

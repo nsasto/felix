@@ -1,5 +1,19 @@
 # Runs Migration - Step-by-Step Implementation Plan
 
+> **✅ COMPLETED**: This implementation plan has been executed. The production system now uses a **hook-based plugin architecture** (sync-http) instead of the IRunReporter approach described here.
+>
+> **Current Implementation**: See [.felix/plugins/sync-http/README.md](../.felix/plugins/sync-http/README.md) for the active plugin documentation.
+>
+> **What Changed**:
+>
+> - Plugin hooks replace direct IRunReporter calls
+> - Event batching (5s) via background timer instead of immediate sends
+> - Status throttling (1/sec) to reduce backend load
+> - Artifacts upload only on run completion (not during execution)
+> - Plugin manifest (plugin.json) for discovery and configuration
+>
+> This document remains as historical reference for the implementation journey.
+
 **Goal:** Implement agent-to-server run artifact mirroring with minimal disruption to existing functionality.
 
 **Strategy:** Incremental implementation with feature flags, backward compatibility at each step, and continuous testing.

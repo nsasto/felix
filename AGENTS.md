@@ -76,7 +76,19 @@ Run the agent locally with PowerShell (examples):
 
 ### Sync Configuration (Optional)
 
-Enable artifact mirroring to server for team collaboration. **API keys are required when sync is enabled.**
+Enable artifact mirroring to server for team collaboration via the **sync-http plugin**. **API keys are required when sync is enabled.**
+
+**Plugin Architecture:**
+
+The sync system uses Felix's plugin architecture with lifecycle hooks:
+
+- **OnPreIteration** - Initialize run, start event flush timer (5s heartbeat)
+- **OnEvent** - Queue events for batch sending
+- **OnPostModeSelection** - Throttled status updates (max 1/second)
+- **OnBackpressureFailed** - Immediate error sync
+- **OnRunComplete** - Finalize run, upload artifacts
+
+See [.felix/plugins/sync-http/README.md](.felix/plugins/sync-http/README.md) for full details.
 
 **Generate API Key:**
 
@@ -127,6 +139,10 @@ The flag sets `FELIX_SYNC_ENABLED` environment variable for the agent subprocess
 **How It Works:**
 
 - Agent writes artifacts locally first (always)
+- **Event batching**: Events queued and flushed every 5 seconds (heartbeat proxy)
+- **Status throttling**: Max 1 status update per second to prevent spam
+- **Critical events**: Errors/failures bypass batching for immediate sync
+- **Artifact upload**: Only on run completion, not during execution
 - Sync plugin queues uploads in `.felix/outbox/*.jsonl`
 - Automatic retry on network failure (eventual consistency)
 - Idempotent: unchanged files skip upload (SHA256 check)
