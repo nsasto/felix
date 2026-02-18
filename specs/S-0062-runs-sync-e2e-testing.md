@@ -25,7 +25,7 @@ As a Felix developer, I need comprehensive end-to-end tests for run artifact syn
 
 ### Happy Path Test
 
-- [ ] Test script created at `scripts/test-sync-happy-path.ps1`
+- [ ] Test script created at `.felix/tests/test-sync-happy-path.ps1`
 - [ ] Script enables sync via environment variable
 - [ ] Script runs felix agent on test requirement
 - [ ] Verifies outbox directory empty after completion
@@ -39,7 +39,7 @@ As a Felix developer, I need comprehensive end-to-end tests for run artifact syn
 
 ### Idempotency Test
 
-- [ ] Test script created at `scripts/test-sync-idempotency.ps1`
+- [ ] Test script created at `.felix/tests/test-sync-idempotency.ps1`
 - [ ] Runs same requirement twice consecutively
 - [ ] Verifies second run creates new run record
 - [ ] Checks artifact uploads show "skipped" status for unchanged files
@@ -50,7 +50,7 @@ As a Felix developer, I need comprehensive end-to-end tests for run artifact syn
 
 ### Network Failure Test
 
-- [ ] Test script created at `scripts/test-sync-network-failure.ps1`
+- [ ] Test script created at `.felix/tests/test-sync-network-failure.ps1`
 - [ ] Stops backend server before test
 - [ ] Runs felix agent with backend unavailable
 - [ ] Verifies outbox contains queued .jsonl files

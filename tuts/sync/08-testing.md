@@ -71,7 +71,7 @@ Test-Path "storage/runs/$runId/plan-S-0000.md" | Should -Be $true
 
 ### 1. Happy Path Test
 
-**File:** `scripts/test-sync-happy-path.ps1`
+**File:** `.felix/tests/test-sync-happy-path.ps1`
 
 **What it tests:**
 
@@ -88,7 +88,7 @@ Test-Path "storage/runs/$runId/plan-S-0000.md" | Should -Be $true
 
 ### 2. Network Failure Test
 
-**File:** `scripts/test-sync-network-failure.ps1`
+**File:** `.felix/tests/test-sync-network-failure.ps1`
 
 **What it tests:**
 
@@ -128,7 +128,7 @@ $queue.Count | Should -Be 0
 
 ### 3. Idempotency Test
 
-**File:** `scripts/test-sync-idempotency.ps1`
+**File:** `.felix/tests/test-sync-idempotency.ps1`
 
 **What it tests:**
 
@@ -163,7 +163,7 @@ $count | Should -Be "1"
 
 ### 4. Concurrent Upload Test
 
-**File:** `scripts/test-sync-concurrent.ps1`
+**File:** `.felix/tests/test-sync-concurrent.ps1`
 
 **What it tests:**
 
@@ -444,7 +444,7 @@ jobs:
 
       - name: Run E2E tests
         run: |
-          pwsh scripts/test-sync-all.ps1
+          pwsh .felix/tests/test-sync-all.ps1
 ```
 
 **Every commit runs tests.** Catches regressions early.
