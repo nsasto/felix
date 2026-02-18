@@ -415,6 +415,8 @@ try {
     # Register agent with sync service (non-blocking, best-effort)
     if ($isSyncEnabled) {
         try {
+            Emit-Log -Level "debug" -Message "Starting agent registration..." -Component "sync"
+            
             # Detect platform dynamically
             $platform = if ($IsWindows -or $env:OS -match "Windows") {
                 "windows"
@@ -494,8 +496,16 @@ try {
             Emit-Log -Level "info" -Message "Agent registered successfully" -Component "sync"
         }
         catch {
-            # Handle registration failures gracefully - log warning but continue execution
-            Emit-Log -Level "warn" -Message "Agent registration failed: $_" -Component "sync"
+            # Handle registration failures gracefully - show error but continue execution
+            $errorMsg = $_.Exception.Message
+            Emit-Log -Level "error" -Message "Agent registration failed: $errorMsg" -Component "sync"
+            
+            # Show prominent warning to user
+            Write-Host ""
+            Write-Host "WARNING: Agent registration failed" -ForegroundColor Yellow
+            Write-Host "  Error: $errorMsg" -ForegroundColor Yellow
+            Write-Host "  Continuing without sync - runs will be local only" -ForegroundColor Yellow
+            Write-Host ""
         }
     }
 

@@ -108,8 +108,16 @@ class HttpSync : IRunReporter {
             $errorMsg = "Sync plugin configuration error: $($configErrors -join '; ')"
             $this.WriteLog("ERROR", $errorMsg)
             $this.WriteLog("ERROR", "Sync requests will be queued locally but will fail to send until configuration is fixed.")
-            $this.WriteLog("ERROR", "Required configuration: { `"base_url`": `"http://your-server:8080`" } in .felix/config.json under sync.provider_config")
+            $this.WriteLog("ERROR", "Required configuration: { `"base_url`": `"http://your-server:8080`", `"api_key`": `"fsk_...`" } in .felix/config.json under sync")
             $this.IsConfigValid = $false
+            
+            # Emit visible error to console
+            if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                Emit-Log -Level "error" -Message "Sync configuration invalid: $($configErrors -join '; ')" -Component "sync" | Out-Null
+            }
+            else {
+                Write-Warning "Sync configuration invalid: $($configErrors -join '; ')"
+            }
         }
         else {
             $this.IsConfigValid = $true
@@ -174,7 +182,9 @@ class HttpSync : IRunReporter {
                 body     = $agentInfo
             }
             
+            $this.WriteLog("INFO", "Queueing agent registration request")
             $this.QueueRequest($request)
+            $this.WriteLog("INFO", "Attempting to send agent registration")
             $this.TrySendOutbox()
         }
         catch {
@@ -515,6 +525,13 @@ class HttpSync : IRunReporter {
     hidden [void] TrySendOutbox() {
         # Check if config is valid before attempting to send
         if (-not $this.IsConfigValid) {
+            # Emit visible warning on first failure
+            if (-not $script:SyncConfigWarningShown) {
+                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                    Emit-Log -Level "warn" -Message "Sync configuration invalid - requests queued locally but not sent" -Component "sync" | Out-Null
+                }
+                $script:SyncConfigWarningShown = $true
+            }
             # Silently skip sending - requests remain queued for when config is fixed
             return
         }
@@ -702,6 +719,14 @@ class HttpSync : IRunReporter {
             }
             
             $this.WriteLog("ERROR", "Sync request failed: $method $endpoint - $errorMsg")
+            
+            # Emit visible error for critical operations like agent registration
+            if ($endpoint -eq "/api/agents/register") {
+                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                    Emit-Log -Level "error" -Message "Agent registration HTTP request failed: $errorMsg" -Component "sync" | Out-Null
+                }
+            }
+            
             return @{
                 Success    = $false
                 StatusCode = $statusCode
