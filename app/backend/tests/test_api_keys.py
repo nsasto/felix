@@ -640,7 +640,7 @@ class TestApiKeyIntegration:
         assert response.status_code == 401
         assert "Invalid API key" in response.json()["detail"]
 
-    def test_sync_endpoint_allows_no_api_key(self, client):
+    def test_sync_endpoint_requires_api_key(self, client):
         """Sync endpoint allows requests without API key (for dev mode)."""
         from main import app
 
@@ -669,4 +669,5 @@ class TestApiKeyIntegration:
 
         # Should not be 401
         assert response.status_code != 401
+
 
