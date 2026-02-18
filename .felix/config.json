@@ -1,42 +1,46 @@
-{
-  "version": "0.1.0",
-  "executor": {
-    "mode": "local",
-    "max_iterations": 100,
-    "default_mode": "planning",
-    "commit_on_complete": true,
-    "_note": "For testing without commits, use -NoCommit flag in felix-agent.ps1"
-  },
-  "agent": {
-    "agent_id": "39535ce5-e344-5a8c-9f3f-44776b998939"
-  },
-  "paths": {
-    "specs": "specs",
-    "agents": "AGENTS.md",
-    "runs": "runs"
-  },
-  "backpressure": {
-    "enabled": true,
-    "commands": [],
-    "max_retries": 3
-  },
-  "plugins": {
-    "enabled": false,
-    "discovery_path": ".felix/plugins", 
-    "api_version": "v1",
-    "disabled": [
-      "prompt-enhancer",
-      "metrics-collector", 
-      "slack-notifier"
-    ],
-    "state_retention_days": 7,
-    "circuit_breaker_max_failures": 3,
-    "commands": []
-  },
-  "sync": {
-    "enabled": false,
-    "provider": "fastapi",
-    "base_url": "http://localhost:8080",
-    "api_key": "fsk_c0b75cfbe5035d290b1237a51525546bd524ac96eb123e09b73415440d1f45fe"
-  }
+﻿{
+    "version":  "0.1.0",
+    "executor":  {
+                     "mode":  "local",
+                     "max_iterations":  100,
+                     "default_mode":  "planning",
+                     "commit_on_complete":  true,
+                     "_note":  "For testing without commits, use -NoCommit flag in felix-agent.ps1"
+                 },
+    "agent":  {
+                  "agent_id":  "39535ce5-e344-5a8c-9f3f-44776b998939"
+              },
+    "paths":  {
+                  "specs":  "specs",
+                  "agents":  "AGENTS.md",
+                  "runs":  "runs"
+              },
+    "backpressure":  {
+                         "enabled":  true,
+                         "commands":  [
+
+                                      ],
+                         "max_retries":  3
+                     },
+    "plugins":  {
+                    "enabled":  false,
+                    "discovery_path":  ".felix/plugins",
+                    "api_version":  "v1",
+                    "disabled":  [
+                                     "prompt-enhancer",
+                                     "metrics-collector",
+                                     "slack-notifier"
+                                 ],
+                    "state_retention_days":  7,
+                    "circuit_breaker_max_failures":  3,
+                    "commands":  [
+
+                                 ]
+                },
+    "sync":  {
+                 "enabled":  true,
+                 "provider":  "fastapi",
+                 "base_url":  "http://localhost:8080",
+                 "api_key":  "fsk_c0b75cfbe5035d290b1237a51525546bd524ac96eb123e09b73415440d1f45fe"
+             }
 }

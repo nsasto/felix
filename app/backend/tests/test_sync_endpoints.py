@@ -156,13 +156,17 @@ class TestAgentRegistrationModel:
     def test_valid_agent_registration(self):
         """AgentRegistration accepts all required fields"""
         model = AgentRegistration(
-            agent_id="agent-001",
+            agent_id=1,
+            agent_name="test-agent",
+            pid=12345,
             hostname="workstation-1",
-            platform="windows",
-            version="0.8.0",
+            started_at="2026-02-18T10:00:00Z",
         )
 
-        assert model.agent_id == "agent-001"
+        assert model.agent_id == 1
+        assert model.agent_name == "test-agent"
+        assert model.pid == 12345
+        assert model.hostname == "workstation-1"
         assert model.hostname == "workstation-1"
         assert model.platform == "windows"
         assert model.version == "0.8.0"
@@ -597,8 +601,9 @@ class TestRunCreationEndpoint:
         )
         app.dependency_overrides[get_db] = lambda: fake_db
 
+        # Use project-001 to match mock API key, but database will return None
         response = client.post(
-            "/api/runs", json={"agent_id": "agent-001", "project_id": "unknown-project"}
+            "/api/runs", json={"agent_id": "agent-001", "project_id": "project-001"}
         )
 
         assert response.status_code == 404
@@ -615,7 +620,9 @@ class TestEventAppendEndpoint:
 
     def test_append_events_success(self, client):
         """POST /api/runs/{run_id}/events appends events"""
-        fake_db = FakeDatabase(fetch_one_results=[{"id": "run-001"}])
+        fake_db = FakeDatabase(
+            fetch_one_results=[{"id": "run-001", "project_id": "project-001"}]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
 
         response = client.post(
@@ -649,7 +656,9 @@ class TestEventAppendEndpoint:
 
     def test_append_events_empty_list(self, client):
         """POST /api/runs/{run_id}/events handles empty event list"""
-        fake_db = FakeDatabase(fetch_one_results=[{"id": "run-001"}])
+        fake_db = FakeDatabase(
+            fetch_one_results=[{"id": "run-001", "project_id": "project-001"}]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
 
         response = client.post("/api/runs/run-001/events", json=[])
@@ -670,7 +679,9 @@ class TestRunCompletionEndpoint:
 
     def test_finish_run_success(self, client):
         """POST /api/runs/{run_id}/finish updates run and inserts event"""
-        fake_db = FakeDatabase(fetch_one_results=[{"id": "run-001"}])
+        fake_db = FakeDatabase(
+            fetch_one_results=[{"id": "run-001", "project_id": "project-001"}]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
 
         response = client.post(
@@ -685,7 +696,9 @@ class TestRunCompletionEndpoint:
 
     def test_finish_run_with_failure(self, client):
         """POST /api/runs/{run_id}/finish handles failed status"""
-        fake_db = FakeDatabase(fetch_one_results=[{"id": "run-002"}])
+        fake_db = FakeDatabase(
+            fetch_one_results=[{"id": "run-002", "project_id": "project-001"}]
+        )
         app.dependency_overrides[get_db] = lambda: fake_db
 
         response = client.post(
@@ -826,7 +839,7 @@ class TestFileListEndpoint:
     def test_list_files_success(self, client):
         """GET /api/runs/{run_id}/files returns list ordered by kind, path"""
         fake_db = FakeDatabase(
-            fetch_one_results=[{"id": "run-001"}],
+            fetch_one_results=[{"id": "run-001", "project_id": "project-001"}],
             fetch_all_result=[
                 {
                     "path": "output.json",
@@ -881,11 +894,14 @@ class TestFileDownloadEndpoint:
         """GET /api/runs/{run_id}/files/{path} streams content with headers"""
         fake_db = FakeDatabase(
             fetch_one_results=[
+                # First query: verify run exists and get project_id
+                {"id": "run-001", "project_id": "project-001"},
+                # Second query: get file record
                 {
                     "storage_key": "runs/project-001/run-001/output.json",
                     "content_type": "application/json",
                     "size_bytes": 17,
-                }
+                },
             ]
         )
         fake_storage = FakeStorage(exists_result=True, get_result=b"File content here")
@@ -901,7 +917,14 @@ class TestFileDownloadEndpoint:
 
     def test_download_file_not_in_db(self, client):
         """GET /api/runs/{run_id}/files/{path} returns 404 when file not in DB"""
-        fake_db = FakeDatabase(fetch_one_results=[None])
+        fake_db = FakeDatabase(
+            fetch_one_results=[
+                # First query: verify run exists
+                {"id": "run-001", "project_id": "project-001"},
+                # Second query: file not found
+                None,
+            ]
+        )
         fake_storage = FakeStorage()
         app.dependency_overrides[get_db] = lambda: fake_db
         app.dependency_overrides[get_artifact_storage] = lambda: fake_storage
@@ -915,11 +938,14 @@ class TestFileDownloadEndpoint:
         """GET /api/runs/{run_id}/files/{path} returns 404 when file missing from storage"""
         fake_db = FakeDatabase(
             fetch_one_results=[
+                # First query: verify run exists
+                {"id": "run-001", "project_id": "project-001"},
+                # Second query: get file record
                 {
                     "storage_key": "runs/project-001/run-001/missing.txt",
                     "content_type": "text/plain",
                     "size_bytes": 100,
-                }
+                },
             ]
         )
         fake_storage = FakeStorage(exists_result=False)
@@ -943,7 +969,7 @@ class TestEventQueryEndpoint:
     def test_list_events_success(self, client):
         """GET /api/runs/{run_id}/events returns events in timeline order"""
         fake_db = FakeDatabase(
-            fetch_one_results=[{"id": "run-001"}],
+            fetch_one_results=[{"id": "run-001", "project_id": "project-001"}],
             fetch_all_result=[
                 {
                     "id": 1,
@@ -979,7 +1005,7 @@ class TestEventQueryEndpoint:
     def test_list_events_pagination_after(self, client):
         """GET /api/runs/{run_id}/events supports after parameter"""
         fake_db = FakeDatabase(
-            fetch_one_results=[{"id": "run-001"}],
+            fetch_one_results=[{"id": "run-001", "project_id": "project-001"}],
             fetch_all_result=[
                 {
                     "id": 11,
@@ -1014,7 +1040,8 @@ class TestEventQueryEndpoint:
             for i in range(1, 6)  # 5 events (limit+1)
         ]
         fake_db = FakeDatabase(
-            fetch_one_results=[{"id": "run-001"}], fetch_all_result=events
+            fetch_one_results=[{"id": "run-001", "project_id": "project-001"}],
+            fetch_all_result=events,
         )
         app.dependency_overrides[get_db] = lambda: fake_db
 
@@ -1187,11 +1214,14 @@ class TestStorageErrors:
         """GET /api/runs/{run_id}/files/{path} returns 503 when storage errors occur."""
         fake_db = FakeDatabase(
             fetch_one_results=[
+                # First query: verify run exists
+                {"id": "run-001", "project_id": "project-001"},
+                # Second query: get file record
                 {
                     "storage_key": "runs/project-001/run-001/test.txt",
                     "content_type": "text/plain",
                     "size_bytes": 100,
-                }
+                },
             ]
         )
 

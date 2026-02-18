@@ -232,3 +232,6 @@ clean_droid_and_ignore.ps1
 .felix/state.json
 .felix/outbox
 .felix/requirements.json
+
+# Felix local config (contains API key)
+.felix/config.json
