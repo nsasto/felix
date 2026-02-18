@@ -167,9 +167,7 @@ class TestAgentRegistrationModel:
         assert model.agent_name == "test-agent"
         assert model.pid == 12345
         assert model.hostname == "workstation-1"
-        assert model.hostname == "workstation-1"
-        assert model.platform == "windows"
-        assert model.version == "0.8.0"
+        assert model.started_at == "2026-02-18T10:00:00Z"
 
     def test_agent_registration_missing_fields(self):
         """AgentRegistration raises ValidationError when required fields missing"""

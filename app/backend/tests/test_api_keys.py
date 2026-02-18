@@ -641,8 +641,9 @@ class TestApiKeyIntegration:
         assert "Invalid API key" in response.json()["detail"]
 
     def test_sync_endpoint_requires_api_key(self, client):
-        """Sync endpoint allows requests without API key (for dev mode)."""
+        """Sync endpoint requires API key and returns 401 when none provided."""
         from main import app
+        from routers.sync import verify_api_key
 
         class FakeDB:
             async def fetch_one(self, query, values=None):
@@ -656,18 +657,22 @@ class TestApiKeyIntegration:
                 return None
 
         app.dependency_overrides[get_db] = lambda: FakeDB()
+        # Override to explicitly return None (no API key)
+        app.dependency_overrides[verify_api_key] = lambda: None
 
         # Reset rate limiter
         from middleware.rate_limit import reset_rate_limiter
 
         reset_rate_limiter()
 
-        # No Authorization header
-        response = client.post(
-            "/api/runs", json={"agent_id": "agent-001", "project_id": "project-001"}
-        )
+        try:
+            # No Authorization header should result in 401
+            response = client.post(
+                "/api/runs", json={"agent_id": "agent-001", "project_id": "project-001"}
+            )
 
-        # Should not be 401
-        assert response.status_code != 401
-
-
+            # Should return 401 when no API key provided
+            assert response.status_code == 401
+            assert "API key required" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
