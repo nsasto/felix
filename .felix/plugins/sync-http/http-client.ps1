@@ -770,9 +770,28 @@ class HttpSync : IRunReporter {
             if ($_.Exception.Response) {
                 try {
                     $statusCode = [int]$_.Exception.Response.StatusCode
+                    
+                    # Try to read response body for detailed error message
+                    $responseStream = $_.Exception.Response.GetResponseStream()
+                    if ($responseStream) {
+                        $reader = New-Object System.IO.StreamReader($responseStream)
+                        $responseBody = $reader.ReadToEnd()
+                        $reader.Close()
+                        
+                        # Try to parse as JSON and extract detail field
+                        try {
+                            $errorJson = $responseBody | ConvertFrom-Json
+                            if ($errorJson.detail) {
+                                $errorMsg = $errorJson.detail
+                            }
+                        }
+                        catch {
+                            # Not JSON or no detail field - keep original error message
+                        }
+                    }
                 }
                 catch {
-                    # Ignore status code extraction failures
+                    # Ignore response reading failures - keep original error message
                 }
             }
             
