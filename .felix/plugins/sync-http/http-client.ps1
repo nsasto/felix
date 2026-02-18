@@ -10,10 +10,12 @@ Uses an outbox queue pattern with automatic retry on network failures for eventu
 # Source the sync interface for IRunReporter base class
 # Handle different script sourcing scenarios (direct execution vs dot-sourcing)
 $_syncFastapiScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
-$_syncInterfacePath = Join-Path (Split-Path $_syncFastapiScriptDir -Parent) "core\sync-interface.ps1"
+# Go up two levels: sync-http/ -> plugins/ -> .felix/
+$_felixDir = Split-Path (Split-Path $_syncFastapiScriptDir -Parent) -Parent
+$_syncInterfacePath = Join-Path $_felixDir "core\sync-interface.ps1"
 if (-not (Test-Path $_syncInterfacePath)) {
     # Fallback: try relative to current location
-    $_syncInterfacePath = Join-Path $PSScriptRoot "..\core\sync-interface.ps1"
+    $_syncInterfacePath = Join-Path $PSScriptRoot "..\..\core\sync-interface.ps1"
 }
 . $_syncInterfacePath
 
