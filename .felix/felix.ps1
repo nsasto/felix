@@ -1944,7 +1944,7 @@ function Invoke-Setup {
         $config.sync | Add-Member -NotePropertyName base_url -NotePropertyValue "http://localhost:8080" -Force
     }
     if (-not $config.sync.provider) {
-        $config.sync | Add-Member -NotePropertyName provider -NotePropertyValue "fastapi" -Force
+        $config.sync | Add-Member -NotePropertyName provider -NotePropertyValue "http" -Force
     }
     if (-not ($config.sync.PSObject.Properties.Name -contains "enabled")) {
         $config.sync | Add-Member -NotePropertyName enabled -NotePropertyValue $false -Force

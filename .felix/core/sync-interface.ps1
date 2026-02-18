@@ -150,7 +150,7 @@ function Get-RunReporter {
     Path to the .felix directory (optional, defaults to script root parent)
     
     .OUTPUTS
-    IRunReporter instance (NoOpReporter or FastApiReporter)
+    IRunReporter instance (NoOpReporter or HttpSync)
     #>
     [CmdletBinding()]
     param(
@@ -255,12 +255,13 @@ For development without sync, set sync.enabled=false in .felix/config.json
     }
     
     # Determine which plugin to load
-    $provider = if ($syncConfig.provider) { $syncConfig.provider } else { "fastapi" }
+    $provider = if ($syncConfig.provider) { $syncConfig.provider } else { "http" }
     
     # Load the plugin based on provider
     switch ($provider) {
-        "fastapi" {
-            $pluginPath = Join-Path $FelixDir "plugins\sync-fastapi.ps1"
+        { $_ -in @("http", "fastapi") } {
+            # Support both "http" (new) and "fastapi" (legacy) for backward compatibility
+            $pluginPath = Join-Path $FelixDir "plugins\sync-http.ps1"
             if (-not (Test-Path $pluginPath)) {
                 Write-Warning "Sync plugin not found at $pluginPath - falling back to NoOpReporter"
                 return [NoOpReporter]::new()

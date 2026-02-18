@@ -69,14 +69,14 @@ $reporter.StartRun($metadata)  # Always works
 
 The NoOpReporter lets us write clean code that always works.
 
-## The FastAPI Plugin
+## The HTTP Sync Plugin
 
-Now the real implementation: `.felix/plugins/sync-fastapi.ps1`
+Now the real implementation: `.felix/plugins/sync-http.ps1`
 
 ### Class Structure
 
 ```powershell
-class FastApiReporter : IRunReporter {
+class HttpSync : IRunReporter {
     [string]$BaseUrl          # "http://localhost:8080"
     [string]$ApiKey           # API key (optional)
     [string]$OutboxPath       # ".felix/outbox"
@@ -84,7 +84,7 @@ class FastApiReporter : IRunReporter {
     [bool]$IsConfigValid      # Is config complete?
 
     # Constructor validates config, creates outbox directory
-    FastApiReporter([hashtable]$config, [string]$felixDir) { ... }
+    HttpSync([hashtable]$config, [string]$felixDir) { ... }
 
     # IRunReporter interface implementation
     [void] RegisterAgent([hashtable]$agentInfo) { ... }
@@ -322,8 +322,8 @@ function Get-RunReporter {
         }
     }
 
-    # Load the FastAPI plugin
-    . (Join-Path $FelixDir "plugins\sync-fastapi.ps1")
+    # Load the sync plugin
+    . (Join-Path $FelixDir "plugins\sync-http.ps1")
     return New-PluginReporter -Config $finalConfig -FelixDir $FelixDir
 }
 ```

@@ -60,9 +60,9 @@ function Get-ContentType {
 
 #endregion
 
-#region FastAPI Reporter Implementation
+#region HTTP Sync Implementation
 
-class FastApiReporter : IRunReporter {
+class HttpSync : IRunReporter {
     [string]$BaseUrl
     [string]$ApiKey
     [string]$OutboxPath
@@ -71,7 +71,7 @@ class FastApiReporter : IRunReporter {
     [int]$MaxLogSizeBytes = 5242880  # 5MB max log size
     [bool]$IsConfigValid = $false
     
-    FastApiReporter([hashtable]$config, [string]$felixDir) {
+    HttpSync([hashtable]$config, [string]$felixDir) {
         $this.FelixDir = $felixDir
         $this.OutboxPath = Join-Path $felixDir "outbox"
         $this.LogPath = Join-Path $felixDir "sync.log"
@@ -127,7 +127,7 @@ class FastApiReporter : IRunReporter {
         }
         
         if ($this.IsConfigValid) {
-            Write-Verbose "FastApiReporter initialized - BaseUrl: $($this.BaseUrl)"
+            Write-Verbose "HttpSync initialized - BaseUrl: $($this.BaseUrl)"
         }
     }
     
@@ -861,7 +861,7 @@ class FastApiReporter : IRunReporter {
 function New-PluginReporter {
     <#
     .SYNOPSIS
-    Create a new FastApiReporter instance
+    Create a new HttpSync instance
     
     .PARAMETER Config
     Hashtable containing base_url and api_key configuration
@@ -870,7 +870,7 @@ function New-PluginReporter {
     Path to the .felix directory
     
     .OUTPUTS
-    FastApiReporter instance
+    HttpSync instance
     #>
     [CmdletBinding()]
     param(
@@ -881,7 +881,7 @@ function New-PluginReporter {
         [string]$FelixDir
     )
     
-    return [FastApiReporter]::new($Config, $FelixDir)
+    return [HttpSync]::new($Config, $FelixDir)
 }
 
 #endregion

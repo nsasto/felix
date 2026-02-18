@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-Tests for sync-fastapi.ps1 plugin
+Tests for sync-http.ps1 plugin
 
 .DESCRIPTION
-Unit tests for the FastApiReporter class and related functions
+Unit tests for the HttpSync class and related functions
 #>
 
 $ErrorActionPreference = "Stop"
@@ -11,12 +11,12 @@ $ErrorActionPreference = "Stop"
 # Get the directory of this test script
 $TestDir = Split-Path $PSScriptRoot -Parent
 $InterfacePath = Join-Path $TestDir "core\sync-interface.ps1"
-$PluginPath = Join-Path $TestDir "plugins\sync-fastapi.ps1"
+$PluginPath = Join-Path $TestDir "plugins\sync-http.ps1"
 
 # Source the interface first to make IRunReporter available
 . $InterfacePath
 
-Write-Host "=== Testing sync-fastapi.ps1 ===" -ForegroundColor Cyan
+Write-Host "=== Testing sync-http.ps1 ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Track test results
@@ -65,23 +65,23 @@ try {
     Test-Assert ((Get-ContentType -Path "test.unknown") -eq "application/octet-stream") "Returns application/octet-stream for unknown extensions"
     Write-Host ""
 
-    # Test 3: FastApiReporter instantiation
-    Write-Host "Test 3: FastApiReporter instantiation"
+    # Test 3: HttpSync instantiation
+    Write-Host "Test 3: HttpSync instantiation"
     $config = @{
         base_url = "http://localhost:8080"
         api_key  = "test-key"
     }
     
     try {
-        $reporter = [FastApiReporter]::new($config, $TestTempDir)
-        Test-Assert $true "FastApiReporter created successfully"
+        $reporter = [HttpSync]::new($config, $TestTempDir)
+        Test-Assert $true "HttpSync created successfully"
         Test-Assert ($reporter.BaseUrl -eq "http://localhost:8080") "BaseUrl property set correctly"
         Test-Assert ($reporter.ApiKey -eq "test-key") "ApiKey property set correctly"
         Test-Assert ($reporter.OutboxPath -eq (Join-Path $TestTempDir "outbox")) "OutboxPath property set correctly"
         Test-Assert (Test-Path $reporter.OutboxPath) "Outbox directory created"
     }
     catch {
-        Test-Assert $false "FastApiReporter created successfully - Error: $_"
+        Test-Assert $false "HttpSync created successfully - Error: $_"
     }
     Write-Host ""
 
@@ -90,7 +90,7 @@ try {
     try {
         $reporter2 = New-PluginReporter -Config $config -FelixDir $TestTempDir
         Test-Assert $true "New-PluginReporter returns reporter"
-        Test-Assert ($reporter2.GetType().Name -eq "FastApiReporter") "Returns FastApiReporter type"
+        Test-Assert ($reporter2.GetType().Name -eq "HttpSync") "Returns HttpSync type"
     }
     catch {
         Test-Assert $false "New-PluginReporter returns reporter - Error: $_"
@@ -105,7 +105,7 @@ try {
         base_url = "http://localhost:8080"
         api_key  = $null
     }
-    $reporter5 = [FastApiReporter]::new($config5, (Split-Path $testOutboxDir -Parent))
+    $reporter5 = [HttpSync]::new($config5, (Split-Path $testOutboxDir -Parent))
     $reporter5.OutboxPath = $testOutboxDir
     New-Item -ItemType Directory -Path $testOutboxDir -Force | Out-Null
     
@@ -131,7 +131,7 @@ try {
     Write-Host "Test 6: StartRun generates UUID"
     $testOutboxDir6 = Join-Path $TestTempDir "outbox-test6"
     New-Item -ItemType Directory -Path $testOutboxDir6 -Force | Out-Null
-    $reporter6 = [FastApiReporter]::new($config5, (Split-Path $testOutboxDir6 -Parent))
+    $reporter6 = [HttpSync]::new($config5, (Split-Path $testOutboxDir6 -Parent))
     $reporter6.OutboxPath = $testOutboxDir6
     
     $metadata = @{
@@ -148,7 +148,7 @@ try {
     Write-Host "Test 7: AppendToRunOutbox creates run-specific files"
     $testOutboxDir7 = Join-Path $TestTempDir "outbox-test7"
     New-Item -ItemType Directory -Path $testOutboxDir7 -Force | Out-Null
-    $reporter7 = [FastApiReporter]::new($config5, (Split-Path $testOutboxDir7 -Parent))
+    $reporter7 = [HttpSync]::new($config5, (Split-Path $testOutboxDir7 -Parent))
     $reporter7.OutboxPath = $testOutboxDir7
     
     $event = @{
@@ -183,7 +183,7 @@ try {
     Write-Host "Test 9: UploadArtifact handles missing files"
     $testOutboxDir9 = Join-Path $TestTempDir "outbox-test9"
     New-Item -ItemType Directory -Path $testOutboxDir9 -Force | Out-Null
-    $reporter9 = [FastApiReporter]::new($config5, (Split-Path $testOutboxDir9 -Parent))
+    $reporter9 = [HttpSync]::new($config5, (Split-Path $testOutboxDir9 -Parent))
     $reporter9.OutboxPath = $testOutboxDir9
     
     try {
@@ -206,7 +206,7 @@ try {
     
     $testOutboxDir10 = Join-Path $TestTempDir "outbox-test10"
     New-Item -ItemType Directory -Path $testOutboxDir10 -Force | Out-Null
-    $reporter10 = [FastApiReporter]::new($config5, (Split-Path $testOutboxDir10 -Parent))
+    $reporter10 = [HttpSync]::new($config5, (Split-Path $testOutboxDir10 -Parent))
     $reporter10.OutboxPath = $testOutboxDir10
     
     $reporter10.UploadRunFolder("test-run-10", $testRunFolder)

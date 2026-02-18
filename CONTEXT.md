@@ -154,7 +154,7 @@ Felix is a plan-driven executor for autonomous software delivery. It transforms 
   - `core/` - Core PowerShell modules & interfaces
     - `sync-interface.ps1` - Abstract sync reporter interface
   - `plugins/` - Plugin system (metrics, slack, sync, prompt-enhancer)
-    - `sync-fastapi.ps1` - FastAPI sync implementation
+    - `sync-http.ps1` - HTTP sync implementation
   - `policies/` - Allowlist/denylist for agent operations
   - `prompts/` - LLM prompt templates (planning.md, building.md, etc.)
   - `tests/` - Agent test files
@@ -222,7 +222,7 @@ Setup: `.\scripts\setup-db.ps1`
 Agent-to-server artifact mirroring via outbox pattern:
 
 - **Outbox Queue:** `.felix/outbox/*.jsonl` with automatic retry
-- **Plugin System:** Pluggable sync providers (fastapi, custom)
+- **Plugin System:** Pluggable sync providers (http, custom)
 - **Idempotent:** SHA256 manifest ensures unchanged files skip upload
 - **Batch Upload:** All run artifacts in single HTTP request (~90% fewer requests)
 - **Automatic Compression:** gzip via HTTP Accept-Encoding header

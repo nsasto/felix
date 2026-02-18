@@ -174,7 +174,7 @@ Write-Host "  [OK] Test directory created: $TestDir" -ForegroundColor Green
 # Source the sync interface and plugin
 $FelixDir = Join-Path $PSScriptRoot ".."
 $SyncInterfacePath = Join-Path $FelixDir "core\sync-interface.ps1"
-$SyncPluginPath = Join-Path $FelixDir "plugins\sync-fastapi.ps1"
+$SyncPluginPath = Join-Path $FelixDir "plugins\sync-http.ps1"
 
 if (-not (Test-Path $SyncInterfacePath)) {
     Write-Host "  [ERROR] Sync interface not found: $SyncInterfacePath" -ForegroundColor Red
@@ -233,7 +233,7 @@ catch {
 
 # Initialize reporter
 try {
-    $reporter = [FastApiReporter]::new($config, (Join-Path $TestDir ".felix"))
+    $reporter = [HttpSync]::new($config, (Join-Path $TestDir ".felix"))
     $reporter.OutboxPath = $OutboxDir
     Write-Host "  [OK] Reporter initialized" -ForegroundColor Green
 }

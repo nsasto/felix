@@ -39,7 +39,7 @@ This guide covers operational procedures for the Felix Run Artifact Sync feature
 | Component        | Description                  | Port |
 | ---------------- | ---------------------------- | ---- |
 | Backend API      | FastAPI sync endpoints       | 8080 |
-| CLI Plugin       | PowerShell sync-fastapi.ps1  | N/A  |
+| CLI Plugin       | PowerShell sync-http.ps1     | N/A  |
 | PostgreSQL       | Run metadata and events      | 5432 |
 | Artifact Storage | File system or cloud storage | N/A  |
 | Frontend         | React artifact viewer        | 3000 |
@@ -130,7 +130,7 @@ export FELIX_SYNC_KEY=fsk_your_api_key_here
 {
   "sync": {
     "enabled": true,
-    "provider": "fastapi",
+    "provider": "http",
     "base_url": "https://felix.example.com",
     "api_key": "fsk_your_api_key_here"
   }

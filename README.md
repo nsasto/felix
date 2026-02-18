@@ -59,7 +59,7 @@ When enabled, Felix automatically mirrors run artifacts (plans, logs, diffs) to 
 {
   "sync": {
     "enabled": true,
-    "provider": "fastapi",
+    "provider": "http",
     "base_url": "http://localhost:8080",
     "api_key": "fsk_your_api_key_here" // Required: generate in Settings → API Keys
   }
@@ -153,7 +153,7 @@ your-project/
 │   ├── core/                      # Core modules & interfaces
 │   │   └── sync-interface.ps1    # Abstract sync plugin interface
 │   ├── plugins/                   # Plugin system
-│   │   └── sync-fastapi.ps1      # FastAPI sync implementation
+│   │   └── sync-http.ps1         # HTTP sync implementation
 │   └── prompts/                   # Mode-specific LLM prompts
 │       ├── planning.md
 │       └── building.md

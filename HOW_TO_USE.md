@@ -59,7 +59,7 @@ A Felix enabled repository typically looks like this:
 │   ├── core/
 │   │   └── sync-interface.ps1    # Sync plugin interface
 │   ├── plugins/
-│   │   └── sync-fastapi.ps1      # FastAPI sync implementation
+│   │   └── sync-http.ps1         # HTTP sync implementation
 │   ├── prompts/
 │   │   ├── planning.md
 │   │   └── building.md
@@ -1271,7 +1271,7 @@ When sync is enabled, Felix automatically uploads:
 {
   "sync": {
     "enabled": true,
-    "provider": "fastapi",
+    "provider": "http",
     "base_url": "http://localhost:8080",
     "api_key": "fsk_your_api_key_here" // Required: generate in Settings → API Keys
   }

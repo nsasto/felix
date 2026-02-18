@@ -90,7 +90,7 @@ The agent never waits. The agent never fails because of sync. The agent doesn't 
 │                 │                                    │
 │                 ▼                                    │
 │  ┌──────────────────────────────────────┐          │
-│  │  Sync Plugin (sync-fastapi.ps1)       │          │
+│  │  Sync Plugin (sync-http.ps1)          │          │
 │  │                                       │          │
 │  │  • Queue request → .felix/outbox/*.jsonl │       │
 │  │  • SHA256 hash artifacts               │          │

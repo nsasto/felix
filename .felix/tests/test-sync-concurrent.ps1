@@ -184,7 +184,7 @@ Write-Host "  [OK] Test directory created: $TestDir" -ForegroundColor Green
 # Verify sync modules exist
 $FelixDir = Join-Path $PSScriptRoot ".."
 $SyncInterfacePath = Join-Path $FelixDir "core\sync-interface.ps1"
-$SyncPluginPath = Join-Path $FelixDir "plugins\sync-fastapi.ps1"
+$SyncPluginPath = Join-Path $FelixDir "plugins\sync-http.ps1"
 
 if (-not (Test-Path $SyncInterfacePath)) {
     Write-Host "  [ERROR] Sync interface not found: $SyncInterfacePath" -ForegroundColor Red
@@ -346,7 +346,7 @@ $AgentJobScript = {
             api_key  = $null
         }
         
-        $reporter = [FastApiReporter]::new($config, (Split-Path $OutboxDir -Parent))
+        $reporter = [HttpSync]::new($config, (Split-Path $OutboxDir -Parent))
         $reporter.OutboxPath = $OutboxDir
         
         $result.Details += "Reporter initialized"

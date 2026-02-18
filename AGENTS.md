@@ -115,7 +115,7 @@ The flag sets `FELIX_SYNC_ENABLED` environment variable for the agent subprocess
 {
   "sync": {
     "enabled": true,
-    "provider": "fastapi",
+    "provider": "http",
     "base_url": "http://localhost:8080",
     "api_key": "fsk_your_api_key_here"
   }
@@ -289,7 +289,7 @@ Or in **.felix/config.json**:
 {
   "sync": {
     "enabled": true,
-    "provider": "fastapi",
+    "provider": "http",
     "base_url": "http://localhost:8080"
   }
 }

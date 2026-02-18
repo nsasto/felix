@@ -74,7 +74,7 @@ $env:FELIX_SYNC_KEY = "fsk_your_team_key_here"
 {
   "sync": {
     "enabled": true,
-    "provider": "fastapi",
+    "provider": "http",
     "base_url": "https://felix.yourcompany.com",
     "api_key": "fsk_your_team_key_here"
   }
