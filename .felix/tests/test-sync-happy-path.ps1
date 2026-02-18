@@ -176,7 +176,7 @@ New-Item -ItemType Directory -Path $OutboxDir -Force | Out-Null
 Write-Host "  [OK] Test directory created: $TestDir" -ForegroundColor Green
 
 # Source the sync interface and plugin
-$FelixDir = Join-Path $PSScriptRoot "..\\.felix"
+$FelixDir = Join-Path $PSScriptRoot ".."
 $SyncInterfacePath = Join-Path $FelixDir "core\sync-interface.ps1"
 $SyncPluginPath = Join-Path $FelixDir "plugins\sync-fastapi.ps1"
 

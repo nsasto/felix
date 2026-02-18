@@ -20,11 +20,11 @@
     Path for test artifact storage (default: $env:TEMP\felix-sync-test\storage)
 
 .EXAMPLE
-    .\scripts\test-sync-setup.ps1
+    .\.felix\tests\test-sync-setup.ps1
     # Initialize with defaults
 
 .EXAMPLE
-    .\scripts\test-sync-setup.ps1 -BackendUrl http://localhost:8081
+    .\.felix\tests\test-sync-setup.ps1 -BackendUrl http://localhost:8081
     # Use custom backend URL
 
 .NOTES
@@ -220,7 +220,7 @@ if ($dbAvailable) {
         }
         else {
             Write-Host "  [WARN] Production database '$PRODUCTION_DATABASE' not found" -ForegroundColor Yellow
-            Write-Host "  Run scripts\setup-db.ps1 first to create the schema" -ForegroundColor Yellow
+            Write-Host "  Run .\scripts\setup-db.ps1 first to create the schema" -ForegroundColor Yellow
             $dbAvailable = $false
         }
     }

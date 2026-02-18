@@ -182,7 +182,7 @@ if (-not (Test-Path $TestDir)) {
 Write-Host "  [OK] Test directory created: $TestDir" -ForegroundColor Green
 
 # Verify sync modules exist
-$FelixDir = Join-Path $PSScriptRoot "..\\.felix"
+$FelixDir = Join-Path $PSScriptRoot ".."
 $SyncInterfacePath = Join-Path $FelixDir "core\sync-interface.ps1"
 $SyncPluginPath = Join-Path $FelixDir "plugins\sync-fastapi.ps1"
 
