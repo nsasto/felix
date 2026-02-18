@@ -16,8 +16,8 @@ param(
     [Parameter(Mandatory = $true)]
     [hashtable]$Data,
     
-    [Parameter(Mandatory = $true)]
-    $Config
+    [Parameter(Mandatory = $false)]
+    $Config = @{}
 )
 
 # Load shared state
@@ -55,11 +55,11 @@ try {
     $flushInterval = if ($Config.event_batch_interval) { $Config.event_batch_interval } else { 5 }
     Start-EventFlushTimer -IntervalSeconds $flushInterval
     
-    Write-Verbose "[sync-http] Run started: $syncRunId (flush interval: ${flushInterval}s)"
+    Emit-Log -Level "info" -Message "Run started: $syncRunId (flush interval: ${flushInterval}s)" -Component "sync" | Out-Null
     
     return @{ ShouldContinue = $true; RunId = $syncRunId }
 }
 catch {
-    Write-Warning "[sync-http] Failed to start run: $_"
+    Emit-Log -Level "warn" -Message "[sync-http] Failed to start run: $_" -Component "sync"
     return @{ ShouldContinue = $true }
 }

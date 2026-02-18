@@ -16,8 +16,8 @@ param(
     [Parameter(Mandatory = $true)]
     [hashtable]$Data,
     
-    [Parameter(Mandatory = $true)]
-    $Config
+    [Parameter(Mandatory = $false)]
+    $Config = @{}
 )
 
 # Load shared state
@@ -40,6 +40,6 @@ try {
     return @{ ShouldContinue = $true }
 }
 catch {
-    Write-Verbose "[sync-http] Mode selection status update failed: $_"
+    Emit-Log -Level "warn" -Message "Mode selection status update failed: $_" -Component "sync"
     return @{ ShouldContinue = $true }
 }

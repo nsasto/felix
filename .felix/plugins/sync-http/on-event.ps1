@@ -16,8 +16,8 @@ param(
     [Parameter(Mandatory = $true)]
     [hashtable]$Data,
     
-    [Parameter(Mandatory = $true)]
-    $Config
+    [Parameter(Mandatory = $false)]
+    $Config = @{}
 )
 
 # Load shared state
@@ -39,12 +39,12 @@ try {
     Add-EventToQueue -Event $event -Flush:$isCritical
     
     if ($isCritical) {
-        Write-Verbose "[sync-http] Critical event flushed immediately: $($event.type)"
+        Emit-Log -Level "debug" -Message "Critical event flushed immediately: $($event.type)" -Component "sync" | Out-Null
     }
     
     return @{ ShouldContinue = $true }
 }
 catch {
-    Write-Verbose "[sync-http] Event queuing failed: $_"
+    Emit-Log -Level "warn" -Message "Event queuing failed: $_" -Component "sync"
     return @{ ShouldContinue = $true }
 }

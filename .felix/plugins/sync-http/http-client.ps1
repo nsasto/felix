@@ -107,9 +107,8 @@ class HttpSync : IRunReporter {
         if ($configErrors.Count -gt 0) {
             $errorMsg = "Sync plugin configuration error: $($configErrors -join '; ')"
             $this.WriteLog("ERROR", $errorMsg)
-            Write-Warning $errorMsg
-            Write-Warning "Sync requests will be queued locally but will fail to send until configuration is fixed."
-            Write-Warning "Required configuration: { `"base_url`": `"http://your-server:8080`" } in .felix/config.json under sync.provider_config"
+            $this.WriteLog("ERROR", "Sync requests will be queued locally but will fail to send until configuration is fixed.")
+            $this.WriteLog("ERROR", "Required configuration: { `"base_url`": `"http://your-server:8080`" } in .felix/config.json under sync.provider_config")
             $this.IsConfigValid = $false
         }
         else {
@@ -120,16 +119,10 @@ class HttpSync : IRunReporter {
         try {
             if (-not (Test-Path $this.OutboxPath)) {
                 New-Item -ItemType Directory -Path $this.OutboxPath -Force | Out-Null
-                Write-Verbose "Created outbox directory at $($this.OutboxPath)"
             }
         }
         catch {
             $this.WriteLog("ERROR", "Failed to create outbox directory: $_")
-            Write-Warning "Failed to create outbox directory: $_"
-        }
-        
-        if ($this.IsConfigValid) {
-            Write-Verbose "HttpSync initialized - BaseUrl: $($this.BaseUrl)"
         }
     }
     
@@ -320,10 +313,6 @@ class HttpSync : IRunReporter {
             
             if ($files.Count -gt 0) {
                 $this.QueueBatchUpload($runId, $files)
-                Write-Verbose "Queued $($files.Count) artifacts from run folder"
-            }
-            else {
-                Write-Verbose "No standard artifacts found in run folder"
             }
         }
         catch {
@@ -378,11 +367,9 @@ class HttpSync : IRunReporter {
             $json = $request | ConvertTo-Json -Depth 10 -Compress
             Add-Content -Path $filePath -Value $json -Encoding UTF8
             
-            Write-Verbose "Queued request to $($request.endpoint)"
-        }
         catch {
             $this.WriteLog("WARNING", "Failed to queue request to $($request.endpoint): $_")
-            throw  # Re-throw to let caller handle it
+            throw
         }
     }
     
@@ -401,8 +388,6 @@ class HttpSync : IRunReporter {
             
             $json = $request | ConvertTo-Json -Depth 10 -Compress
             Add-Content -Path $filePath -Value $json -Encoding UTF8
-            
-            Write-Verbose "Queued batch upload for run $runId with $($files.Count) files"
         }
         catch {
             $this.WriteLog("WARNING", "Failed to queue batch upload for run $runId`: $_")
@@ -423,8 +408,6 @@ class HttpSync : IRunReporter {
             
             $json = $event | ConvertTo-Json -Depth 10 -Compress
             Add-Content -Path $filePath -Value $json -Encoding UTF8
-            
-            Write-Verbose "Appended event to run outbox: $runId"
         }
         catch {
             $this.WriteLog("WARNING", "Failed to append event to run outbox $runId`: $_")
@@ -469,7 +452,6 @@ class HttpSync : IRunReporter {
                 if ($success) {
                     # Delete the run events file
                     Remove-Item -Path $filePath -Force -ErrorAction SilentlyContinue
-                    Write-Verbose "Flushed $($events.Count) events for run $runId"
                 }
             }
             elseif ($skippedLines -gt 0 -and $events.Count -eq 0) {
@@ -534,7 +516,6 @@ class HttpSync : IRunReporter {
         # Check if config is valid before attempting to send
         if (-not $this.IsConfigValid) {
             # Silently skip sending - requests remain queued for when config is fixed
-            Write-Verbose "Sync config invalid - requests remain queued in outbox"
             return
         }
         
@@ -641,7 +622,6 @@ class HttpSync : IRunReporter {
                 # Delete outbox file after successful send
                 try {
                     Remove-Item -Path $file.FullName -Force
-                    Write-Verbose "Successfully processed and removed: $($file.Name)"
                 }
                 catch {
                     $this.WriteLog("WARNING", "Failed to delete processed file $($file.Name): $_")
@@ -696,7 +676,6 @@ class HttpSync : IRunReporter {
             }
             
             $response = Invoke-RestMethod @params -ErrorAction Stop
-            Write-Verbose "Request succeeded: $method $endpoint"
             return @{
                 Success    = $true
                 StatusCode = 200
@@ -722,7 +701,7 @@ class HttpSync : IRunReporter {
                 $statusCode = [int]$Matches[1]
             }
             
-            Write-Warning "Sync request failed: $method $endpoint - $errorMsg"
+            $this.WriteLog("ERROR", "Sync request failed: $method $endpoint - $errorMsg")
             return @{
                 Success    = $false
                 StatusCode = $statusCode
@@ -747,7 +726,7 @@ class HttpSync : IRunReporter {
             $localPath = $file.local_path
             
             if (-not (Test-Path $localPath)) {
-                Write-Warning "Skipping missing file: $localPath"
+                $this.WriteLog("WARN", "Skipping missing file: $localPath")
                 continue
             }
             
@@ -762,7 +741,6 @@ class HttpSync : IRunReporter {
         }
         
         if ($manifest.Count -eq 0) {
-            Write-Verbose "No valid files to upload in batch"
             return @{
                 Success    = $true
                 StatusCode = 200
@@ -818,7 +796,6 @@ class HttpSync : IRunReporter {
             }
             
             $response = Invoke-RestMethod @params -ErrorAction Stop
-            Write-Verbose "Batch upload succeeded for run $runId with $($validFiles.Count) files"
             return @{
                 Success    = $true
                 StatusCode = 200
@@ -844,7 +821,7 @@ class HttpSync : IRunReporter {
                 $statusCode = [int]$Matches[1]
             }
             
-            Write-Warning "Batch upload failed for run $runId - $errorMsg"
+            $this.WriteLog("ERROR", "Batch upload failed for run $runId - $errorMsg")
             return @{
                 Success    = $false
                 StatusCode = $statusCode

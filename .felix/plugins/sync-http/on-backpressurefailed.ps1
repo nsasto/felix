@@ -16,8 +16,8 @@ param(
     [Parameter(Mandatory = $true)]
     [hashtable]$Data,
     
-    [Parameter(Mandatory = $true)]
-    $Config
+    [Parameter(Mandatory = $false)]
+    $Config = @{}
 )
 
 # Load shared state
@@ -49,11 +49,11 @@ try {
     
     Update-RunStatus -Status $status -Force
     
-    Write-Verbose "[sync-http] Validation failure synced (forced)"
+    Emit-Log -Level "info" -Message "Validation failure synced (forced)" -Component "sync" | Out-Null
     
     return @{ ShouldContinue = $true }
 }
 catch {
-    Write-Warning "[sync-http] Backpressure failure sync failed: $_"
+    Emit-Log -Level "warn" -Message "[sync-http] Backpressure failure sync failed: $_" -Component "sync"
     return @{ ShouldContinue = $true }
 }

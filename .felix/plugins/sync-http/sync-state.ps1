@@ -51,7 +51,7 @@ function Initialize-HttpSyncClient {
     # Initialize HttpSync client
     $Global:HttpSyncState.Client = [HttpSync]::new($syncConfig, $FelixDir)
     
-    Write-Verbose "[sync-http] Client initialized: $($syncConfig.base_url)"
+    Emit-Log -Level "info" -Message "Client initialized: $($syncConfig.base_url)" -Component "sync" | Out-Null
 }
 
 function Start-EventFlushTimer {
@@ -69,8 +69,7 @@ function Start-EventFlushTimer {
     )
     
     if ($Global:HttpSyncState.FlushTimer) {
-        Write-Verbose "[sync-http] Flush timer already running"
-        return
+        return  # Timer already running
     }
     
     $Global:HttpSyncState.FlushTimer = [System.Timers.Timer]::new($IntervalSeconds * 1000)
@@ -83,12 +82,12 @@ function Start-EventFlushTimer {
             Invoke-EventFlush
         }
         catch {
-            Write-Verbose "[sync-http] Flush timer error: $_"
+            # Timer callback - silently fail
         }
     } | Out-Null
     
     $Global:HttpSyncState.FlushTimer.Start()
-    Write-Verbose "[sync-http] Event flush timer started (${IntervalSeconds}s interval)"
+    Emit-Log -Level "debug" -Message "Event flush timer started (${IntervalSeconds}s interval)" -Component "sync" | Out-Null
 }
 
 function Stop-EventFlushTimer {
@@ -100,7 +99,7 @@ function Stop-EventFlushTimer {
         $Global:HttpSyncState.FlushTimer.Stop()
         $Global:HttpSyncState.FlushTimer.Dispose()
         $Global:HttpSyncState.FlushTimer = $null
-        Write-Verbose "[sync-http] Flush timer stopped"
+        Emit-Log -Level "debug" -Message "Flush timer stopped" -Component "sync" | Out-Null
     }
 }
 
@@ -128,14 +127,14 @@ function Invoke-EventFlush {
         $state.Client.AppendEvents($state.RunId, $events)
         $state.LastEventFlush = Get-Date
         
-        Write-Verbose "[sync-http] Flushed $($events.Count) events"
+        Emit-Log -Level "debug" -Message "Flushed $($events.Count) events" -Component "sync" | Out-Null
     }
     catch {
         # Re-queue on failure (outbox will handle retry)
         foreach ($event in $events) {
             $state.EventQueue.Add($event) | Out-Null
         }
-        Write-Verbose "[sync-http] Flush failed, events re-queued: $_"
+        Emit-Log -Level "warn" -Message "Flush failed, events re-queued: $_" -Component "sync"
     }
 }
 
@@ -195,8 +194,7 @@ function Update-RunStatus {
     # Throttle: max 1/second unless forced
     $elapsed = (Get-Date) - $state.LastStatusUpdate
     if (-not $Force -and $elapsed.TotalMilliseconds -lt 1000) {
-        Write-Verbose "[sync-http] Status update throttled ($($elapsed.TotalMilliseconds)ms since last)"
-        return
+        return  # Throttled
     }
     
     try {
@@ -210,9 +208,8 @@ function Update-RunStatus {
         Add-EventToQueue -Event $statusEvent -Flush:$Force
         
         $state.LastStatusUpdate = Get-Date
-        Write-Verbose "[sync-http] Status updated: $($Status | ConvertTo-Json -Compress)"
     }
     catch {
-        Write-Verbose "[sync-http] Status update failed: $_"
+        Emit-Log -Level "warn" -Message "Status update failed: $_" -Component "sync"
     }
 }

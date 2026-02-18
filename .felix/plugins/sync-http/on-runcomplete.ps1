@@ -16,8 +16,8 @@ param(
     [Parameter(Mandatory = $true)]
     [hashtable]$Data,
     
-    [Parameter(Mandatory = $true)]
-    $Config
+    [Parameter(Mandatory = $false)]
+    $Config = @{}
 )
 
 # Load shared state
@@ -58,7 +58,7 @@ try {
             
             if ($runFolders -and $runFolders.Count -gt 0) {
                 $latestRunFolder = $runFolders[0].FullName
-                Write-Verbose "[sync-http] Uploading artifacts from: $latestRunFolder"
+                Emit-Log -Level "info" -Message "Uploading artifacts from: $latestRunFolder" -Component "sync" | Out-Null
                 
                 $Global:HttpSyncState.Client.UploadArtifacts($Global:HttpSyncState.RunId, $latestRunFolder)
             }
@@ -68,12 +68,12 @@ try {
     # 5. Stop flush timer
     Stop-EventFlushTimer
     
-    Write-Verbose "[sync-http] Run completed: $($Global:HttpSyncState.RunId) ($duration seconds)"
+    Emit-Log -Level "info" -Message "Run completed: $($Global:HttpSyncState.RunId) ($duration seconds)" -Component "sync" | Out-Null
     
     return @{ ShouldContinue = $true }
 }
 catch {
-    Write-Warning "[sync-http] Run completion sync failed: $_"
+    Emit-Log -Level "warn" -Message "[sync-http] Run completion sync failed: $_" -Component "sync"
     return @{ ShouldContinue = $true }
 }
 finally {
