@@ -208,10 +208,17 @@ class HttpSync : IRunReporter {
             }
             
             $this.QueueRequest($request)
+            $this.WriteLog("INFO", "Attempting to send run creation for $runId")
             $this.TrySendOutbox()
         }
         catch {
-            $this.WriteLog("WARNING", "Failed to queue run start for $runId`: $_")
+            $errorMsg = $_.Exception.Message
+            $this.WriteLog("WARNING", "Failed to queue run start for $runId`: $errorMsg")
+            
+            # Emit visible warning to user
+            if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                Emit-Log -Level "warn" -Message "Failed to sync run creation: $errorMsg" -Component "sync" | Out-Null
+            }
             # Don't rethrow - return runId so agent can continue
         }
         
@@ -230,7 +237,13 @@ class HttpSync : IRunReporter {
             $this.AppendToRunOutbox($runId, $event)
         }
         catch {
-            $this.WriteLog("WARNING", "Failed to queue event: $_")
+            $errorMsg = $_.Exception.Message
+            $this.WriteLog("WARNING", "Failed to queue event: $errorMsg")
+            
+            # Emit warning for event queueing failures (may indicate disk issues)
+            if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                Emit-Log -Level "warn" -Message "Failed to queue sync event: $errorMsg" -Component "sync" | Out-Null
+            }
             # Don't rethrow - prevent agent crash
         }
     }
@@ -250,7 +263,13 @@ class HttpSync : IRunReporter {
             $this.Flush()
         }
         catch {
-            $this.WriteLog("WARNING", "Failed to queue run finish for $runId`: $_")
+            $errorMsg = $_.Exception.Message
+            $this.WriteLog("WARNING", "Failed to queue run finish for $runId`: $errorMsg")
+            
+            # Emit visible warning to user for run completion failures
+            if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                Emit-Log -Level "warn" -Message "Failed to sync run completion: $errorMsg" -Component "sync" | Out-Null
+            }
             # Don't rethrow - prevent agent crash
         }
     }
@@ -278,7 +297,13 @@ class HttpSync : IRunReporter {
             $this.QueueBatchUpload($runId, @($fileEntry))
         }
         catch {
-            $this.WriteLog("WARNING", "Failed to queue artifact upload for $relativePath`: $_")
+            $errorMsg = $_.Exception.Message
+            $this.WriteLog("WARNING", "Failed to queue artifact upload for $relativePath`: $errorMsg")
+            
+            # Emit warning for artifact upload failures
+            if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                Emit-Log -Level "warn" -Message "Failed to queue artifact upload: $errorMsg" -Component "sync" | Out-Null
+            }
             # Don't rethrow - prevent agent crash
         }
     }
@@ -653,11 +678,25 @@ class HttpSync : IRunReporter {
                 }
                 # Permanent API failure - keep file in outbox but continue to next file
                 $this.WriteLog("WARNING", "Permanent API failure for $($file.Name) - file remains in outbox")
+                
+                # Notify user of permanent failure for critical operations
+                if ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent") {
+                    if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                        Emit-Log -Level "error" -Message "Sync operation permanently failed: $lastError" -Component "sync" | Out-Null
+                    }
+                }
                 # Continue to next file - don't block other requests
             }
             else {
                 # Transient failure after max retries - keep file in outbox
                 $this.WriteLog("WARNING", "Max retries ($maxRetries) exceeded for $($file.Name) - file remains in outbox, will retry later")
+                
+                # Notify user that sync is having issues with critical operations
+                if ($file.Name -match "^\d{8}-\d{6}-" -or $file.Name -match "agent") {
+                    if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                        Emit-Log -Level "warn" -Message "Sync operation failed after $maxRetries retries - will retry later" -Component "sync" | Out-Null
+                    }
+                }
                 # Don't break - continue trying other files that might succeed
                 # This is more resilient than blocking all syncs when one file fails
             }
