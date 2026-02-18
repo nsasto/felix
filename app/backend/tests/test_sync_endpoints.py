@@ -33,6 +33,8 @@ from database.db import get_db
 from artifact_storage import get_artifact_storage
 from routers.agents import AgentRegistration
 from routers.sync import (
+    ApiKeyInfo,
+    verify_api_key,
     RunCreate,
     RunEvent,
     RunCompletion,
@@ -122,10 +124,22 @@ class FakeStorage:
 
 
 @pytest.fixture
-def client():
-    """Create a test client with clean dependency overrides"""
+def mock_api_key():
+    """Provide a mock API key for testing sync endpoints"""
+    return ApiKeyInfo(
+        key_id="test-key-001", project_id="project-001", name="Test API Key"
+    )
+
+
+@pytest.fixture
+def client(mock_api_key):
+    """Create a test client with clean dependency overrides and mock API key"""
     # Clear any existing overrides
     app.dependency_overrides.clear()
+
+    # Mock API key validation - all sync endpoints will receive this mock key
+    app.dependency_overrides[verify_api_key] = lambda: mock_api_key
+
     yield TestClient(app)
     # Clean up after test
     app.dependency_overrides.clear()
