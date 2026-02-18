@@ -826,9 +826,7 @@ async def register_agent_with_api_key(
         )
 
     # Log API key usage
-    await log_api_key_usage(
-        db, api_key, "/api/agents/register-sync", http_request
-    )
+    await log_api_key_usage(db, api_key, "/api/agents/register-sync", http_request)
 
     try:
         # Get project from API key
@@ -838,9 +836,7 @@ async def register_agent_with_api_key(
         )
 
         if not key_project:
-            raise HTTPException(
-                status_code=404, detail="API key's project not found"
-            )
+            raise HTTPException(status_code=404, detail="API key's project not found")
 
         # Normalize and compare git URLs
         from services.projects import normalize_git_url
@@ -996,6 +992,28 @@ async def create_run(
                 status_code=404, detail=f"Project not found: {project_id}"
             )
 
+        # Resolve requirement_id: if it's a code (not a UUID), look up the UUID
+        resolved_requirement_id = body.requirement_id
+        if body.requirement_id:
+            # Check if it looks like a UUID (contains hyphens in UUID pattern)
+            try:
+                # Try to parse as UUID - if it works, it's already a UUID
+                uuid.UUID(body.requirement_id)
+            except ValueError:
+                # Not a UUID, assume it's a code - look up the actual UUID
+                requirement = await db.fetch_one(
+                    "SELECT id FROM requirements WHERE code = :code AND project_id = :project_id",
+                    {"code": body.requirement_id, "project_id": project_id},
+                )
+                if requirement:
+                    resolved_requirement_id = str(requirement["id"])
+                else:
+                    # Code not found - return 404
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Requirement not found with code: {body.requirement_id}",
+                    )
+
         # Insert run record
         run_query = """
             INSERT INTO runs (
@@ -1016,7 +1034,7 @@ async def create_run(
                 "id": run_id,
                 "project_id": project_id,  # Use determined project_id
                 "agent_id": body.agent_id,
-                "requirement_id": body.requirement_id,
+                "requirement_id": resolved_requirement_id,  # Use resolved UUID
                 "branch": body.branch,
                 "commit_sha": body.commit_sha,
                 "scenario": body.scenario,
