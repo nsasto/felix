@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 FastAPI sync plugin for Felix run artifact synchronization
 
@@ -864,56 +864,56 @@ class HttpSync : IRunReporter {
         }
         
         try {
-            # Build multipart form data
+            # Build multipart form data with binary files (not base64)
             $boundary = [System.Guid]::NewGuid().ToString()
             $contentType = "multipart/form-data; boundary=$boundary"
             
-            $bodyLines = @()
+            $LF = "`r`n"
+            $bodyBytes = [System.Collections.Generic.List[byte]]::new()
             
-            # Add manifest as JSON
+            # Add manifest as JSON string field
             $manifestJson = $manifest | ConvertTo-Json -Depth 10 -Compress
-            $bodyLines += "--$boundary"
-            $bodyLines += 'Content-Disposition: form-data; name="manifest"'
-            $bodyLines += 'Content-Type: application/json'
-            $bodyLines += ''
-            $bodyLines += $manifestJson
+            $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes("--$boundary$LF"))
+            $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes('Content-Disposition: form-data; name="manifest"'))
+            $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes("$LF$LF"))
+            $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes($manifestJson))
+            $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes($LF))
             
-            # Add each file
+            # Add each file as binary upload
             foreach ($file in $validFiles) {
-                $fileContent = [System.IO.File]::ReadAllBytes($file.local_path)
-                $fileBase64 = [System.Convert]::ToBase64String($fileContent)
+                $fileBytes = [System.IO.File]::ReadAllBytes($file.local_path)
                 
-                $bodyLines += "--$boundary"
-                $bodyLines += "Content-Disposition: form-data; name=`"$($file.path)`"; filename=`"$($file.path)`""
-                $bodyLines += "Content-Type: $($file.content_type)"
-                $bodyLines += "Content-Transfer-Encoding: base64"
-                $bodyLines += ''
-                $bodyLines += $fileBase64
+                $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes("--$boundary$LF"))
+                $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes("Content-Disposition: form-data; name=`"files`"; filename=`"$($file.path)`"$LF"))
+                $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes("Content-Type: $($file.content_type)$LF$LF"))
+                $bodyBytes.AddRange($fileBytes)
+                $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes($LF))
             }
             
-            $bodyLines += "--$boundary--"
+            $bodyBytes.AddRange([System.Text.Encoding]::ASCII.GetBytes("--$boundary--$LF"))
             
-            $body = $bodyLines -join "`r`n"
+            $body = $bodyBytes.ToArray()
             
-            $headers = @{}
+            $headers = @{
+                "Content-Type" = $contentType
+            }
             if ($this.ApiKey) {
                 $headers["Authorization"] = "Bearer $($this.ApiKey)"
             }
             
-            # Use WebRequest for multipart form data
+            # Use Invoke-WebRequest for byte array body support
             $params = @{
                 Method      = "POST"
                 Uri         = $url
                 Headers     = $headers
                 Body        = $body
-                ContentType = $contentType
                 TimeoutSec  = 120
             }
             
-            $response = Invoke-RestMethod @params -ErrorAction Stop
+            $response = Invoke-WebRequest @params -UseBasicParsing
             return @{
                 Success    = $true
-                StatusCode = 200
+                StatusCode = $response.StatusCode
                 Error      = $null
             }
         }

@@ -1153,7 +1153,7 @@ async def append_events(
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 
         # Require API key and validate project access
-        require_project_access(api_key, run["project_id"])
+        require_project_access(api_key, str(run["project_id"]))
 
         # Handle empty event list gracefully
         if not events:
@@ -1250,7 +1250,7 @@ async def finish_run(
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 
         # Require API key and validate project access
-        require_project_access(api_key, run["project_id"])
+        require_project_access(api_key, str(run["project_id"]))
 
         # Update run record
         update_query = """
@@ -1793,7 +1793,7 @@ async def list_files(
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 
         # Require API key and validate project access
-        require_project_access(api_key, run["project_id"])
+        require_project_access(api_key, str(run["project_id"]))
 
         # Query files ordered by kind (artifact first), then path
         query = """
@@ -1909,7 +1909,7 @@ async def download_file(
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 
         # Require API key and validate project access
-        require_project_access(api_key, run["project_id"])
+        require_project_access(api_key, str(run["project_id"]))
 
         # Fetch file record
         file_record = await db.fetch_one(
@@ -2049,7 +2049,7 @@ async def list_events(
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 
         # Require API key and validate project access
-        require_project_access(api_key, run["project_id"])
+        require_project_access(api_key, str(run["project_id"]))
 
         # Build query with optional cursor
         if after is not None:

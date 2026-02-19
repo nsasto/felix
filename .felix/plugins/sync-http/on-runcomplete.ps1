@@ -39,8 +39,29 @@ try {
     }
     
     # 3. Mark run finished
+    # Reload requirement from file to get updated status
+    $requirementsFile = if ($Data.Paths -and $Data.Paths.RequirementsFile) { 
+        $Data.Paths.RequirementsFile 
+    } else { 
+        Join-Path $Data.Paths.FelixDir "requirements.json" 
+    }
+    
+    $runStatus = "failed"  # Default to failed
+    if (Test-Path $requirementsFile) {
+        try {
+            $requirements = Get-Content $requirementsFile -Raw | ConvertFrom-Json
+            $currentRequirement = $requirements.requirements | Where-Object { $_.id -eq $Data.Requirement.id }
+            if ($currentRequirement -and $currentRequirement.status -eq "complete") {
+                $runStatus = "completed"
+            }
+        }
+        catch {
+            # If we can't read the file, use default status
+        }
+    }
+    
     $finishData = @{
-        status = $Data.Requirement.status
+        status = $runStatus
         completed_at = Get-Date -Format "o"
         iterations = $Data.Iteration
         duration_seconds = $duration
@@ -60,7 +81,10 @@ try {
                 $latestRunFolder = $runFolders[0].FullName
                 Emit-Log -Level "info" -Message "Uploading artifacts from: $latestRunFolder" -Component "sync" | Out-Null
                 
-                $Global:HttpSyncState.Client.UploadArtifacts($Global:HttpSyncState.RunId, $latestRunFolder)
+                $Global:HttpSyncState.Client.UploadRunFolder($Global:HttpSyncState.RunId, $latestRunFolder)
+                
+                # Flush outbox to send queued batch upload immediately
+                $Global:HttpSyncState.Client.Flush()
             }
         }
     }

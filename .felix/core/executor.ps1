@@ -228,6 +228,7 @@ function Invoke-FelixIteration {
         -NoCommit:$NoCommit
     
     if ($taskResult.ShouldExit) {
+        Emit-Log -Level "debug" -Message "Invoke-FelixIteration returning: Continue=false, ExitCode=$($taskResult.ExitCode) (from Process-TaskCompletion)" -Component "executor"
         return @{ Continue = $false; ExitCode = $taskResult.ExitCode }
     }
     
@@ -245,6 +246,8 @@ function Invoke-FelixIteration {
         -RequirementsFile $Paths.RequirementsFile
     
     if ($completionResult.ShouldExit) {
+        Emit-Log -Level "debug" -Message "Invoke-FelixIteration returning: Continue=false, ExitCode=$($completionResult.ExitCode) (from Process-CompletionSignals)" -Component "executor"
+        Write-Host "[EXECUTOR] Invoke-FelixIteration returning ExitCode=$($completionResult.ExitCode)" -ForegroundColor Green
         return @{ Continue = $false; ExitCode = $completionResult.ExitCode }
     }
     
@@ -972,6 +975,7 @@ function Process-TaskCompletion {
         if ($freshReq -and $freshReq.status -in @("complete", "done")) {
             Emit-Log -Level "info" -Message "Requirement $($CurrentRequirement.id) is now marked as $($freshReq.status)" -Component "complete"
             Emit-Log -Level "info" -Message "Exiting successfully" -Component "complete"
+            Emit-Log -Level "debug" -Message "Process-TaskCompletion returning: ShouldExit=true, ExitCode=0 (requirement marked complete)" -Component "executor"
             return @{ ShouldExit = $true; ExitCode = 0 }
         }
     }
@@ -1247,6 +1251,7 @@ function Process-CompletionSignals {
     Emit-Log -Level "debug" -Message "Checking for ALL_COMPLETE signal..." -Component "executor"
     if ($Output -match '<promise>ALL_COMPLETE</promise>') {
         Emit-Log -Level "info" -Message "ALL_COMPLETE signal detected, marking requirement complete" -Component "executor"
+        Write-Host "[EXECUTOR] ALL_COMPLETE detected, returning ExitCode=0" -ForegroundColor Green
         # Workflow Stage: update_status
         Set-WorkflowStage -Stage "update_status" -ProjectPath (Split-Path $RequirementsFile -Parent | Split-Path -Parent)
         
@@ -1271,6 +1276,7 @@ function Process-CompletionSignals {
         }
         
         Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $CurrentRequirement.id -NewStatus "complete"
+        Emit-Log -Level "debug" -Message "Process-CompletionSignals returning: ShouldExit=true, ExitCode=0 (ALL_COMPLETE detected)" -Component "executor"
         return @{ ShouldExit = $true; ExitCode = 0 }
     }
     

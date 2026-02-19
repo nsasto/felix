@@ -235,3 +235,4 @@ clean_droid_and_ignore.ps1
 
 # Felix local config (contains API key)
 .felix/config.json
+app/backend/storage/

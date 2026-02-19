@@ -48,6 +48,13 @@ function Initialize-HttpSyncClient {
         api_key = if ($env:FELIX_SYNC_KEY) { $env:FELIX_SYNC_KEY } else { $Config.sync.api_key }
     }
     
+    # DEBUG: Log config sources
+    $keySource = if ($env:FELIX_SYNC_KEY) { "environment" } else { "config file" }
+    $hasKey = -not [string]::IsNullOrEmpty($syncConfig.api_key)
+    if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+        Emit-Log -Level "debug" -Message "Sync API key source: $keySource, present: $hasKey" -Component "sync" | Out-Null
+    }
+    
     # Initialize HttpSync client
     $Global:HttpSyncState.Client = [HttpSync]::new($syncConfig, $FelixDir)
     

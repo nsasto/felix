@@ -611,16 +611,37 @@ try {
             -VerboseMode:$VerboseMode
     
         if (-not $result.Continue) {
-            Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
+            # Build run context for OnRunComplete hook
+            $runContext = @{
+                Requirement = $currentReq
+                Iteration = $iteration
+                Paths = $paths
+                Config = $config
+                AgentConfig = $agentConfig
+            }
+            Emit-Log -Level "debug" -Message "Exiting agent loop: ExitCode=$($result.ExitCode), Continue=$($result.Continue)" -Component "agent"
+            Write-Host "[AGENT-LOOP] Calling Exit-FelixAgent with ExitCode=$($result.ExitCode)" -ForegroundColor Yellow
+            Exit-FelixAgent -ExitCode $result.ExitCode -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob -RunContext $runContext
         }
     }
 
     # Max iterations reached
     Emit-Log -Level "warn" -Message "Reached max iterations ($maxIterations)" -Component "agent"
+    Write-Host "[AGENT-LOOP] Max iterations reached, exiting with code 0" -ForegroundColor Yellow
     $state.status = "incomplete"
     $state.updated_at = Get-Date -Format "o"
     $state | ConvertTo-Json | Set-Content $StateFile
-    Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -BackendBaseUrl $script:BackendBaseUrl -HeartbeatJob $script:HeartbeatJob
+    
+    # Build run context for OnRunComplete hook
+    $currentReq.status = "incomplete"
+    $runContext = @{
+        Requirement = $currentReq
+        Iteration = $maxIterations
+        Paths = $paths
+        Config = $config
+        AgentConfig = $agentConfig
+    }
+    Exit-FelixAgent -ExitCode 0 -ProjectPath $ProjectPath -AgentId $agentConfig.id -HeartbeatJob $script:HeartbeatJob -RunContext $runContext
 }
 finally {
     Unlock-FelixRun -LockHandle $script:FelixRunLockHandle -LockPath $lockPath

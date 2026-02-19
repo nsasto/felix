@@ -44,6 +44,17 @@ function Exit-FelixAgent {
         [hashtable]$RunContext
     )
     
+    # Log entry to Exit-Felix Agent
+    if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+        Emit-Log -Level "debug" -Message "Exit-FelixAgent called with ExitCode=$ExitCode, HasRunContext=$($null -ne $RunContext)" -Component "exit"
+    }
+    
+    # Also write to stderr for debugging (visible in console output)
+    [Console]::Error.WriteLine("[EXIT-HANDLER] Exit-FelixAgent called with ExitCode=$ExitCode, HasRunContext=$($null -ne $RunContext), PluginCache=$($null -ne $script:PluginCache)")
+    
+    # Write to stdout as well for guaranteed visibility
+    Write-Host "[EXIT-HANDLER] Called with ExitCode=$ExitCode" -ForegroundColor Cyan
+    
     # Clear workflow stage on exit
     if ($ProjectPath) {
         # Ensure workflow module is loaded
@@ -62,8 +73,8 @@ function Exit-FelixAgent {
     # Unregister agent if we have an agent ID
     if ($AgentId) {
         if (Get-Command Unregister-Agent -ErrorAction SilentlyContinue) {
-            if ($BackendBaseUrl) {
-                Unregister-Agent -AgentId $AgentId -BackendBaseUrl $BackendBaseUrl
+            if ($script:BackendBaseUrl) {
+                Unregister-Agent -AgentId $AgentId -BackendBaseUrl $script:BackendBaseUrl
             }
         }
     }
@@ -86,17 +97,51 @@ function Exit-FelixAgent {
     }
     
     # Invoke OnRunComplete plugin hook (sync, cleanup, etc.)
-    if ($script:PluginCache -and $script:RunId -and $RunContext) {
+    if ($script:PluginCache -and $RunContext) {
         try {
             if (Get-Command Invoke-PluginHookSafely -ErrorAction SilentlyContinue) {
-                Invoke-PluginHookSafely -HookName "OnRunComplete" -RunId $script:RunId -HookData $RunContext | Out-Null
+                # Use RunId from Paths if available, fallback to script-scoped RunId
+                $hookRunId = if ($RunContext.Paths -and $RunContext.Paths.RunId) { $RunContext.Paths.RunId } else { $script:RunId }
+                if (-not $hookRunId) {
+                    # Generate RunId from requirement if not available (format: REQ-{timestamp})
+                    $hookRunId = if ($RunContext.Requirement) { 
+                        "$($RunContext.Requirement.id)-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+                    } else { 
+                        "unknown-$(Get-Date -Format 'yyyyMMdd-HHmmss')" 
+                    }
+                }
+                
+                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                    Emit-Log -Level "debug" -Message "Invoking OnRunComplete hook with RunId: $hookRunId" -Component "plugins"
+                }
+                
+                Invoke-PluginHookSafely -HookName "OnRunComplete" -RunId $hookRunId -HookData $RunContext | Out-Null
+            }
+            else {
+                if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                    Emit-Log -Level "warn" -Message "Invoke-PluginHookSafely command not available, skipping OnRunComplete hook" -Component "plugins"
+                }
             }
         }
         catch {
-            # Silent failure - don't let plugin errors prevent clean exit
+            # Don't let plugin errors prevent clean exit, but log the error for debugging
+            if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+                Emit-Log -Level "warn" -Message "OnRunComplete hook failed: $($_.Exception.Message)" -Component "plugins"
+            }
+        }
+    }
+    elseif ($RunContext) {
+        if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+            Emit-Log -Level "debug" -Message "Skipping OnRunComplete hook: PluginCache not initialized (PluginCache=$($null -eq $script:PluginCache))" -Component "plugins"
         }
     }
     
+    # Final log before exit
+    if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+        Emit-Log -Level "debug" -Message "About to exit with code: $ExitCode" -Component "exit"
+    }
+    
+    Write-Host "[EXIT-HANDLER] About to call exit with code: $ExitCode" -ForegroundColor Cyan
     exit $ExitCode
 }
 
