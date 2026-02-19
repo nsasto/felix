@@ -974,7 +974,8 @@ async def list_runs(
             run_records = [
                 record
                 for record in run_records
-                if record.get("requirement_id") == requirement_id
+                if record.get("requirement_id")
+                and str(record.get("requirement_id")) == requirement_id
             ]
 
         if status:
@@ -991,12 +992,25 @@ async def list_runs(
                 id=str(record["id"]),
                 project_id=str(record["project_id"]),
                 agent_id=str(record["agent_id"]),
-                requirement_id=record.get("requirement_id"),
+                requirement_id=(
+                    str(record["requirement_id"])
+                    if record.get("requirement_id")
+                    else None
+                ),
                 status=record["status"],
                 started_at=record.get("started_at"),
                 completed_at=record.get("completed_at"),
                 error=record.get("error"),
-                metadata=record.get("metadata") or {},
+                metadata=(
+                    record.get("metadata")
+                    if isinstance(record.get("metadata"), dict)
+                    else (
+                        json.loads(record.get("metadata"))
+                        if isinstance(record.get("metadata"), str)
+                        and record.get("metadata")
+                        else {}
+                    )
+                ),
                 agent_name=record.get("agent_name"),
             )
             for record in run_records
@@ -1048,7 +1062,9 @@ async def get_run(
             id=str(run["id"]),
             project_id=str(run["project_id"]),
             agent_id=str(run["agent_id"]),
-            requirement_id=run.get("requirement_id"),
+            requirement_id=(
+                str(run["requirement_id"]) if run.get("requirement_id") else None
+            ),
             status=run["status"],
             started_at=run.get("started_at"),
             completed_at=run.get("completed_at"),
