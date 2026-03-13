@@ -1,0 +1,24 @@
+﻿{
+    "agents":  [
+                   {
+                       "name":  "droid",
+                       "provider":  "droid",
+                       "adapter":  "droid",
+                       "model":  "claude-sonnet-4-6",
+                       "id":  "ag_30c800eb8"
+                   },
+                   {
+                       "name":  "claude",
+                       "provider":  "claude",
+                       "adapter":  "claude",
+                       "model":  "sonnet",
+                       "key":  "ag_6783cb179"
+                   },
+                   {
+                       "name":  "codex",
+                       "provider":  "codex",
+                       "adapter":  "codex",
+                       "key":  "ag_c45dc52b0"
+                   }
+               ]
+}

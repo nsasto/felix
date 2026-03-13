@@ -1,0 +1,291 @@
+# Felix Project - LLM Context File
+# Generated: February 20, 2026
+# Purpose: Restart conversation context for GitHub Copilot / Claude
+
+---
+
+## PROJECT OVERVIEW
+
+Felix is a plan-driven executor for autonomous software delivery running on Windows.
+It turns AI agents into an operable system with durable state, explicit planning/building
+modes, backpressure validation, and optional cloud sync for team visibility.
+
+Core philosophy (from Ralph Playbook):
+- Naive persistence: restart agent each iteration with fresh context, progress on disk
+- One task per iteration = atomic unit of progress
+- Backpressure (tests/builds) is non-negotiable gating
+- Spec files are test suites (persistent); Plan files are to-do lists (ephemeral)
+
+---
+
+## TECH STACK
+
+### Agent (CLI)
+- Language: PowerShell 5.1+ (must be PS 5.1 compatible — no `?:`, `??`, pipeline chains)
+- Entry: `.felix/felix.ps1` dispatcher → `felix-agent.ps1` → `.felix/core/*.ps1` modules
+- LLM: `droid exec` (Factory CLI), auth via `FACTORY_API_KEY` env var
+- Events: NDJSON to stdout (15 event types), consumed by any UI
+
+### C# CLI (optional wrapper)
+- Language: C# 12, .NET 10, System.CommandLine
+- Thin wrapper over felix.ps1 — no logic duplication
+- Location: `src/Felix.Cli/`
+
+### Optional Cloud Sync
+- Artifacts can be mirrored to [runfelix.io](https://runfelix.io) via sync-http plugin
+- Outbox-based queue with SHA256 dedup and automatic retry
+- Non-blocking: network failures don't stop agent execution
+
+---
+
+## ARCHITECTURE
+
+### Communication
+- Agent ↔ Filesystem: direct read/write (specs, plans, state JSON)
+- Agent → Cloud: optional outbox-based sync (JSONL queue → runfelix.io)
+- Agent ↔ LLM: shells out to `droid exec`
+
+### Key Design Invariants
+- Planning mode CANNOT commit code (guardrails enforced)
+- Building mode REQUIRES a plan file
+- One iteration = one task outcome
+- Backpressure (tests) must pass before completion
+- Spec files (`specs/*.md`) = persistent test suites
+- Plan files (`runs/*/plan-*.md`) = ephemeral to-do lists
+
+---
+
+## AGENT EXECUTION FLOW
+
+```
+Requirements → Planning Mode → Building Mode → Validation → Complete
+     ↓              ↓                ↓              ↓           ↓
+  specs/*.md    plan-*.md      git commits    tests pass   status:done
+```
+
+1. Load specs, plan, AGENTS.md, requirements status
+2. Select mode: Planning (no plan) or Building (plan exists)
+3. Call LLM via `droid exec`, process NDJSON response
+4. Validate via backpressure (tests/builds must pass)
+5. Write artifacts to `runs/<timestamp>/`, commit code, update status
+6. Loop until complete or max iterations
+
+Signals in LLM output:
+- `<promise>PLAN_COMPLETE</promise>` → transition to Building
+- `<promise>TASK_COMPLETE</promise>` → mark task done, continue
+- `<promise>ALL_COMPLETE</promise>` → mark requirement complete
+
+Exit codes:
+- 0 = Success
+- 1 = Error (general)
+- 2 = Blocked (backpressure/tests failed too many times)
+- 3 = Blocked (validation failures exceeded max retries)
+
+---
+
+## DATABASE SCHEMA (PostgreSQL, 11 tables)
+
+- `schema_migrations` - migration version tracking
+- `organizations` - multi-tenant orgs
+- `organization_members` - roles (owner/admin/member)
+- `projects` - projects within orgs
+- `requirements` - req tracking (planned/in-progress/completed/blocked/done)
+- `agents` - agent registration and status
+- `agent_states` - key-value state storage
+- `runs` - execution run records
+- `run_artifacts` - deprecated
+- `run_files` - artifact storage with SHA256
+- `run_events` - event timeline for runs
+- `api_keys` - project-scoped sync keys (fsk_ prefix, SHA256 hashed)
+
+---
+
+## RUN ARTIFACT SYNC (optional, production-ready)
+
+Optional plugin (`sync-http`) mirrors run data to [runfelix.io](https://runfelix.io) for team visibility.
+
+- Plugin: `.felix/plugins/sync-http/` — hook-based architecture
+- Hooks: OnPreIteration, OnEvent, OnPostModeSelection, OnBackpressureFailed, OnRunComplete
+- Event batching: 5-second heartbeat (background timer)
+- Status throttling: max 1 update/second
+- Outbox queue: `.felix/outbox/*.jsonl` for retry on network failure
+- Idempotent: SHA256 deduplication prevents duplicate uploads
+- Auth: project-scoped API keys (`fsk_` + 64 hex chars)
+- Project identity: git remote URL (auto-discovered, no manual UUID needed)
+
+Config in `.felix/config.json`:
+```json
+{
+  "sync": { "enabled": true, "provider": "http", "base_url": "https://runfelix.io", "api_key": "fsk_..." },
+  "plugins": { "enabled": true }
+}
+```
+
+Or env vars: `FELIX_SYNC_ENABLED`, `FELIX_SYNC_URL`, `FELIX_SYNC_KEY`
+
+---
+
+## CLI COMMANDS
+
+```powershell
+felix run S-XXXX           # Execute single requirement
+felix run S-XXXX --sync    # With temporary sync enabled
+felix loop                 # Continuous mode (all planned reqs)
+felix status [S-XXXX]      # Show status
+felix list [--status ...]  # List requirements with filters
+felix deps S-XXXX          # Show dependencies
+felix validate S-XXXX      # Run validation criteria
+felix spec create "desc"   # Create spec interactively
+felix spec fix             # Sync specs/ with requirements.json
+felix spec delete S-XXXX   # Delete spec
+felix tui                  # Interactive terminal UI
+felix procs                # List/kill active agent sessions
+felix context build        # Generate CONTEXT.md
+felix version / help
+```
+
+---
+
+## TESTING
+
+### Validation
+- Script: `py -3 scripts/validate-requirement.py S-XXXX`
+- Reads acceptance criteria from spec, runs backtick commands
+- Only use backticks for actual executable commands in specs
+
+### CLI Tests
+- Run: `.\run-test-spec.ps1`
+
+---
+
+## CRITICAL POWERSHELL GOTCHAS
+
+1. **PS 5.1 compatibility**: NO ternary `?:`, NO null coalescing `??`, NO `&&`/`||` pipeline chains
+   - Use `if ($x) { $x } else { $y }` or helper functions
+   
+2. **Never `Invoke-Expression`**: Command injection risk — use direct array passing instead
+
+3. **Array vs hashtable splatting**:
+   - `@array` = POSITIONAL binding (breaks when array has param names)
+   - `@hashtable` = NAMED binding (correct for named params)
+   
+4. **PSCustomObject is immutable**: Convert to `@{}` before modifying deserialized JSON
+
+5. **Pipe deadlock on Windows**: Never `capture_output=True` for long-running Python subprocesses
+   - Use streaming (`capture_output=False`) instead
+
+6. **Write-Host blocks**: When stdout is redirected, use `Write-Output` or `Emit-Event`
+
+7. **String interpolation**: Use `${varName}:suffix` NOT `$varName:suffix` (colon = drive reference)
+
+8. **Command type verification**: Always check `CommandType -eq 'Application'` before invoking Python
+
+9. **Unicode symbols**: Use ASCII `[OK]`/`[ERROR]`/`[WARN]` — Unicode can cause parser errors
+
+10. **JSON array wrapping**: When loading requirements.json, access `.requirements` property, don't wrap entire object
+
+---
+
+## KEY FILE LOCATIONS
+
+```
+.felix/
+  felix.ps1                  CLI dispatcher (entry point)
+  felix-agent.ps1            Core agent executor
+  felix-cli.ps1              NDJSON event renderer
+  config.json                Runtime config (sync, agents)
+  agents.json                Agent registry (local only)
+  requirements.json          Requirement status tracking
+  state.json                 Current execution state
+  outbox/                    Sync queue (*.jsonl)
+  sync.log                   Sync operation log (rotates 5MB)
+  core/
+    executor.ps1             Iteration loop
+    validator.ps1            Backpressure validation
+    git-manager.ps1          Git operations + commit rules
+    state-manager.ps1        Requirements CRUD
+    guardrails.ps1           Planning mode restrictions
+    plugin-manager.ps1       Plugin lifecycle
+    initialization.ps1       State bootstrapping
+    emit-event.ps1           NDJSON event emission
+    spec-builder.ps1         Interactive spec creation
+  plugins/
+    sync-http/               HTTP sync plugin
+      plugin.json            Plugin manifest
+      http-client.ps1        HttpSync class
+      on-*.ps1               Hook implementations
+  prompts/
+    planning.md              Planning mode LLM prompt
+    building.md              Building mode LLM prompt
+  policies/
+    allowlist.json           Allowed file patterns
+    denylist.json            Denied file patterns
+
+src/Felix.Cli/               C# CLI wrapper (optional)
+
+specs/                       S-NNNN-*.md requirement specs
+runs/                        Timestamped run artifacts
+scripts/
+  install.ps1                CLI installer
+  validate-requirement.py    Python validation engine
+  build-and-install.ps1      Build + install workflow
+  package-release.ps1        Release packaging
+
+AGENTS.md                    Operational guide (how to run/test)
+```
+
+---
+
+## NDJSON EVENT TYPES (15 types)
+
+All events: `{ "timestamp": "ISO8601", "type": "...", "data": { ... } }`
+
+Lifecycle: `run_started`, `run_completed`, `iteration_started`, `iteration_completed`
+Agent: `agent_execution_started`, `agent_execution_completed`
+Validation: `validation_started`, `validation_completed`, `validation_command_started`, `validation_command_completed`
+Task/State: `task_completed`, `state_transitioned`, `phase_started`, `phase_completed`
+General: `log` (level: error/warn/info/debug, component field), `error_occurred`, `progress`, `artifact_created`
+
+---
+
+## SPEC FORMAT (for reference)
+
+```markdown
+# S-XXXX: Title
+
+**Priority:** Medium
+**Status:** planned
+
+## Description
+What to build.
+
+## Acceptance Criteria
+- [ ] Criterion one
+- [ ] Criterion two
+
+## Validation Criteria
+- [ ] Tests pass: `pytest` (exit code 0)
+- [ ] Lint clean: `npm run lint` (exit code 0)
+
+## Dependencies
+- S-XXXX
+```
+
+IMPORTANT: Only use backticks in validation criteria for actually executable commands.
+
+---
+
+## GIT COMMIT RULES
+
+Rules in `.git-commit-rules.json`. Active rules:
+- Strip `Co-authored-by: Droid` lines automatically
+- Normalize whitespace/blank lines
+
+Use `Invoke-GitCommit` function — rules applied automatically.
+
+---
+
+## KANBAN BOARD COLUMNS
+
+Draft → Planned → In Progress → Complete → Blocked → Done
+

@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Felix Plugin Manifest",
+  "description": "Schema for Felix plugin manifest files (plugin.json)",
+  "type": "object",
+  "required": ["name", "version", "api_version", "hooks"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique plugin identifier (lowercase, hyphen-separated)",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Plugin version (semver format)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "api_version": {
+      "type": "string",
+      "description": "Felix plugin API version (v1 or v2)",
+      "enum": ["v1", "v2"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable plugin description"
+    },
+    "author": {
+      "type": "string",
+      "description": "Plugin author name/email"
+    },
+    "permissions": {
+      "type": "array",
+      "description": "Required permissions for this plugin",
+      "items": {
+        "type": "string",
+        "enum": [
+          "read:specs",
+          "read:state",
+          "read:runs",
+          "write:runs",
+          "write:logs",
+          "execute:commands",
+          "network:http",
+          "git:read",
+          "git:write"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "hooks": {
+      "type": "array",
+      "description": "Lifecycle hooks this plugin implements",
+      "items": {
+        "type": "string",
+        "enum": [
+          "OnPreIteration",
+          "OnPostModeSelection",
+          "OnContextGathering",
+          "OnPreLLM",
+          "OnPostLLM",
+          "OnGuardrailCheck",
+          "OnPreBackpressure",
+          "OnBackpressureFailed",
+          "OnPreCommit",
+          "OnPostValidation",
+          "OnPostIteration"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "requires": {
+      "type": "array",
+      "description": "Plugin dependencies (other plugin names)",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Execution priority (lower = earlier, default = 100)",
+      "default": 100,
+      "minimum": 0,
+      "maximum": 999
+    },
+    "felix_version_min": {
+      "type": "string",
+      "description": "Minimum compatible Felix version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "felix_version_max": {
+      "type": "string",
+      "description": "Maximum compatible Felix version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "config": {
+      "type": "object",
+      "description": "Plugin-specific configuration (custom schema)"
+    }
+  }
+}

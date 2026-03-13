@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>felix</AssemblyName>
+    <Version>0.3.0-alpha</Version>
+    <!-- Supported RIDs for release packaging via scripts/package-release.ps1 -->
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.54.0" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+  </ItemGroup>
+
+  <!-- Bundle engine scripts into a zip at build time and embed in the assembly -->
+  <PropertyGroup>
+    <FelixBundleZip>$(MSBuildProjectDirectory)\Resources\felix-scripts.zip</FelixBundleZip>
+    <FelixRoot>$(MSBuildProjectDirectory)\..\..\.felix</FelixRoot>
+  </PropertyGroup>
+
+  <Target Name="BundleFelixScripts" BeforeTargets="BeforeBuild">
+    <Exec Command="cmd /c &quot;where pwsh &gt;nul 2&gt;nul &amp;&amp; pwsh -NoProfile -NonInteractive -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\create-bundle.ps1&quot; -OutputPath &quot;$(FelixBundleZip)&quot; -FelixRoot &quot;$(FelixRoot)&quot; || powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\create-bundle.ps1&quot; -OutputPath &quot;$(FelixBundleZip)&quot; -FelixRoot &quot;$(FelixRoot)&quot;&quot;"
+          ConsoleToMSBuild="true" />
+  </Target>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\felix-scripts.zip">
+      <LogicalName>felix-scripts.zip</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+﻿Since Felix is a development automation system focused on agents executing requirements (rather than a traditional user-facing app), what should the "user profile page" display? Some options:
+
+1. **Agent/Operator profile** - Settings for the person operating Felix (API keys, preferences, notification settings)
+2. **Agent configuration profile** - View/edit agent profiles stored in `.felix/agents.json`  
+3. **Something else** - What specific information should be on this profile page?
+
+Also, does Felix currently have any authentication system for users, or is this profile page just local settings without login?

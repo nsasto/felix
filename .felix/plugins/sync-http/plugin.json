@@ -1,0 +1,28 @@
+{
+  "id": "sync-http",
+  "name": "HTTP Run Sync",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "description": "Syncs run data, events, and artifacts to Felix backend via HTTP",
+  "author": "Felix Team",
+  "permissions": [
+    "read:state",
+    "write:runs",
+    "write:events",
+    "read:artifacts"
+  ],
+  "hooks": [
+    { "name": "OnPreIteration", "type": "powershell", "script": "on-prediteration.ps1" },
+    { "name": "OnEvent", "type": "powershell", "script": "on-event.ps1" },
+    { "name": "OnPostModeSelection", "type": "powershell", "script": "on-postmodeselection.ps1" },
+    { "name": "OnBackpressureFailed", "type": "powershell", "script": "on-backpressurefailed.ps1" },
+    { "name": "OnRunComplete", "type": "powershell", "script": "on-runcomplete.ps1" }
+  ],
+  "priority": 100,
+  "config": {
+    "event_batch_interval": 5,
+    "status_throttle_ms": 1000,
+    "retry_attempts": 3
+  },
+  "felix_version_min": "0.5.0"
+}

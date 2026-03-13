@@ -1,0 +1,38 @@
+{
+  "version": "0.1.0",
+  "executor": {
+    "mode": "local",
+    "max_iterations": 100,
+    "default_mode": "planning",
+    "commit_on_complete": true,
+    "_note": "For testing without commits, use -NoCommit flag in felix-agent.ps1"
+  },
+  "agent": {
+    "agent_id": "your-agent-id"
+  },
+  "paths": {
+    "specs": "specs",
+    "agents": "AGENTS.md",
+    "runs": "runs"
+  },
+  "backpressure": {
+    "enabled": true,
+    "commands": [],
+    "max_retries": 3
+  },
+  "plugins": {
+    "enabled": true,
+    "discovery_path": ".felix/plugins",
+    "api_version": "v1",
+    "disabled": ["prompt-enhancer", "metrics-collector", "slack-notifier"],
+    "state_retention_days": 7,
+    "circuit_breaker_max_failures": 3,
+    "commands": []
+  },
+  "sync": {
+    "enabled": false,
+    "provider": "http",
+    "base_url": "your_felix.io_url",
+    "api_key": "fsk_your_api_key_here"
+  }
+}

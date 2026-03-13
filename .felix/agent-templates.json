@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {
+      "name": "droid",
+      "provider": "droid",
+      "adapter": "droid"
+    },
+    {
+      "name": "claude",
+      "provider": "claude",
+      "adapter": "claude"
+    },
+    {
+      "name": "codex",
+      "provider": "codex",
+      "adapter": "codex"
+    },
+    {
+      "name": "gemini",
+      "provider": "gemini",
+      "adapter": "gemini"
+    }
+  ]
+}

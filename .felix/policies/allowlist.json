@@ -1,0 +1,25 @@
+{
+  "description": "Commands and operations allowed for Felix executor",
+  "allowed_commands": [
+    "git",
+    "npm",
+    "node",
+    "python",
+    "pip",
+    "pytest",
+    "cargo",
+    "rustc"
+  ],
+  "allowed_file_patterns": [
+    "app/**",
+    "specs/**",
+    "runs/**",
+    "felix/requirements.json",
+    "felix/state.json"
+  ],
+  "restricted_paths": [
+    "felix/config.json",
+    "felix/prompts/**",
+    "felix/policies/**"
+  ]
+}

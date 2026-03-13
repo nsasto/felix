@@ -1,0 +1,79 @@
+# Build outputs
+**/bin/
+**/obj/
+/bin
+/obj
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.py[codz]
+
+# Environments & secrets
+.env
+.env.*
+.venv
+venv/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package managers
+node_modules/
+*.lock
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Felix run iterations (local artifacts)
+/runs
+
+# Felix specs (project-specific, generated via `felix spec`)
+/specs
+
+# Felix agent state (generated at runtime)
+.felix/state.json
+.felix/workflow.json
+.felix/sessions.json
+.felix/requirements.json
+.felix/manifest-hashes.json
+.felix/spec-manifest.json
+.felix/outbox
+.felix/.locks/
+.locks/
+
+# Felix local config (contains API keys)
+.felix/config.json
+
+# Release packaging artifacts
+.release/
+publish-out/
+
+# SaaS-internal planning docs (private repo only)
+Enhancements/ARCHITECTURE.md
+Enhancements/CLOUD_MIGRATION_PLAN.md
+Enhancements/CLOUD_ORCHESTRATION.md
+Enhancements/LANDING_PAGE.md
+Enhancements/PRODUCTION_PH1.md
+Enhancements/PRODUCTION_PH1_MIGRATION.md
+Enhancements/PRODUCTION_PH2.md
+Enhancements/PRODUCTION_ROADMAP.md
+Enhancements/RUNS_IMPLEMENTATION.md
+Enhancements/RUNS_PHASE2.md
+Enhancements/UI_GUIDELINES.md
+Enhancements/UI_TODO.md
+Enhancements/REPO_SPLIT.md
+
+# Temp scripts
+clean_droid_and_ignore.ps1

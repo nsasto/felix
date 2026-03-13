@@ -1,0 +1,22 @@
+{
+  "name": "prompt-enhancer",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "description": "Enhances prompts with additional context and best practices",
+  "author": "Felix Team",
+  "permissions": [
+    "read:specs",
+    "read:state",
+    "git:read"
+  ],
+  "hooks": [
+    "OnContextGathering",
+    "OnPreLLM"
+  ],
+  "priority": 10,
+  "config": {
+    "add_git_stats": true,
+    "add_recent_errors": true,
+    "add_coding_standards": false
+  }
+}
