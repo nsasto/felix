@@ -137,8 +137,8 @@ your-project/
 │   ├── sync.log                   # Sync operation log (rotates at 5MB)
 │   ├── core/                      # Core modules & interfaces
 │   │   └── sync-interface.ps1    # Abstract sync plugin interface
-│   ├── plugins/                   # Plugin system
-│   │   └── sync-http.ps1         # HTTP sync implementation
+│   ├── plugins/                   # Plugin system (see docs/PLUGINS.md)
+│   │   └── sync-http/            # HTTP sync plugin (reference implementation)
 │   └── prompts/                   # Mode-specific LLM prompts
 │       ├── planning.md
 │       └── building.md
@@ -276,7 +276,8 @@ Blocked requirements must be manually reset to "planned" status in `.felix/requi
 
 - 📊 **[Execution Flow](tuts/EXECUTION_FLOW.md)** - Detailed flow diagram, phase descriptions, exit codes
 - 📚 **[Artifacts](tuts/FELIX_EXPLAINED.md)** - Durable memory, plans, and artifact lifecycle
-- 🔄 **[Sync Operations](docs/SYNC_OPERATIONS.md)** - Cloud sync setup, troubleshooting, architecture
+- � **[Writing Plugins](docs/PLUGINS.md)** - Build plugins with lifecycle hooks, state management, examples
+- �🔄 **[Sync Operations](docs/SYNC_OPERATIONS.md)** - Cloud sync setup, troubleshooting, architecture
 - 📋 **[Features](docs/FEATURES.md)** - Product capabilities and feature list
 
 ### Knowledge Base

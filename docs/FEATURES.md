@@ -40,6 +40,19 @@ Felix is a production-ready system for autonomous software delivery at scale, tu
 - **Tray-Mediated Security**: All remote control flows through authenticated tray applications
 - **Scale on Demand**: Utilize spare capacity across your infrastructure
 
+### Plugin System
+
+- **Lifecycle Hooks**: 11 hooks covering the full iteration cycle (pre-iteration through post-validation)
+- **PowerShell Scripts**: Plugins are simple `.ps1` scripts — no compilation needed
+- **Manifest-Driven**: JSON manifests declare hooks, permissions, and config
+- **State Management**: Persistent and transient state helpers built in
+- **Circuit Breaker**: Auto-disables failing plugins after configurable threshold
+- **Priority Ordering**: Control execution order across plugins (0–999)
+- **Permission Model**: Declare required access (`read:specs`, `network:http`, `git:write`, etc.)
+- **Reference Implementation**: Built-in sync-http plugin demonstrates production patterns
+
+See **[Writing Plugins](PLUGINS.md)** for the full authoring guide.
+
 ---
 
 ## 💻 Command Line Interface (CLI)
