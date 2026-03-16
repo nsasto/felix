@@ -1,9 +1,10 @@
 <div align="center">
     <img src="img/github-header-image.png" alt="Felix" />
 </div>
-<br><br>
 
 [![Tests](https://github.com/nsasto/felix/actions/workflows/tests.yml/badge.svg)](https://github.com/nsasto/felix/actions/workflows/tests.yml)
+[![Latest Release](https://img.shields.io/github/v/release/nsasto/felix?label=latest)](https://github.com/nsasto/felix/releases/latest)
+[![Cloud](https://img.shields.io/badge/cloud-runfelix.io-blue)](https://runfelix.io)
 
 # Felix
 
