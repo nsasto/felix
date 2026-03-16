@@ -1,0 +1,114 @@
+name: Package And Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - release_notes/RELEASE_NOTES_v*.md
+      - .felix/version.txt
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version and release notes
+        id: meta
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $version = (Get-Content '.felix/version.txt' -Raw).Trim()
+          if (-not $version) {
+            throw 'Version file is empty: .felix/version.txt'
+          }
+
+          $parts = $version -split '\.'
+          if ($parts.Length -lt 2) {
+            throw "Version '$version' is not in expected format."
+          }
+
+          $major = $parts[0]
+          $minor = $parts[1]
+          $patch = if ($parts.Length -ge 3) { $parts[2] } else { '' }
+
+          $candidates = @()
+          if ($patch) {
+            $candidates += "release_notes/RELEASE_NOTES_v$major.$minor.$patch.md"
+          }
+          $candidates += "release_notes/RELEASE_NOTES_v$major.$minor.md"
+
+          $releaseNotesPath = $null
+          foreach ($candidate in $candidates) {
+            if (Test-Path $candidate) {
+              $releaseNotesPath = $candidate
+              break
+            }
+          }
+
+          if (-not $releaseNotesPath) {
+            $changedReleaseNotes = git diff-tree --no-commit-id --name-only -r $env:GITHUB_SHA | Where-Object { $_ -like 'release_notes/RELEASE_NOTES_v*.md' } | Select-Object -First 1
+            if ($changedReleaseNotes) {
+              $releaseNotesPath = $changedReleaseNotes
+            }
+          }
+
+          if (-not $releaseNotesPath) {
+            throw "No release notes file found for version '$version'."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+          "release_notes_path=$releaseNotesPath" >> $env:GITHUB_OUTPUT
+
+      - name: Build release artifacts
+        shell: pwsh
+        run: ./scripts/package-release.ps1 -SkipInstaller
+
+      - name: Check if release already exists
+        id: exists
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ steps.meta.outputs.tag }}" --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "release_exists=true" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            "release_exists=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Create GitHub release
+        if: steps.exists.outputs.release_exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Felix v${{ steps.meta.outputs.version }}
+          body_path: ${{ steps.meta.outputs.release_notes_path }}
+          files: |
+            .release/felix-${{ steps.meta.outputs.version }}-*.zip
+            .release/checksums-${{ steps.meta.outputs.version }}.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip duplicate release
+        if: steps.exists.outputs.release_exists == 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Release ${{ steps.meta.outputs.tag }} already exists. Skipping create step."
