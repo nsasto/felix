@@ -19,12 +19,15 @@ function New-TestRepository {
     New-Item -ItemType Directory -Path $repoPath -Force | Out-Null
 
     Push-Location $repoPath
+    $env:GIT_TERMINAL_PROMPT = "0"
     git init | Out-Null
     git config user.email "test@felix.dev" | Out-Null
     git config user.name "Felix Test" | Out-Null
+    # Rename default branch to main for consistency
+    git branch -M main 2>$null
 
     # Create initial structure
-    New-Item -ItemType Directory -Path \".felix\" -Force | Out-Null
+    New-Item -ItemType Directory -Path ".felix" -Force | Out-Null
     New-Item -ItemType Directory -Path "specs" -Force | Out-Null
     New-Item -ItemType Directory -Path "runs" -Force | Out-Null
 
@@ -33,7 +36,7 @@ function New-TestRepository {
         executor = @{
             commit_on_complete = $true
         }
-        plugins = @{
+        plugins  = @{
             disabled = @()
         }
     } | ConvertTo-Json -Depth 10 | Set-Content ".felix/config.json"
@@ -46,6 +49,9 @@ function New-TestRepository {
     # Initial commit
     git add . | Out-Null
     git commit -m "Initial commit" | Out-Null
+
+    # Set this repo as its own origin so git remote commands don't hang
+    git remote add origin $repoPath 2>$null
 
     Pop-Location
 
@@ -71,11 +77,11 @@ function New-TestRequirement {
     )
 
     return @{
-        id = $Id
-        title = $Title
-        status = $Status
+        id         = $Id
+        title      = $Title
+        status     = $Status
         depends_on = $DependsOn
-        branch = $null
+        branch     = $null
     }
 }
 

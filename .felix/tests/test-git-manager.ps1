@@ -5,7 +5,11 @@ Tests for git operations
 
 . "$PSScriptRoot/test-framework.ps1"
 . "$PSScriptRoot/test-helpers.ps1"
+. "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/git-manager.ps1"
+
+# Prevent git from prompting for credentials (causes test hangs)
+$env:GIT_TERMINAL_PROMPT = "0"
 
 Describe "Feature Branch Initialization" {
 

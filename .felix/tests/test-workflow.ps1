@@ -18,11 +18,11 @@ Describe "Set-WorkflowStage" {
     
     It "should call helper script with Stage parameter" {
         $testPath = Join-Path $env:TEMP "test-workflow-$(Get-Random)"
-        New-Item -ItemType Directory -Path (Join-Path $testPath "felix\scripts") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testPath ".felix\scripts") -Force | Out-Null
         
         try {
             # Create a mock helper script that writes to a file
-            $helperScript = Join-Path $testPath "felix\scripts\set-workflow-stage.ps1"
+            $helperScript = Join-Path $testPath ".felix\scripts\set-workflow-stage.ps1"
             $outputFile = Join-Path $testPath "output.txt"
             
             @"
@@ -44,11 +44,11 @@ param([string]`$Stage, [string]`$ProjectPath, [switch]`$Clear)
     
     It "should call helper script with Clear switch" {
         $testPath = Join-Path $env:TEMP "test-workflow-$(Get-Random)"
-        New-Item -ItemType Directory -Path (Join-Path $testPath "felix\scripts") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testPath ".felix\scripts") -Force | Out-Null
         
         try {
             # Create a mock helper script
-            $helperScript = Join-Path $testPath "felix\scripts\set-workflow-stage.ps1"
+            $helperScript = Join-Path $testPath ".felix\scripts\set-workflow-stage.ps1"
             $outputFile = Join-Path $testPath "output.txt"
             
             @"
@@ -72,11 +72,11 @@ if (`$Clear) {
     
     It "should silently handle errors from helper script" {
         $testPath = Join-Path $env:TEMP "test-workflow-$(Get-Random)"
-        New-Item -ItemType Directory -Path (Join-Path $testPath "felix\scripts") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testPath ".felix\scripts") -Force | Out-Null
         
         try {
             # Create a helper script that throws an error
-            $helperScript = Join-Path $testPath "felix\scripts\set-workflow-stage.ps1"
+            $helperScript = Join-Path $testPath ".felix\scripts\set-workflow-stage.ps1"
             @"
 throw "Intentional error for testing"
 "@ | Set-Content $helperScript

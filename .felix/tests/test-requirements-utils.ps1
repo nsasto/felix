@@ -4,6 +4,7 @@ Tests for requirements utilities
 #>
 
 . "$PSScriptRoot/test-framework.ps1"
+. "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/requirements-utils.ps1"
 
 Describe "Update-RequirementStatus" {

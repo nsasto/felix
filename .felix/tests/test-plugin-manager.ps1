@@ -4,6 +4,7 @@ Tests for plugin system
 #>
 
 . "$PSScriptRoot/test-framework.ps1"
+. "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/plugin-manager.ps1"
 
 Describe "Plugin Discovery" {

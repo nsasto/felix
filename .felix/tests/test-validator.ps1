@@ -4,6 +4,7 @@ Tests for backpressure validation system
 #>
 
 . "$PSScriptRoot/test-framework.ps1"
+. "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/validator.ps1"
 
 Describe "Get-BackpressureCommands" {

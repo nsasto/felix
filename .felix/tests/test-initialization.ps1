@@ -4,6 +4,7 @@ Tests for initialization module
 #>
 
 . "$PSScriptRoot/test-framework.ps1"
+. "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/exit-handler.ps1"
 . "$PSScriptRoot/../core/initialization.ps1"
 

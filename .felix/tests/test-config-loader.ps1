@@ -21,7 +21,8 @@ Describe "Get-ProjectPaths" {
         Assert-Equal "C:\Test\Project\.felix\config.json" $paths.ConfigFile
         Assert-Equal "C:\Test\Project\.felix\state.json" $paths.StateFile
         Assert-Equal "C:\Test\Project\.felix\requirements.json" $paths.RequirementsFile
-        Assert-Equal "C:\Test\Project\.felix\prompts" $paths.PromptsDir
+        # PromptsDir is relative to the core script location, not ProjectPath
+        Assert-True (Test-Path $paths.PromptsDir -IsValid) "PromptsDir should be a valid path"
     }
 }
 

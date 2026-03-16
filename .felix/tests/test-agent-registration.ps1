@@ -1,4 +1,5 @@
 . "$PSScriptRoot/test-framework.ps1"
+. "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/agent-registration.ps1"
 
 # Mock backend URL for testing
