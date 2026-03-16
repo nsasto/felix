@@ -19,7 +19,7 @@ The trick is simple: run the agent in a loop, restart it every iteration so it g
 
 **Windows installer:**
 
-Download [felix-latest-win-x64.zip](https://github.com/nsasto/felix/releases/latest/download/felix-latest-win-x64.zip) and run `./scripts/install.ps1` from the extracted folder. This adds `felix` to your PATH.
+Download [felix-latest-setup.exe](https://github.com/nsasto/felix/releases/latest/download/felix-latest-setup.exe) and run it. This adds `felix` to your PATH.
 
 **Or install from source (any platform):**
 
