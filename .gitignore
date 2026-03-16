@@ -77,3 +77,4 @@ Enhancements/REPO_SPLIT.md
 
 # Temp scripts
 clean_droid_and_ignore.ps1
+sync-to-cloud.ps1

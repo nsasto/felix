@@ -34,7 +34,8 @@ try {
     # 2. Calculate duration
     $duration = if ($Global:HttpSyncState.RunStartTime) {
         ((Get-Date) - $Global:HttpSyncState.RunStartTime).TotalSeconds
-    } else {
+    }
+    else {
         0
     }
     
@@ -42,7 +43,8 @@ try {
     # Reload requirement from file to get updated status
     $requirementsFile = if ($Data.Paths -and $Data.Paths.RequirementsFile) { 
         $Data.Paths.RequirementsFile 
-    } else { 
+    }
+    else { 
         Join-Path $Data.Paths.FelixDir "requirements.json" 
     }
     
@@ -61,10 +63,31 @@ try {
     }
     
     $finishData = @{
-        status = $runStatus
-        completed_at = Get-Date -Format "o"
-        iterations = $Data.Iteration
+        status           = $runStatus
+        completed_at     = Get-Date -Format "o"
+        iterations       = $Data.Iteration
         duration_seconds = $duration
+    }
+
+    # Mark requirement complete independently from run finish sync.
+    # This keeps server-side item state accurate even if /api/runs/{id}/finish
+    # is temporarily failing and being retried from outbox.
+    if ($runStatus -eq "completed" -and $Data.Requirement) {
+        $reqCode = if ($Data.Requirement.code) { $Data.Requirement.code } else { $Data.Requirement.id }
+        if ($reqCode) {
+            try {
+                $headers = @{ "Content-Type" = "application/json" }
+                if ($Global:HttpSyncState.Client.ApiKey) {
+                    $headers["Authorization"] = "Bearer $($Global:HttpSyncState.Client.ApiKey)"
+                }
+                $body = @{ code = $reqCode } | ConvertTo-Json
+                Invoke-RestMethod -Uri "$($Global:HttpSyncState.Client.BaseUrl.TrimEnd('/'))/api/sync/work/complete" -Method POST -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+                Emit-Log -Level "info" -Message "Marked $reqCode complete on server (work/complete)" -Component "sync" | Out-Null
+            }
+            catch {
+                Emit-Log -Level "warn" -Message "Failed to mark $reqCode complete via work/complete: $_" -Component "sync" | Out-Null
+            }
+        }
     }
     
     $Global:HttpSyncState.Client.FinishRun($Global:HttpSyncState.RunId, $finishData)
