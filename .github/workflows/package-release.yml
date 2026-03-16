@@ -102,11 +102,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          $ErrorActionPreference = 'SilentlyContinue'
           gh release view "${{ steps.meta.outputs.tag }}" --repo "$env:GITHUB_REPOSITORY" *> $null
           if ($LASTEXITCODE -eq 0) {
             "release_exists=true" >> $env:GITHUB_OUTPUT
           }
           else {
+            $LASTEXITCODE = 0
             "release_exists=false" >> $env:GITHUB_OUTPUT
           }
 
