@@ -80,6 +80,17 @@ jobs:
         shell: pwsh
         run: ./scripts/package-release.ps1 -SkipInstaller
 
+      - name: Create stable latest asset aliases
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-win-x64.zip" ".release/felix-latest-win-x64.zip" -Force
+          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-linux-x64.zip" ".release/felix-latest-linux-x64.zip" -Force
+          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-osx-arm64.zip" ".release/felix-latest-osx-arm64.zip" -Force
+          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-osx-x64.zip" ".release/felix-latest-osx-x64.zip" -Force
+          Copy-Item ".release/checksums-${{ steps.meta.outputs.version }}.txt" ".release/checksums-latest.txt" -Force
+
       - name: Check if release already exists
         id: exists
         shell: pwsh
@@ -103,7 +114,9 @@ jobs:
           body_path: ${{ steps.meta.outputs.release_notes_path }}
           files: |
             .release/felix-${{ steps.meta.outputs.version }}-*.zip
+            .release/felix-latest-*.zip
             .release/checksums-${{ steps.meta.outputs.version }}.txt
+            .release/checksums-latest.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
