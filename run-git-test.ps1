@@ -56,3 +56,5 @@ if ($failedTests.Count -gt 0) {
     foreach ($ft in $failedTests) { Write-Host "  $ft" -ForegroundColor Red }
 }
 Write-Host "========================================" -ForegroundColor Cyan
+
+if ($totalFail -gt 0) { exit 1 }

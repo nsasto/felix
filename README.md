@@ -3,6 +3,8 @@
 </div>
 <br><br>
 
+[![Tests](https://github.com/nsasto/felix/actions/workflows/tests.yml/badge.svg)](https://github.com/nsasto/felix/actions/workflows/tests.yml)
+
 # Felix
 
 Felix is an agent harness that lets teams run autonomous coding loops against real, existing codebases — and keep quality high while doing it. Most toy examples fall apart the moment you point them at a production repo. Felix doesn't, because it treats tests, type-checks, and builds as hard gates, not suggestions.
