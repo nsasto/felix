@@ -392,11 +392,30 @@ class Program
             await ExecutePowerShell(felixPs1, args.ToArray());
         }, dryRunOpt, deleteOpt, forceOpt2);
 
+        // spec push
+        var pushDryRunOpt = new Option<bool>("--dry-run", "Show what would change without uploading");
+        var pushForceOpt = new Option<bool>("--force", "Upload all local specs and request create-if-missing requirement mappings");
+
+        var pushCmd = new Command("push", "Upload local spec files to server")
+        {
+            pushDryRunOpt,
+            pushForceOpt
+        };
+
+        pushCmd.SetHandler(async (dryRun, force) =>
+        {
+            var args = new List<string> { "spec", "push" };
+            if (dryRun) args.Add("--dry-run");
+            if (force) args.Add("--force");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, pushDryRunOpt, pushForceOpt);
+
         cmd.AddCommand(createCmd);
         cmd.AddCommand(fixCmd);
         cmd.AddCommand(deleteCmd);
         cmd.AddCommand(statusCmd);
         cmd.AddCommand(pullCmd);
+        cmd.AddCommand(pushCmd);
 
         return cmd;
     }

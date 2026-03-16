@@ -18,7 +18,7 @@ function Invoke-SpecPush {
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
     $baseUrl = if ($env:FELIX_SYNC_URL) { $env:FELIX_SYNC_URL } else { $config.sync.base_url }
-    $apiKey  = if ($env:FELIX_SYNC_KEY)  { $env:FELIX_SYNC_KEY  } else { $config.sync.api_key }
+    $apiKey = if ($env:FELIX_SYNC_KEY) { $env:FELIX_SYNC_KEY } else { $config.sync.api_key }
 
     if (-not $baseUrl) {
         Write-Error "sync.base_url not set in .felix/config.json. Run 'felix setup' to configure."
@@ -48,18 +48,43 @@ function Invoke-SpecPush {
 
     Write-Host ""
     Write-Host "Pushing $($specFiles.Count) spec file(s) to server..." -ForegroundColor Cyan
+    if ($Force) {
+        Write-Host "  [force] Requesting server-side create/update for all specs, including missing requirement mappings." -ForegroundColor Yellow
+    }
+
+    # In CI or redirected output, prefer plain progress lines over Write-Progress bars.
+    $usePlainProgress = (($env:CI -eq "true") -or ($env:GITHUB_ACTIONS -eq "true") -or [Console]::IsOutputRedirected)
 
     # Build upload batch
     $files = @()
+    $totalFiles = $specFiles.Count
+    $preparedCount = 0
     foreach ($file in $specFiles) {
+        $preparedCount++
+        $percent = [Math]::Floor(($preparedCount / $totalFiles) * 100)
+        if ($usePlainProgress) {
+            if ($preparedCount -eq 1 -or $preparedCount -eq $totalFiles -or ($preparedCount % 25 -eq 0)) {
+                Write-Host ("  [prepare] {0}/{1} ({2}%) {3}" -f $preparedCount, $totalFiles, $percent, $file.Name) -ForegroundColor DarkGray
+            }
+        }
+        else {
+            Write-Progress -Activity "Preparing spec upload" -Status "$preparedCount/$totalFiles $($file.Name)" -PercentComplete $percent
+        }
+
         $relPath = "specs/" + ($file.FullName.Substring($specsDir.Length).TrimStart('\', '/').Replace('\', '/'))
         $b64 = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($file.FullName))
         $files += @{ path = $relPath; content = $b64 }
+    }
+    if (-not $usePlainProgress) {
+        Write-Progress -Activity "Preparing spec upload" -Completed
     }
 
     if ($DryRun) {
         Write-Host ""
         Write-Host "  [dry-run] Would upload:" -ForegroundColor Yellow
+        if ($Force) {
+            Write-Host "  [dry-run] --force would request create-if-missing on the server (if supported)." -ForegroundColor Yellow
+        }
         foreach ($f in $files) {
             Write-Host "    $($f.path)" -ForegroundColor Gray
         }
@@ -68,7 +93,15 @@ function Invoke-SpecPush {
     }
 
     # POST to /api/sync/specs/upload
-    $body = @{ files = $files } | ConvertTo-Json -Depth 10 -Compress
+    Write-Host "  Uploading batch to server..." -ForegroundColor Gray
+    $bodyObj = [ordered]@{ files = $files }
+    if ($Force) {
+        # Send both names for compatibility with different backend versions.
+        $bodyObj.force = $true
+        $bodyObj.create_missing_requirements = $true
+        $bodyObj.create_requirements_if_missing = $true
+    }
+    $body = $bodyObj | ConvertTo-Json -Depth 10 -Compress
     try {
         $result = Invoke-RestMethod `
             -Uri "$baseUrl/api/sync/specs/upload" `
@@ -86,17 +119,49 @@ function Invoke-SpecPush {
 
     # Report results
     $uploaded = 0
-    $failed   = 0
+    $failed = 0
+    $missingServerRequirementCount = 0
+    $forceCreateNotHonoredCount = 0
     Write-Host ""
+    $resultCount = if ($result.results) { @($result.results).Count } else { 0 }
+    $processedResults = 0
     foreach ($r in $result.results) {
+        $processedResults++
+        if ($resultCount -gt 0) {
+            $percent = [Math]::Floor(($processedResults / $resultCount) * 100)
+            if ($usePlainProgress) {
+                if ($processedResults -eq 1 -or $processedResults -eq $resultCount -or ($processedResults % 25 -eq 0)) {
+                    Write-Host ("  [result]  {0}/{1} ({2}%) {3}" -f $processedResults, $resultCount, $percent, $r.path) -ForegroundColor DarkGray
+                }
+            }
+            else {
+                Write-Progress -Activity "Processing upload results" -Status "$processedResults/$resultCount $($r.path)" -PercentComplete $percent
+            }
+        }
+
         if ($r.uploaded) {
             Write-Host "  [OK] $($r.path)" -ForegroundColor Green
             $uploaded++
         }
         else {
-            Write-Host "  [SKIP] $($r.path): $($r.error)" -ForegroundColor Yellow
+            $errorText = [string]$r.error
+            if ($errorText) {
+                # Normalize mojibake seen in some terminals when server returns UTF-8 punctuation.
+                $errorText = $errorText -replace 'â\?\?', '-'
+                if ($errorText -match 'No requirement found with this spec_path') {
+                    $missingServerRequirementCount++
+                    if ($Force) {
+                        $forceCreateNotHonoredCount++
+                    }
+                    $errorText = 'No matching requirement for this spec_path on the server project. Verify backend URL/API key project mapping, then bootstrap remote requirements.'
+                }
+            }
+            Write-Host "  [SKIP] $($r.path): $errorText" -ForegroundColor Yellow
             $failed++
         }
+    }
+    if (-not $usePlainProgress) {
+        Write-Progress -Activity "Processing upload results" -Completed
     }
 
     Write-Host ""
@@ -105,8 +170,19 @@ function Invoke-SpecPush {
     }
     else {
         Write-Host "Spec push complete. $uploaded uploaded, $failed skipped." -ForegroundColor Yellow
-        Write-Host "Skipped specs may not have matching requirements in the DB yet." -ForegroundColor Gray
-        Write-Host "Run 'felix spec fix' then retry." -ForegroundColor Gray
+        if ($Force -and $forceCreateNotHonoredCount -gt 0) {
+            Write-Host "Server did not create $forceCreateNotHonoredCount missing requirement mapping(s) despite --force." -ForegroundColor Yellow
+            Write-Host "This backend may not support create-if-missing in spec upload yet." -ForegroundColor Gray
+        }
+        if ($missingServerRequirementCount -eq $failed -and $failed -gt 0) {
+            Write-Host "All skipped specs are missing requirement rows on the server project (local files exist)." -ForegroundColor Gray
+            Write-Host "Check FELIX_SYNC_URL + API key project mapping, then bootstrap requirements on the backend." -ForegroundColor Gray
+            Write-Host "Tip: 'felix spec fix' updates local requirements.json only; it does not create remote requirement rows." -ForegroundColor Gray
+        }
+        else {
+            Write-Host "Skipped specs may not have matching requirements in the DB yet." -ForegroundColor Gray
+            Write-Host "Run 'felix spec fix' then retry." -ForegroundColor Gray
+        }
     }
     Write-Host ""
 }

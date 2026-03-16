@@ -3,13 +3,6 @@
 # Helpers and Invoke-SpecFix for `felix spec fix`
 # Dot-sourced by spec.ps1
 
-function Ensure-Array {
-    param($value)
-    if ($null -eq $value) { return @() }
-    if ($value -is [array]) { return @($value) }
-    return @($value)
-}
-
 function Get-NextAvailableSpecId {
     param([int]$StartFrom, [string]$SpecsDir)
     $nextId = $StartFrom + 1
@@ -47,7 +40,8 @@ function Invoke-SpecFix {
             # Normalize bare array format (legacy) to { requirements: [] } object
             if ($parsed -is [array]) {
                 $requirementsData = [PSCustomObject]@{ requirements = $parsed }
-            } else {
+            }
+            else {
                 $requirementsData = $parsed
             }
             Write-Host "[OK] Loaded requirements.json" -ForegroundColor Green
@@ -120,7 +114,7 @@ function Invoke-SpecFix {
                         $useGit = $false
                         if (Test-Path (Join-Path $RepoRoot ".git")) {
                             $ErrorActionPreference = 'SilentlyContinue'
-                            $gitResult = git mv $oldPath $newPath 2>$null
+                            git mv $oldPath $newPath 2>$null
                             $ErrorActionPreference = 'Continue'
                             if ($LASTEXITCODE -eq 0) { $useGit = $true }
                         }
@@ -201,12 +195,16 @@ function Invoke-SpecFix {
         Write-Host "  [2] planned     - ready for agent to pick up" -ForegroundColor Gray
         Write-Host "  [3] in_progress - currently being worked on" -ForegroundColor Gray
         Write-Host "  [4] blocked     - waiting on something" -ForegroundColor Gray
+        Write-Host "  [5] done        - already finished" -ForegroundColor Gray
+        Write-Host "  [6] complete    - already finished" -ForegroundColor Gray
         Write-Host ""
-        $choice = Read-Host "Enter choice [1-4] (default: 1 draft)"
+        $choice = Read-Host "Enter choice [1-6] (default: 1 draft)"
         switch ($choice.Trim()) {
             "2" { $defaultStatus = "planned" }
             "3" { $defaultStatus = "in_progress" }
             "4" { $defaultStatus = "blocked" }
+            "5" { $defaultStatus = "done" }
+            "6" { $defaultStatus = "complete" }
             default { $defaultStatus = "draft" }
         }
         Write-Host ""
@@ -227,7 +225,8 @@ function Invoke-SpecFix {
                     try {
                         $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
                         if ($meta.status) { $resolvedStatus = $meta.status }
-                    } catch {}
+                    }
+                    catch {}
                 }
                 $reqHash = [ordered]@{
                     id        = $origReq.id
@@ -247,7 +246,8 @@ function Invoke-SpecFix {
                     try {
                         $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
                         if ($meta.status) { $resolvedStatus = $meta.status }
-                    } catch {}
+                    }
+                    catch {}
                 }
                 $allRequirements += [ordered]@{
                     id        = $reqId

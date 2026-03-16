@@ -145,7 +145,7 @@ function Show-Help {
                 Write-Host ""
                 Write-Host "Options for 'push':" -ForegroundColor Yellow
                 Write-Host "  --dry-run             Show what would be uploaded without sending"
-                Write-Host "  --force               Re-upload even unchanged files"
+                Write-Host "  --force               Re-upload and request create-if-missing requirement mappings"
                 Write-Host ""
                 Write-Host "Examples:"
                 Write-Host "  felix spec create ""Add user authentication"""

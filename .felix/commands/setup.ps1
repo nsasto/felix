@@ -17,10 +17,12 @@ function Invoke-Setup {
         if ($resolved -and (Test-Path $resolved.Path)) {
             $RepoRoot = $resolved.Path
             Write-Host "  Using: $RepoRoot" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "  Path not found - using current folder" -ForegroundColor Yellow
         }
-    } else {
+    }
+    else {
         Write-Host "  Using: $RepoRoot" -ForegroundColor Green
     }
     Write-Host ""
@@ -36,7 +38,7 @@ function Invoke-Setup {
     $felixDir = Join-Path $RepoRoot ".felix"
     $isNewProject = -not (Test-Path $felixDir)
     $scaffolded = @()    # files created
-    $skipped   = @()    # files already present
+    $skipped = @()    # files already present
 
     if ($isNewProject) {
         New-Item -ItemType Directory -Path $felixDir -Force | Out-Null
@@ -50,14 +52,16 @@ function Invoke-Setup {
     if (-not (Test-Path $reqPath)) {
         '{ "requirements": [] }' | Set-Content $reqPath -Encoding UTF8
         $scaffolded += "requirements.json"
-    } else { $skipped += "requirements.json" }
+    }
+    else { $skipped += "requirements.json" }
 
     # state.json — empty object (project-specific, no engine default)
     $statePath = Join-Path $felixDir "state.json"
     if (-not (Test-Path $statePath)) {
         "{}" | Set-Content $statePath -Encoding UTF8
         $scaffolded += "state.json"
-    } else { $skipped += "state.json" }
+    }
+    else { $skipped += "state.json" }
 
     # config.json — copy from config.json.example template from engine dir
     $configStubPath = Join-Path $felixDir "config.json"
@@ -68,31 +72,35 @@ function Invoke-Setup {
             $exampleContent = Get-Content $configExampleSourcePath -Raw
             $exampleContent | Set-Content $configStubPath -Encoding UTF8
             $scaffolded += "config.json (from engine template)"
-        } else {
+        }
+        else {
             # Fallback to minimal hardcoded structure if no example exists in engine
             [ordered]@{
                 agent = [ordered]@{ agent_id = $null }
                 sync  = [ordered]@{
                     enabled  = $false
                     provider = "http"
-                    base_url = "http://localhost:8080"
+                    base_url = "https://api.runfelix.io"
                     api_key  = $null
                 }
             } | ConvertTo-Json -Depth 10 | Set-Content $configStubPath -Encoding UTF8
             $scaffolded += "config.json"
         }
-    } else { $skipped += "config.json" }
+    }
+    else { $skipped += "config.json" }
 
     # config.json.example — copy from engine dir; serves as template for config
     if (Copy-EngineFile -FelixRoot $FelixRoot -FelixDir $felixDir -RelPath "config.json.example") {
         $scaffolded += "config.json.example (template)"
-    } else { $skipped += "config.json.example (template)" }
+    }
+    else { $skipped += "config.json.example (template)" }
 
     # policies/ — copy from engine dir; contains allowlist.json and denylist.json
     foreach ($policyFile in @("policies\allowlist.json", "policies\denylist.json")) {
         if (Copy-EngineFile -FelixRoot $FelixRoot -FelixDir $felixDir -RelPath $policyFile) {
             $scaffolded += $policyFile.Replace('\', '/')
-        } else { $skipped += $policyFile.Replace('\', '/') }
+        }
+        else { $skipped += $policyFile.Replace('\', '/') }
     }
 
     # specs/ — where requirement spec files live
@@ -100,14 +108,16 @@ function Invoke-Setup {
     if (-not (Test-Path $specsDir)) {
         New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
         $scaffolded += "specs/"
-    } else { $skipped += "specs/" }
+    }
+    else { $skipped += "specs/" }
 
     # runs/ — where run artifacts are stored
     $runsDir = Join-Path $RepoRoot "runs"
     if (-not (Test-Path $runsDir)) {
         New-Item -ItemType Directory -Path $runsDir -Force | Out-Null
         $scaffolded += "runs/"
-    } else { $skipped += "runs/" }
+    }
+    else { $skipped += "runs/" }
 
     # .gitignore — add Felix entries if not already present
     $gitignorePath = Join-Path $RepoRoot ".gitignore"
@@ -128,8 +138,10 @@ function Invoke-Setup {
         if ($existing -notmatch '\.felix/config\.json') {
             Add-Content $gitignorePath $felixIgnoreBlock -Encoding UTF8
             $scaffolded += ".gitignore (updated)"
-        } else { $skipped += ".gitignore" }
-    } else {
+        }
+        else { $skipped += ".gitignore" }
+    }
+    else {
         ($felixIgnoreLines | Select-Object -Skip 1) -join "`n" | Set-Content $gitignorePath -Encoding UTF8
         $scaffolded += ".gitignore (created)"
     }
@@ -165,7 +177,7 @@ function Invoke-Setup {
             sync  = @{
                 enabled  = $false
                 provider = "fastapi"
-                base_url = "http://localhost:8080"
+                base_url = "https://api.runfelix.io"
                 api_key  = $null
             }
         }
@@ -176,14 +188,14 @@ function Invoke-Setup {
         $config | Add-Member -NotePropertyName sync -NotePropertyValue @{
             enabled  = $false
             provider = "fastapi"
-            base_url = "http://localhost:8080"
+            base_url = "https://api.runfelix.io"
             api_key  = $null
         }
     }
 
     # Ensure required sync properties exist with defaults
     if (-not $config.sync.base_url) {
-        $config.sync | Add-Member -NotePropertyName base_url -NotePropertyValue "http://localhost:8080" -Force
+        $config.sync | Add-Member -NotePropertyName base_url -NotePropertyValue "https://api.runfelix.io" -Force
     }
     if (-not $config.sync.provider) {
         $config.sync | Add-Member -NotePropertyName provider -NotePropertyValue "http" -Force
@@ -198,19 +210,19 @@ function Invoke-Setup {
     # Ensure backpressure section exists
     if (-not $config.PSObject.Properties['backpressure']) {
         $config | Add-Member -NotePropertyName backpressure -NotePropertyValue ([pscustomobject]@{
-            enabled     = $false
-            commands    = @()
-            max_retries = 3
-        }) -Force
+                enabled     = $false
+                commands    = @()
+                max_retries = 3
+            }) -Force
     }
 
     # Ensure executor section exists
     if (-not $config.PSObject.Properties['executor']) {
         $config | Add-Member -NotePropertyName executor -NotePropertyValue ([pscustomobject]@{
-            max_iterations = 20
-            default_mode   = "planning"
-            commit_on_complete = $true
-        }) -Force
+                max_iterations     = 20
+                default_mode       = "planning"
+                commit_on_complete = $true
+            }) -Force
     }
 
     # ── Project section ────────────────────────────────────────────────────────
@@ -246,14 +258,14 @@ function Invoke-Setup {
 
     # Check for common project dependency files
     $depChecks = @(
-        @{ File = "requirements.txt";  Label = "Python (requirements.txt)" }
-        @{ File = "pyproject.toml";    Label = "Python (pyproject.toml)" }
-        @{ File = "package.json";      Label = "Node.js (package.json)" }
-        @{ File = "go.mod";            Label = "Go (go.mod)" }
-        @{ File = "Cargo.toml";        Label = "Rust (Cargo.toml)" }
-        @{ File = "Gemfile";           Label = "Ruby (Gemfile)" }
-        @{ File = "pom.xml";           Label = "Java/Maven (pom.xml)" }
-        @{ File = "build.gradle";      Label = "Java/Gradle (build.gradle)" }
+        @{ File = "requirements.txt"; Label = "Python (requirements.txt)" }
+        @{ File = "pyproject.toml"; Label = "Python (pyproject.toml)" }
+        @{ File = "package.json"; Label = "Node.js (package.json)" }
+        @{ File = "go.mod"; Label = "Go (go.mod)" }
+        @{ File = "Cargo.toml"; Label = "Rust (Cargo.toml)" }
+        @{ File = "Gemfile"; Label = "Ruby (Gemfile)" }
+        @{ File = "pom.xml"; Label = "Java/Maven (pom.xml)" }
+        @{ File = "build.gradle"; Label = "Java/Gradle (build.gradle)" }
     )
     $foundDeps = @()
     foreach ($dep in $depChecks) {
@@ -274,19 +286,19 @@ function Invoke-Setup {
     Write-Host "Agent" -ForegroundColor White
 
     $knownAgents = @(
-        @{ Id = 0; Name = "droid";   Exe = "droid";  Desc = "Factory.ai Droid" }
-        @{ Id = 1; Name = "claude";  Exe = "claude"; Desc = "Anthropic Claude Code" }
-        @{ Id = 2; Name = "codex";   Exe = "codex";  Desc = "OpenAI Codex CLI" }
-        @{ Id = 3; Name = "gemini";  Exe = "gemini"; Desc = "Google Gemini CLI" }
+        @{ Id = 0; Name = "droid"; Exe = "droid"; Desc = "Factory.ai Droid" }
+        @{ Id = 1; Name = "claude"; Exe = "claude"; Desc = "Anthropic Claude Code" }
+        @{ Id = 2; Name = "codex"; Exe = "codex"; Desc = "OpenAI Codex CLI" }
+        @{ Id = 3; Name = "gemini"; Exe = "gemini"; Desc = "Google Gemini CLI" }
     )
 
     $currentAgentId = if ($config.agent.agent_id) { $config.agent.agent_id } else { $null }
 
     foreach ($a in $knownAgents) {
         $available = $null -ne (Get-Command $a.Exe -ErrorAction SilentlyContinue)
-        $marker    = if ($available) { "[installed]" } else { "[not found]" }
-        $color     = if ($available) { "Gray" } else { "DarkGray" }
-        $current   = if ($currentAgentId -eq $a.Id -or $currentAgentId -eq $a.Name) { " <-- current" } else { "" }
+        $marker = if ($available) { "[installed]" } else { "[not found]" }
+        $color = if ($available) { "Gray" } else { "DarkGray" }
+        $current = if ($currentAgentId -eq $a.Id -or $currentAgentId -eq $a.Name) { " <-- current" } else { "" }
         Write-Host ("  {0,2}  {1,-8} {2,-12} {3}{4}" -f $a.Id, $a.Name, $marker, $a.Desc, $current) -ForegroundColor $color
     }
 
@@ -314,7 +326,7 @@ function Invoke-Setup {
     }
     $newCmd = Read-Host "  Enter test command (e.g. 'pytest' or 'npm test') or press Enter to keep current"
     if ($newCmd -and $newCmd.Trim()) {
-        $config.backpressure.enabled  = $true
+        $config.backpressure.enabled = $true
         $config.backpressure.commands = @($newCmd.Trim())
         Write-Host "  Test command saved" -ForegroundColor Green
     }
