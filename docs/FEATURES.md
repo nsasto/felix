@@ -111,11 +111,12 @@ See **[Writing Plugins](PLUGINS.md)** for the full authoring guide.
 
 **`felix validate <req-id>`**
 
-- Run validation checks against acceptance criteria
+- Run requirement-level acceptance verification against spec criteria
 - Execute tests specified in requirement spec
 - Check command exit codes
 - Verify expected outcomes
 - Detailed pass/fail reporting
+- Optional machine-readable output with `--json`
 
 ### Specification Management
 

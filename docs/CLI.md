@@ -356,10 +356,19 @@ felix list --status blocked
 
 ### `felix validate <requirement-id>` - Did It Actually Work?
 
-**What it does:** Runs the validation criteria from the spec file without running the full agent loop.
+**What it does:** Runs requirement-level acceptance verification from the spec file without running the full agent loop.
+
+**What this answers:** "Has this requirement been achieved according to its own acceptance criteria?"
+
+**What it does not do:** It does not replace loop backpressure checks. Backpressure is the per-iteration safety gate (tests/build/lint before commit), while `felix validate` is a requirement-level done check.
 
 ```bash
 felix validate S-0001
+```
+
+```bash
+# Machine-readable result for CI/UI
+felix validate S-0001 --json
 ```
 
 **Why you need this:**
@@ -367,6 +376,7 @@ felix validate S-0001
 1. **Testing your acceptance criteria** before letting the agent loose
 2. **Debugging failures** - run validation in isolation to see what's actually broken
 3. **Post-deployment checks** - validate requirements still work after merging
+4. **Progress confidence** - measure completion against explicit, executable criteria
 
 **Validation criteria format** (from your spec file):
 

@@ -94,12 +94,16 @@ function Show-Help {
             }
             "validate" {
                 Write-Host ""
-                Write-Host "felix validate <requirement-id>" -ForegroundColor Cyan
+                Write-Host "felix validate <requirement-id> [options]" -ForegroundColor Cyan
                 Write-Host ""
                 Write-Host "Run validation checks for a requirement."
                 Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --json               Emit machine-readable validation result"
+                Write-Host ""
                 Write-Host "Examples:"
                 Write-Host "  felix validate S-0001"
+                Write-Host "  felix validate S-0001 --json"
                 Write-Host ""
             }
             "deps" {

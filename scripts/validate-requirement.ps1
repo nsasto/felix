@@ -52,7 +52,7 @@ function Find-ProjectRoot {
     $depth = 0
     
     while ($depth -lt $maxDepth) {
-        $felixPath = Join-Path $currentPath "felix"
+        $felixPath = Join-Path $currentPath ".felix"
         $specsPath = Join-Path $currentPath "specs"
         
         if ((Test-Path $felixPath -PathType Container) -and 
@@ -68,7 +68,7 @@ function Find-ProjectRoot {
         $depth++
     }
     
-    throw "Could not find project root (no .felix/ and specs/ directories found)"
+    throw "Could not find project root from '$((Get-Location).Path)' (expected both .felix/ and specs/ directories)."
 }
 
 function Load-JsonFile {

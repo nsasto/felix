@@ -55,11 +55,18 @@ felix tui
 
 ## Validate Requirement
 
-Run validation checks for a specific requirement. The validation script reads acceptance criteria from the spec file and executes any commands specified.
+Run requirement-level acceptance verification for a specific requirement. The validation script reads validation/acceptance criteria from the spec file and executes any commands specified.
+
+This command answers: "Did we achieve this requirement per its criteria?"
+
+This command is separate from loop backpressure checks. Backpressure gates each iteration before commit; `felix validate` checks requirement completion criteria.
 
 ```bash
 # Validate a specific requirement
-py -3 scripts/validate-requirement.py S-0002
+felix validate S-0002
+
+# Machine-readable output (for CI / dashboards)
+felix validate S-0002 --json
 
 # If `py -3` is not available, use `python` or set the full Python executable path in `.felix/config.json` under `python.executable`.
 
