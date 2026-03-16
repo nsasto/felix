@@ -8,9 +8,9 @@
 
 # Felix
 
-Felix is an agent harness that lets teams run autonomous coding loops against real, existing codebases — and keep quality high while doing it. Most toy examples fall apart the moment you point them at a production repo. Felix doesn't, because it treats tests, type-checks, and builds as hard gates, not suggestions.
+Felix is an agent harness that lets teams run autonomous coding loops against real, existing codebases - and keep quality high while doing it. Most toy examples fall apart the moment you point them at a production repo. Felix doesn't, because it treats tests, type-checks, and builds as hard gates, not suggestions.
 
-The trick is simple: run the agent in a loop, restart it every iteration so it gets fresh context, and keep all progress on disk. If the tests fail, the loop pushes back. If they pass, the agent moves on. No magic — just structured scaffolding, durable state, and backpressure that actually works.
+The trick is simple: run the agent in a loop, restart it every iteration so it gets fresh context, and keep all progress on disk. If the tests fail, the loop pushes back. If they pass, the agent moves on. No magic - just structured scaffolding, durable state, and backpressure that actually works.
 
 **Optional cloud sync**: Mirror run artifacts to [runfelix.io](https://runfelix.io) for team visibility, multi-agent coordination, and real-time monitoring.
 
@@ -43,12 +43,12 @@ felix setup
 
 The setup wizard walks you through:
 
-- **Scaffolding** — creates `.felix/`, `specs/`, and `runs/` directories
-- **Agent selection** — pick your LLM provider (Claude Code, Factory Droid, Codex, Gemini)
-- **Test command** — configure your backpressure command (`pytest`, `npm test`, etc.)
-- **Mode** — local (standalone) or remote (team sync via [runfelix.io](https://runfelix.io))
+- **Scaffolding** - creates `.felix/`, `specs/`, and `runs/` directories
+- **Agent selection** - pick your LLM provider (Claude Code, Factory Droid, Codex, Gemini)
+- **Test command** - configure your backpressure command (`pytest`, `npm test`, etc.)
+- **Mode** - local (standalone) or remote (team sync via [runfelix.io](https://runfelix.io))
 
-Setup is idempotent — safe to re-run without overwriting existing config.
+Setup is idempotent - safe to re-run without overwriting existing config.
 
 ### 3. Run
 
@@ -68,7 +68,7 @@ felix procs
 
 **Optional: Enable cloud sync for run artifacts (free)**
 
-Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) — it's free. Then set env vars or add to `.felix/config.json`:
+Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) - it's free. Then set env vars or add to `.felix/config.json`:
 
 ```powershell
 $env:FELIX_SYNC_ENABLED = "true"
@@ -186,7 +186,7 @@ Felix is a CLI-first agent harness. The agent runs as a local process and commun
                                  coordination
 ```
 
-**Key Design**: All state lives on disk. The agent is a standalone process that reads specs, writes artifacts, and commits code. Cloud sync is opt-in and non-blocking — if the network is down, the agent keeps working.
+**Key Design**: All state lives on disk. The agent is a standalone process that reads specs, writes artifacts, and commits code. Cloud sync is opt-in and non-blocking - if the network is down, the agent keeps working.
 
 ---
 
@@ -303,7 +303,7 @@ Blocked requirements must be manually reset to "planned" status in `.felix/requi
 
 ## Acknowledgments
 
-Felix's execution model is inspired by the [Ralph Playbook](https://github.com/ClaytonFarr/ralph-playbook) by Clayton Farr — the insight that naive persistence (restart + fresh context + disk-based state) beats complex agent memory. See also [snarktank/ralph](https://github.com/snarktank/ralph), [ralph-orchestrator](https://github.com/mikeyobrien/ralph-orchestrator), [Gas Town](https://github.com/steveyegge/gastown), and [Claude Code Ralph Wiggum](https://github.com/anthropics/anthropic-quickstarts/tree/main/claude-code-ralph-wiggum) for related approaches.
+Felix's execution model is inspired by the [Ralph Playbook](https://github.com/ClaytonFarr/ralph-playbook) by Clayton Farr - the insight that naive persistence (restart + fresh context + disk-based state) beats complex agent memory. See also [snarktank/ralph](https://github.com/snarktank/ralph), [ralph-orchestrator](https://github.com/mikeyobrien/ralph-orchestrator), [Gas Town](https://github.com/steveyegge/gastown), and [Claude Code Ralph Wiggum](https://github.com/anthropics/anthropic-quickstarts/tree/main/claude-code-ralph-wiggum) for related approaches.
 
 ---
 
@@ -313,4 +313,4 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT - see [LICENSE](LICENSE) for details.

@@ -20,11 +20,11 @@
 
 `felix spec push` now splits large uploads into chunks to avoid HTTP timeouts. Configurable via environment variables:
 
-| Variable | Default | Description |
-|---|---|---|
-| `FELIX_SPEC_PUSH_CHUNK_SIZE` | 10 | Files per upload batch |
-| `FELIX_SPEC_PUSH_TIMEOUT_SEC` | 120 | HTTP timeout per chunk |
-| `FELIX_SPEC_PUSH_RETRIES` | 2 | Retry attempts per failed chunk |
+| Variable                      | Default | Description                     |
+| ----------------------------- | ------- | ------------------------------- |
+| `FELIX_SPEC_PUSH_CHUNK_SIZE`  | 10      | Files per upload batch          |
+| `FELIX_SPEC_PUSH_TIMEOUT_SEC` | 120     | HTTP timeout per chunk          |
+| `FELIX_SPEC_PUSH_RETRIES`     | 2       | Retry attempts per failed chunk |
 
 Progress reporting adapts automatically — plain text in CI/redirected output, `Write-Progress` bars in interactive terminals.
 
@@ -53,6 +53,7 @@ The `sync-http` plugin's `on-runcomplete` hook now calls `/api/sync/work/complet
 ### Plugin Authoring Guide
 
 New `docs/PLUGINS.md` — a complete reference for writing Felix plugins, including:
+
 - Quick start and manifest schema
 - All 11 lifecycle hooks documented
 - State management, configuration, and circuit breaker patterns
@@ -64,17 +65,17 @@ New `docs/PLUGINS.md` — a complete reference for writing Felix plugins, includ
 
 8 new test modules added, bringing comprehensive coverage to previously untested subsystems:
 
-| Test Module | Coverage |
-|---|---|
-| `test-agent-adapters` | Agent adapter registration and invocation |
-| `test-context-builder` | LLM context assembly |
-| `test-emit-event` | Plugin event emission pipeline |
-| `test-session-manager` | Session lifecycle and persistence |
-| `test-setup-utils` | Project setup and scaffolding |
-| `test-spec-builder` | Spec file generation |
-| `test-task-handler` | Task dispatch and execution |
-| `test-text-utils` | String utilities |
-| `test-work-selector` | Requirement selection logic |
+| Test Module            | Coverage                                  |
+| ---------------------- | ----------------------------------------- |
+| `test-agent-adapters`  | Agent adapter registration and invocation |
+| `test-context-builder` | LLM context assembly                      |
+| `test-emit-event`      | Plugin event emission pipeline            |
+| `test-session-manager` | Session lifecycle and persistence         |
+| `test-setup-utils`     | Project setup and scaffolding             |
+| `test-spec-builder`    | Spec file generation                      |
+| `test-task-handler`    | Task dispatch and execution               |
+| `test-text-utils`      | String utilities                          |
+| `test-work-selector`   | Requirement selection logic               |
 
 Existing tests updated to prevent git credential prompts in CI environments.
 
