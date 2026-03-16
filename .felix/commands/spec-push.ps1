@@ -92,29 +92,63 @@ function Invoke-SpecPush {
         return
     }
 
-    # POST to /api/sync/specs/upload
-    Write-Host "  Uploading batch to server..." -ForegroundColor Gray
-    $bodyObj = [ordered]@{ files = $files }
-    if ($Force) {
-        # Send both names for compatibility with different backend versions.
-        $bodyObj.force = $true
-        $bodyObj.create_missing_requirements = $true
-        $bodyObj.create_requirements_if_missing = $true
-    }
-    $body = $bodyObj | ConvertTo-Json -Depth 10 -Compress
-    try {
-        $result = Invoke-RestMethod `
-            -Uri "$baseUrl/api/sync/specs/upload" `
-            -Method POST `
-            -Headers $headers `
-            -ContentType "application/json; charset=utf-8" `
-            -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
-            -TimeoutSec 60 `
-            -ErrorAction Stop
-    }
-    catch {
-        Write-Error "Failed to upload specs: $_"
-        exit 1
+    # Upload in chunks to avoid timeouts on large batches
+    $chunkSize = if ($env:FELIX_SPEC_PUSH_CHUNK_SIZE) { [int]$env:FELIX_SPEC_PUSH_CHUNK_SIZE } else { 10 }
+    $timeoutSec = if ($env:FELIX_SPEC_PUSH_TIMEOUT_SEC) { [int]$env:FELIX_SPEC_PUSH_TIMEOUT_SEC } else { 120 }
+    $maxRetries = if ($env:FELIX_SPEC_PUSH_RETRIES) { [int]$env:FELIX_SPEC_PUSH_RETRIES } else { 2 }
+
+    $totalChunks = [Math]::Ceiling($files.Count / $chunkSize)
+    Write-Host "  Uploading in $totalChunks chunk(s) of up to $chunkSize specs (timeout ${timeoutSec}s per chunk)..." -ForegroundColor Gray
+
+    $allResults = @()
+    for ($ci = 0; $ci -lt $totalChunks; $ci++) {
+        $start = $ci * $chunkSize
+        $end = [Math]::Min($start + $chunkSize, $files.Count) - 1
+        $chunk = $files[$start..$end]
+        $chunkNum = $ci + 1
+
+        $bodyObj = [ordered]@{ files = $chunk }
+        if ($Force) {
+            $bodyObj.force = $true
+            $bodyObj.create_missing_requirements = $true
+            $bodyObj.create_requirements_if_missing = $true
+        }
+        $body = $bodyObj | ConvertTo-Json -Depth 10 -Compress
+
+        $attempt = 0
+        $success = $false
+        while ($attempt -le $maxRetries -and -not $success) {
+            $attempt++
+            $label = "chunk $chunkNum/$totalChunks ($($chunk.Count) specs)"
+            if ($attempt -gt 1) {
+                $delay = $attempt * 5
+                Write-Host "  [retry] Attempt $attempt for $label in ${delay}s..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $delay
+            } else {
+                Write-Host "  [upload] $label" -ForegroundColor DarkGray
+            }
+            try {
+                $result = Invoke-RestMethod `
+                    -Uri "$baseUrl/api/sync/specs/upload" `
+                    -Method POST `
+                    -Headers $headers `
+                    -ContentType "application/json; charset=utf-8" `
+                    -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
+                    -TimeoutSec $timeoutSec `
+                    -ErrorAction Stop
+                if ($result.results) {
+                    $allResults += @($result.results)
+                }
+                $success = $true
+            }
+            catch {
+                if ($attempt -gt $maxRetries) {
+                    Write-Error "Failed to upload $label after $attempt attempt(s): $_"
+                    exit 1
+                }
+                Write-Host "  [warn] $label failed: $_ (will retry)" -ForegroundColor Yellow
+            }
+        }
     }
 
     # Report results
@@ -123,9 +157,9 @@ function Invoke-SpecPush {
     $missingServerRequirementCount = 0
     $forceCreateNotHonoredCount = 0
     Write-Host ""
-    $resultCount = if ($result.results) { @($result.results).Count } else { 0 }
+    $resultCount = $allResults.Count
     $processedResults = 0
-    foreach ($r in $result.results) {
+    foreach ($r in $allResults) {
         $processedResults++
         if ($resultCount -gt 0) {
             $percent = [Math]::Floor(($processedResults / $resultCount) * 100)
