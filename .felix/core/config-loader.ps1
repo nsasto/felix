@@ -218,7 +218,7 @@ function Get-AgentConfig {
     }
     
     if (-not $agentConfig) {
-        Emit-Log -Level "warn" -Message "Agent ID $AgentId not found in agents.json. Falling back to first agent (droid)" -Component "config"
+        Emit-Log -Level "warn" -Message "Agent ID $AgentId not found in agents.json. Falling back to first configured agent. Run 'felix setup' or 'felix agent use <name|key>' to pick a valid active agent." -Component "config"
         $agentConfig = $AgentsData.agents | Select-Object -First 1
         
         if (-not $agentConfig) {

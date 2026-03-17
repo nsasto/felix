@@ -32,7 +32,7 @@
   "sync": {
     "enabled": false,
     "provider": "http",
-    "base_url": "your_felix.io_url",
+    "base_url": "https://api.runfelix.io",
     "api_key": "fsk_your_api_key_here"
   }
 }

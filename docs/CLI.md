@@ -775,12 +775,15 @@ felix setup
 **Steps:**
 
 1. **Confirm project folder** — defaults to current directory; accepts a different path
-2. **Mode choice** — local (no server) or remote (server-backed team mode)
-3. **Remote config** — prompts for server URL, project git URL, and API key
-4. **Bootstrap** — runs `spec pull` + `spec fix` to download and align requirements from the server
-5. **Agent configuration** — interactive: prompts for LLM provider and model, writes `.felix/agents.json`
-6. **Scaffold** — creates `policies/`, `specs/`, `config.json`, `requirements.json`, `state.json` from the engine template if missing
-7. **Test command** — prompts for backpressure test command and mode
+2. **Scaffold** — creates missing `policies/`, `specs/`, `config.json`, `requirements.json`, `state.json` and templates (idempotent)
+3. **Agent profile setup** — optional interactive configuration of provider/model profiles; writes `.felix/agents.json`
+4. **Active agent selection** — selects which configured profile is active in `.felix/config.json` (`agent.agent_id`)
+5. **Auto-select shortcut** — if exactly one agent profile exists, setup auto-selects it and skips the chooser
+6. **Test command** — prompts for backpressure test command
+7. **Mode choice** — local (no server) or remote (server-backed team mode)
+8. **Remote config** — in remote mode, prompts for backend URL and API key, validates key, then offers `spec pull` + `spec fix`
+
+**Note:** Setup now distinguishes between configuring agent profiles (`.felix/agents.json`) and choosing the active profile (`.felix/config.json`) so you are not asked to re-pick providers from a hardcoded list.
 
 **When to use:**
 

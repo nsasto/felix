@@ -6,7 +6,7 @@ This file documents the configuration options in `felix/config.json` for customi
 
 ## How Agent Selection Works
 
-- `felix/config.json` selects a local CLI agent by ID: `agent.agent_id`
+- `felix/config.json` selects a local CLI agent key via `agent.agent_id`
 - Local CLI presets (optional overrides) live in **.felix/agents.json** in the repo
 - Felix CLI configuration and execution are always local to the machine running it.
 - Backend agent profiles are stored in the database and managed via the API
@@ -14,10 +14,14 @@ This file documents the configuration options in `felix/config.json` for customi
 ```json
 {
   "agent": {
-    "agent_id": 0
+    "agent_id": "ag_123456789"
   }
 }
 ```
+
+Legacy numeric IDs are still accepted for compatibility and are migrated by setup when a key-based profile is selected.
+
+When `felix setup` finds exactly one configured profile, it auto-selects that profile as active and skips the manual chooser.
 
 ## Local CLI Presets (**.felix/agents.json**)
 

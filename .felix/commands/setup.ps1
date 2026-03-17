@@ -250,7 +250,7 @@ function Invoke-Setup {
     # Load agent-setup module and offer to configure agents
     . (Join-Path (Split-Path $PSScriptRoot -Parent) "core\agent-setup.ps1")
     
-    $configureAgents = Read-Host "Configure LLM agents for this project? (Y/n)"
+    $configureAgents = Read-Host "Configure or update agent profiles (.felix/agents.json)? (Y/n)"
     if ($configureAgents -ne 'n' -and $configureAgents -ne 'N') {
         Invoke-AgentSetup -ProjectRoot $RepoRoot -FelixRoot $FelixRoot | Out-Null
     }
@@ -282,32 +282,94 @@ function Invoke-Setup {
 
     Write-Host ""
 
-    # ── Agent selection ────────────────────────────────────────────────────────
-    Write-Host "Agent" -ForegroundColor White
+    # ── Active agent selection ────────────────────────────────────────────────
+    Write-Host "Active Agent" -ForegroundColor White
+    Write-Host "  Profiles are stored in .felix/agents.json" -ForegroundColor Gray
+    Write-Host "  The active profile key is saved to .felix/config.json (agent.agent_id)" -ForegroundColor Gray
 
-    $knownAgents = @(
-        @{ Id = 0; Name = "droid"; Exe = "droid"; Desc = "Factory.ai Droid" }
-        @{ Id = 1; Name = "claude"; Exe = "claude"; Desc = "Anthropic Claude Code" }
-        @{ Id = 2; Name = "codex"; Exe = "codex"; Desc = "OpenAI Codex CLI" }
-        @{ Id = 3; Name = "gemini"; Exe = "gemini"; Desc = "Google Gemini CLI" }
-    )
-
-    $currentAgentId = if ($config.agent.agent_id) { $config.agent.agent_id } else { $null }
-
-    foreach ($a in $knownAgents) {
-        $available = $null -ne (Get-Command $a.Exe -ErrorAction SilentlyContinue)
-        $marker = if ($available) { "[installed]" } else { "[not found]" }
-        $color = if ($available) { "Gray" } else { "DarkGray" }
-        $current = if ($currentAgentId -eq $a.Id -or $currentAgentId -eq $a.Name) { " <-- current" } else { "" }
-        Write-Host ("  {0,2}  {1,-8} {2,-12} {3}{4}" -f $a.Id, $a.Name, $marker, $a.Desc, $current) -ForegroundColor $color
+    $agentsPath = Join-Path $RepoRoot ".felix\agents.json"
+    $configuredAgents = @()
+    if (Test-Path $agentsPath) {
+        try {
+            $agentsData = Get-Content $agentsPath -Raw | ConvertFrom-Json
+            $configuredAgents = ConvertTo-ConfiguredAgentList -AgentsData $agentsData
+        }
+        catch {
+            Write-Host "  [WARN] Could not parse .felix/agents.json: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "  [WARN] .felix/agents.json not found. Run 'felix agent setup' to configure agents." -ForegroundColor Yellow
     }
 
-    $agentInput = Read-Host "  Enter agent number (0-3) or press Enter to keep current"
-    if ($agentInput -and $agentInput.Trim() -match '^\d$') {
-        $chosen = $knownAgents | Where-Object { $_.Id -eq [int]$agentInput.Trim() }
-        if ($chosen) {
-            $config.agent.agent_id = $chosen.Id
-            Write-Host "  Agent set to: $($chosen.Name)" -ForegroundColor Green
+    $currentAgentId = if ($null -ne $config.agent.agent_id) { [string]$config.agent.agent_id } else { $null }
+    $selectionPlan = Get-ActiveAgentSelectionPlan -ConfiguredAgents $configuredAgents -CurrentAgentId $currentAgentId
+    $currentAgent = $selectionPlan.CurrentAgent
+
+    if ($selectionPlan.Mode -eq "none") {
+        Write-Host "  [WARN] No configured agent profiles found - active agent was not changed" -ForegroundColor Yellow
+    }
+    elseif ($selectionPlan.Mode -eq "auto") {
+        $onlyAgent = $selectionPlan.AutoAgent
+        $previousAgentId = $currentAgentId
+        $config.agent.agent_id = $onlyAgent.Key
+        if ($previousAgentId -and $previousAgentId -match '^\d+$' -and $onlyAgent.Key -match '^ag_') {
+            Write-Host "  Migrated active agent ID from legacy numeric '$previousAgentId' to key '$($onlyAgent.Key)'" -ForegroundColor Yellow
+        }
+        Write-Host "  Auto-selected only configured agent: $($onlyAgent.Name) [$($onlyAgent.Key)]" -ForegroundColor Green
+    }
+    else {
+        if ($currentAgent) {
+            Write-Host "  Current active agent: $($currentAgent.Name) [$($currentAgent.Key)]" -ForegroundColor Gray
+        }
+        elseif ($selectionPlan.IsCurrentMissing) {
+            Write-Host "  [WARN] Current active agent '$currentAgentId' is not in .felix/agents.json" -ForegroundColor Yellow
+        }
+
+        for ($i = 0; $i -lt $configuredAgents.Count; $i++) {
+            $item = $configuredAgents[$i]
+            $current = if ($currentAgent -and $item.Key -eq $currentAgent.Key) { " <-- current" } else { "" }
+            $providerLabel = if ($item.Provider) { $item.Provider } else { "unknown" }
+            $modelLabel = if ($item.Model) { $item.Model } else { "default" }
+            Write-Host ("  {0,2}  {1,-10} provider={2,-8} model={3,-20} key={4}{5}" -f ($i + 1), $item.Name, $providerLabel, $modelLabel, $item.Key, $current) -ForegroundColor Gray
+        }
+
+        $prompt = if ($currentAgent) {
+            "  Enter agent number, key, or name. Press Enter to keep current"
+        }
+        else {
+            "  Enter agent number, key, or name"
+        }
+
+        $agentInput = Read-Host $prompt
+        if ($agentInput -and $agentInput.Trim()) {
+            $choice = $agentInput.Trim()
+            $selected = $null
+
+            if ($choice -match '^\d+$') {
+                $index = [int]$choice
+                if ($index -ge 1 -and $index -le $configuredAgents.Count) {
+                    $selected = $configuredAgents[$index - 1]
+                }
+            }
+            if (-not $selected) {
+                $selected = $configuredAgents | Where-Object { $_.Key -eq $choice -or $_.Name -eq $choice } | Select-Object -First 1
+            }
+
+            if ($selected) {
+                $previousAgentId = $currentAgentId
+                $config.agent.agent_id = $selected.Key
+                if ($previousAgentId -and $previousAgentId -match '^\d+$' -and $selected.Key -match '^ag_') {
+                    Write-Host "  Migrated active agent ID from legacy numeric '$previousAgentId' to key '$($selected.Key)'" -ForegroundColor Yellow
+                }
+                Write-Host "  Agent set to: $($selected.Name) [$($selected.Key)]" -ForegroundColor Green
+            }
+            else {
+                Write-Host "  [WARN] No matching agent found - keeping current selection" -ForegroundColor Yellow
+            }
+        }
+        elseif (-not $currentAgent) {
+            Write-Host "  [WARN] No active agent selected. Run 'felix agent use <name|key>' later to choose one." -ForegroundColor Yellow
         }
     }
     Write-Host ""

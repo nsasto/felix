@@ -179,4 +179,101 @@ Describe "Build-AgentRegistrationPayload" {
     }
 }
 
+Describe "ConvertTo-ConfiguredAgentList" {
+
+    It "should return empty list for null input" {
+        $result = ConvertTo-ConfiguredAgentList -AgentsData $null
+        Assert-Equal 0 $result.Count
+    }
+
+    It "should normalize key and adapter/provider fields" {
+        $agentsData = [PSCustomObject]@{
+            agents = @(
+                [PSCustomObject]@{
+                    key     = "ag_key1"
+                    name    = "claude"
+                    adapter = "claude"
+                    model   = "sonnet"
+                }
+                [PSCustomObject]@{
+                    id       = 2
+                    name     = "codex"
+                    provider = "openai"
+                    model    = "gpt-5.3-codex"
+                }
+            )
+        }
+
+        $result = ConvertTo-ConfiguredAgentList -AgentsData $agentsData
+
+        Assert-Equal 2 $result.Count
+        Assert-Equal "ag_key1" $result[0].Key
+        Assert-Equal "claude" $result[0].Provider
+        Assert-Equal "2" $result[1].Key
+        Assert-Equal "openai" $result[1].Provider
+    }
+
+    It "should skip entries without key or id" {
+        $agentsData = [PSCustomObject]@{
+            agents = @(
+                [PSCustomObject]@{
+                    name = "invalid"
+                }
+                [PSCustomObject]@{
+                    key  = "ag_valid"
+                    name = "valid"
+                }
+            )
+        }
+
+        $result = ConvertTo-ConfiguredAgentList -AgentsData $agentsData
+        Assert-Equal 1 $result.Count
+        Assert-Equal "ag_valid" $result[0].Key
+    }
+}
+
+Describe "Get-ActiveAgentSelectionPlan" {
+
+    It "should return none mode when no configured agents" {
+        $plan = Get-ActiveAgentSelectionPlan -ConfiguredAgents @() -CurrentAgentId "ag_missing"
+        Assert-Equal "none" $plan.Mode
+        Assert-False $plan.IsCurrentMissing
+    }
+
+    It "should return auto mode when only one configured agent" {
+        $agents = @(
+            [PSCustomObject]@{ Name = "droid"; Provider = "droid"; Model = "o3"; Key = "ag_only" }
+        )
+
+        $plan = Get-ActiveAgentSelectionPlan -ConfiguredAgents $agents -CurrentAgentId "ag_legacy"
+        Assert-Equal "auto" $plan.Mode
+        Assert-Equal "ag_only" $plan.AutoAgent.Key
+    }
+
+    It "should return choose mode and detect missing current agent" {
+        $agents = @(
+            [PSCustomObject]@{ Name = "droid"; Provider = "droid"; Model = "o3"; Key = "ag_one" }
+            [PSCustomObject]@{ Name = "claude"; Provider = "claude"; Model = "sonnet"; Key = "ag_two" }
+        )
+
+        $plan = Get-ActiveAgentSelectionPlan -ConfiguredAgents $agents -CurrentAgentId "ag_missing"
+        Assert-Equal "choose" $plan.Mode
+        Assert-True $plan.IsCurrentMissing
+        Assert-Null $plan.CurrentAgent
+    }
+
+    It "should return choose mode and retain valid current agent" {
+        $agents = @(
+            [PSCustomObject]@{ Name = "droid"; Provider = "droid"; Model = "o3"; Key = "ag_one" }
+            [PSCustomObject]@{ Name = "claude"; Provider = "claude"; Model = "sonnet"; Key = "ag_two" }
+        )
+
+        $plan = Get-ActiveAgentSelectionPlan -ConfiguredAgents $agents -CurrentAgentId "ag_two"
+        Assert-Equal "choose" $plan.Mode
+        Assert-False $plan.IsCurrentMissing
+        Assert-NotNull $plan.CurrentAgent
+        Assert-Equal "ag_two" $plan.CurrentAgent.Key
+    }
+}
+
 Get-TestResults

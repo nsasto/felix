@@ -29,7 +29,7 @@ function Copy-EngineFile {
         [string]$RelPath
     )
     
-    $src  = Join-Path $FelixRoot $RelPath
+    $src = Join-Path $FelixRoot $RelPath
     $dest = Join-Path $FelixDir  $RelPath
     if ((Test-Path $src) -and -not (Test-Path $dest)) {
         $destDir = Split-Path $dest -Parent
@@ -169,14 +169,16 @@ function New-AgentKey {
             if (-not [string]::IsNullOrEmpty($gitUrl)) {
                 # Normalize git URL: remove .git, convert SSH to HTTPS, lowercase
                 $projectId = $gitUrl.ToLower() -replace '\.git$', '' -replace '^git@(.+?):', 'https://$1/'
-            } else {
+            }
+            else {
                 $projectId = $ProjectRoot.ToLower().TrimEnd('\', '/')
             }
         }
         catch {
             $projectId = $ProjectRoot.ToLower().TrimEnd('\', '/')
         }
-    } else {
+    }
+    else {
         $projectId = (Get-Location).Path.ToLower().TrimEnd('\', '/')
     }
     
@@ -243,7 +245,7 @@ function Build-AgentRegistrationPayload {
     )
 
     $provider = if ($AgentConfig.adapter) { $AgentConfig.adapter } else { $AgentConfig.name }
-    $model    = if ($AgentConfig.model)   { [string]$AgentConfig.model } else { "" }
+    $model = if ($AgentConfig.model) { [string]$AgentConfig.model } else { "" }
 
     # Key is always generated from empty settings — infrastructure defaults
     # (executable, working_directory, environment) are NOT part of agent identity.
@@ -285,4 +287,116 @@ function Build-AgentRegistrationPayload {
     if ($gitUrl) { $payload["git_url"] = $gitUrl }
 
     return $payload
+}
+
+function ConvertTo-ConfiguredAgentList {
+    <#
+    .SYNOPSIS
+    Normalizes raw agents.json content into a consistent configured-agent list.
+
+    .PARAMETER AgentsData
+    Object parsed from .felix/agents.json.
+
+    .OUTPUTS
+    Array of PSCustomObject entries: Name, Provider, Model, Key.
+    #>
+    param(
+        [Parameter(Mandatory = $false)]
+        $AgentsData
+    )
+
+    $configuredAgents = @()
+    if (-not $AgentsData -or -not $AgentsData.agents) {
+        return , $configuredAgents
+    }
+
+    foreach ($agent in $AgentsData.agents) {
+        $agentKey = $null
+        if ($agent.PSObject.Properties['key'] -and $agent.key) {
+            $agentKey = [string]$agent.key
+        }
+        elseif ($agent.PSObject.Properties['id'] -and $null -ne $agent.id) {
+            $agentKey = [string]$agent.id
+        }
+
+        if (-not $agentKey) {
+            continue
+        }
+
+        $provider = if ($agent.PSObject.Properties['provider'] -and $agent.provider) {
+            [string]$agent.provider
+        }
+        elseif ($agent.PSObject.Properties['adapter'] -and $agent.adapter) {
+            [string]$agent.adapter
+        }
+        else {
+            ""
+        }
+
+        $configuredAgents += [pscustomobject]@{
+            Name     = [string]$agent.name
+            Provider = $provider
+            Model    = if ($agent.PSObject.Properties['model']) { [string]$agent.model } else { "" }
+            Key      = $agentKey
+        }
+    }
+
+    return , $configuredAgents
+}
+
+function Get-ActiveAgentSelectionPlan {
+    <#
+    .SYNOPSIS
+    Determines setup behavior for active-agent selection.
+
+    .PARAMETER ConfiguredAgents
+    Normalized configured agents list.
+
+    .PARAMETER CurrentAgentId
+    Current value of config.agent.agent_id (optional).
+
+    .OUTPUTS
+    PSCustomObject with Mode (none|auto|choose), CurrentAgent, AutoAgent, and IsCurrentMissing.
+    #>
+    param(
+        [Parameter(Mandatory = $false)]
+        [array]$ConfiguredAgents = @(),
+
+        [Parameter(Mandatory = $false)]
+        [string]$CurrentAgentId = $null
+    )
+
+    if (-not $ConfiguredAgents) {
+        $ConfiguredAgents = @()
+    }
+
+    $currentAgent = $null
+    if ($CurrentAgentId) {
+        $currentAgent = $ConfiguredAgents | Where-Object { $_.Key -eq $CurrentAgentId } | Select-Object -First 1
+    }
+
+    if ($ConfiguredAgents.Count -eq 0) {
+        return [pscustomobject]@{
+            Mode             = "none"
+            CurrentAgent     = $currentAgent
+            AutoAgent        = $null
+            IsCurrentMissing = $false
+        }
+    }
+
+    if ($ConfiguredAgents.Count -eq 1) {
+        return [pscustomobject]@{
+            Mode             = "auto"
+            CurrentAgent     = $currentAgent
+            AutoAgent        = $ConfiguredAgents[0]
+            IsCurrentMissing = $false
+        }
+    }
+
+    return [pscustomobject]@{
+        Mode             = "choose"
+        CurrentAgent     = $currentAgent
+        AutoAgent        = $null
+        IsCurrentMissing = [bool]($CurrentAgentId -and -not $currentAgent)
+    }
 }

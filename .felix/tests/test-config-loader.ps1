@@ -62,7 +62,7 @@ Describe "Get-FelixConfig" {
         @{
             executor = @{
                 max_iterations = 10
-                default_mode = "planning"
+                default_mode   = "planning"
             }
         } | ConvertTo-Json | Set-Content $tempFile
         
@@ -90,11 +90,11 @@ Describe "Get-AgentsConfiguration" {
         @{
             agents = @(
                 @{
-                    id = 0
-                    name = "test-agent"
-                    executable = "test"
+                    id                = 0
+                    name              = "test-agent"
+                    executable        = "test"
                     working_directory = "."
-                    environment = @{}
+                    environment       = @{}
                 }
             )
         } | ConvertTo-Json -Depth 10 | Set-Content $agentsFile
@@ -128,13 +128,13 @@ Describe "Get-AgentConfig" {
         $agentsData = [PSCustomObject]@{
             agents = @(
                 [PSCustomObject]@{
-                    id = 0
-                    name = "agent-0"
+                    id         = 0
+                    name       = "agent-0"
                     executable = "test0"
                 }
                 [PSCustomObject]@{
-                    id = 1
-                    name = "agent-1"
+                    id         = 1
+                    name       = "agent-1"
                     executable = "test1"
                 }
             )
@@ -146,12 +146,52 @@ Describe "Get-AgentConfig" {
         Assert-Equal "agent-1" $agent.name
     }
 
+    It "should return correct agent by key" {
+        $agentsData = [PSCustomObject]@{
+            agents = @(
+                [PSCustomObject]@{
+                    key        = "ag_first123"
+                    name       = "agent-a"
+                    executable = "testa"
+                }
+                [PSCustomObject]@{
+                    key        = "ag_second456"
+                    name       = "agent-b"
+                    executable = "testb"
+                }
+            )
+        }
+
+        $agent = Get-AgentConfig -AgentsData $agentsData -AgentId "ag_second456"
+
+        Assert-NotNull $agent
+        Assert-Equal "agent-b" $agent.name
+        Assert-Equal "ag_second456" $agent.key
+    }
+
+    It "should normalize legacy id to key" {
+        $agentsData = [PSCustomObject]@{
+            agents = @(
+                [PSCustomObject]@{
+                    id         = "ag_legacy123"
+                    name       = "legacy-agent"
+                    executable = "legacy"
+                }
+            )
+        }
+
+        $agent = Get-AgentConfig -AgentsData $agentsData -AgentId "ag_legacy123"
+
+        Assert-NotNull $agent
+        Assert-Equal "ag_legacy123" $agent.key
+    }
+
     It "should fallback to ID 0 for missing agent" {
         $agentsData = [PSCustomObject]@{
             agents = @(
                 [PSCustomObject]@{
-                    id = 0
-                    name = "agent-0"
+                    id         = 0
+                    name       = "agent-0"
                     executable = "test0"
                 }
             )
