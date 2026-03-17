@@ -44,11 +44,12 @@ felix setup
 The setup wizard walks you through:
 
 - **Scaffolding** - creates `.felix/`, `specs/`, and `runs/` directories
-- **Agent selection** - pick your LLM provider (Claude Code, Factory Droid, Codex, Gemini)
+- **Agent profile setup** - configure one or more agent profiles in `.felix/agents.json`
+- **Active agent selection** - choose which configured profile is active in `.felix/config.json`
 - **Test command** - configure your backpressure command (`pytest`, `npm test`, etc.)
 - **Mode** - local (standalone) or remote (team sync via [runfelix.io](https://runfelix.io))
 
-Setup is idempotent - safe to re-run without overwriting existing config.
+If exactly one agent profile is configured, setup auto-selects it and skips the chooser. Setup is idempotent - safe to re-run without overwriting existing config.
 
 ### 3. Run
 
@@ -99,7 +100,7 @@ See **docs/SYNC_OPERATIONS.md** for full configuration, troubleshooting, and arc
 ```
 Requirements → Planning Mode → Building Mode → Validation → Complete
      ↓              ↓                ↓              ↓           ↓
-  specs/*.md    plan-*.md      git commits    tests pass   status:done
+  specs/*.md    plan-*.md      git commits    tests pass   status:complete
 ```
 
 Felix follows a simple funnel: define requirements, generate plans, iterate one task per loop until done.
@@ -132,8 +133,9 @@ your-project/
 │
 ├── .felix/                          # Felix configuration & state
 │   ├── requirements.json          # Requirement registry with status
-│   ├── config.json                # Executor configuration (includes sync settings)
-│   ├── agents.json                # Agent presets (LLM provider config)
+│   ├── config.json                # Executor config (active agent, sync, backpressure)
+│   ├── agents.json                # Agent profiles (provider/model presets)
+│   ├── sessions.json              # Active Felix processes tracked by `felix procs`
 │   ├── state.json                 # Current execution state
 │   ├── outbox/                    # Sync queue (when sync enabled)
 │   │   └── *.jsonl                # Queued uploads (retry on network failure)
@@ -147,7 +149,7 @@ your-project/
 │       └── building.md
 │
 ├── runs/                           # Per-iteration execution evidence
-│   └── 2026-01-27T14-30-00/       # Run directory (timestamp)
+│   └── S-0001-20260224-164140-it7/ # Run directory (requirement + time + iteration)
 │       ├── plan-S-0001.md         # Plan snapshot
 │       ├── requirement_id.txt     # Which requirement
 │       ├── output.log             # LLM output
@@ -194,13 +196,14 @@ Felix is a CLI-first agent harness. The agent runs as a local process and commun
 
 ### Local Runs (Default)
 
-All runs stored in `runs/` directory with artifacts:
+All runs are stored under `runs/<requirement>-<timestamp>-it<iteration>/` with artifacts such as:
 
 - `plan-*.md` - Implementation plan
 - `output.log` - Agent execution log
 - `diff.patch` - Code changes
 - `report.md` - Run summary
-- `backpressure.log` - Test/validation results
+- `backpressure.log` - Test/validation results (when backpressure runs)
+- `guardrail-violation.md` / `blocked-task.md` - Failure details when an iteration is stopped
 
 ### Cloud Dashboard (With Sync Enabled)
 
@@ -279,8 +282,9 @@ Blocked requirements must be manually reset to "planned" status in `.felix/requi
 
 - 📊 **[Execution Flow](tuts/EXECUTION_FLOW.md)** - Detailed flow diagram, phase descriptions, exit codes
 - 📚 **[Artifacts](tuts/FELIX_EXPLAINED.md)** - Durable memory, plans, and artifact lifecycle
-- � **[Writing Plugins](docs/PLUGINS.md)** - Build plugins with lifecycle hooks, state management, examples
-- �🔄 **[Sync Operations](docs/SYNC_OPERATIONS.md)** - Cloud sync setup, troubleshooting, architecture
+- 🤖 **[Switching Agents](tuts/SWITCHING_AGENTS.md)** - Configure profiles, select the active agent, and smoke-test it
+- 🧩 **[Writing Plugins](docs/PLUGINS.md)** - Build plugins with lifecycle hooks, state management, examples
+- 🔄 **[Sync Operations](docs/SYNC_OPERATIONS.md)** - Cloud sync setup, troubleshooting, architecture
 - 📋 **[Features](docs/FEATURES.md)** - Product capabilities and feature list
 
 ### Knowledge Base

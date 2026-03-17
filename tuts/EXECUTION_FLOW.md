@@ -468,10 +468,10 @@ When a requirement is marked as "blocked" (exit code 2 or 3):
 
 ## Iteration Artifacts
 
-Each iteration creates a timestamped directory in `runs/`:
+Each iteration creates a run directory in `runs/` named from the requirement, timestamp, and iteration:
 
 ```
-runs/2026-01-27T14-30-00/
+runs/S-0001-20260224-164140-it7/
 ├── requirement_id.txt          # Which requirement (e.g., "S-0001")
 ├── output.log                  # Raw LLM output
 ├── report.md                   # Iteration summary (mode, success, timestamp)
