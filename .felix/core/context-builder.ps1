@@ -123,7 +123,7 @@ function Invoke-ContextBuilder {
     }
     
     # Learnings index (points agents to topic files in learnings/)
-    $learningsIndexPath = Join-Path $ProjectPath "learnings" "README.md"
+    $learningsIndexPath = Join-Path (Join-Path $ProjectPath "learnings") "README.md"
     if (Test-Path $learningsIndexPath) {
         $learningsIndex = Get-Content $learningsIndexPath -Raw -ErrorAction SilentlyContinue
         if ($learningsIndex) {

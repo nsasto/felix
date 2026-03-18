@@ -106,4 +106,61 @@ Describe "Get-ProjectStructure" {
     }
 }
 
+Describe "Invoke-ContextBuilder" {
+
+    It "should support learnings README path generation on Windows PowerShell" {
+        $tempDir = Join-Path $env:TEMP "test-contextbuilder-$(Get-Random)"
+        $promptsDir = Join-Path $tempDir "prompts"
+        $learningsDir = Join-Path $tempDir "learnings"
+        $agentsPath = Join-Path $tempDir "AGENTS.md"
+        $readmePath = Join-Path $tempDir "README.md"
+
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $promptsDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $learningsDir -Force | Out-Null
+        Set-Content (Join-Path $promptsDir "build_context.md") "Build context" -Encoding UTF8
+        Set-Content $readmePath "# Repo" -Encoding UTF8
+        Set-Content $agentsPath "# Agents" -Encoding UTF8
+        Set-Content (Join-Path $learningsDir "README.md") "# Learnings" -Encoding UTF8
+
+        function Emit-Log {
+            param([string]$Level, [string]$Message, [string]$Component)
+        }
+
+        function Emit-Error {
+            param([string]$ErrorType, [string]$Message, [string]$Severity)
+            throw $Message
+        }
+
+        function Invoke-AgentForContextBuild {
+            param([string]$Prompt, $Config, $AgentConfig, $Paths)
+            Set-Content (Join-Path $Paths.ProjectPath "CONTEXT.md") "# Generated Context" -Encoding UTF8
+            return "generated"
+        }
+
+        try {
+            $result = Invoke-ContextBuilder `
+                -ProjectPath $tempDir `
+                -Config ([pscustomobject]@{ agent = [pscustomobject]@{ agent_id = 0 } }) `
+                -AgentConfig ([pscustomobject]@{}) `
+                -Paths ([pscustomobject]@{
+                    ProjectPath = $tempDir
+                    FelixDir = Join-Path $tempDir ".felix"
+                    SpecsDir = Join-Path $tempDir "specs"
+                    PromptsDir = $promptsDir
+                    AgentsFile = $agentsPath
+                })
+
+            Assert-Equal 0 $result.ExitCode
+            Assert-True (Test-Path (Join-Path $tempDir "CONTEXT.md")) "CONTEXT.md should be generated"
+        }
+        finally {
+            Remove-Item Function:\Emit-Log -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-Error -ErrorAction SilentlyContinue
+            Remove-Item Function:\Invoke-AgentForContextBuild -ErrorAction SilentlyContinue
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Get-TestResults

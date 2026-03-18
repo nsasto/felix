@@ -1,6 +1,8 @@
 ﻿using System.CommandLine;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Spectre.Console;
@@ -12,6 +14,12 @@ class Program
     // Set once in Main(); used by ExecutePowerShell* to inject env vars into subprocesses.
     static string _felixInstallDir = "";
     static string _felixProjectRoot = "";
+    const string DefaultUpdateRepo = "nsasto/felix";
+    const string WindowsReleaseRid = "win-x64";
+
+    sealed record GitHubReleaseAsset(string Name, string DownloadUrl);
+    sealed record GitHubReleaseMetadata(string TagName, IReadOnlyList<GitHubReleaseAsset> Assets);
+    sealed record UpdateReleasePlan(string CurrentVersion, string TargetVersion, GitHubReleaseAsset ZipAsset, GitHubReleaseAsset ChecksumAsset, bool HasInstalledCopy);
 
     static async Task<int> Main(string[] args)
     {
@@ -75,6 +83,7 @@ class Program
         rootCommand.AddCommand(CreateSetupCommand(felixPs1));
         rootCommand.AddCommand(CreateProcsCommand(felixPs1));
         rootCommand.AddCommand(CreateContextCommand(felixPs1, formatOpt));
+        rootCommand.AddCommand(CreateUpdateCommand());
         rootCommand.AddCommand(CreateVersionCommand(felixPs1));
         rootCommand.AddCommand(CreateHelpCommand(felixPs1, rootCommand));
         rootCommand.AddCommand(CreateDashboardCommand(felixPs1));
@@ -500,6 +509,25 @@ class Program
         return cmd;
     }
 
+    static Command CreateUpdateCommand()
+    {
+        var checkOpt = new Option<bool>("--check", "Check GitHub for a newer Felix release without installing it");
+        var yesOpt = new Option<bool>(new[] { "--yes", "-y" }, "Skip the confirmation prompt and install immediately");
+
+        var cmd = new Command("update", "Check GitHub Releases and update the installed Felix CLI")
+        {
+            checkOpt,
+            yesOpt
+        };
+
+        cmd.SetHandler(async (check, yes) =>
+        {
+            Environment.ExitCode = await RunSelfUpdateAsync(check, yes);
+        }, checkOpt, yesOpt);
+
+        return cmd;
+    }
+
     static Command CreateVersionCommand(string felixPs1)
     {
         var cmd = new Command("version", "Show version information");
@@ -822,6 +850,392 @@ class Program
         catch { return null; }
     }
 
+    static string GetInstallDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs", "Felix");
+        }
+
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".local", "share", "felix");
+    }
+
+    static string? GetInstalledVersion(string installDir)
+    {
+        var versionFile = Path.Combine(installDir, "version.txt");
+        if (!File.Exists(versionFile)) return null;
+
+        return File.ReadAllText(versionFile).Trim();
+    }
+
+    static bool EnsureWindowsInstallDirOnPath(string installDir)
+    {
+        var userPath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User) ?? "";
+        var segments = userPath.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Any(s => string.Equals(s.Trim().TrimEnd('\\'), installDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var updatedPath = string.IsNullOrWhiteSpace(userPath) ? installDir : $"{userPath};{installDir}";
+        Environment.SetEnvironmentVariable("Path", updatedPath, EnvironmentVariableTarget.User);
+        return true;
+    }
+
+    static async Task<int> RunSelfUpdateAsync(bool checkOnly, bool assumeYes)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            AnsiConsole.MarkupLine("[yellow]felix update is currently implemented for Windows installations only.[/]");
+            return 1;
+        }
+
+        var installDir = GetInstallDirectory();
+        var installedVersion = GetInstalledVersion(installDir);
+        var currentVersion = installedVersion ?? ReadEmbeddedVersion();
+        var hasInstalledCopy = File.Exists(Path.Combine(installDir, "felix.exe"));
+
+        GitHubReleaseMetadata release;
+        try
+        {
+            release = await GetLatestGitHubReleaseAsync(DefaultUpdateRepo);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Update check failed:[/] {ex.Message.EscapeMarkup()}");
+            return 1;
+        }
+
+        var targetVersion = NormalizeVersionString(release.TagName);
+        var plan = SelectUpdateReleasePlan(release, currentVersion, targetVersion, hasInstalledCopy);
+        if (plan == null)
+        {
+            AnsiConsole.MarkupLine("[red]Update failed:[/] Could not find the required Windows release assets on GitHub.");
+            return 1;
+        }
+
+        var comparison = CompareVersions(plan.CurrentVersion, plan.TargetVersion);
+        var updateAvailable = !plan.HasInstalledCopy || comparison < 0;
+
+        AnsiConsole.MarkupLine("[cyan]Felix CLI Updater[/]");
+        AnsiConsole.MarkupLine("[grey]──────────────────────────────[/]");
+        AnsiConsole.MarkupLine($"[grey]Current:[/] {plan.CurrentVersion.EscapeMarkup()}");
+        AnsiConsole.MarkupLine($"[grey]Latest:[/]  {plan.TargetVersion.EscapeMarkup()}");
+        AnsiConsole.MarkupLine($"[grey]Source:[/]  https://github.com/{DefaultUpdateRepo}/releases/latest");
+
+        if (!updateAvailable)
+        {
+            AnsiConsole.MarkupLine("[green]Felix is already up to date.[/]");
+            return 0;
+        }
+
+        if (checkOnly)
+        {
+            if (plan.HasInstalledCopy)
+            {
+                AnsiConsole.MarkupLine("[yellow]Update available.[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[yellow]No installed Felix copy found in[/] [grey]{installDir.EscapeMarkup()}[/]");
+                AnsiConsole.MarkupLine("[yellow]The latest release is available to install.[/]");
+            }
+            return 0;
+        }
+
+        if (!assumeYes)
+        {
+            var prompt = plan.HasInstalledCopy
+                ? $"Install Felix {plan.TargetVersion} to {installDir}?"
+                : $"Install Felix {plan.TargetVersion} to {installDir}? No existing installed copy was found.";
+
+            if (!AnsiConsole.Confirm(prompt))
+            {
+                AnsiConsole.MarkupLine("[grey]Update cancelled.[/]");
+                return 0;
+            }
+        }
+
+        string stageRoot;
+        try
+        {
+            stageRoot = await DownloadAndStageReleaseAsync(plan);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Download failed:[/] {ex.Message.EscapeMarkup()}");
+            return 1;
+        }
+
+        Directory.CreateDirectory(installDir);
+        var addedToPath = EnsureWindowsInstallDirOnPath(installDir);
+
+        try
+        {
+            LaunchWindowsUpdateHelper(stageRoot, installDir);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Could not launch the updater helper:[/] {ex.Message.EscapeMarkup()}");
+            return 1;
+        }
+
+        if (addedToPath)
+        {
+            AnsiConsole.MarkupLine($"[green]✓[/] Added [grey]{installDir.EscapeMarkup()}[/] to User PATH");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[green]Felix {plan.TargetVersion.EscapeMarkup()} staged successfully.[/]");
+        AnsiConsole.MarkupLine("[grey]The update helper will replace the installed files after this process exits.[/]");
+        AnsiConsole.MarkupLine("[grey]Run 'felix version' again in a few seconds to confirm the new version.[/]");
+        return 0;
+    }
+
+    static async Task<GitHubReleaseMetadata> GetLatestGitHubReleaseAsync(string repo)
+    {
+        using var client = CreateGitHubHttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repo}/releases/latest");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+        using var response = await client.SendAsync(request);
+        var content = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"GitHub API returned {(int)response.StatusCode}: {content}");
+        }
+
+        using var document = JsonDocument.Parse(content);
+        var root = document.RootElement;
+        var tagName = root.GetProperty("tag_name").GetString() ?? throw new InvalidOperationException("GitHub release response did not include tag_name.");
+        var assets = new List<GitHubReleaseAsset>();
+
+        foreach (var assetElement in root.GetProperty("assets").EnumerateArray())
+        {
+            var name = assetElement.GetProperty("name").GetString();
+            var downloadUrl = assetElement.GetProperty("browser_download_url").GetString();
+            if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(downloadUrl))
+            {
+                assets.Add(new GitHubReleaseAsset(name, downloadUrl));
+            }
+        }
+
+        return new GitHubReleaseMetadata(tagName, assets);
+    }
+
+    static HttpClient CreateGitHubHttpClient()
+    {
+        var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.ParseAdd($"Felix/{ReadEmbeddedVersion()}");
+        client.Timeout = TimeSpan.FromMinutes(5);
+        return client;
+    }
+
+    static UpdateReleasePlan? SelectUpdateReleasePlan(GitHubReleaseMetadata release, string currentVersion, string targetVersion, bool hasInstalledCopy)
+    {
+        var zipAsset = FindReleaseAsset(release, new[]
+        {
+            $"felix-latest-{WindowsReleaseRid}.zip",
+            $"felix-{targetVersion}-{WindowsReleaseRid}.zip"
+        });
+
+        var checksumAsset = FindReleaseAsset(release, new[]
+        {
+            "checksums-latest.txt",
+            $"checksums-{targetVersion}.txt"
+        });
+
+        if (zipAsset == null || checksumAsset == null)
+        {
+            return null;
+        }
+
+        return new UpdateReleasePlan(currentVersion, targetVersion, zipAsset, checksumAsset, hasInstalledCopy);
+    }
+
+    static GitHubReleaseAsset? FindReleaseAsset(GitHubReleaseMetadata release, IEnumerable<string> candidateNames)
+    {
+        foreach (var candidate in candidateNames)
+        {
+            var asset = release.Assets.FirstOrDefault(a => string.Equals(a.Name, candidate, StringComparison.OrdinalIgnoreCase));
+            if (asset != null)
+            {
+                return asset;
+            }
+        }
+
+        return null;
+    }
+
+    static string NormalizeVersionString(string version)
+    {
+        var normalized = version.Trim();
+        if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized.Substring(1);
+        }
+
+        var prereleaseIndex = normalized.IndexOf('-');
+        if (prereleaseIndex > 0)
+        {
+            normalized = normalized.Substring(0, prereleaseIndex);
+        }
+
+        return normalized;
+    }
+
+    static int CompareVersions(string left, string right)
+    {
+        var normalizedLeft = NormalizeVersionString(left);
+        var normalizedRight = NormalizeVersionString(right);
+
+        if (Version.TryParse(normalizedLeft, out var leftVersion) && Version.TryParse(normalizedRight, out var rightVersion))
+        {
+            return leftVersion.CompareTo(rightVersion);
+        }
+
+        return string.Compare(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
+
+    static async Task<string> DownloadAndStageReleaseAsync(UpdateReleasePlan plan)
+    {
+        var stageRoot = Path.Combine(Path.GetTempPath(), $"felix-update-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(stageRoot);
+
+        var zipPath = Path.Combine(stageRoot, plan.ZipAsset.Name);
+        var checksumPath = Path.Combine(stageRoot, plan.ChecksumAsset.Name);
+        var payloadDir = Path.Combine(stageRoot, "payload");
+
+        using var client = CreateGitHubHttpClient();
+
+        AnsiConsole.MarkupLine($"[grey]Downloading[/] {plan.ZipAsset.Name.EscapeMarkup()} ...");
+        await DownloadFileAsync(client, plan.ZipAsset.DownloadUrl, zipPath);
+
+        AnsiConsole.MarkupLine($"[grey]Downloading[/] {plan.ChecksumAsset.Name.EscapeMarkup()} ...");
+        await DownloadFileAsync(client, plan.ChecksumAsset.DownloadUrl, checksumPath);
+
+        VerifyDownloadedChecksum(checksumPath, zipPath, plan.ZipAsset.Name);
+        AnsiConsole.MarkupLine("[green]✓[/] Checksum verified");
+
+        ZipFile.ExtractToDirectory(zipPath, payloadDir);
+
+        var stagedExe = Path.Combine(payloadDir, "felix.exe");
+        if (!File.Exists(stagedExe))
+        {
+            throw new InvalidOperationException("Downloaded archive did not contain felix.exe.");
+        }
+
+        return stageRoot;
+    }
+
+    static async Task DownloadFileAsync(HttpClient client, string downloadUrl, string destinationPath)
+    {
+        using var response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        await using var responseStream = await response.Content.ReadAsStreamAsync();
+        await using var fileStream = File.Create(destinationPath);
+        await responseStream.CopyToAsync(fileStream);
+    }
+
+    static void VerifyDownloadedChecksum(string checksumPath, string filePath, string expectedFileName)
+    {
+        var checksumEntry = File.ReadAllLines(checksumPath)
+            .Select(line => line.Trim())
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(ParseChecksumLine)
+            .Where(result => result.HasValue)
+            .Select(result => result!.Value)
+            .FirstOrDefault(result => string.Equals(result.FileName, expectedFileName, StringComparison.OrdinalIgnoreCase));
+
+        if (string.IsNullOrWhiteSpace(checksumEntry.Hash))
+        {
+            throw new InvalidOperationException($"Checksum file did not include an entry for {expectedFileName}.");
+        }
+
+        using var sha = SHA256.Create();
+        using var stream = File.OpenRead(filePath);
+        var actualHash = Convert.ToHexString(sha.ComputeHash(stream));
+        if (!string.Equals(actualHash, checksumEntry.Hash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Checksum mismatch for {expectedFileName}. Expected {checksumEntry.Hash}, got {actualHash}.");
+        }
+    }
+
+    static (string Hash, string FileName)? ParseChecksumLine(string line)
+    {
+        var separatorIndex = line.IndexOf("  ", StringComparison.Ordinal);
+        if (separatorIndex < 0)
+        {
+            return null;
+        }
+
+        var hash = line.Substring(0, separatorIndex).Trim();
+        var fileName = line.Substring(separatorIndex + 2).Trim();
+        if (string.IsNullOrWhiteSpace(hash) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        return (hash, fileName);
+    }
+
+    static void LaunchWindowsUpdateHelper(string stageRoot, string installDir)
+    {
+        var helperScriptPath = Path.Combine(Path.GetTempPath(), $"felix-apply-update-{Guid.NewGuid():N}.ps1");
+        var helperScript = @"
+param(
+    [int]$ParentPid,
+    [string]$StageRoot,
+    [string]$InstallDir
+)
+
+$ErrorActionPreference = 'Stop'
+
+try {
+    Wait-Process -Id $ParentPid -ErrorAction SilentlyContinue
+} catch {
+}
+
+Start-Sleep -Milliseconds 750
+
+$payloadDir = Join-Path $StageRoot 'payload'
+if (-not (Test-Path -LiteralPath $payloadDir)) {
+    throw ""Update payload directory not found: $payloadDir""
+}
+
+New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+
+Get-ChildItem -LiteralPath $payloadDir -Force | ForEach-Object {
+    $destination = Join-Path $InstallDir $_.Name
+    Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
+}
+
+Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
+";
+
+        File.WriteAllText(helperScriptPath, helperScript, new UTF8Encoding(false));
+
+        var helperArgs = $"-NoProfile -ExecutionPolicy Bypass -File \"{helperScriptPath}\" -ParentPid {Environment.ProcessId} -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\"";
+        var helperProcess = Process.Start(new ProcessStartInfo
+        {
+            FileName = FindPowerShell(),
+            Arguments = helperArgs,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        });
+
+        if (helperProcess == null)
+        {
+            throw new InvalidOperationException("Failed to start the background updater helper process.");
+        }
+    }
+
     // ── felix install ─────────────────────────────────────────────────────────
 
     static Command CreateInstallCommand()
@@ -836,15 +1250,7 @@ class Program
         cmd.SetHandler((bool force) =>
         {
             // ── Platform-aware install directory ────────────────────────────
-            string installDir;
-            if (OperatingSystem.IsWindows())
-                installDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Programs", "Felix");
-            else
-                installDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".local", "share", "felix");
+            var installDir = GetInstallDirectory();
 
             AnsiConsole.MarkupLine("[cyan]Felix CLI Installer[/]");
             AnsiConsole.MarkupLine("[grey]──────────────────────────────[/]");

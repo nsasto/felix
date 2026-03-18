@@ -193,6 +193,22 @@ function Show-Help {
                 Write-Host "  felix context pull --force"
                 Write-Host ""
             }
+            "update" {
+                Write-Host ""
+                Write-Host "felix update [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Check GitHub Releases and update the installed Felix CLI."
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --check              Check for updates without installing"
+                Write-Host "  --yes                Skip confirmation and install immediately"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix update"
+                Write-Host "  felix update --check"
+                Write-Host "  felix update --yes"
+                Write-Host ""
+            }
             "agent" {
                 Write-Host ""
                 Write-Host "felix agent <subcommand> [args]" -ForegroundColor Cyan
@@ -286,6 +302,7 @@ function Show-Help {
         Write-Host "  deps [req-id]         Show dependencies and validate status"
         Write-Host "  spec <subcommand>     Manage requirement specifications"
         Write-Host "  context <subcommand>  Generate/view project context documentation"
+        Write-Host "  update                Update the installed Felix CLI from GitHub Releases"
         Write-Host "  agent <subcommand>    Manage and switch agents"
         Write-Host "  procs [subcommand]    Manage active execution sessions"
         Write-Host "  tui                   Launch interactive terminal UI"
@@ -308,6 +325,7 @@ function Show-Help {
         Write-Host "  felix deps S-0001 --check"
         Write-Host "  felix spec create ""Add user authentication"""
         Write-Host "  felix context build"
+        Write-Host "  felix update --check"
         Write-Host "  felix setup"
         Write-Host "  felix help run"
         Write-Host ""

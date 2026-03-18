@@ -155,3 +155,28 @@ Select-String -Path .felix\sync.log -Pattern "ERROR" -ErrorAction SilentlyContin
 ## CLI Scope
 
 Felix CLI configuration and execution are always local to the machine running it.
+
+## Version Bump Workflow (Agent)
+
+When asked to bump a release version, do this sequence exactly:
+
+1. Choose the target version (example: `1.1.0`) and keep the same value everywhere below.
+2. Update required version files:
+   - `.felix/version.txt` (used by release packaging scripts)
+   - `src/Felix.Cli/Felix.Cli.csproj` `<Version>` value
+3. Add release notes file at `release_notes/RELEASE_NOTES_v<major>.<minor>.md` (or next repo convention), with date, highlights, fixes, and breaking changes if any.
+4. Validate build/release artifacts:
+   - `powershell -File .\scripts\package-release.ps1 -Rid win-x64`
+5. Commit changes:
+   - `git add .felix/version.txt src/Felix.Cli/Felix.Cli.csproj release_notes/*`
+   - `git commit -m "chore(release): bump version to v<version>"`
+6. Create annotated git tag:
+   - `git tag -a v<version> -m "Release v<version>"`
+7. Push commit and tag:
+   - `git push`
+   - `git push origin v<version>`
+
+Notes:
+
+- `scripts/package-release.ps1` reads `.felix/version.txt` for artifact names.
+- Update release server `latest.txt` to the new version when publishing artifacts.
