@@ -17,9 +17,9 @@ class Program
     const string DefaultUpdateRepo = "nsasto/felix";
     const string WindowsReleaseRid = "win-x64";
 
-    sealed record GitHubReleaseAsset(string Name, string DownloadUrl);
-    sealed record GitHubReleaseMetadata(string TagName, IReadOnlyList<GitHubReleaseAsset> Assets);
-    sealed record UpdateReleasePlan(string CurrentVersion, string TargetVersion, GitHubReleaseAsset ZipAsset, GitHubReleaseAsset ChecksumAsset, bool HasInstalledCopy);
+    internal sealed record GitHubReleaseAsset(string Name, string DownloadUrl);
+    internal sealed record GitHubReleaseMetadata(string TagName, IReadOnlyList<GitHubReleaseAsset> Assets);
+    internal sealed record UpdateReleasePlan(string CurrentVersion, string TargetVersion, GitHubReleaseAsset ZipAsset, GitHubReleaseAsset ChecksumAsset, bool HasInstalledCopy);
 
     static async Task<int> Main(string[] args)
     {
@@ -850,7 +850,7 @@ class Program
         catch { return null; }
     }
 
-    static string GetInstallDirectory()
+    internal static string GetInstallDirectory()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -864,7 +864,7 @@ class Program
             ".local", "share", "felix");
     }
 
-    static string? GetInstalledVersion(string installDir)
+    internal static string? GetInstalledVersion(string installDir)
     {
         var versionFile = Path.Combine(installDir, "version.txt");
         if (!File.Exists(versionFile)) return null;
@@ -872,7 +872,7 @@ class Program
         return File.ReadAllText(versionFile).Trim();
     }
 
-    static bool EnsureWindowsInstallDirOnPath(string installDir)
+    internal static bool EnsureWindowsInstallDirOnPath(string installDir)
     {
         var userPath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User) ?? "";
         var segments = userPath.Split(';', StringSplitOptions.RemoveEmptyEntries);
@@ -1035,7 +1035,7 @@ class Program
         return client;
     }
 
-    static UpdateReleasePlan? SelectUpdateReleasePlan(GitHubReleaseMetadata release, string currentVersion, string targetVersion, bool hasInstalledCopy)
+    internal static UpdateReleasePlan? SelectUpdateReleasePlan(GitHubReleaseMetadata release, string currentVersion, string targetVersion, bool hasInstalledCopy)
     {
         var zipAsset = FindReleaseAsset(release, new[]
         {
@@ -1057,7 +1057,7 @@ class Program
         return new UpdateReleasePlan(currentVersion, targetVersion, zipAsset, checksumAsset, hasInstalledCopy);
     }
 
-    static GitHubReleaseAsset? FindReleaseAsset(GitHubReleaseMetadata release, IEnumerable<string> candidateNames)
+    internal static GitHubReleaseAsset? FindReleaseAsset(GitHubReleaseMetadata release, IEnumerable<string> candidateNames)
     {
         foreach (var candidate in candidateNames)
         {
@@ -1071,7 +1071,7 @@ class Program
         return null;
     }
 
-    static string NormalizeVersionString(string version)
+    internal static string NormalizeVersionString(string version)
     {
         var normalized = version.Trim();
         if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
@@ -1088,7 +1088,7 @@ class Program
         return normalized;
     }
 
-    static int CompareVersions(string left, string right)
+    internal static int CompareVersions(string left, string right)
     {
         var normalizedLeft = NormalizeVersionString(left);
         var normalizedRight = NormalizeVersionString(right);
@@ -1142,7 +1142,7 @@ class Program
         await responseStream.CopyToAsync(fileStream);
     }
 
-    static void VerifyDownloadedChecksum(string checksumPath, string filePath, string expectedFileName)
+    internal static void VerifyDownloadedChecksum(string checksumPath, string filePath, string expectedFileName)
     {
         var checksumEntry = File.ReadAllLines(checksumPath)
             .Select(line => line.Trim())
@@ -1166,7 +1166,7 @@ class Program
         }
     }
 
-    static (string Hash, string FileName)? ParseChecksumLine(string line)
+    internal static (string Hash, string FileName)? ParseChecksumLine(string line)
     {
         var separatorIndex = line.IndexOf("  ", StringComparison.Ordinal);
         if (separatorIndex < 0)
@@ -1187,7 +1187,27 @@ class Program
     static void LaunchWindowsUpdateHelper(string stageRoot, string installDir)
     {
         var helperScriptPath = Path.Combine(Path.GetTempPath(), $"felix-apply-update-{Guid.NewGuid():N}.ps1");
-        var helperScript = @"
+        var helperScript = BuildWindowsUpdateHelperScript();
+
+        File.WriteAllText(helperScriptPath, helperScript, new UTF8Encoding(false));
+
+        var helperArgs = $"-NoProfile -ExecutionPolicy Bypass -File \"{helperScriptPath}\" -ParentPid {Environment.ProcessId} -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\"";
+        var helperProcess = Process.Start(new ProcessStartInfo
+        {
+            FileName = FindPowerShell(),
+            Arguments = helperArgs,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        });
+
+        if (helperProcess == null)
+        {
+            throw new InvalidOperationException("Failed to start the background updater helper process.");
+        }
+    }
+
+    internal static string BuildWindowsUpdateHelperScript() => @"
 param(
     [int]$ParentPid,
     [string]$StageRoot,
@@ -1217,24 +1237,6 @@ Get-ChildItem -LiteralPath $payloadDir -Force | ForEach-Object {
 
 Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
 ";
-
-        File.WriteAllText(helperScriptPath, helperScript, new UTF8Encoding(false));
-
-        var helperArgs = $"-NoProfile -ExecutionPolicy Bypass -File \"{helperScriptPath}\" -ParentPid {Environment.ProcessId} -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\"";
-        var helperProcess = Process.Start(new ProcessStartInfo
-        {
-            FileName = FindPowerShell(),
-            Arguments = helperArgs,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        });
-
-        if (helperProcess == null)
-        {
-            throw new InvalidOperationException("Failed to start the background updater helper process.");
-        }
-    }
 
     // ── felix install ─────────────────────────────────────────────────────────
 
