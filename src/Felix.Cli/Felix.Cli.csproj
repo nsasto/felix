@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>felix</AssemblyName>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <!-- Supported RIDs for release packaging via scripts/package-release.ps1 -->
     <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
   </PropertyGroup>
@@ -22,9 +22,13 @@
     <FelixRoot>$(MSBuildProjectDirectory)\..\..\.felix</FelixRoot>
   </PropertyGroup>
 
-  <Target Name="BundleFelixScripts" BeforeTargets="BeforeBuild">
-    <Exec Command="cmd /c &quot;where pwsh &gt;nul 2&gt;nul &amp;&amp; pwsh -NoProfile -NonInteractive -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\create-bundle.ps1&quot; -OutputPath &quot;$(FelixBundleZip)&quot; -FelixRoot &quot;$(FelixRoot)&quot; || powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\create-bundle.ps1&quot; -OutputPath &quot;$(FelixBundleZip)&quot; -FelixRoot &quot;$(FelixRoot)&quot;&quot;"
-          ConsoleToMSBuild="true" />
+    <Target Name="BundleFelixScripts" BeforeTargets="BeforeBuild">
+      <Exec Condition="'$(OS)' == 'Windows_NT'"
+        Command="cmd /c &quot;where pwsh &gt;nul 2&gt;nul &amp;&amp; pwsh -NoProfile -NonInteractive -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\create-bundle.ps1&quot; -OutputPath &quot;$(FelixBundleZip)&quot; -FelixRoot &quot;$(FelixRoot)&quot; || powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\create-bundle.ps1&quot; -OutputPath &quot;$(FelixBundleZip)&quot; -FelixRoot &quot;$(FelixRoot)&quot;&quot;"
+        ConsoleToMSBuild="true" />
+      <Exec Condition="'$(OS)' != 'Windows_NT'"
+        Command="pwsh -NoProfile -NonInteractive -File &quot;$(MSBuildProjectDirectory)/../../scripts/create-bundle.ps1&quot; -OutputPath &quot;$(FelixBundleZip)&quot; -FelixRoot &quot;$(FelixRoot)&quot;"
+        ConsoleToMSBuild="true" />
   </Target>
 
   <ItemGroup>
