@@ -142,7 +142,7 @@ curl -sSL https://felixai.dev/install.sh | bash
 
 After installation: `felix install` once per machine, then `felix setup` in any project.
 
-To update an existing Windows install from GitHub Releases:
+To update an existing install from GitHub Releases:
 
 ```powershell
 felix update

@@ -93,7 +93,7 @@ public sealed class UpdateCommandTests
                 new("checksums-1.0.2.txt", "https://example.test/versioned-checksums.txt")
             });
 
-        var plan = Program.SelectUpdateReleasePlan(release, "1.0.1", "1.0.2", hasInstalledCopy: false);
+        var plan = Program.SelectUpdateReleasePlan(release, "1.0.1", "1.0.2", hasInstalledCopy: false, releaseRid: "win-x64");
 
         Assert.NotNull(plan);
         Assert.Equal("felix-1.0.2-win-x64.zip", plan!.ZipAsset.Name);
@@ -111,9 +111,43 @@ public sealed class UpdateCommandTests
                 new("felix-latest-win-x64.zip", "https://example.test/latest.zip")
             });
 
-        var plan = Program.SelectUpdateReleasePlan(release, "1.0.1", "1.0.2", hasInstalledCopy: true);
+        var plan = Program.SelectUpdateReleasePlan(release, "1.0.1", "1.0.2", hasInstalledCopy: true, releaseRid: "win-x64");
 
         Assert.Null(plan);
+    }
+
+    [Fact]
+    public void SelectUpdateReleasePlan_ChoosesLinuxAssetsWhenRequested()
+    {
+        var release = new Program.GitHubReleaseMetadata(
+            "v1.0.2",
+            new List<Program.GitHubReleaseAsset>
+            {
+                new("felix-latest-linux-x64.zip", "https://example.test/latest-linux.zip"),
+                new("checksums-latest.txt", "https://example.test/checksums.txt")
+            });
+
+        var plan = Program.SelectUpdateReleasePlan(release, "1.0.1", "1.0.2", hasInstalledCopy: true, releaseRid: "linux-x64");
+
+        Assert.NotNull(plan);
+        Assert.Equal("felix-latest-linux-x64.zip", plan!.ZipAsset.Name);
+    }
+
+    [Fact]
+    public void SelectUpdateReleasePlan_ChoosesMacAssetsWhenRequested()
+    {
+        var release = new Program.GitHubReleaseMetadata(
+            "v1.0.2",
+            new List<Program.GitHubReleaseAsset>
+            {
+                new("felix-1.0.2-osx-arm64.zip", "https://example.test/osx-arm64.zip"),
+                new("checksums-1.0.2.txt", "https://example.test/checksums.txt")
+            });
+
+        var plan = Program.SelectUpdateReleasePlan(release, "1.0.1", "1.0.2", hasInstalledCopy: true, releaseRid: "osx-arm64");
+
+        Assert.NotNull(plan);
+        Assert.Equal("felix-1.0.2-osx-arm64.zip", plan!.ZipAsset.Name);
     }
 
     [Fact]
@@ -184,6 +218,16 @@ public sealed class UpdateCommandTests
         Assert.Contains("Wait-Process -Id $ParentPid", script);
         Assert.Contains("Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force", script);
         Assert.Contains("Remove-Item -LiteralPath $StageRoot -Recurse -Force", script);
+    }
+
+    [Fact]
+    public void BuildUnixUpdateHelperScript_ContainsExpectedOperations()
+    {
+        var script = Program.BuildUnixUpdateHelperScript();
+
+        Assert.Contains("cp -R \"$PAYLOAD_DIR\"/. \"$INSTALL_DIR\"/", script);
+        Assert.Contains("chmod +x \"$INSTALL_DIR/felix\"", script);
+        Assert.Contains("rm -rf \"$STAGE_ROOT\"", script);
     }
 
     [Fact]

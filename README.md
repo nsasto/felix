@@ -24,7 +24,7 @@ The trick is simple: run the agent in a loop, restart it every iteration so it g
 
 Download [felix-latest-setup.exe](https://github.com/nsasto/felix/releases/latest/download/felix-latest-setup.exe) and run it. This adds `felix` to your PATH.
 
-After installation, update in place from the CLI:
+After installation, update in place from the CLI on Windows, Linux, or macOS:
 
 ```powershell
 felix update

@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -15,7 +16,7 @@ class Program
     static string _felixInstallDir = "";
     static string _felixProjectRoot = "";
     const string DefaultUpdateRepo = "nsasto/felix";
-    const string WindowsReleaseRid = "win-x64";
+    const string DefaultWindowsReleaseRid = "win-x64";
 
     internal sealed record GitHubReleaseAsset(string Name, string DownloadUrl);
     internal sealed record GitHubReleaseMetadata(string TagName, IReadOnlyList<GitHubReleaseAsset> Assets);
@@ -886,18 +887,57 @@ class Program
         return true;
     }
 
+    internal static string GetCurrentReleaseRid()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return DefaultWindowsReleaseRid;
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return RuntimeInformation.OSArchitecture == Architecture.X64
+                ? "linux-x64"
+                : throw new PlatformNotSupportedException($"felix update does not currently publish Linux assets for architecture '{RuntimeInformation.OSArchitecture}'.");
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return RuntimeInformation.OSArchitecture switch
+            {
+                Architecture.Arm64 => "osx-arm64",
+                Architecture.X64 => "osx-x64",
+                _ => throw new PlatformNotSupportedException($"felix update does not currently publish macOS assets for architecture '{RuntimeInformation.OSArchitecture}'.")
+            };
+        }
+
+        throw new PlatformNotSupportedException("felix update is not supported on this operating system.");
+    }
+
+    internal static string GetExecutableFileName(string? releaseRid = null)
+    {
+        var rid = releaseRid ?? GetCurrentReleaseRid();
+        return rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? "felix.exe" : "felix";
+    }
+
     static async Task<int> RunSelfUpdateAsync(bool checkOnly, bool assumeYes)
     {
-        if (!OperatingSystem.IsWindows())
+        string releaseRid;
+        try
         {
-            AnsiConsole.MarkupLine("[yellow]felix update is currently implemented for Windows installations only.[/]");
+            releaseRid = GetCurrentReleaseRid();
+        }
+        catch (PlatformNotSupportedException ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]{ex.Message.EscapeMarkup()}[/]");
             return 1;
         }
 
         var installDir = GetInstallDirectory();
         var installedVersion = GetInstalledVersion(installDir);
         var currentVersion = installedVersion ?? ReadEmbeddedVersion();
-        var hasInstalledCopy = File.Exists(Path.Combine(installDir, "felix.exe"));
+        var executableName = GetExecutableFileName(releaseRid);
+        var hasInstalledCopy = File.Exists(Path.Combine(installDir, executableName));
 
         GitHubReleaseMetadata release;
         try
@@ -911,10 +951,10 @@ class Program
         }
 
         var targetVersion = NormalizeVersionString(release.TagName);
-        var plan = SelectUpdateReleasePlan(release, currentVersion, targetVersion, hasInstalledCopy);
+        var plan = SelectUpdateReleasePlan(release, currentVersion, targetVersion, hasInstalledCopy, releaseRid);
         if (plan == null)
         {
-            AnsiConsole.MarkupLine("[red]Update failed:[/] Could not find the required Windows release assets on GitHub.");
+            AnsiConsole.MarkupLine($"[red]Update failed:[/] Could not find the required {releaseRid.EscapeMarkup()} release assets on GitHub.");
             return 1;
         }
 
@@ -972,11 +1012,11 @@ class Program
         }
 
         Directory.CreateDirectory(installDir);
-        var addedToPath = EnsureWindowsInstallDirOnPath(installDir);
+        var addedToPath = OperatingSystem.IsWindows() && EnsureWindowsInstallDirOnPath(installDir);
 
         try
         {
-            LaunchWindowsUpdateHelper(stageRoot, installDir);
+            LaunchUpdateHelper(stageRoot, installDir, releaseRid);
         }
         catch (Exception ex)
         {
@@ -1046,12 +1086,13 @@ class Program
         return client;
     }
 
-    internal static UpdateReleasePlan? SelectUpdateReleasePlan(GitHubReleaseMetadata release, string currentVersion, string targetVersion, bool hasInstalledCopy)
+    internal static UpdateReleasePlan? SelectUpdateReleasePlan(GitHubReleaseMetadata release, string currentVersion, string targetVersion, bool hasInstalledCopy, string? releaseRid = null)
     {
+        var rid = releaseRid ?? GetCurrentReleaseRid();
         var zipAsset = FindReleaseAsset(release, new[]
         {
-            $"felix-latest-{WindowsReleaseRid}.zip",
-            $"felix-{targetVersion}-{WindowsReleaseRid}.zip"
+            $"felix-latest-{rid}.zip",
+            $"felix-{targetVersion}-{rid}.zip"
         });
 
         var checksumAsset = FindReleaseAsset(release, new[]
@@ -1134,10 +1175,11 @@ class Program
 
         ZipFile.ExtractToDirectory(zipPath, payloadDir);
 
-        var stagedExe = Path.Combine(payloadDir, "felix.exe");
+        var executableName = GetExecutableFileName();
+        var stagedExe = Path.Combine(payloadDir, executableName);
         if (!File.Exists(stagedExe))
         {
-            throw new InvalidOperationException("Downloaded archive did not contain felix.exe.");
+            throw new InvalidOperationException($"Downloaded archive did not contain {executableName}.");
         }
 
         return stageRoot;
@@ -1195,22 +1237,39 @@ class Program
         return (hash, fileName);
     }
 
-    static void LaunchWindowsUpdateHelper(string stageRoot, string installDir)
+    static void LaunchUpdateHelper(string stageRoot, string installDir, string releaseRid)
     {
-        var helperScriptPath = Path.Combine(Path.GetTempPath(), $"felix-apply-update-{Guid.NewGuid():N}.ps1");
-        var helperScript = BuildWindowsUpdateHelperScript();
+        var isWindows = releaseRid.StartsWith("win-", StringComparison.OrdinalIgnoreCase);
+        var helperExtension = isWindows ? ".ps1" : ".sh";
+        var helperScriptPath = Path.Combine(Path.GetTempPath(), $"felix-apply-update-{Guid.NewGuid():N}{helperExtension}");
+        var helperScript = isWindows ? BuildWindowsUpdateHelperScript() : BuildUnixUpdateHelperScript();
 
         File.WriteAllText(helperScriptPath, helperScript, new UTF8Encoding(false));
 
-        var helperArgs = $"-NoProfile -ExecutionPolicy Bypass -File \"{helperScriptPath}\" -ParentPid {Environment.ProcessId} -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\"";
-        var helperProcess = Process.Start(new ProcessStartInfo
+        ProcessStartInfo startInfo;
+        if (isWindows)
         {
-            FileName = FindPowerShell(),
-            Arguments = helperArgs,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        });
+            startInfo = new ProcessStartInfo
+            {
+                FileName = FindPowerShell(),
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{helperScriptPath}\" -ParentPid {Environment.ProcessId} -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+        }
+        else
+        {
+            startInfo = new ProcessStartInfo
+            {
+                FileName = "/bin/sh",
+                Arguments = $"\"{helperScriptPath}\" {Environment.ProcessId} \"{stageRoot}\" \"{installDir}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+        }
+
+        var helperProcess = Process.Start(startInfo);
 
         if (helperProcess == null)
         {
@@ -1248,6 +1307,30 @@ Get-ChildItem -LiteralPath $payloadDir -Force | ForEach-Object {
 
 Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
 ";
+
+        internal static string BuildUnixUpdateHelperScript() => """
+#!/bin/sh
+PARENT_PID="$1"
+STAGE_ROOT="$2"
+INSTALL_DIR="$3"
+
+while kill -0 "$PARENT_PID" 2>/dev/null; do
+    sleep 1
+done
+
+PAYLOAD_DIR="$STAGE_ROOT/payload"
+if [ ! -d "$PAYLOAD_DIR" ]; then
+    echo "Update payload directory not found: $PAYLOAD_DIR" >&2
+    exit 1
+fi
+
+mkdir -p "$INSTALL_DIR"
+cp -R "$PAYLOAD_DIR"/. "$INSTALL_DIR"/
+if [ -f "$INSTALL_DIR/felix" ]; then
+    chmod +x "$INSTALL_DIR/felix"
+fi
+rm -rf "$STAGE_ROOT"
+""";
 
     // ── felix install ─────────────────────────────────────────────────────────
 
