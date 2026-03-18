@@ -1308,7 +1308,7 @@ Get-ChildItem -LiteralPath $payloadDir -Force | ForEach-Object {
 Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
 ";
 
-        internal static string BuildUnixUpdateHelperScript() => """
+    internal static string BuildUnixUpdateHelperScript() => """
 #!/bin/sh
 PARENT_PID="$1"
 STAGE_ROOT="$2"
