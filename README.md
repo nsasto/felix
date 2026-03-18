@@ -30,6 +30,20 @@ After installation, update in place from the CLI on Windows, Linux, or macOS:
 felix update
 ```
 
+Check for a newer release without installing it:
+
+```powershell
+felix update --check
+```
+
+Skip the confirmation prompt during automation:
+
+```powershell
+felix update --yes
+```
+
+`felix update` resolves the latest GitHub Release, selects the correct platform package, verifies checksums, and stages the replacement after the current process exits.
+
 **Or install from source (any platform):**
 
 ```powershell
@@ -37,6 +51,8 @@ git clone https://github.com/nsasto/felix.git
 cd felix
 .\scripts\install.ps1
 ```
+
+Use `felix install` or the installer to bootstrap a machine. Use `felix update` when you already have Felix installed and want to move to the latest published release.
 
 ### 2. Set up your project
 

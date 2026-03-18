@@ -20,7 +20,7 @@ Felix now supports:
 - `felix update --check`
 - `felix update --yes`
 
-The command checks GitHub Releases, compares the installed version to the latest published version, downloads the correct platform artifact, verifies checksums, and stages the update for replacement after the current process exits.
+The command checks GitHub Releases, compares the installed version to the latest published version, downloads the correct platform artifact, verifies checksums, prompts before install unless `--yes` is supplied, and stages the update for replacement after the current process exits.
 
 ### Cross-Platform Artifact Selection
 
@@ -32,6 +32,8 @@ Updater asset selection now supports these release targets:
 - `osx-arm64`
 
 This allows the same CLI update flow to work across supported Felix platforms.
+
+When no installed Felix binary is present in the target install directory, the updater can bootstrap that location with the latest published release.
 
 ---
 
@@ -59,5 +61,5 @@ Added and expanded coverage for updater behavior:
 ## Notes
 
 - `felix install` remains the bootstrap path for first-time installation.
-- `felix update` is intended for updating an existing installed CLI.
+- `felix update` is intended for updating an existing installed CLI, but can also bootstrap the install directory when no prior installed copy is found.
 - Release packaging continues to publish platform-specific zip artifacts and Windows installer assets.

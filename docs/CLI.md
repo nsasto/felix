@@ -2,7 +2,7 @@
 
 Complete reference for the Felix command-line interface — commands, options, workflows, and conventions.
 
-> **Quick links:** [Core Commands](#the-core-commands-your-daily-drivers) · [Spec Management](#specification-management) · [Agent Management](#agent-management) · [Global Options](#global-options-the-switches-that-work-everywhere) · [Exit Codes](#the-exit-code-contract-what-they-mean) · [Workflows](#common-workflows)
+> **Quick links:** [Core Commands](#the-core-commands-your-daily-drivers) · [Update Command](#felix-update---refresh-the-installed-cli) · [Spec Management](#specification-management) · [Agent Management](#agent-management) · [Global Options](#global-options-the-switches-that-work-everywhere) · [Exit Codes](#the-exit-code-contract-what-they-mean) · [Workflows](#common-workflows)
 
 ---
 
@@ -149,6 +149,19 @@ felix update
 felix update --check
 ```
 
+Use `felix update --yes` to skip the interactive confirmation prompt.
+
+The updater downloads the latest published release for the current platform, verifies the checksum manifest, stages the payload in a temporary directory, and replaces the installed files after the current Felix process exits.
+
+Supported release identifiers:
+
+- `win-x64`
+- `linux-x64`
+- `osx-x64`
+- `osx-arm64`
+
+If the install directory does not already contain Felix, `felix update` treats the latest release as the install target and bootstraps that location.
+
 ---
 
 ## The Core Commands: Your Daily Drivers
@@ -259,6 +272,54 @@ while ($true) {
     elseif ($LASTEXITCODE -ne 0) { break }        # error or block needs attention
 }
 ```
+
+---
+
+### `felix update` - Refresh the Installed CLI
+
+**What it does:** Checks GitHub Releases for the newest Felix build, compares it to the local installed version, and stages the matching platform package for replacement.
+
+```bash
+felix update
+```
+
+**What actually happens:**
+
+- Detects the current platform release ID
+- Fetches the latest release metadata from GitHub
+- Selects the matching zip artifact and checksum manifest
+- Verifies the downloaded package before staging it
+- Prompts before install unless you pass `--yes`
+- Launches a helper that swaps binaries after the current process exits
+
+**Common forms:**
+
+```bash
+# See whether a newer release exists
+felix update --check
+
+# Install without prompting
+felix update --yes
+```
+
+**When to use it:**
+
+- You installed Felix globally and want the newest published release
+- You want a safe checksum-verified upgrade path
+- You need a non-interactive upgrade step for scripts or provisioning
+
+**When not to use it:**
+
+- You are doing a first-time local source checkout and plan to run from the repo directly
+- You specifically want to stay on an older pinned release
+
+**Install versus update:** `felix install` is the bootstrap path. `felix update` is the release-upgrade path. If no existing installed copy is found in the target install directory, `felix update` can still stage the latest release there.
+
+**Troubleshooting:**
+
+- Network failures: retry the command and confirm GitHub Releases is reachable from the machine running Felix. Proxy, firewall, or transient GitHub API failures will surface as update check or download errors.
+- Checksum failures: do not force the install. Re-run the update to fetch a clean copy. If the checksum mismatch persists, treat the release asset or download path as suspect until the published checksums and artifact match.
+- Unsupported platform errors: Felix only updates from published release assets for supported RIDs. If your machine reports an unsupported platform, install from source or use a supported published build target.
 
 ---
 

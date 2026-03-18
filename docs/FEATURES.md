@@ -83,6 +83,22 @@ See **[Writing Plugins](PLUGINS.md)** for the full authoring guide.
 - Process monitoring and management
 - Prevents duplicate executions
 
+### Installation and Update Commands
+
+**`felix install`**
+
+- Bootstraps Felix onto a machine from the published installer or install scripts
+- Sets up the global command entrypoint and install directory
+- Intended for first-time machine setup
+
+**`felix update`**
+
+- Checks GitHub Releases for the latest Felix version
+- Selects the correct package for Windows, Linux, or macOS
+- Verifies checksums before staging replacement files
+- Prompts interactively by default, with `--yes` for unattended upgrades
+- Supports update checks without install via `--check`
+
 ### Requirements Management
 
 **`felix status [req-id]`**
