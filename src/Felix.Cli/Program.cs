@@ -1314,9 +1314,17 @@ PARENT_PID="$1"
 STAGE_ROOT="$2"
 INSTALL_DIR="$3"
 
-while kill -0 "$PARENT_PID" 2>/dev/null; do
-    sleep 1
-done
+case "$PARENT_PID" in
+    ''|*[!0-9]*)
+        PARENT_PID=0
+        ;;
+esac
+
+if [ "$PARENT_PID" -gt 0 ] 2>/dev/null; then
+    while kill -0 "$PARENT_PID" 2>/dev/null; do
+        sleep 1
+    done
+fi
 
 PAYLOAD_DIR="$STAGE_ROOT/payload"
 if [ ! -d "$PAYLOAD_DIR" ]; then
