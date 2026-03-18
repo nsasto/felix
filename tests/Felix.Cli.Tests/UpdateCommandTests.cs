@@ -27,10 +27,10 @@ public sealed class UpdateCommandTests
         Assert.Equal(0, Program.CompareVersions("1.0.2", "v1.0.2"));
     }
 
-        [Fact]
-        public async Task GetLatestGitHubReleaseAsync_ParsesMockedGitHubResponse()
-        {
-                const string payload = """
+    [Fact]
+    public async Task GetLatestGitHubReleaseAsync_ParsesMockedGitHubResponse()
+    {
+        const string payload = """
                 {
                     "tag_name": "v1.2.3",
                     "assets": [
@@ -46,19 +46,19 @@ public sealed class UpdateCommandTests
                 }
                 """;
 
-                using var client = new HttpClient(new StubHttpMessageHandler(_ =>
-                        new HttpResponseMessage(HttpStatusCode.OK)
-                        {
-                                Content = new StringContent(payload, Encoding.UTF8, "application/json")
-                        }));
+        using var client = new HttpClient(new StubHttpMessageHandler(_ =>
+                new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                }));
 
-                var release = await Program.GetLatestGitHubReleaseAsync("nsasto/felix", client);
+        var release = await Program.GetLatestGitHubReleaseAsync("nsasto/felix", client);
 
-                Assert.Equal("v1.2.3", release.TagName);
-                Assert.Equal(2, release.Assets.Count);
-                Assert.Equal("felix-latest-win-x64.zip", release.Assets[0].Name);
-                Assert.Equal("https://example.test/checksums-latest.txt", release.Assets[1].DownloadUrl);
-        }
+        Assert.Equal("v1.2.3", release.TagName);
+        Assert.Equal(2, release.Assets.Count);
+        Assert.Equal("felix-latest-win-x64.zip", release.Assets[0].Name);
+        Assert.Equal("https://example.test/checksums-latest.txt", release.Assets[1].DownloadUrl);
+    }
 
     [Fact]
     public void SelectUpdateReleasePlan_PrefersStableLatestAliases()
@@ -282,6 +282,78 @@ public sealed class UpdateCommandTests
         catch
         {
             throw new Xunit.Sdk.XunitException($"Helper script failed. Stdout: {stdout}{Environment.NewLine}Stderr: {stderr}");
+        }
+        finally
+        {
+            Directory.Delete(rootDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void UnixHelperScript_AppliesStagedPayloadInTempDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var rootDir = CreateTempDirectory();
+        var stageRoot = Path.Combine(rootDir, "stage");
+        var payloadDir = Path.Combine(stageRoot, "payload");
+        var installDir = Path.Combine(rootDir, "install");
+        Directory.CreateDirectory(Path.Combine(payloadDir, ".felix", "commands"));
+        Directory.CreateDirectory(installDir);
+
+        File.WriteAllText(Path.Combine(payloadDir, "felix"), "new-binary");
+        File.WriteAllText(Path.Combine(payloadDir, "version.txt"), "1.2.3");
+        File.WriteAllText(Path.Combine(payloadDir, ".felix", "commands", "help.ps1"), "new-help");
+        File.WriteAllText(Path.Combine(installDir, "felix"), "old-binary");
+
+        var scriptPath = Path.Combine(rootDir, "apply-update.sh");
+        File.WriteAllText(scriptPath, Program.BuildUnixUpdateHelperScript(), new UTF8Encoding(false));
+
+        var chmodProcess = Process.Start(new ProcessStartInfo
+        {
+            FileName = "/bin/chmod",
+            Arguments = $"+x \"{scriptPath}\"",
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+
+        Assert.NotNull(chmodProcess);
+        chmodProcess!.WaitForExit();
+        Assert.Equal(0, chmodProcess.ExitCode);
+
+        var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "/bin/sh",
+            Arguments = $"\"{scriptPath}\" 0 \"{stageRoot}\" \"{installDir}\"",
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+
+        Assert.NotNull(process);
+        process!.WaitForExit();
+
+        var stderr = process.StandardError.ReadToEnd();
+        var stdout = process.StandardOutput.ReadToEnd();
+
+        try
+        {
+            Assert.Equal(0, process.ExitCode);
+            Assert.True(File.Exists(Path.Combine(installDir, "felix")));
+            Assert.Equal("new-binary", File.ReadAllText(Path.Combine(installDir, "felix")));
+            Assert.Equal("1.2.3", File.ReadAllText(Path.Combine(installDir, "version.txt")));
+            Assert.Equal("new-help", File.ReadAllText(Path.Combine(installDir, ".felix", "commands", "help.ps1")));
+            Assert.False(Directory.Exists(stageRoot));
+        }
+        catch
+        {
+            throw new Xunit.Sdk.XunitException($"Unix helper script failed. Stdout: {stdout}{Environment.NewLine}Stderr: {stderr}");
         }
         finally
         {

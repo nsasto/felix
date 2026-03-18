@@ -28,3 +28,26 @@ jobs:
       - name: Run tests
         shell: pwsh
         run: .\run-git-test.ps1
+
+  unix-update-helper:
+    name: Unix Update Helper (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run unix helper integration test
+        shell: bash
+        run: |
+          dotnet test ./tests/Felix.Cli.Tests/Felix.Cli.Tests.csproj \
+            --filter "FullyQualifiedName~UnixHelperScript_AppliesStagedPayloadInTempDirectory"
