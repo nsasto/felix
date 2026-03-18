@@ -90,6 +90,10 @@ class DroidAdapter {
                                 $result.Error = $errorMsg
                                 Emit-Log -Level "warn" -Message "Agent reported failure: $errorMsg" -Component "droid"
                             }
+                            elseif ($event.result) {
+                                $result.Output = [string]$event.result
+                                $foundCompletion = $true
+                            }
                         }
                         "completion" {
                             $finalText = $event.finalText

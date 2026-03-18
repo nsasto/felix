@@ -161,7 +161,7 @@ function Lock-FelixRun {
             $pidsStr = $others -join ', '
             
             if ($Interactive) {
-                Write-Host "`n⚠️  Another Felix agent is already running!" -ForegroundColor Yellow
+                Write-Host "`n[WARN] Another Felix agent is already running." -ForegroundColor Yellow
                 Write-Host "   Process ID(s): $pidsStr" -ForegroundColor Cyan
                 Write-Host ""
                 $response = Read-Host "Kill the existing process and continue? (y/n)"
@@ -269,7 +269,7 @@ function Lock-FelixRun {
 
             if ($isRunning) {
                 if ($Interactive) {
-                    Write-Host "`n⚠️  Another Felix agent is already running!" -ForegroundColor Yellow
+                    Write-Host "`n[WARN] Another Felix agent is already running." -ForegroundColor Yellow
                     Write-Host "   Process ID: $existingPid" -ForegroundColor Cyan
                     if ($existing.requirement_id) {
                         Write-Host "   Working on: $($existing.requirement_id)" -ForegroundColor Cyan

@@ -277,7 +277,7 @@ I need help creating a specification for requirement ID: $RequirementId
                         # Display success message
                         $filename = Split-Path $finalSpecPath -Leaf
                         Write-Host ""
-                        Write-Host "✅ Spec created successfully!" -ForegroundColor Green
+                        Write-Host "[OK] Spec created successfully." -ForegroundColor Green
                         Write-Host "   ID:       " -NoNewline -ForegroundColor Cyan
                         Write-Host $RequirementId
                         Write-Host "   File:     " -NoNewline -ForegroundColor Cyan

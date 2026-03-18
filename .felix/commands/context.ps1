@@ -72,7 +72,15 @@ function Invoke-Context {
             $configPath = Join-Path $RepoRoot ".felix\config.json"
             $agentsFile = Join-Path $RepoRoot ".felix\agents.json"
             $config = Get-FelixConfig -ConfigFile $configPath
-            $agentConfig = Get-AgentsConfiguration -AgentsJsonFile $agentsFile
+            $agentsData = Get-AgentsConfiguration -AgentsJsonFile $agentsFile
+            $agentId = if ($config.agent -and $null -ne $config.agent.agent_id -and -not [string]::IsNullOrWhiteSpace([string]$config.agent.agent_id)) {
+                [string]$config.agent.agent_id
+            }
+            else {
+                $firstAgent = $agentsData.agents | Select-Object -First 1
+                if ($firstAgent.key) { [string]$firstAgent.key } else { [string]$firstAgent.id }
+            }
+            $agentConfig = Get-AgentConfig -AgentsData $agentsData -AgentId $agentId -ConfigFile $configPath
             $paths = @{
                 ProjectPath = $RepoRoot
                 FelixDir    = Join-Path $RepoRoot ".felix"
@@ -80,12 +88,17 @@ function Invoke-Context {
                 PromptsDir  = Join-Path $PSScriptRoot "..\prompts"
                 AgentsFile  = Join-Path $RepoRoot "AGENTS.md"
             }
+
+            if (-not $agentConfig) {
+                exit 1
+            }
             
             # Execute builder
             $result = Invoke-ContextBuilder `
                 -ProjectPath $RepoRoot `
                 -IncludeHidden:$includeHidden `
                 -Force:$force `
+                -VerboseMode:$VerboseMode `
                 -Config $config `
                 -AgentConfig $agentConfig `
                 -Paths $paths

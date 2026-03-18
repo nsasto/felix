@@ -19,6 +19,9 @@ function Invoke-ContextBuilder {
     
     .PARAMETER Force
     Skip overwrite confirmation (default: inform but don't prompt)
+
+    .PARAMETER VerboseMode
+    Enable verbose agent execution for adapter-built arguments
     
     .PARAMETER Config
     Felix configuration object
@@ -38,6 +41,9 @@ function Invoke-ContextBuilder {
         
         [Parameter(Mandatory = $false)]
         [switch]$Force,
+
+        [Parameter(Mandatory = $false)]
+        [bool]$VerboseMode = $false,
         
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Config,
@@ -169,7 +175,7 @@ function Invoke-ContextBuilder {
     Emit-Log -Level "info" -Message "Calling agent for analysis..." -Component "context-builder"
     
     try {
-        $response = Invoke-AgentForContextBuild -Prompt $fullPrompt -Config $Config -AgentConfig $AgentConfig -Paths $Paths
+        $response = Invoke-AgentForContextBuild -Prompt $fullPrompt -Config $Config -AgentConfig $AgentConfig -Paths $Paths -VerboseMode:$VerboseMode
         
         # Show agent's response message
         if ($response) {
@@ -194,7 +200,7 @@ function Invoke-ContextBuilder {
     
     # Success
     Write-Host ""
-    Write-Host "✅ CONTEXT.md generated successfully!" -ForegroundColor Green
+    Write-Host "[OK] CONTEXT.md generated successfully." -ForegroundColor Green
     Write-Host "   Location: $contextPath" -ForegroundColor Cyan
     if ($existingContext) {
         Write-Host "   Backup:   CONTEXT.md.bak-$timestamp" -ForegroundColor Gray
@@ -324,62 +330,124 @@ function Invoke-AgentForContextBuild {
         [string]$Prompt,
         $Config,
         $AgentConfig,
-        $Paths
+        $Paths,
+        [bool]$VerboseMode = $false
     )
-    
-    # Get agent profile
-    $agentId = $Config.agent.agent_id
-    if ($null -eq $agentId) {
-        $agentId = 0
+
+    if (-not (Get-Command Get-AgentConfig -ErrorAction SilentlyContinue)) {
+        . "$PSScriptRoot\config-loader.ps1"
     }
-    
-    $agentsConfigPath = Join-Path $Paths.FelixDir "agents.json"
-    if (-not (Test-Path $agentsConfigPath)) {
-        throw "agents.json not found at $agentsConfigPath"
+
+    if (-not (Get-Command Resolve-FelixExecutablePath -ErrorAction SilentlyContinue)) {
+        . "$PSScriptRoot\compat-utils.ps1"
     }
-    
-    $agentsConfig = Get-Content $agentsConfigPath -Raw | ConvertFrom-Json
-    $agentProfile = $agentsConfig.agents | Where-Object { $_.key -eq $agentId -or $_.id -eq $agentId }
-    if ($agentProfile -and -not $agentProfile.key -and $agentProfile.id) {
-        $agentProfile | Add-Member -NotePropertyName 'key' -NotePropertyValue $agentProfile.id -Force
+
+    if (-not (Get-Command Get-AgentAdapter -ErrorAction SilentlyContinue)) {
+        . "$PSScriptRoot\agent-adapters.ps1"
     }
-    
+
+    $agentProfile = $AgentConfig
+    if (-not $agentProfile -or $agentProfile.PSObject.Properties['agents'] -or [string]::IsNullOrWhiteSpace([string]$agentProfile.executable)) {
+        $agentsData = $null
+        if ($AgentConfig -and $AgentConfig.PSObject.Properties['agents']) {
+            $agentsData = $AgentConfig
+        }
+        else {
+            $agentsConfigPath = Join-Path $Paths.FelixDir "agents.json"
+            if (-not (Test-Path $agentsConfigPath)) {
+                throw "agents.json not found at $agentsConfigPath"
+            }
+
+            $agentsData = Get-Content $agentsConfigPath -Raw | ConvertFrom-Json
+        }
+
+        $agentId = if ($Config.agent -and $null -ne $Config.agent.agent_id -and -not [string]::IsNullOrWhiteSpace([string]$Config.agent.agent_id)) {
+            [string]$Config.agent.agent_id
+        }
+        else {
+            $firstAgent = $agentsData.agents | Select-Object -First 1
+            if (-not $firstAgent) {
+                throw "No agents found in agents.json"
+            }
+
+            if ($firstAgent.key) { [string]$firstAgent.key } else { [string]$firstAgent.id }
+        }
+
+        $configFile = Join-Path $Paths.FelixDir "config.json"
+        $agentProfile = Get-AgentConfig -AgentsData $agentsData -AgentId $agentId -ConfigFile $configFile
+    }
+
     if (-not $agentProfile) {
-        throw "Agent profile not found for ID: $agentId"
+        throw "Agent profile could not be resolved for context build"
     }
-    
+
     # Build agent command
-    $agentExe = $agentProfile.executable
-    
-    # CRITICAL: Verify CommandType == 'Application' (LEARNINGS.md Issue 3)
+    $agentExe = Resolve-FelixExecutablePath $agentProfile.executable
+    if (-not $agentExe) {
+        $agentName = if ($agentProfile.name) { $agentProfile.name } else { "unknown" }
+        throw "Agent executable is empty or not found for agent '$agentName'. Run 'felix setup' or 'felix agent use <name|key>' to configure a valid agent."
+    }
+
     $cmd = Get-Command $agentExe -ErrorAction SilentlyContinue
     if (-not $cmd) {
         throw "Agent executable not found: $agentExe"
     }
-    
-    if ($cmd.CommandType -ne 'Application') {
+
+    if ($cmd.CommandType -notin @('Application', 'ExternalScript')) {
         throw "Agent executable is not an Application: $agentExe (found: $($cmd.CommandType))"
     }
-    
-    # Build argument array (direct array passing, not splatting - LEARNINGS.md pattern)
+
+    $adapterType = if ($agentProfile.adapter) { $agentProfile.adapter } elseif ($agentProfile.name) { $agentProfile.name } else { "droid" }
+    $adapter = Get-AgentAdapter -AdapterType $adapterType -ErrorAction SilentlyContinue
+    $formattedPrompt = $Prompt
     $agentArgs = @()
-    if ($agentProfile.args) {
+
+    if ($adapter) {
+        $formattedPrompt = $adapter.FormatPrompt($Prompt)
+        $agentArgs = $adapter.BuildArgs($agentProfile, $VerboseMode)
+    }
+    elseif ($agentProfile.args) {
         $agentArgs += $agentProfile.args
     }
+
+    $agentWorkingDir = if ($agentProfile.working_directory) { $agentProfile.working_directory } else { "." }
+    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
+        $agentWorkingDir
+    }
+    else {
+        Join-Path $Paths.ProjectPath $agentWorkingDir
+    }
+
+    $envBackup = @{}
     
     # Write prompt to temp file
     $tempPrompt = Join-Path $env:TEMP "felix-context-prompt-$(Get-Random).txt"
-    Set-Content -Path $tempPrompt -Value $Prompt -Encoding UTF8
+    Set-Content -Path $tempPrompt -Value $formattedPrompt -Encoding UTF8
     
     try {
+        if ($agentProfile.environment) {
+            foreach ($prop in $agentProfile.environment.PSObject.Properties) {
+                $key = $prop.Name
+                $value = [string]$prop.Value
+                $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+            }
+        }
+
         # Execute agent (following LEARNINGS.md patterns)
         $prevErrorAction = $ErrorActionPreference
         $ErrorActionPreference = "Continue"  # Allow stderr without termination (LEARNINGS.md)
         
         try {
-            # Pipe prompt to agent
-            $response = Get-Content $tempPrompt -Raw | & $cmd $agentArgs 2>&1 | Out-String
-            $exitCode = $LASTEXITCODE
+            Push-Location $agentCwd
+            try {
+                # Pipe prompt to agent using adapter-built args and working directory
+                $response = Get-Content $tempPrompt -Raw | & $agentExe @agentArgs 2>&1 | Out-String
+            }
+            finally {
+                Pop-Location
+            }
+            $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
         }
         finally {
             $ErrorActionPreference = $prevErrorAction
@@ -388,10 +456,25 @@ function Invoke-AgentForContextBuild {
         if ($exitCode -ne 0) {
             throw "Agent failed with exit code: $exitCode"
         }
-        
+
+        if ($adapter) {
+            $parsed = $adapter.ParseResponse($response)
+            if ($parsed -and $parsed.Error) {
+                throw $parsed.Error
+            }
+
+            if ($parsed -and $parsed.Output) {
+                return $parsed.Output
+            }
+        }
+
         return $response
     }
     finally {
+        foreach ($key in $envBackup.Keys) {
+            [Environment]::SetEnvironmentVariable($key, $envBackup[$key], "Process")
+        }
+
         # Cleanup
         Remove-Item $tempPrompt -Force -ErrorAction SilentlyContinue
     }

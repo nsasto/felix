@@ -145,10 +145,10 @@ Describe "Invoke-ContextBuilder" {
                 -AgentConfig ([pscustomobject]@{}) `
                 -Paths ([pscustomobject]@{
                     ProjectPath = $tempDir
-                    FelixDir = Join-Path $tempDir ".felix"
-                    SpecsDir = Join-Path $tempDir "specs"
-                    PromptsDir = $promptsDir
-                    AgentsFile = $agentsPath
+                    FelixDir    = Join-Path $tempDir ".felix"
+                    SpecsDir    = Join-Path $tempDir "specs"
+                    PromptsDir  = $promptsDir
+                    AgentsFile  = $agentsPath
                 })
 
             Assert-Equal 0 $result.ExitCode
@@ -158,6 +158,62 @@ Describe "Invoke-ContextBuilder" {
             Remove-Item Function:\Emit-Log -ErrorAction SilentlyContinue
             Remove-Item Function:\Emit-Error -ErrorAction SilentlyContinue
             Remove-Item Function:\Invoke-AgentForContextBuild -ErrorAction SilentlyContinue
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe "Invoke-ContextBuilder verbose propagation" {
+
+    It "should pass verbose mode to Invoke-AgentForContextBuild" {
+        $tempDir = Join-Path $env:TEMP "test-contextverbose-$(Get-Random)"
+        $promptsDir = Join-Path $tempDir "prompts"
+        $global:ObservedContextVerbose = $null
+
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $promptsDir -Force | Out-Null
+        Set-Content (Join-Path $promptsDir "build_context.md") "Build context" -Encoding UTF8
+        Set-Content (Join-Path $tempDir "README.md") "# Repo" -Encoding UTF8
+        Set-Content (Join-Path $tempDir "AGENTS.md") "# Agents" -Encoding UTF8
+
+        function Emit-Log {
+            param([string]$Level, [string]$Message, [string]$Component)
+        }
+
+        function Emit-Error {
+            param([string]$ErrorType, [string]$Message, [string]$Severity)
+            throw $Message
+        }
+
+        function Invoke-AgentForContextBuild {
+            param([string]$Prompt, $Config, $AgentConfig, $Paths, [bool]$VerboseMode)
+            $global:ObservedContextVerbose = $VerboseMode
+            Set-Content (Join-Path $Paths.ProjectPath "CONTEXT.md") "# Generated Context" -Encoding UTF8
+            return "generated"
+        }
+
+        try {
+            $result = Invoke-ContextBuilder `
+                -ProjectPath $tempDir `
+                -VerboseMode:$true `
+                -Config ([pscustomobject]@{ agent = [pscustomobject]@{ agent_id = "ag_test" } }) `
+                -AgentConfig ([pscustomobject]@{ key = "ag_test"; name = "droid"; executable = "droid" }) `
+                -Paths ([pscustomobject]@{
+                    ProjectPath = $tempDir
+                    FelixDir    = Join-Path $tempDir ".felix"
+                    SpecsDir    = Join-Path $tempDir "specs"
+                    PromptsDir  = $promptsDir
+                    AgentsFile  = Join-Path $tempDir "AGENTS.md"
+                })
+
+            Assert-Equal 0 $result.ExitCode
+            Assert-Equal $true $global:ObservedContextVerbose "Expected verbose mode to be forwarded to Invoke-AgentForContextBuild"
+        }
+        finally {
+            Remove-Item Function:\Emit-Log -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-Error -ErrorAction SilentlyContinue
+            Remove-Item Function:\Invoke-AgentForContextBuild -ErrorAction SilentlyContinue
+            Remove-Item Variable:\global:ObservedContextVerbose -ErrorAction SilentlyContinue
             Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }

@@ -99,6 +99,11 @@ Describe "Emit-Error" {
         Assert-Equal "Something broke" $parsed.data.message
         Assert-Equal "error" $parsed.data.severity
     }
+
+    It "should avoid NDJSON output in rich mode" {
+        $output = Invoke-EmitCapture '$global:FelixOutputFormat = "rich"; Emit-Error -ErrorType "TestError" -Message "Something broke" -Severity "fatal"'
+        Assert-False ($output -match '"type"\s*:\s*"error_occurred"') "Rich mode should not emit NDJSON error events"
+    }
 }
 
 Describe "Event Suppression" {

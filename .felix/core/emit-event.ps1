@@ -123,13 +123,13 @@ function Emit-Log {
     if ($global:FelixOutputFormat -eq "rich") {
         $color = switch ($Level) {
             "debug" { "DarkGray" }
-            "info"  { "Cyan" }
-            "warn"  { "Yellow" }
+            "info" { "Cyan" }
+            "warn" { "Yellow" }
             "error" { "Red" }
             default { "White" }
         }
         $prefix = if ($Component) { "[$Component] " } else { "" }
-        $tag    = $Level.ToUpper().PadRight(5)
+        $tag = $Level.ToUpper().PadRight(5)
         Write-Host "[$tag] $prefix$Message" -ForegroundColor $color
         return
     }
@@ -276,13 +276,16 @@ function Emit-Error {
         [Parameter(Mandatory = $false)]
         [hashtable]$Context = @{}
     )
-    
-    # If events are suppressed (interactive mode), show errors directly on console
-    if ($script:SuppressEventEmission -eq $true) {
+
+    if ($global:FelixOutputFormat -eq "rich" -or $script:SuppressEventEmission -eq $true) {
         $color = if ($Severity -eq 'fatal') { 'Red' } elseif ($Severity -eq 'error') { 'Red' } else { 'Yellow' }
         Write-Host "[$Severity] $ErrorType`: $Message" -ForegroundColor $color
         if ($Context.Count -gt 0) {
             Write-Host "  Context: $($Context | ConvertTo-Json -Compress)" -ForegroundColor Gray
+        }
+
+        if ($global:FelixOutputFormat -eq "rich" -or $script:SuppressEventEmission -eq $true) {
+            return
         }
     }
     

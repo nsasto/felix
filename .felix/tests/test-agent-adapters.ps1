@@ -137,6 +137,13 @@ Describe "DroidAdapter.ParseResponse" {
         Assert-False $result.IsComplete
         Assert-Null $result.NextMode
     }
+
+    It "should extract plain text from droid success JSON" {
+        $adapter = [DroidAdapter]::new()
+        $result = $adapter.ParseResponse('{"type":"result","subtype":"success","is_error":false,"result":"Updated CONTEXT.md successfully"}')
+        Assert-Equal "Updated CONTEXT.md successfully" $result.Output
+        Assert-Null $result.Error
+    }
 }
 
 Describe "ClaudeAdapter.FormatPrompt" {
