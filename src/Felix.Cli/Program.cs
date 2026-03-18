@@ -996,35 +996,46 @@ class Program
         return 0;
     }
 
-    static async Task<GitHubReleaseMetadata> GetLatestGitHubReleaseAsync(string repo)
+    internal static async Task<GitHubReleaseMetadata> GetLatestGitHubReleaseAsync(string repo, HttpClient? client = null)
     {
-        using var client = CreateGitHubHttpClient();
+        var disposeClient = client == null;
+        client ??= CreateGitHubHttpClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repo}/releases/latest");
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
 
-        using var response = await client.SendAsync(request);
-        var content = await response.Content.ReadAsStringAsync();
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            throw new InvalidOperationException($"GitHub API returned {(int)response.StatusCode}: {content}");
-        }
-
-        using var document = JsonDocument.Parse(content);
-        var root = document.RootElement;
-        var tagName = root.GetProperty("tag_name").GetString() ?? throw new InvalidOperationException("GitHub release response did not include tag_name.");
-        var assets = new List<GitHubReleaseAsset>();
-
-        foreach (var assetElement in root.GetProperty("assets").EnumerateArray())
-        {
-            var name = assetElement.GetProperty("name").GetString();
-            var downloadUrl = assetElement.GetProperty("browser_download_url").GetString();
-            if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(downloadUrl))
+            using var response = await client.SendAsync(request);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
             {
-                assets.Add(new GitHubReleaseAsset(name, downloadUrl));
+                throw new InvalidOperationException($"GitHub API returned {(int)response.StatusCode}: {content}");
+            }
+
+            using var document = JsonDocument.Parse(content);
+            var root = document.RootElement;
+            var tagName = root.GetProperty("tag_name").GetString() ?? throw new InvalidOperationException("GitHub release response did not include tag_name.");
+            var assets = new List<GitHubReleaseAsset>();
+
+            foreach (var assetElement in root.GetProperty("assets").EnumerateArray())
+            {
+                var name = assetElement.GetProperty("name").GetString();
+                var downloadUrl = assetElement.GetProperty("browser_download_url").GetString();
+                if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(downloadUrl))
+                {
+                    assets.Add(new GitHubReleaseAsset(name, downloadUrl));
+                }
+            }
+
+            return new GitHubReleaseMetadata(tagName, assets);
+        }
+        finally
+        {
+            if (disposeClient)
+            {
+                client.Dispose();
             }
         }
-
-        return new GitHubReleaseMetadata(tagName, assets);
     }
 
     static HttpClient CreateGitHubHttpClient()
@@ -1442,14 +1453,8 @@ Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinu
             AnsiConsole.WriteLine();
             return;
         }
+
         var requirements = doc.RootElement;
-        if (requirements.ValueKind != JsonValueKind.Array)
-        {
-            AnsiConsole.MarkupLine("[yellow]No requirements found.[/]");
-            AnsiConsole.MarkupLine("[grey]Run [cyan]felix setup[/] in a project directory first.[/]");
-            AnsiConsole.WriteLine();
-            return;
-        }
         var total = requirements.GetArrayLength();
         if (total == 0)
         {

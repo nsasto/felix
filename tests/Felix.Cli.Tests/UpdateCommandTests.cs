@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Net;
+using System.Net.Http;
+using System.Text;
 using System.Security.Cryptography;
 using Felix.Cli;
 using Xunit;
@@ -22,6 +26,39 @@ public sealed class UpdateCommandTests
         Assert.True(Program.CompareVersions("v1.2.0", "1.1.9") > 0);
         Assert.Equal(0, Program.CompareVersions("1.0.2", "v1.0.2"));
     }
+
+        [Fact]
+        public async Task GetLatestGitHubReleaseAsync_ParsesMockedGitHubResponse()
+        {
+                const string payload = """
+                {
+                    "tag_name": "v1.2.3",
+                    "assets": [
+                        {
+                            "name": "felix-latest-win-x64.zip",
+                            "browser_download_url": "https://example.test/felix-latest-win-x64.zip"
+                        },
+                        {
+                            "name": "checksums-latest.txt",
+                            "browser_download_url": "https://example.test/checksums-latest.txt"
+                        }
+                    ]
+                }
+                """;
+
+                using var client = new HttpClient(new StubHttpMessageHandler(_ =>
+                        new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                        }));
+
+                var release = await Program.GetLatestGitHubReleaseAsync("nsasto/felix", client);
+
+                Assert.Equal("v1.2.3", release.TagName);
+                Assert.Equal(2, release.Assets.Count);
+                Assert.Equal("felix-latest-win-x64.zip", release.Assets[0].Name);
+                Assert.Equal("https://example.test/checksums-latest.txt", release.Assets[1].DownloadUrl);
+        }
 
     [Fact]
     public void SelectUpdateReleasePlan_PrefersStableLatestAliases()
@@ -149,10 +186,77 @@ public sealed class UpdateCommandTests
         Assert.Contains("Remove-Item -LiteralPath $StageRoot -Recurse -Force", script);
     }
 
+    [Fact]
+    public void WindowsHelperScript_AppliesStagedPayloadInTempDirectory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var rootDir = CreateTempDirectory();
+        var stageRoot = Path.Combine(rootDir, "stage");
+        var payloadDir = Path.Combine(stageRoot, "payload");
+        var installDir = Path.Combine(rootDir, "install");
+        Directory.CreateDirectory(payloadDir);
+        Directory.CreateDirectory(installDir);
+        Directory.CreateDirectory(Path.Combine(payloadDir, ".felix", "commands"));
+
+        File.WriteAllText(Path.Combine(payloadDir, "felix.exe"), "new-binary");
+        File.WriteAllText(Path.Combine(payloadDir, "version.txt"), "1.2.3");
+        File.WriteAllText(Path.Combine(payloadDir, ".felix", "commands", "help.ps1"), "new-help");
+        File.WriteAllText(Path.Combine(installDir, "felix.exe"), "old-binary");
+
+        var scriptPath = Path.Combine(rootDir, "apply-update.ps1");
+        File.WriteAllText(scriptPath, Program.BuildWindowsUpdateHelperScript(), new UTF8Encoding(false));
+
+        var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -ParentPid 0 -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\"",
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+
+        Assert.NotNull(process);
+        process!.WaitForExit();
+
+        var stderr = process.StandardError.ReadToEnd();
+        var stdout = process.StandardOutput.ReadToEnd();
+
+        try
+        {
+            Assert.Equal(0, process.ExitCode);
+            Assert.True(File.Exists(Path.Combine(installDir, "felix.exe")));
+            Assert.Equal("new-binary", File.ReadAllText(Path.Combine(installDir, "felix.exe")));
+            Assert.Equal("1.2.3", File.ReadAllText(Path.Combine(installDir, "version.txt")));
+            Assert.Equal("new-help", File.ReadAllText(Path.Combine(installDir, ".felix", "commands", "help.ps1")));
+            Assert.False(Directory.Exists(stageRoot));
+        }
+        catch
+        {
+            throw new Xunit.Sdk.XunitException($"Helper script failed. Stdout: {stdout}{Environment.NewLine}Stderr: {stderr}");
+        }
+        finally
+        {
+            Directory.Delete(rootDir, recursive: true);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"felix-cli-tests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(responder(request));
+        }
     }
 }
