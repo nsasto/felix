@@ -78,6 +78,7 @@ public sealed class UpdateCommandTests
         Assert.NotNull(plan);
         Assert.Equal("felix-latest-win-x64.zip", plan!.ZipAsset.Name);
         Assert.Equal("checksums-latest.txt", plan.ChecksumAsset.Name);
+        Assert.Equal(new[] { "felix-latest-win-x64.zip", "felix-1.0.2-win-x64.zip" }, plan.AcceptedChecksumFileNames);
         Assert.Equal("1.0.1", plan.CurrentVersion);
         Assert.Equal("1.0.2", plan.TargetVersion);
     }
@@ -98,6 +99,7 @@ public sealed class UpdateCommandTests
         Assert.NotNull(plan);
         Assert.Equal("felix-1.0.2-win-x64.zip", plan!.ZipAsset.Name);
         Assert.Equal("checksums-1.0.2.txt", plan.ChecksumAsset.Name);
+        Assert.Equal(new[] { "felix-1.0.2-win-x64.zip" }, plan.AcceptedChecksumFileNames);
         Assert.False(plan.HasInstalledCopy);
     }
 
@@ -179,7 +181,7 @@ public sealed class UpdateCommandTests
             var checksumPath = Path.Combine(tempDir, "checksums-latest.txt");
             File.WriteAllText(checksumPath, $"{expectedHash}  felix-latest-win-x64.zip{Environment.NewLine}");
 
-            Program.VerifyDownloadedChecksum(checksumPath, zipPath, "felix-latest-win-x64.zip");
+            Program.VerifyDownloadedChecksum(checksumPath, zipPath, new[] { "felix-latest-win-x64.zip" });
         }
         finally
         {
@@ -200,9 +202,33 @@ public sealed class UpdateCommandTests
             File.WriteAllText(checksumPath, $"DEADBEEF  felix-latest-win-x64.zip{Environment.NewLine}");
 
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                Program.VerifyDownloadedChecksum(checksumPath, zipPath, "felix-latest-win-x64.zip"));
+                Program.VerifyDownloadedChecksum(checksumPath, zipPath, new[] { "felix-latest-win-x64.zip" }));
 
             Assert.Contains("Checksum mismatch", ex.Message);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void VerifyDownloadedChecksum_AcceptsVersionedFallbackForLatestAlias()
+    {
+        var tempDir = CreateTempDirectory();
+        try
+        {
+            var zipPath = Path.Combine(tempDir, "felix-latest-win-x64.zip");
+            File.WriteAllText(zipPath, "payload");
+
+            var expectedHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(zipPath)));
+            var checksumPath = Path.Combine(tempDir, "checksums-latest.txt");
+            File.WriteAllText(checksumPath, $"{expectedHash}  felix-1.1.2-win-x64.zip{Environment.NewLine}");
+
+            Program.VerifyDownloadedChecksum(
+                checksumPath,
+                zipPath,
+                new[] { "felix-latest-win-x64.zip", "felix-1.1.2-win-x64.zip" });
         }
         finally
         {

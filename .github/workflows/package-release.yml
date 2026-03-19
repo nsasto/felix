@@ -88,13 +88,26 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.meta.outputs.version }}'
 
-          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-win-x64.zip" ".release/felix-latest-win-x64.zip" -Force
-          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-linux-x64.zip" ".release/felix-latest-linux-x64.zip" -Force
-          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-osx-arm64.zip" ".release/felix-latest-osx-arm64.zip" -Force
-          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-osx-x64.zip" ".release/felix-latest-osx-x64.zip" -Force
-          Copy-Item ".release/felix-${{ steps.meta.outputs.version }}-setup.exe" ".release/felix-latest-setup.exe" -Force
-          Copy-Item ".release/checksums-${{ steps.meta.outputs.version }}.txt" ".release/checksums-latest.txt" -Force
+          Copy-Item ".release/felix-$version-win-x64.zip" ".release/felix-latest-win-x64.zip" -Force
+          Copy-Item ".release/felix-$version-linux-x64.zip" ".release/felix-latest-linux-x64.zip" -Force
+          Copy-Item ".release/felix-$version-osx-arm64.zip" ".release/felix-latest-osx-arm64.zip" -Force
+          Copy-Item ".release/felix-$version-osx-x64.zip" ".release/felix-latest-osx-x64.zip" -Force
+          Copy-Item ".release/felix-$version-setup.exe" ".release/felix-latest-setup.exe" -Force
+
+          $checksumLines = Get-Content ".release/checksums-$version.txt"
+          $latestChecksumLines = foreach ($line in $checksumLines) {
+            $updated = $line
+            $updated = $updated -replace ([regex]::Escape("felix-$version-win-x64.zip")), 'felix-latest-win-x64.zip'
+            $updated = $updated -replace ([regex]::Escape("felix-$version-linux-x64.zip")), 'felix-latest-linux-x64.zip'
+            $updated = $updated -replace ([regex]::Escape("felix-$version-osx-arm64.zip")), 'felix-latest-osx-arm64.zip'
+            $updated = $updated -replace ([regex]::Escape("felix-$version-osx-x64.zip")), 'felix-latest-osx-x64.zip'
+            $updated = $updated -replace ([regex]::Escape("felix-$version-setup.exe")), 'felix-latest-setup.exe'
+            $updated
+          }
+
+          Set-Content ".release/checksums-latest.txt" -Value $latestChecksumLines
 
       - name: Check if release already exists
         id: exists

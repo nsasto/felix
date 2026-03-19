@@ -20,7 +20,7 @@ class Program
 
     internal sealed record GitHubReleaseAsset(string Name, string DownloadUrl);
     internal sealed record GitHubReleaseMetadata(string TagName, IReadOnlyList<GitHubReleaseAsset> Assets);
-    internal sealed record UpdateReleasePlan(string CurrentVersion, string TargetVersion, GitHubReleaseAsset ZipAsset, GitHubReleaseAsset ChecksumAsset, bool HasInstalledCopy);
+    internal sealed record UpdateReleasePlan(string CurrentVersion, string TargetVersion, GitHubReleaseAsset ZipAsset, GitHubReleaseAsset ChecksumAsset, string[] AcceptedChecksumFileNames, bool HasInstalledCopy);
 
     static async Task<int> Main(string[] args)
     {
@@ -1106,7 +1106,13 @@ class Program
             return null;
         }
 
-        return new UpdateReleasePlan(currentVersion, targetVersion, zipAsset, checksumAsset, hasInstalledCopy);
+        return new UpdateReleasePlan(
+            currentVersion,
+            targetVersion,
+            zipAsset,
+            checksumAsset,
+            GetAcceptedChecksumFileNames(zipAsset.Name, targetVersion).ToArray(),
+            hasInstalledCopy);
     }
 
     internal static GitHubReleaseAsset? FindReleaseAsset(GitHubReleaseMetadata release, IEnumerable<string> candidateNames)
@@ -1121,6 +1127,27 @@ class Program
         }
 
         return null;
+    }
+
+    internal static IEnumerable<string> GetAcceptedChecksumFileNames(string assetName, string targetVersion)
+    {
+        yield return assetName;
+
+        const string latestMarker = "latest-";
+        var markerIndex = assetName.IndexOf(latestMarker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex >= 0)
+        {
+            var versionedName = string.Concat(
+                assetName.AsSpan(0, markerIndex),
+                targetVersion,
+                "-",
+                assetName.AsSpan(markerIndex + latestMarker.Length));
+
+            if (!string.Equals(versionedName, assetName, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return versionedName;
+            }
+        }
     }
 
     internal static string NormalizeVersionString(string version)
@@ -1170,7 +1197,7 @@ class Program
         AnsiConsole.MarkupLine($"[grey]Downloading[/] {plan.ChecksumAsset.Name.EscapeMarkup()} ...");
         await DownloadFileAsync(client, plan.ChecksumAsset.DownloadUrl, checksumPath);
 
-        VerifyDownloadedChecksum(checksumPath, zipPath, plan.ZipAsset.Name);
+        VerifyDownloadedChecksum(checksumPath, zipPath, plan.AcceptedChecksumFileNames);
         AnsiConsole.MarkupLine("[green]✓[/] Checksum verified");
 
         ZipFile.ExtractToDirectory(zipPath, payloadDir);
@@ -1195,19 +1222,24 @@ class Program
         await responseStream.CopyToAsync(fileStream);
     }
 
-    internal static void VerifyDownloadedChecksum(string checksumPath, string filePath, string expectedFileName)
+    internal static void VerifyDownloadedChecksum(string checksumPath, string filePath, IEnumerable<string> expectedFileNames)
     {
+        var expectedNames = expectedFileNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         var checksumEntry = File.ReadAllLines(checksumPath)
             .Select(line => line.Trim())
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(ParseChecksumLine)
             .Where(result => result.HasValue)
             .Select(result => result!.Value)
-            .FirstOrDefault(result => string.Equals(result.FileName, expectedFileName, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(result => expectedNames.Contains(result.FileName, StringComparer.OrdinalIgnoreCase));
 
         if (string.IsNullOrWhiteSpace(checksumEntry.Hash))
         {
-            throw new InvalidOperationException($"Checksum file did not include an entry for {expectedFileName}.");
+            throw new InvalidOperationException($"Checksum file did not include an entry for any of: {string.Join(", ", expectedNames)}.");
         }
 
         using var sha = SHA256.Create();
@@ -1215,7 +1247,7 @@ class Program
         var actualHash = Convert.ToHexString(sha.ComputeHash(stream));
         if (!string.Equals(actualHash, checksumEntry.Hash, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"Checksum mismatch for {expectedFileName}. Expected {checksumEntry.Hash}, got {actualHash}.");
+            throw new InvalidOperationException($"Checksum mismatch for {checksumEntry.FileName}. Expected {checksumEntry.Hash}, got {actualHash}.");
         }
     }
 
