@@ -84,11 +84,69 @@ function Test-ExecutableInstalled {
     
     try {
         $resolved = Get-Command $ExecutableName -ErrorAction SilentlyContinue
-        return $null -ne $resolved
+        if ($null -ne $resolved) {
+            return $true
+        }
+
+        if ($ExecutableName.ToLower() -eq "copilot") {
+            foreach ($candidate in (Get-CopilotExecutableCandidates)) {
+                if (Test-Path $candidate) {
+                    return $true
+                }
+            }
+        }
+
+        return $false
     }
     catch {
         return $false
     }
+}
+
+function Get-CopilotExecutableCandidates {
+    <#
+    .SYNOPSIS
+    Returns likely Windows Copilot CLI shim paths.
+
+    .DESCRIPTION
+    GitHub Copilot CLI on Windows is often installed under VS Code globalStorage
+    rather than a directory present on PATH. This helper surfaces the common shim
+    locations so setup-time detection can reflect the real installed state.
+    #>
+    param()
+
+    $candidates = @()
+    $candidateDirs = @()
+
+    if ($env:FELIX_COPILOT_CLI_ROOTS) {
+        $candidateDirs += ($env:FELIX_COPILOT_CLI_ROOTS -split [System.IO.Path]::PathSeparator | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
+    if ($env:APPDATA) {
+        $globalStorage = Join-Path $env:APPDATA "Code\User\globalStorage"
+        if (Test-Path $globalStorage) {
+            $copilotStorageDirs = Get-ChildItem -Path $globalStorage -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "github.copilot*" } |
+            ForEach-Object { Join-Path $_.FullName "copilotCli" }
+            $candidateDirs += $copilotStorageDirs
+        }
+
+        $candidateDirs += @(
+            (Join-Path $env:APPDATA ".vscode-copilot"),
+            (Join-Path $env:APPDATA ".vscode-copilot\bin")
+        )
+    }
+
+    foreach ($dir in ($candidateDirs | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+        $candidates += @(
+            (Join-Path $dir "copilot.bat"),
+            (Join-Path $dir "copilot.cmd"),
+            (Join-Path $dir "copilot.exe"),
+            (Join-Path $dir "copilot.ps1")
+        )
+    }
+
+    return @($candidates | Select-Object -Unique)
 }
 
 function New-AgentKey {

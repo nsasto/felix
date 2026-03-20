@@ -101,6 +101,16 @@ function Invoke-Agent {
     $subCmd = $AgentArgs[0]
     $subArgs = if ($AgentArgs.Count -gt 1) { @($AgentArgs[1..($AgentArgs.Count - 1)]) } else { @() }
 
+    function Resolve-AgentTargetInput {
+        param([object[]]$Values)
+
+        if (-not $Values -or $Values.Count -eq 0) {
+            return $null
+        }
+
+        return ((@($Values) | ForEach-Object { [string]$_ }) -join '').Trim()
+    }
+
     if ($subCmd -in @("setup", "install-help")) {
         . "$PSScriptRoot\..\core\agent-setup.ps1"
         $felixRoot = if ($env:FELIX_INSTALL_DIR) { $env:FELIX_INSTALL_DIR } else { Split-Path -Parent $PSScriptRoot }
@@ -121,8 +131,9 @@ function Invoke-Agent {
         }
 
         $targetAgent = if ($subArgs.Count -gt 0) {
-            ((@($subArgs) | ForEach-Object { [string]$_ }) -join '').Trim().ToLower()
-        } else { $null }
+            (Resolve-AgentTargetInput -Values $subArgs).ToLower()
+        }
+        else { $null }
         $agentsToShow = @()
 
         if ($targetAgent) {
@@ -169,7 +180,7 @@ function Invoke-Agent {
         exit 1
     }
     
-    $agents = (Get-Content $agentsFile -Raw | ConvertFrom-Json).agents
+    $agents = @((Get-Content $agentsFile -Raw | ConvertFrom-Json).agents)
     
     # Normalize legacy 'id' property to 'key' for backward compatibility
     foreach ($a in $agents) {
@@ -222,7 +233,16 @@ function Invoke-Agent {
             }
         }
         "use" {
-            $target = if ($subArgs.Count -gt 0) { $subArgs[0] } else { $null }
+            $targetValues = @($subArgs)
+            $requestedModel = $null
+            $modelFlagIndex = [Array]::IndexOf($targetValues, "--model")
+            if ($modelFlagIndex -ge 0) {
+                $requestedModelValues = if ($modelFlagIndex -lt ($targetValues.Count - 1)) { @($targetValues[($modelFlagIndex + 1)..($targetValues.Count - 1)]) } else { @() }
+                $targetValues = if ($modelFlagIndex -gt 0) { @($targetValues[0..($modelFlagIndex - 1)]) } else { @() }
+                $requestedModel = Resolve-AgentTargetInput -Values $requestedModelValues
+            }
+
+            $target = if ($targetValues.Count -gt 0) { Resolve-AgentTargetInput -Values $targetValues } else { $null }
             $agent = $null
 
             if (-not $target) {
@@ -277,6 +297,58 @@ function Invoke-Agent {
                 Write-Error "Agent not found: $target"
                 exit 1
             }
+
+            if ($requestedModel -and -not [string]::Equals([string]$agent.model, $requestedModel, [System.StringComparison]::OrdinalIgnoreCase)) {
+                if (-not (Get-Command New-AgentKey -ErrorAction SilentlyContinue)) {
+                    . "$PSScriptRoot\..\core\setup-utils.ps1"
+                }
+
+                $adapterType = if ($agent.PSObject.Properties["adapter"] -and $agent.adapter) { $agent.adapter } elseif ($agent.PSObject.Properties["provider"] -and $agent.provider) { $agent.provider } else { $agent.name }
+                $provider = if ($agent.PSObject.Properties["provider"] -and $agent.provider) { $agent.provider } else { $adapterType }
+                $defaults = Get-AgentDefaults -AdapterType $adapterType
+
+                $agentSettings = @{}
+                $exeForKey = if ($agent.executable) { $agent.executable } else { $defaults.executable }
+                if ($exeForKey) { $agentSettings["executable"] = $exeForKey }
+                $workingDirForKey = if ($agent.working_directory) { $agent.working_directory } else { $defaults.working_directory }
+                if ($workingDirForKey) { $agentSettings["working_directory"] = $workingDirForKey }
+                $envForKey = if ($agent.environment) { $agent.environment } else { $defaults.environment }
+                if ($envForKey) { $agentSettings["environment"] = $envForKey }
+                foreach ($defaultKey in $defaults.Keys) {
+                    if ($defaultKey -in @("adapter", "executable", "model", "working_directory", "environment")) {
+                        continue
+                    }
+
+                    $valueForKey = if ($agent.PSObject.Properties[$defaultKey]) { $agent.$defaultKey } else { $defaults[$defaultKey] }
+                    if ($null -ne $valueForKey -and -not ($valueForKey -is [string] -and [string]::IsNullOrWhiteSpace($valueForKey))) {
+                        $agentSettings[$defaultKey] = $valueForKey
+                    }
+                }
+
+                $newKey = New-AgentKey -Provider $provider -Model $requestedModel -AgentSettings $agentSettings -ProjectRoot $RepoRoot
+                $existingAgent = $agents | Where-Object { $_.key -eq $newKey } | Select-Object -First 1
+                if ($existingAgent) {
+                    $agent = $existingAgent
+                }
+                else {
+                    $originalAgentKey = $agent.key
+                    $agent.model = $requestedModel
+                    $agent.key = $newKey
+                    if ($agent.PSObject.Properties['id']) {
+                        $agent.id = $newKey
+                    }
+
+                    for ($i = 0; $i -lt $agents.Count; $i++) {
+                        if ($agents[$i].key -eq $originalAgentKey) {
+                            $agents[$i] = $agent
+                            break
+                        }
+                    }
+
+                    $agentsConfig = @{ agents = @($agents) }
+                    $agentsConfig | ConvertTo-Json -Depth 10 | Set-Content $agentsFile -Encoding UTF8
+                }
+            }
             
             # Update config.json
             $config.agent.agent_id = $agent.key
@@ -293,7 +365,7 @@ function Invoke-Agent {
                 exit 1
             }
             
-            $target = $subArgs[0]
+            $target = Resolve-AgentTargetInput -Values $subArgs
             $agent = $null
             
             # Try as key first

@@ -218,7 +218,7 @@ function Show-Help {
                 Write-Host "Subcommands:" -ForegroundColor Yellow
                 Write-Host "  list                  List available agents"
                 Write-Host "  current               Show current active agent"
-                Write-Host "  use <id|name>         Switch active agent"
+                Write-Host "  use <id|name> [--model <model>]  Switch active agent"
                 Write-Host "  test <id|name>        Test agent connectivity"
                 Write-Host "  setup                 Configure agents for this project"
                 Write-Host "  install-help [name]   Show install/login guidance for one or all agents"
@@ -228,6 +228,7 @@ function Show-Help {
                 Write-Host "  felix agent list"
                 Write-Host "  felix agent current"
                 Write-Host "  felix agent use codex"
+                Write-Host "  felix agent use copilot --model gpt-5.4"
                 Write-Host "  felix agent test claude"
                 Write-Host "  felix agent setup"
                 Write-Host "  felix agent install-help"

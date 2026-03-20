@@ -453,17 +453,24 @@ class Program
         {
             Arity = ArgumentArity.ZeroOrOne
         };
+        var useModelOpt = new Option<string?>("--model", "Model to use with the selected agent")
+        {
+            Arity = ArgumentArity.ZeroOrOne
+        };
         var useCmd = new Command("use", "Switch to a different agent")
         {
             targetArg
         };
-        useCmd.SetHandler(async (target) =>
+        useCmd.AddOption(useModelOpt);
+        useCmd.SetHandler(async (target, model) =>
         {
             if (string.IsNullOrEmpty(target))
-                await ExecutePowerShell(felixPs1, "agent", "use");
-            else
+                await UseAgentInteractive(felixPs1);
+            else if (string.IsNullOrEmpty(model))
                 await ExecutePowerShell(felixPs1, "agent", "use", target);
-        }, targetArg);
+            else
+                await ExecutePowerShell(felixPs1, "agent", "use", target, "--model", model);
+        }, targetArg, useModelOpt);
 
         // agent test
         var testTargetArg = new Argument<string>("target", "Agent ID or name to test");
@@ -1851,6 +1858,67 @@ rm -rf "$STAGE_ROOT"
         Console.ReadKey(true);
     }
 
+    static async Task UseAgentInteractive(string felixPs1)
+    {
+        var agents = ReadConfiguredAgents();
+        if (agents == null || agents.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No configured agents found. Run `felix agent setup` first.[/]");
+            return;
+        }
+
+        AnsiConsole.Clear();
+        var rule = new Rule("[cyan]Select Active Agent[/]").RuleStyle(Style.Parse("cyan dim"));
+        AnsiConsole.Write(rule);
+        AnsiConsole.WriteLine();
+
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<ConfiguredAgent>()
+                .Title("[cyan]Choose the agent Felix should use:[/]")
+                .PageSize(10)
+                .EnableSearch()
+                .SearchPlaceholderText("[grey](type to filter agents or models)[/]")
+                .UseConverter(agent => agent.Key == "__back__"
+                    ? "< Back>"
+                    : agent.IsCurrent
+                        ? $"[green]*[/] {agent.Name.EscapeMarkup()} [grey](model: {agent.ModelDisplay.EscapeMarkup()}, key: {agent.Key.EscapeMarkup()})[/]"
+                        : $"{agent.Name.EscapeMarkup()} [grey](model: {agent.ModelDisplay.EscapeMarkup()}, key: {agent.Key.EscapeMarkup()})[/]")
+                .AddChoices(new[] { ConfiguredAgent.Back }.Concat(agents)));
+
+        if (selected.Key == ConfiguredAgent.Back.Key)
+            return;
+
+        var selectedModel = await PromptAgentModel(felixPs1, selected);
+
+        AnsiConsole.Clear();
+        if (string.Equals(selectedModel, selected.ModelDisplay, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(selectedModel))
+            await ExecutePowerShell(felixPs1, "agent", "use", selected.Key);
+        else
+            await ExecutePowerShell(felixPs1, "agent", "use", selected.Key, "--model", selectedModel);
+    }
+
+    static Task<string?> PromptAgentModel(string felixPs1, ConfiguredAgent agent)
+    {
+        var availableModels = ReadAgentModels(agent.Provider);
+        if (availableModels == null || availableModels.Count <= 1)
+            return Task.FromResult<string?>(agent.ModelDisplay);
+
+        var choices = new List<string>();
+        if (!string.IsNullOrWhiteSpace(agent.ModelDisplay) && !string.Equals(agent.ModelDisplay, "default", StringComparison.OrdinalIgnoreCase))
+            choices.Add(agent.ModelDisplay);
+        choices.AddRange(availableModels.Where(model => !choices.Contains(model, StringComparer.OrdinalIgnoreCase)));
+
+        var selectedModel = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"[cyan]Select model for {agent.Name.EscapeMarkup()}[/] [grey](Enter keeps {agent.ModelDisplay.EscapeMarkup()})[/]")
+                .PageSize(12)
+                .EnableSearch()
+                .SearchPlaceholderText("[grey](type to filter models)[/]")
+                .AddChoices(choices));
+
+        return Task.FromResult<string?>(selectedModel);
+    }
+
     static async Task ShowDepsInteractive(string felixPs1)
     {
         var option = AnsiConsole.Prompt(
@@ -1952,6 +2020,111 @@ rm -rf "$STAGE_ROOT"
 
         AnsiConsole.Clear();
         await ExecutePowerShell(felixPs1, "run", reqId);
+    }
+
+    sealed record ConfiguredAgent(string Key, string Name, string Provider, string ModelDisplay, bool IsCurrent)
+    {
+        internal static readonly ConfiguredAgent Back = new("__back__", "< Back>", "", "", false);
+    }
+
+    static List<string>? ReadAgentModels(string provider)
+    {
+        var catalogPath = Path.Combine(_felixProjectRoot, ".felix", "agent-models.json");
+        if (!File.Exists(catalogPath))
+            catalogPath = Path.Combine(_felixInstallDir, "agent-models.json");
+        if (!File.Exists(catalogPath))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(catalogPath));
+            if (!doc.RootElement.TryGetProperty("providers", out var providersElement))
+                return null;
+            if (!providersElement.TryGetProperty(provider, out var modelsElement) || modelsElement.ValueKind != JsonValueKind.Array)
+                return null;
+
+            return modelsElement.EnumerateArray()
+                .Where(model => model.ValueKind == JsonValueKind.String)
+                .Select(model => model.GetString())
+                .Where(model => !string.IsNullOrWhiteSpace(model))
+                .Cast<string>()
+                .ToList();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static List<ConfiguredAgent>? ReadConfiguredAgents()
+    {
+        var agentsPath = Path.Combine(_felixProjectRoot, ".felix", "agents.json");
+        if (!File.Exists(agentsPath))
+            return null;
+
+        string? currentAgentId = null;
+        var configPath = Path.Combine(_felixProjectRoot, ".felix", "config.json");
+        if (File.Exists(configPath))
+        {
+            try
+            {
+                using var configDoc = JsonDocument.Parse(File.ReadAllText(configPath));
+                if (configDoc.RootElement.TryGetProperty("agent", out var agentObj) &&
+                    agentObj.TryGetProperty("agent_id", out var agentIdValue))
+                {
+                    currentAgentId = agentIdValue.ValueKind switch
+                    {
+                        JsonValueKind.String => agentIdValue.GetString(),
+                        JsonValueKind.Number => agentIdValue.GetRawText(),
+                        _ => null
+                    };
+                }
+            }
+            catch { }
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(agentsPath));
+            if (!doc.RootElement.TryGetProperty("agents", out var agentsElement) || agentsElement.ValueKind != JsonValueKind.Array)
+                return null;
+
+            return agentsElement.EnumerateArray()
+                .Select(agent =>
+                {
+                    var key = agent.TryGetProperty("key", out var keyProp)
+                        ? keyProp.GetString()
+                        : agent.TryGetProperty("id", out var idProp)
+                            ? idProp.GetRawText().Trim('"')
+                            : null;
+                    var name = agent.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+                    var provider = agent.TryGetProperty("provider", out var providerProp)
+                        ? providerProp.GetString()
+                        : agent.TryGetProperty("adapter", out var adapterProp)
+                            ? adapterProp.GetString()
+                            : name;
+                    var model = agent.TryGetProperty("model", out var modelProp) ? modelProp.GetString() : null;
+
+                    if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(provider))
+                        return null;
+
+                    return new ConfiguredAgent(
+                        key!,
+                        name!,
+                        provider!,
+                        string.IsNullOrWhiteSpace(model) ? "default" : model!,
+                        string.Equals(key, currentAgentId, StringComparison.OrdinalIgnoreCase));
+                })
+                .Where(agent => agent != null)
+                .Cast<ConfiguredAgent>()
+                .OrderByDescending(agent => agent.IsCurrent)
+                .ThenBy(agent => agent.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     static async Task ValidateInteractive(string felixPs1)

@@ -94,6 +94,29 @@ Describe "Test-ExecutableInstalled" {
         $result = Test-ExecutableInstalled -ExecutableName "nonexistent-xyz-12345"
         Assert-False $result
     }
+
+    It "should detect copilot from VS Code shim fallback" {
+        $copilotRoot = Join-Path $env:TEMP "copilot-shim-$(Get-Random)"
+        New-Item -ItemType Directory -Path $copilotRoot -Force | Out-Null
+        Set-Content (Join-Path $copilotRoot "copilot.ps1") "Write-Output 'copilot shim'" -Encoding UTF8
+
+        $originalRoots = $env:FELIX_COPILOT_CLI_ROOTS
+        $env:FELIX_COPILOT_CLI_ROOTS = $copilotRoot
+
+        try {
+            $result = Test-ExecutableInstalled -ExecutableName "copilot"
+            Assert-True $result "Expected copilot to be detected from fallback shim path"
+        }
+        finally {
+            if ($null -eq $originalRoots) {
+                Remove-Item Env:\FELIX_COPILOT_CLI_ROOTS -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:FELIX_COPILOT_CLI_ROOTS = $originalRoots
+            }
+            Remove-Item $copilotRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 Describe "New-AgentKey" {
