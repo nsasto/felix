@@ -164,6 +164,14 @@ function Get-AgentsConfiguration {
                     working_directory = "."
                     environment       = @{}
                 }
+                @{
+                    id                = 4
+                    name              = "copilot"
+                    adapter           = "copilot"
+                    executable        = "copilot"
+                    working_directory = "."
+                    environment       = @{}
+                }
             )
         }
         

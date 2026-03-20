@@ -4,12 +4,13 @@ This guide shows you how to set up and switch between different LLM agents in Fe
 
 ## Available Agents
 
-Felix supports 4 agents:
+Felix supports 5 agents:
 
 1. **Droid** (Factory.ai) - Fast, API key auth
 2. **Claude** (Anthropic) - Best reasoning, OAuth
 3. **Codex** (OpenAI) - Diff-based, OAuth
 4. **Gemini** (Google) - JSON streaming, OAuth
+5. **Copilot** (GitHub Copilot CLI) - Programmatic autopilot, OAuth
 
 ## One-Time Setup
 
@@ -29,6 +30,10 @@ npm install -g @openai/codex-cli
 
 # Gemini (pip)
 pip install google-gemini-cli
+
+# Copilot CLI
+# Install the GitHub Copilot Chat extension in VS Code.
+# Then run `copilot` once in a terminal and accept the CLI install prompt.
 ```
 
 ### Authentication
@@ -66,6 +71,13 @@ gemini auth login
 # Opens browser, complete OAuth flow
 ```
 
+#### Copilot (OAuth)
+
+```bash
+copilot login
+# Complete GitHub Copilot CLI login / trust flow
+```
+
 ## Switching Agents
 
 ### Step 1: List Available Agents
@@ -96,6 +108,11 @@ Available Agents:
   ID: ag_7a5702bda - gemini
   Executable: gemini
   Adapter: gemini
+
+  ID: ag_61a011bca - copilot
+  Provider: copilot
+  Executable: copilot
+  Adapter: copilot
 ```
 
 The `*` shows which agent is currently active.

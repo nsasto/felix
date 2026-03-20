@@ -13,6 +13,50 @@ if (-not (Get-Command Get-AgentDefaults -ErrorAction SilentlyContinue)) {
     . (Join-Path $PSScriptRoot "agent-adapters.ps1")
 }
 
+function Get-AgentInstallGuidance {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AgentName
+    )
+
+    switch ($AgentName.ToLower()) {
+        "droid" {
+            return @(
+                "Install with: npm install -g @factory-ai/droid-cli",
+                "Then verify with: droid --version"
+            )
+        }
+        "claude" {
+            return @(
+                "Install with: npm install -g @anthropic-ai/claude-code",
+                "Then run: claude auth login"
+            )
+        }
+        "codex" {
+            return @(
+                "Install with: npm install -g @openai/codex-cli",
+                "Then run: codex auth"
+            )
+        }
+        "gemini" {
+            return @(
+                "Install with: pip install google-gemini-cli",
+                "Then run: gemini auth login"
+            )
+        }
+        "copilot" {
+            return @(
+                "Install the GitHub Copilot Chat extension in VS Code and allow it to install the Copilot CLI when prompted.",
+                "Or run `copilot` once in a terminal to trigger the CLI install flow.",
+                "Then run: copilot login"
+            )
+        }
+        default {
+            return @("Install via your package manager and ensure the executable is on PATH.")
+        }
+    }
+}
+
 function Get-AvailableAgents {
     <#
     .SYNOPSIS
@@ -81,7 +125,7 @@ function Get-ModelsForProvider {
     Return available models for a given provider
     
     .PARAMETER Provider
-    Agent provider name (droid, claude, codex, gemini)
+    Agent provider name (droid, claude, codex, gemini, copilot)
     
     .OUTPUTS
     Array of available model names
@@ -187,7 +231,10 @@ function Invoke-AgentSelection {
     if ($validAgents.Count -eq 0) {
         Write-Host "`n[WARN] No agent executables found on PATH. Please install at least one:" -ForegroundColor Yellow
         foreach ($agent in $AvailableAgents) {
-            Write-Host "  - $($agent.name): install via your package manager" -ForegroundColor Gray
+            Write-Host "  - $($agent.name)" -ForegroundColor Gray
+            foreach ($line in (Get-AgentInstallGuidance -AgentName $agent.name)) {
+                Write-Host "      $line" -ForegroundColor DarkGray
+            }
         }
         return @()
     }
@@ -228,6 +275,9 @@ function Invoke-AgentSelection {
         
         if ($validAgents -notcontains $agentName) {
             Write-Host "  [ERR] Agent not installed: $agentName" -ForegroundColor Red
+            foreach ($line in (Get-AgentInstallGuidance -AgentName $agentName)) {
+                Write-Host "      $line" -ForegroundColor DarkGray
+            }
             continue
         }
         
@@ -294,6 +344,23 @@ function Invoke-AgentSelection {
         if ($workingDirForKey) { $agentSettings["working_directory"] = $workingDirForKey }
         $envForKey = if ($selectedConfig.environment) { $selectedConfig.environment } else { $defaults.environment }
         if ($envForKey) { $agentSettings["environment"] = $envForKey }
+        foreach ($defaultKey in $defaults.Keys) {
+            if ($defaultKey -in @("adapter", "executable", "model", "working_directory", "environment")) {
+                continue
+            }
+
+            $valueForKey = $null
+            if ($selectedConfig.PSObject.Properties[$defaultKey]) {
+                $valueForKey = $selectedConfig.$defaultKey
+            }
+            else {
+                $valueForKey = $defaults[$defaultKey]
+            }
+
+            if ($null -ne $valueForKey -and -not ($valueForKey -is [string] -and [string]::IsNullOrWhiteSpace($valueForKey))) {
+                $agentSettings[$defaultKey] = $valueForKey
+            }
+        }
         $agentKey = New-AgentKey -Provider $selectedConfig.provider -Model $modelForKey -AgentSettings $agentSettings -ProjectRoot $ProjectRoot
         $selectedConfig | Add-Member -NotePropertyName id -NotePropertyValue $agentKey -Force
         $selectedAgents += $selectedConfig

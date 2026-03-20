@@ -554,7 +554,10 @@ function Invoke-Droid {
     if (-not $adapter) {
         throw "Failed to load adapter: $adapterType"
     }
-    $agentArgs = $adapter.BuildArgs($AgentConfig, $VerboseMode.IsPresent)
+    $invocation = Get-AgentInvocation -AdapterType $adapterType -Config $AgentConfig -Prompt $prompt -VerboseMode:$VerboseMode.IsPresent
+    $agentArgs = @($invocation.Arguments)
+    $formattedPrompt = $invocation.FormattedPrompt
+    $promptMode = $invocation.PromptMode
     
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
     
@@ -579,8 +582,12 @@ function Invoke-Droid {
         
         Push-Location $agentCwd
         try {
-            # Pipe prompt to droid executable (same pattern as Invoke-AgentExecution)
-            $output = $prompt | & $executable @agentArgs 2>&1 | Out-String
+            if ($promptMode -eq "argument") {
+                $output = & $executable @agentArgs 2>&1 | Out-String
+            }
+            else {
+                $output = $formattedPrompt | & $executable @agentArgs 2>&1 | Out-String
+            }
         }
         finally {
             Pop-Location
@@ -594,7 +601,7 @@ function Invoke-Droid {
     }
     
     if ($LASTEXITCODE -ne 0) {
-        throw "Droid execution failed with exit code ${LASTEXITCODE}"
+        throw "Agent execution failed with exit code ${LASTEXITCODE}"
     }
     
     # Parse response based on output format

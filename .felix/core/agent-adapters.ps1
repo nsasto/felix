@@ -1,5 +1,5 @@
 # Agent Adapters - Multi-Agent Support for Felix
-# Provides adapter pattern for different LLM CLIs (Droid, Claude, Codex, Gemini)
+# Provides adapter pattern for different LLM CLIs (Droid, Claude, Codex, Gemini, Copilot)
 
 $ErrorActionPreference = "Stop"
 
@@ -428,6 +428,93 @@ class GeminiAdapter {
 }
 
 # ============================================================================
+# COPILOT ADAPTER (GitHub Copilot CLI)
+# ============================================================================
+
+class CopilotAdapter {
+    [string] FormatPrompt([string]$prompt) {
+        # Copilot CLI accepts the prompt directly via -p in programmatic mode.
+        return $prompt
+    }
+
+    [hashtable] ParseResponse([string]$output) {
+        $result = @{
+            Output     = $output
+            IsComplete = $false
+            NextMode   = $null
+            Error      = $null
+        }
+
+        if ($output -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
+            $result.IsComplete = $true
+            $result.NextMode = "building"
+        }
+        elseif ($output -match '(?s)<promise>\s*TASK_COMPLETE\s*</promise>') {
+            $result.IsComplete = $true
+            $result.NextMode = "continue"
+        }
+        elseif ($output -match '(?s)<promise>\s*ALL_COMPLETE\s*</promise>') {
+            $result.IsComplete = $true
+            $result.NextMode = "complete"
+        }
+        elseif ($output -match '(?i)(planning\s+complete|ready\s+to\s+build)') {
+            $result.IsComplete = $true
+            $result.NextMode = "building"
+        }
+        elseif ($output -match '(?i)(all\s+tasks?\s+complete|requirement\s+met|task\s+complete)') {
+            $result.IsComplete = $true
+            $result.NextMode = "complete"
+        }
+
+        return $result
+    }
+
+    [bool] DetectCompletion([string]$output) {
+        if ($output -match '(?s)<promise>\s*(PLANNING_COMPLETE|TASK_COMPLETE|ALL_COMPLETE)\s*</promise>') { return $true }
+        if ($output -match '(?i)(planning\s+complete|ready\s+to\s+build|all\s+tasks?\s+complete|requirement\s+met|task\s+complete)') { return $true }
+        return $false
+    }
+
+    [string[]] BuildArgs([object]$config) {
+        return $this.BuildArgs($config, $false)
+    }
+
+    [string[]] BuildArgs([object]$config, [bool]$verbose) {
+        $args = @("--autopilot", "-s", "--no-color")
+
+        $allowAll = $true
+        if ($config.PSObject.Properties["allow_all"]) {
+            $allowAll = [bool]$config.allow_all
+        }
+        if ($allowAll) {
+            $args += "--yolo"
+        }
+
+        $noAskUser = $true
+        if ($config.PSObject.Properties["no_ask_user"]) {
+            $noAskUser = [bool]$config.no_ask_user
+        }
+        if ($noAskUser) {
+            $args += "--no-ask-user"
+        }
+
+        if ($config.PSObject.Properties["max_autopilot_continues"] -and $config.max_autopilot_continues) {
+            $args += @("--max-autopilot-continues", [string]$config.max_autopilot_continues)
+        }
+
+        if ($config.PSObject.Properties["custom_agent"] -and -not [string]::IsNullOrWhiteSpace([string]$config.custom_agent)) {
+            $args += @("--agent", [string]$config.custom_agent)
+        }
+
+        if ($config.model) {
+            $args += @("--model", $config.model)
+        }
+
+        return $args
+    }
+}
+
+# ============================================================================
 # ADAPTER FACTORY
 # ============================================================================
 
@@ -474,6 +561,19 @@ function Get-AgentDefaults {
                 environment       = @{}
             }
         }
+        "copilot" {
+            return @{
+                adapter                 = "copilot"
+                executable              = "copilot"
+                model                   = "gpt-5.3-codex"
+                working_directory       = "."
+                environment             = @{}
+                allow_all               = $true
+                no_ask_user             = $true
+                max_autopilot_continues = 10
+                custom_agent            = ""
+            }
+        }
         default {
             return @{
                 adapter           = $AdapterType
@@ -505,9 +605,51 @@ function Get-AgentAdapter {
         "gemini" {
             return [GeminiAdapter]::new()
         }
+        "copilot" {
+            return [CopilotAdapter]::new()
+        }
         default {
-            Write-Error "Unknown adapter type: $AdapterType. Supported: droid, claude, codex, gemini"
+            Write-Error "Unknown adapter type: $AdapterType. Supported: droid, claude, codex, gemini, copilot"
             return $null
         }
+    }
+}
+
+function Get-AgentInvocation {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AdapterType,
+
+        [Parameter(Mandatory = $true)]
+        $Config,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Prompt,
+
+        [Parameter(Mandatory = $false)]
+        [bool]$VerboseMode = $false
+    )
+
+    $adapter = Get-AgentAdapter -AdapterType $AdapterType
+    if (-not $adapter) {
+        return $null
+    }
+
+    $formattedPrompt = $adapter.FormatPrompt($Prompt)
+    $arguments = @($adapter.BuildArgs($Config, $VerboseMode))
+    $promptMode = "stdin"
+
+    switch ($AdapterType.ToLower()) {
+        "copilot" {
+            $promptMode = "argument"
+            $arguments += @("-p", $formattedPrompt)
+        }
+    }
+
+    return @{
+        Adapter         = $adapter
+        FormattedPrompt = $formattedPrompt
+        Arguments       = $arguments
+        PromptMode      = $promptMode
     }
 }

@@ -19,6 +19,13 @@
                        "provider":  "codex",
                        "adapter":  "codex",
                        "key":  "ag_c45dc52b0"
+                   },
+                   {
+                       "name":  "copilot",
+                       "provider":  "copilot",
+                       "adapter":  "copilot",
+                       "model":  "gpt-5.3-codex",
+                       "key":  "ag_61a011bca"
                    }
                ]
 }

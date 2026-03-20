@@ -19,6 +19,11 @@
       "name": "gemini",
       "provider": "gemini",
       "adapter": "gemini"
+    },
+    {
+      "name": "copilot",
+      "provider": "copilot",
+      "adapter": "copilot"
     }
   ]
 }

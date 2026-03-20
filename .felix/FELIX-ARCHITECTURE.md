@@ -103,11 +103,11 @@ Loaded via dot-source by entry points or each other.
 
 ### Agent / LLM
 
-| File                     | Key Functions                      | Role                                                                                                             |
-| ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `agent-adapters.ps1`     | Adapter classes for each LLM       | Adapter pattern over supported LLM CLIs: Droid, Claude, Codex, Gemini. Normalises invocation and output parsing. |
-| `agent-registration.ps1` | `Register-Agent`, `Send-Heartbeat` | Registers the running agent with the backend API and sends periodic heartbeats. Best-effort; fails silently.     |
-| `agent-state.ps1`        | `AgentState` class                 | Formal state machine tracking agent mode and requirement ID through a run.                                       |
+| File                     | Key Functions                      | Role                                                                                                                      |
+| ------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `agent-adapters.ps1`     | Adapter classes for each LLM       | Adapter pattern over supported LLM CLIs: Droid, Claude, Codex, Gemini, Copilot. Normalises invocation and output parsing. |
+| `agent-registration.ps1` | `Register-Agent`, `Send-Heartbeat` | Registers the running agent with the backend API and sends periodic heartbeats. Best-effort; fails silently.              |
+| `agent-state.ps1`        | `AgentState` class                 | Formal state machine tracking agent mode and requirement ID through a run.                                                |
 
 ### Configuration & State
 

@@ -68,6 +68,7 @@ The setup wizard walks you through:
 - **Scaffolding** - creates `.felix/`, `specs/`, and `runs/` directories
 - **Agent profile setup** - configure one or more agent profiles in `.felix/agents.json`
 - **Active agent selection** - choose which configured profile is active in `.felix/config.json`
+- **Supported local agents** - Droid, Claude, Codex, Gemini, and Copilot CLI
 - **Test command** - configure your backpressure command (`pytest`, `npm test`, etc.)
 - **Mode** - local (standalone) or remote (team sync via [runfelix.io](https://runfelix.io))
 

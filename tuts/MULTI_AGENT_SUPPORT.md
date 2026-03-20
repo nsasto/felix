@@ -2,7 +2,7 @@
 
 ## Overview
 
-Felix supports multiple LLM coding agents through an **adapter pattern** that normalizes differences in CLI interfaces, output formats, and completion signals. This allows seamless switching between Droid, Claude Code, Codex CLI, and Gemini CLI while maintaining Felix's Planning -> Building -> Validating workflow.
+Felix supports multiple LLM coding agents through an **adapter pattern** that normalizes differences in CLI interfaces, output formats, prompt transport, and completion signals. This allows seamless switching between Droid, Claude Code, Codex CLI, Gemini CLI, and GitHub Copilot CLI while maintaining Felix's Planning -> Building -> Validating workflow.
 
 **Note:** Agent IDs are content-addressed keys (`ag_XXXXXXXXX`), and CLI arguments are built by the adapter. The `args` field is no longer used in `.felix/agents.json`.
 
@@ -13,12 +13,15 @@ Felix supports multiple LLM coding agents through an **adapter pattern** that no
 1. **Agent Profiles** (`.felix/agents.json`)
    - Registry of available agents with metadata
    - Each profile specifies: ID, name, adapter type, and optional overrides
-   - Current configuration: 4 agents (Droid, Claude, Codex, Gemini)
+
+- Current configuration: 5 agents (Droid, Claude, Codex, Gemini, Copilot)
 
 2. **Agent Adapters** (`.felix/core/agent-adapters.ps1`)
    - PowerShell classes that handle agent-specific behavior
-   - Each adapter implements: `FormatPrompt()`, `ParseResponse()`, `DetectCompletion()`, `BuildArgs()`
-   - Loaded dynamically based on profile's `adapter` field
+
+- Each adapter implements: `FormatPrompt()`, `ParseResponse()`, `DetectCompletion()`, `BuildArgs()`
+- Prompt transport is resolved centrally so adapters can use stdin or argument-based prompt delivery
+- Loaded dynamically based on profile's `adapter` field
 
 3. **Executor Integration** (`.felix/core/executor.ps1`)
    - `Invoke-AgentExecution` loads correct adapter
@@ -44,7 +47,7 @@ executor.ps1: Invoke-AgentExecution
 2. Get-AgentAdapter (loads correct adapter class)
 3. adapter.FormatPrompt(prompt) → formatted prompt
 4. adapter.BuildArgs(config) → CLI arguments
-5. Execute: formattedPrompt | <executable> <args>
+5. Execute via adapter invocation plan: stdin piping or prompt argument mode
 6. adapter.ParseResponse(output) → structured result
 7. Return { Output, Duration, Parsed }
     ↓

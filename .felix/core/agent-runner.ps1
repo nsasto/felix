@@ -44,12 +44,12 @@ function Invoke-AgentExecution {
         return @{ Output = ""; Duration = [TimeSpan]::Zero }
     }
     
-    # Format prompt using adapter
-    $formattedPrompt = $adapter.FormatPrompt($Prompt)
-    
     $executable = $AgentConfig.executable
     $resolvedExecutable = $null
-    $agentArgs = $adapter.BuildArgs($AgentConfig, $VerboseMode)
+    $invocation = Get-AgentInvocation -AdapterType $adapterType -Config $AgentConfig -Prompt $Prompt -VerboseMode:$VerboseMode.IsPresent
+    $formattedPrompt = $invocation.FormattedPrompt
+    $agentArgs = @($invocation.Arguments)
+    $promptMode = $invocation.PromptMode
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
     $startTime = Get-Date
     
@@ -137,28 +137,43 @@ function Invoke-AgentExecution {
         }
 
         # Execute using Start-Process + redirected streams to avoid PowerShell treating stderr lines as errors
-        $inputPath = [System.IO.Path]::GetTempFileName()
+        $inputPath = $null
         $stdoutPath = [System.IO.Path]::GetTempFileName()
         $stderrPath = [System.IO.Path]::GetTempFileName()
 
         try {
-            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-            [System.IO.File]::WriteAllText($inputPath, $formattedPrompt, $utf8NoBom)
+            if ($promptMode -eq "stdin") {
+                $inputPath = [System.IO.Path]::GetTempFileName()
+                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText($inputPath, $formattedPrompt, $utf8NoBom)
+            }
 
             $argString = (@($processArgs) | ForEach-Object {
                     $a = [string]$_
                     if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
                 }) -join ' '
 
-            $p = Start-Process `
-                -FilePath $processFilePath `
-                -ArgumentList $argString `
-                -WorkingDirectory $agentCwd `
-                -NoNewWindow `
-                -PassThru `
-                -RedirectStandardInput $inputPath `
-                -RedirectStandardOutput $stdoutPath `
-                -RedirectStandardError $stderrPath
+            if ($promptMode -eq "stdin") {
+                $p = Start-Process `
+                    -FilePath $processFilePath `
+                    -ArgumentList $argString `
+                    -WorkingDirectory $agentCwd `
+                    -NoNewWindow `
+                    -PassThru `
+                    -RedirectStandardInput $inputPath `
+                    -RedirectStandardOutput $stdoutPath `
+                    -RedirectStandardError $stderrPath
+            }
+            else {
+                $p = Start-Process `
+                    -FilePath $processFilePath `
+                    -ArgumentList $argString `
+                    -WorkingDirectory $agentCwd `
+                    -NoNewWindow `
+                    -PassThru `
+                    -RedirectStandardOutput $stdoutPath `
+                    -RedirectStandardError $stderrPath
+            }
 
             # Poll for process exit, emitting heartbeat events every 20s so the
             # NDJSON consumer and server know the agent is alive during long LLM calls.

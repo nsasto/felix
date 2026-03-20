@@ -401,10 +401,13 @@ function Invoke-AgentForContextBuild {
     $adapter = Get-AgentAdapter -AdapterType $adapterType -ErrorAction SilentlyContinue
     $formattedPrompt = $Prompt
     $agentArgs = @()
+    $promptMode = "stdin"
 
     if ($adapter) {
-        $formattedPrompt = $adapter.FormatPrompt($Prompt)
-        $agentArgs = $adapter.BuildArgs($agentProfile, $VerboseMode)
+        $invocation = Get-AgentInvocation -AdapterType $adapterType -Config $agentProfile -Prompt $Prompt -VerboseMode:$VerboseMode
+        $formattedPrompt = $invocation.FormattedPrompt
+        $agentArgs = @($invocation.Arguments)
+        $promptMode = $invocation.PromptMode
     }
     elseif ($agentProfile.args) {
         $agentArgs += $agentProfile.args
@@ -420,9 +423,11 @@ function Invoke-AgentForContextBuild {
 
     $envBackup = @{}
     
-    # Write prompt to temp file
-    $tempPrompt = Join-Path $env:TEMP "felix-context-prompt-$(Get-Random).txt"
-    Set-Content -Path $tempPrompt -Value $formattedPrompt -Encoding UTF8
+    $tempPrompt = $null
+    if ($promptMode -eq "stdin") {
+        $tempPrompt = Join-Path $env:TEMP "felix-context-prompt-$(Get-Random).txt"
+        Set-Content -Path $tempPrompt -Value $formattedPrompt -Encoding UTF8
+    }
     
     try {
         if ($agentProfile.environment) {
@@ -441,8 +446,12 @@ function Invoke-AgentForContextBuild {
         try {
             Push-Location $agentCwd
             try {
-                # Pipe prompt to agent using adapter-built args and working directory
-                $response = Get-Content $tempPrompt -Raw | & $agentExe @agentArgs 2>&1 | Out-String
+                if ($promptMode -eq "argument") {
+                    $response = & $agentExe @agentArgs 2>&1 | Out-String
+                }
+                else {
+                    $response = Get-Content $tempPrompt -Raw | & $agentExe @agentArgs 2>&1 | Out-String
+                }
             }
             finally {
                 Pop-Location
@@ -476,7 +485,9 @@ function Invoke-AgentForContextBuild {
         }
 
         # Cleanup
-        Remove-Item $tempPrompt -Force -ErrorAction SilentlyContinue
+        if ($tempPrompt) {
+            Remove-Item $tempPrompt -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 # Test All Agent Providers
-# Runs tests for all configured agent CLIs (Droid, Claude, Codex, Gemini)
+# Runs tests for all configured agent CLIs (Droid, Claude, Codex, Gemini, Copilot)
 
 param(
     [switch]$Verbose
@@ -23,6 +23,7 @@ $agents = @(
     @{ Name = "Claude"; Script = "test-agent-claude.ps1" }
     @{ Name = "Codex";  Script = "test-agent-codex.ps1" }
     @{ Name = "Gemini"; Script = "test-agent-gemini.ps1" }
+    @{ Name = "Copilot"; Script = "test-agent-copilot.ps1" }
 )
 
 foreach ($agent in $agents) {

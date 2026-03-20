@@ -201,7 +201,7 @@ See **[Writing Plugins](PLUGINS.md)** for the full authoring guide.
 **`felix agent use [id|name]`**
 
 - Switch between configured agents
-- Support multiple LLM providers (Droid, Claude, Codex, Gemini)
+- Support multiple LLM providers (Droid, Claude, Codex, Gemini, Copilot)
 - Update config.json atomically
 - Immediate effect on next execution
 
@@ -765,7 +765,7 @@ Felix treats test failures and build errors as essential feedback, not obstacles
 
 ### 5. **Multi-Agent Support**
 
-Switch seamlessly between different LLM providers (Droid, Claude, Codex, Gemini) without changing your workflow. Compare agent performance on identical tasks. Mix and match agents across your swarm.
+Switch seamlessly between different LLM providers (Droid, Claude, Codex, Gemini, Copilot) without changing your workflow. Compare agent performance on identical tasks. Mix and match agents across your swarm.
 
 ### 6. **Production Ready**
 
