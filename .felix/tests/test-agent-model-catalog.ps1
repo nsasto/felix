@@ -11,10 +11,11 @@ Describe "Get-ModelsForProvider" {
         Assert-Contains $models "gpt-5.4-codex" "Expected codex model catalog to include gpt-5.4-codex"
     }
 
-    It "should include gpt-5.4 for copilot" {
+    It "should include auto and gpt-5.4 for copilot" {
         $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
         $models = @(Get-ModelsForProvider -Provider "copilot" -FelixRoot (Join-Path $repoRoot ".felix"))
 
+        Assert-Contains $models "auto" "Expected copilot model catalog to include auto"
         Assert-Contains $models "gpt-5.4" "Expected copilot model catalog to include gpt-5.4"
     }
 
@@ -28,11 +29,11 @@ Describe "Get-ModelsForProvider" {
         Assert-Contains $models "gemini-3-pro" "Expected copilot model catalog to include gemini-3-pro"
     }
 
-    It "should put gpt-5.4 first for copilot" {
+    It "should put auto first for copilot" {
         $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
         $models = @(Get-ModelsForProvider -Provider "copilot" -FelixRoot (Join-Path $repoRoot ".felix"))
 
-        Assert-Equal "gpt-5.4" $models[0] "Expected copilot default model to be gpt-5.4"
+        Assert-Equal "auto" $models[0] "Expected copilot default model to be auto"
     }
 }
 

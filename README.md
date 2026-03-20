@@ -86,7 +86,7 @@ To change the persistent default agent later, use:
 
 ```powershell
 felix agent set-default
-felix agent set-default copilot --model gpt-5.4
+felix agent set-default copilot --model auto
 ```
 
 `felix agent set-default` is an alias for the same persistent selection written by `felix agent use`.

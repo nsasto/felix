@@ -565,7 +565,7 @@ function Get-AgentDefaults {
             return @{
                 adapter                 = "copilot"
                 executable              = "copilot"
-                model                   = "gpt-5.4"
+                model                   = "auto"
                 working_directory       = "."
                 environment             = @{}
                 allow_all               = $true

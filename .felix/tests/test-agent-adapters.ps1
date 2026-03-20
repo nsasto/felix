@@ -75,7 +75,7 @@ Describe "Get-AgentDefaults" {
         $defaults = Get-AgentDefaults -AdapterType "copilot"
         Assert-Equal "copilot" $defaults.adapter
         Assert-Equal "copilot" $defaults.executable
-        Assert-Equal "gpt-5.4" $defaults.model
+        Assert-Equal "auto" $defaults.model
         Assert-True $defaults.allow_all
         Assert-True $defaults.no_ask_user
     }
@@ -196,12 +196,12 @@ Describe "Get-AgentInvocation" {
 
     It "should use argument prompt transport for copilot" {
         $config = [pscustomobject]@{
-            adapter = "copilot"
-            model = "gpt-5.4"
-            allow_all = $true
-            no_ask_user = $true
+            adapter                 = "copilot"
+            model                   = "gpt-5.4"
+            allow_all               = $true
+            no_ask_user             = $true
             max_autopilot_continues = 5
-            custom_agent = "general-purpose"
+            custom_agent            = "general-purpose"
         }
         $invocation = Get-AgentInvocation -AdapterType "copilot" -Config $config -Prompt "test prompt" -VerboseMode $false
         Assert-Equal "argument" $invocation.PromptMode

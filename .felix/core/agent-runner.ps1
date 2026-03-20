@@ -6,6 +6,138 @@ Agent process executor and planning guardrails
 Handles agent subprocess execution via adapter and enforces planning mode restrictions.
 #>
 
+function Remove-ArgumentPair {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Flag
+    )
+
+    $filtered = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $Arguments.Count; $i++) {
+        if ([string]::Equals($Arguments[$i], $Flag, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $i++
+            continue
+        }
+
+        $filtered.Add([string]$Arguments[$i])
+    }
+
+    return @($filtered.ToArray())
+}
+
+function Test-CopilotModelUnavailableOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Output
+    )
+
+    return $Output -match 'Model\s+"[^"]+"\s+from\s+--model\s+flag\s+is\s+not\s+available'
+}
+
+function Invoke-AgentSubprocess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProcessFilePath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ProcessArgs,
+
+        [Parameter(Mandatory = $true)]
+        [string]$WorkingDirectory,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("stdin", "argument")]
+        [string]$PromptMode,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Prompt,
+
+        [Parameter(Mandatory = $true)]
+        [datetime]$StartTime
+    )
+
+    $inputPath = $null
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+
+    try {
+        if ($PromptMode -eq "stdin") {
+            $inputPath = [System.IO.Path]::GetTempFileName()
+            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            [System.IO.File]::WriteAllText($inputPath, $Prompt, $utf8NoBom)
+        }
+
+        $argString = (@($ProcessArgs) | ForEach-Object {
+                $a = [string]$_
+                if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
+            }) -join ' '
+
+        if ($PromptMode -eq "stdin") {
+            $process = Start-Process `
+                -FilePath $ProcessFilePath `
+                -ArgumentList $argString `
+                -WorkingDirectory $WorkingDirectory `
+                -NoNewWindow `
+                -PassThru `
+                -RedirectStandardInput $inputPath `
+                -RedirectStandardOutput $stdoutPath `
+                -RedirectStandardError $stderrPath
+        }
+        else {
+            $process = Start-Process `
+                -FilePath $ProcessFilePath `
+                -ArgumentList $argString `
+                -WorkingDirectory $WorkingDirectory `
+                -NoNewWindow `
+                -PassThru `
+                -RedirectStandardOutput $stdoutPath `
+                -RedirectStandardError $stderrPath
+        }
+
+        $heartbeatIntervalSec = 20
+        $lastHeartbeat = Get-Date
+        while (-not $process.HasExited) {
+            Start-Sleep -Milliseconds 500
+            $elapsed = ((Get-Date) - $lastHeartbeat).TotalSeconds
+            if ($elapsed -ge $heartbeatIntervalSec) {
+                Emit-Event -EventType "agent_heartbeat" -Data @{
+                    agent_running   = $true
+                    elapsed_seconds = [int]((Get-Date) - $StartTime).TotalSeconds
+                }
+                $lastHeartbeat = Get-Date
+            }
+        }
+
+        $process.WaitForExit()
+        $exitCode = [int]$process.ExitCode
+
+        $stdout = ""
+        $stderr = ""
+        if (Test-Path $stdoutPath) { $stdout = Get-Content -Raw -LiteralPath $stdoutPath -ErrorAction SilentlyContinue }
+        if (Test-Path $stderrPath) { $stderr = Get-Content -Raw -LiteralPath $stderrPath -ErrorAction SilentlyContinue }
+
+        $output = $stdout
+        if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+            if (-not [string]::IsNullOrWhiteSpace($output)) { $output += "`n" }
+            $output += $stderr
+        }
+
+        return @{
+            Output    = $output
+            ExitCode  = $exitCode
+            Succeeded = ($exitCode -eq 0)
+        }
+    }
+    finally {
+        foreach ($path in @($inputPath, $stdoutPath, $stderrPath)) {
+            try { if ($path -and (Test-Path $path)) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } } catch { }
+        }
+    }
+}
+
 function Invoke-AgentExecution {
     <#
     .SYNOPSIS
@@ -136,89 +268,46 @@ function Invoke-AgentExecution {
             }
         }
 
-        # Execute using Start-Process + redirected streams to avoid PowerShell treating stderr lines as errors
-        $inputPath = $null
-        $stdoutPath = [System.IO.Path]::GetTempFileName()
-        $stderrPath = [System.IO.Path]::GetTempFileName()
+        $processResult = Invoke-AgentSubprocess `
+            -ProcessFilePath $processFilePath `
+            -ProcessArgs $processArgs `
+            -WorkingDirectory $agentCwd `
+            -PromptMode $promptMode `
+            -Prompt $formattedPrompt `
+            -StartTime $startTime
 
-        try {
-            if ($promptMode -eq "stdin") {
-                $inputPath = [System.IO.Path]::GetTempFileName()
-                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-                [System.IO.File]::WriteAllText($inputPath, $formattedPrompt, $utf8NoBom)
-            }
+        $output = $processResult.Output
+        $exitCode = $processResult.ExitCode
+        $succeeded = $processResult.Succeeded
 
-            $argString = (@($processArgs) | ForEach-Object {
-                    $a = [string]$_
-                    if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
-                }) -join ' '
+        if (-not $succeeded -and $adapterType -eq "copilot" -and ($processArgs -contains "--model") -and (Test-CopilotModelUnavailableOutput -Output $output)) {
+            Emit-Log -Level "warn" -Message "Copilot rejected configured model '$($AgentConfig.model)'; retrying without --model" -Component "agent"
 
-            if ($promptMode -eq "stdin") {
-                $p = Start-Process `
-                    -FilePath $processFilePath `
-                    -ArgumentList $argString `
-                    -WorkingDirectory $agentCwd `
-                    -NoNewWindow `
-                    -PassThru `
-                    -RedirectStandardInput $inputPath `
-                    -RedirectStandardOutput $stdoutPath `
-                    -RedirectStandardError $stderrPath
-            }
-            else {
-                $p = Start-Process `
-                    -FilePath $processFilePath `
-                    -ArgumentList $argString `
-                    -WorkingDirectory $agentCwd `
-                    -NoNewWindow `
-                    -PassThru `
-                    -RedirectStandardOutput $stdoutPath `
-                    -RedirectStandardError $stderrPath
-            }
+            $retryProcessArgs = Remove-ArgumentPair -Arguments $processArgs -Flag "--model"
+            $retryResult = Invoke-AgentSubprocess `
+                -ProcessFilePath $processFilePath `
+                -ProcessArgs $retryProcessArgs `
+                -WorkingDirectory $agentCwd `
+                -PromptMode $promptMode `
+                -Prompt $formattedPrompt `
+                -StartTime $startTime
 
-            # Poll for process exit, emitting heartbeat events every 20s so the
-            # NDJSON consumer and server know the agent is alive during long LLM calls.
-            # (Start-Process -Wait would block the PS thread, preventing any emission.)
-            $heartbeatIntervalSec = 20
-            $lastHeartbeat = Get-Date
-            while (-not $p.HasExited) {
-                Start-Sleep -Milliseconds 500
-                $elapsed = ((Get-Date) - $lastHeartbeat).TotalSeconds
-                if ($elapsed -ge $heartbeatIntervalSec) {
-                    Emit-Event -EventType "agent_heartbeat" -Data @{
-                        agent_running   = $true
-                        elapsed_seconds = [int]((Get-Date) - $startTime).TotalSeconds
-                    }
-                    $lastHeartbeat = Get-Date
-                }
-            }
-            $p.WaitForExit()
-            $exitCode = [int]$p.ExitCode
+            $output = $retryResult.Output
+            $exitCode = $retryResult.ExitCode
+            $succeeded = $retryResult.Succeeded
 
-            $stdout = ""
-            $stderr = ""
-            if (Test-Path $stdoutPath) { $stdout = Get-Content -Raw -LiteralPath $stdoutPath -ErrorAction SilentlyContinue }
-            if (Test-Path $stderrPath) { $stderr = Get-Content -Raw -LiteralPath $stderrPath -ErrorAction SilentlyContinue }
-
-            $output = $stdout
-            if (-not [string]::IsNullOrWhiteSpace($stderr)) {
-                if (-not [string]::IsNullOrWhiteSpace($output)) { $output += "`n" }
-                $output += $stderr
-            }
-
-            if ($exitCode -ne 0) {
-                $succeeded = $false
-                Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
-                    agent_name = $AgentConfig.name
-                    agent_id   = $AgentConfig.key
-                    executable = $executable
-                    resolved   = $resolvedExecutable
-                    exit_code  = $exitCode
-                }
+            if ($succeeded) {
+                Emit-Log -Level "info" -Message "Copilot retry without explicit model succeeded" -Component "agent"
             }
         }
-        finally {
-            foreach ($path in @($inputPath, $stdoutPath, $stderrPath)) {
-                try { if ($path -and (Test-Path $path)) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } } catch { }
+
+        if (-not $succeeded) {
+            Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
+                agent_name = $AgentConfig.name
+                agent_id   = $AgentConfig.key
+                executable = $executable
+                resolved   = $resolvedExecutable
+                exit_code  = $exitCode
             }
         }
     }
@@ -289,6 +378,7 @@ function Test-AndEnforcePlanningGuardrails {
         [string]$ProjectPath,
         
         [Parameter(Mandatory = $true)]
+        [AllowNull()]
         $BeforeState,
         
         [Parameter(Mandatory = $true)]

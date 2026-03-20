@@ -2521,7 +2521,7 @@ rm -rf "$STAGE_ROOT"
             "copilot" => new AgentDefaults(
                 "copilot",
                 "copilot",
-                "gpt-5.4",
+                "auto",
                 ".",
                 new Dictionary<string, object?>
                 {

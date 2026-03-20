@@ -35,11 +35,11 @@ Write-Host ""
 
 Write-Host "[2/4] Building copilot invocation..." -ForegroundColor Gray
 $copilotAgent = [pscustomobject]@{
-    adapter = "copilot"
-    executable = "copilot"
-    model = "gpt-5.4"
-    allow_all = $true
-    no_ask_user = $true
+    adapter                 = "copilot"
+    executable              = "copilot"
+    model                   = "auto"
+    allow_all               = $true
+    no_ask_user             = $true
     max_autopilot_continues = 3
 }
 $invocation = Get-AgentInvocation -AdapterType "copilot" -Config $copilotAgent -Prompt $testPrompt -VerboseMode:$false
@@ -96,8 +96,8 @@ try {
     }
 
     $result = @{
-        Success = ($process.ExitCode -eq 0)
-        Output = $combined
+        Success  = ($process.ExitCode -eq 0)
+        Output   = $combined
         ExitCode = $process.ExitCode
     }
 }
