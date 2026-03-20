@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>felix</AssemblyName>
-    <Version>1.1.2</Version>
+    <Version>1.2.0</Version>
     <!-- Supported RIDs for release packaging via scripts/package-release.ps1 -->
     <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
   </PropertyGroup>
