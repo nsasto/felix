@@ -356,68 +356,70 @@ felix status --format json
 
 **Why this matters:** When your agent has been churning for 30 minutes and you're wondering if it's actually working or stuck in a loop, `felix status` is your reality check.
 
-### `felix list` - See the Big Picture
+### `felix spec list` - See the Big Picture
+
+`felix spec list` is the canonical command. The top-level `felix list` alias still works for compatibility.
 
 **All requirements:**
 
 ```bash
-felix list
+felix spec list
 ```
 
 **Filter by status:**
 
 ```bash
-felix list --status planned
-felix list --status complete
-felix list --status blocked
+felix spec list --status planned
+felix spec list --status complete
+felix spec list --status blocked
 ```
 
 **Filter by priority:**
 
 ```bash
-felix list --priority high
-felix list --priority low
+felix spec list --priority high
+felix spec list --priority low
 ```
 
 **Filter by tags (comma-separated):**
 
 ```bash
-felix list --tags backend
-felix list --tags backend,auth
+felix spec list --tags backend
+felix spec list --tags backend,auth
 ```
 
 **Show requirements blocked by incomplete dependencies:**
 
 ```bash
-felix list --blocked-by incomplete-deps
+felix spec list --blocked-by incomplete-deps
 ```
 
 **Include dependency details in output:**
 
 ```bash
-felix list --with-deps
+felix spec list --with-deps
 ```
 
 **JSON for scripting:**
 
 ```bash
-felix list --format json | jq '.[] | select(.status == "blocked")'
+felix spec list --format json | jq '.[] | select(.status == "blocked")'
 ```
 
 **Useful patterns:**
 
 ```bash
 # Morning standup: what got done overnight?
-felix list --status complete
+felix spec list --status complete
 
 # Planning: what's ready to work on?
-felix list --status planned
+felix spec list --status planned
 
 # What's stuck on unfinished dependencies?
-felix list --blocked-by incomplete-deps
+felix spec list --blocked-by incomplete-deps
 
 # Troubleshooting: what's stuck?
-felix list --status blocked
+felix spec list --status blocked
 ```
 
 ---
@@ -556,7 +558,7 @@ felix spec fix --fix-duplicates
 **What this does:** Scans all `S-*.md` files in `specs/` and reconciles them against `.felix/requirements.json`:
 
 - Adds entries for spec files that are missing from `requirements.json`
-- Removes stale entries for requirements that no longer have a spec file
+- Rebuilds the `requirements.json` view of the current `specs/` directory
 - With `--fix-duplicates`: detects duplicate `S-NNNN` IDs and renames files to the next available ID
 
 **When to use:**
@@ -573,6 +575,12 @@ felix spec fix --fix-duplicates
 felix spec delete S-0001
 ```
 
+**Delete without prompting:**
+
+```bash
+felix spec delete S-0001 --yes
+```
+
 **What gets deleted:**
 
 - The spec file (`specs/S-NNNN.md`)
@@ -583,7 +591,7 @@ felix spec delete S-0001
 - Historical run artifacts in `runs/` (for audit trail)
 - Git history (no force deletion)
 
-**Safety:** Prompts for confirmation unless you're piping input or using `--force`.
+**Safety:** Prompts for confirmation unless you pass `--yes`.
 
 ### `felix spec status <requirement-id> <status>` - Update Requirement Status
 
@@ -874,24 +882,15 @@ The installed CLI now presents this flow with a richer Spectre.Console interface
 felix agent list
 ```
 
-**Output:**
+**Output:** The installed CLI renders a table showing current profile, key, provider, model, and executable status.
 
 ```
-Available Agents:
-
-* ID: ag_ee77df894 - claude
-  Provider: claude
-  Executable: claude
-  Adapter: claude
-
-  ID: ag_16fffb5a4 - codex
-  Provider: codex
-  Executable: codex
-  Adapter: codex
+Current  Key          Name    Provider  Model    Executable
+*        ag_ee77df894 claude  claude    sonnet   claude
+-        ag_16fffb5a4 codex   codex     default  codex
 ```
 
-The `*` marks your current agent (configured in `.felix/config.json`).
-Agent IDs are content-addressed keys (`ag_XXXXXXXXX`) generated from agent config.
+The `*` marks your current agent (configured in `.felix/config.json`). Agent IDs are content-addressed keys (`ag_XXXXXXXXX`) generated from agent config.
 
 ### `felix agent current` - What Am I Using?
 
@@ -974,7 +973,7 @@ felix agent set-default
 
 **Behind the scenes:** Agents are just different LLM adapters with different executables. They all speak the same protocol (JSON events) and follow the same workflow, but have different strengths.
 
-### `felix agent test <name>` - Smoke Test an Agent
+### `felix agent test <id|name>` - Smoke Test an Agent
 
 ```bash
 felix agent test droid
@@ -983,9 +982,8 @@ felix agent test droid
 **What it does:** Runs a quick smoke test to verify:
 
 1. Executable is in PATH
-2. Agent responds to commands
-3. JSON event stream works
-4. Basic code generation works
+2. The executable can be launched
+3. A version probe works, or is skipped safely if unsupported
 
 **When to use this:** After installing a new agent executable or updating versions.
 
@@ -1705,8 +1703,8 @@ felix spec create "Add email verification" --quick
 # ... 17 more ...
 
 # Go back and flesh out details for complex ones
-felix spec fix S-0042
-felix spec fix S-0051
+code specs/S-0042-*.md
+code specs/S-0051-*.md
 ```
 
 ### 4. Monitor Long-Running Loops
@@ -1800,7 +1798,7 @@ felix validate S-0042  # Confirm with the validator
 
 ```bash
 # Review what's ready
-felix list --status planned
+felix spec list --status planned
 
 # Check dependencies
 felix deps --tree
@@ -1837,7 +1835,7 @@ nohup felix loop --sync > felix-loop.log 2>&1 &
 # Check progress Monday morning
 felix status
 grep -i error felix-loop.log
-felix list --status blocked
+felix spec list --status blocked
 ```
 
 ### The "Emergency Fix" Workflow
@@ -1964,9 +1962,8 @@ felix spec create "Add rate limiting to API endpoints"
 # 2. Review auto-generated spec
 code specs/S-0042.md
 
-# 3. Flesh out acceptance criteria with agent help
-felix spec fix S-0042
-# Agent asks questions, generates detailed criteria
+# 3. Flesh out acceptance criteria in the spec file
+code specs/S-0042.md
 
 # 4. Check dependencies (might need auth requirement first)
 felix deps S-0042 --check
@@ -1985,7 +1982,7 @@ cat runs/*/output.log | grep -i error
 felix run S-0042
 
 # 9. When complete, verify in staging
-felix list --status complete
+felix spec list --status complete
 ```
 
 ---

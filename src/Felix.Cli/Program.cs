@@ -401,24 +401,25 @@ class Program
 
         fixCmd.SetHandler(async (fixDups) =>
         {
-            var args = new List<string> { "spec", "fix" };
-            if (fixDups) args.Add("--fix-duplicates");
-
-            await ExecutePowerShell(felixPs1, args.ToArray());
+            RunSpecFixUI(fixDups);
+            await Task.CompletedTask;
         }, fixDupsOpt);
 
         // spec delete
         var delReqIdArg = new Argument<string>("requirement-id", "Requirement ID to delete");
+        var assumeYesOpt = new Option<bool>(new[] { "--yes", "-y" }, "Skip the delete confirmation prompt");
 
         var deleteCmd = new Command("delete", "Delete a specification")
         {
-            delReqIdArg
+            delReqIdArg,
+            assumeYesOpt
         };
 
-        deleteCmd.SetHandler(async (reqId) =>
+        deleteCmd.SetHandler(async (reqId, assumeYes) =>
         {
-            await ExecutePowerShell(felixPs1, "spec", "delete", reqId);
-        }, delReqIdArg);
+            DeleteSpecUI(reqId, assumeYes);
+            await Task.CompletedTask;
+        }, delReqIdArg, assumeYesOpt);
 
         // spec status
         var statusReqIdArg = new Argument<string>("requirement-id", "Requirement ID to update");
@@ -432,7 +433,8 @@ class Program
 
         statusCmd.SetHandler(async (reqId, status) =>
         {
-            await ExecutePowerShell(felixPs1, "spec", "status", reqId, status);
+            UpdateSpecStatusUI(reqId, status);
+            await Task.CompletedTask;
         }, statusReqIdArg, statusArg);
 
         // spec pull
@@ -493,14 +495,16 @@ class Program
         var listCmd = new Command("list", "List all available agents");
         listCmd.SetHandler(async () =>
         {
-            await ExecutePowerShell(felixPs1, "agent", "list");
+            ShowAgentListUI();
+            await Task.CompletedTask;
         });
 
         // agent current
         var currentCmd = new Command("current", "Show current active agent");
         currentCmd.SetHandler(async () =>
         {
-            await ExecutePowerShell(felixPs1, "agent", "current");
+            ShowCurrentAgentUI();
+            await Task.CompletedTask;
         });
 
         // agent use
@@ -558,7 +562,7 @@ class Program
         };
         testCmd.SetHandler(async (target) =>
         {
-            await ExecutePowerShell(felixPs1, "agent", "test", target);
+            await ShowAgentTestUI(target);
         }, testTargetArg);
 
         var setupCmd = new Command("setup", "Configure agents for this project");
@@ -577,10 +581,8 @@ class Program
         };
         installHelpCmd.SetHandler(async (target) =>
         {
-            if (string.IsNullOrEmpty(target))
-                await ExecutePowerShell(felixPs1, "agent", "install-help");
-            else
-                await ExecutePowerShell(felixPs1, "agent", "install-help", target);
+            ShowAgentInstallHelpUI(target);
+            await Task.CompletedTask;
         }, installHelpTargetArg);
 
         var registerCmd = new Command("register", "Register the current agent with the sync server");
@@ -1955,6 +1957,421 @@ class Program
             _ => "grey"
         };
         return $"[{color}]{status.EscapeMarkup()}[/]";
+    }
+
+    static void UpdateSpecStatusUI(string requirementId, string status)
+    {
+        if (!IsValidRequirementId(requirementId))
+        {
+            AnsiConsole.MarkupLine("[red]Invalid requirement ID format. Expected S-NNNN (for example S-0001).[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var normalizedStatus = NormalizeRequirementStatus(status);
+        var allowedStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "draft", "planned", "in_progress", "blocked", "complete", "done"
+        };
+        if (!allowedStatuses.Contains(normalizedStatus))
+        {
+            AnsiConsole.MarkupLine($"[red]Invalid status '{status.EscapeMarkup()}'. Allowed: {string.Join(", ", allowedStatuses).EscapeMarkup()}[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var document = LoadRequirementsDocument();
+        var requirements = GetRequirementsArray(document);
+        var requirement = FindRequirementNode(requirements, requirementId);
+        if (requirement == null)
+        {
+            AnsiConsole.MarkupLine($"[red]Requirement {requirementId.EscapeMarkup()} not found in requirements.json.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        requirement["status"] = normalizedStatus;
+        SaveRequirementsDocument(document);
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Specification Status Updated[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var summary = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Field[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+        summary.AddRow("Requirement", requirementId.EscapeMarkup());
+        summary.AddRow("Title", (GetJsonString(requirement.AsObject(), "title") ?? "-").EscapeMarkup());
+        summary.AddRow("Status", RenderStatusMarkup(normalizedStatus));
+
+        AnsiConsole.Write(summary);
+        AnsiConsole.WriteLine();
+        Environment.ExitCode = 0;
+    }
+
+    static void DeleteSpecUI(string requirementId, bool assumeYes)
+    {
+        if (!IsValidRequirementId(requirementId))
+        {
+            AnsiConsole.MarkupLine("[red]Invalid requirement ID format. Expected S-NNNN (for example S-0001).[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var document = LoadRequirementsDocument();
+        var requirements = GetRequirementsArray(document);
+        var requirement = FindRequirementNode(requirements, requirementId);
+        if (requirement == null)
+        {
+            AnsiConsole.MarkupLine($"[red]Requirement {requirementId.EscapeMarkup()} not found in requirements.json.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var specPathValue = GetJsonString(requirement.AsObject(), "spec_path") ?? string.Empty;
+        var specPath = string.IsNullOrWhiteSpace(specPathValue)
+            ? Path.Combine(_felixProjectRoot, "specs", requirementId + ".md")
+            : Path.GetFullPath(Path.Combine(_felixProjectRoot, specPathValue.Replace('/', Path.DirectorySeparatorChar)));
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[yellow]Delete Specification[/]").RuleStyle(Style.Parse("yellow dim")));
+        AnsiConsole.WriteLine();
+
+        var details = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Field[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+        details.AddRow("Requirement", requirementId.EscapeMarkup());
+        details.AddRow("Title", (GetJsonString(requirement.AsObject(), "title") ?? "-").EscapeMarkup());
+        details.AddRow("Path", specPath.EscapeMarkup());
+        details.AddRow("File", File.Exists(specPath) ? Path.GetFileName(specPath).EscapeMarkup() : "[grey](not found)[/]");
+        AnsiConsole.Write(details);
+        AnsiConsole.WriteLine();
+
+        if (!assumeYes && !AnsiConsole.Confirm("Delete this specification?", false))
+        {
+            AnsiConsole.MarkupLine("[grey]Deletion cancelled.[/]");
+            Environment.ExitCode = 0;
+            return;
+        }
+
+        if (File.Exists(specPath))
+            File.Delete(specPath);
+
+        for (var index = 0; index < requirements.Count; index++)
+        {
+            if (requirements[index] is JsonObject reqObj && string.Equals(GetJsonString(reqObj, "id"), requirementId, StringComparison.OrdinalIgnoreCase))
+            {
+                requirements.RemoveAt(index);
+                break;
+            }
+        }
+
+        SaveRequirementsDocument(document);
+        AnsiConsole.MarkupLine($"[green]Deleted specification {requirementId.EscapeMarkup()}.[/]");
+        Environment.ExitCode = 0;
+    }
+
+    static void RunSpecFixUI(bool fixDuplicates)
+    {
+        var specsDir = Path.Combine(_felixProjectRoot, "specs");
+        if (!Directory.Exists(specsDir))
+        {
+            AnsiConsole.MarkupLine($"[red]Specs directory not found: {specsDir.EscapeMarkup()}[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var document = LoadRequirementsDocument();
+        var requirements = GetRequirementsArray(document);
+        var specFiles = Directory.GetFiles(specsDir, "S-*.md", SearchOption.TopDirectoryOnly)
+            .Select(path => new FileInfo(path))
+            .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var added = new List<string>();
+        var updated = new List<string>();
+        var duplicates = new List<string>();
+        var fixedItems = new List<string>();
+        var errors = new List<string>();
+        var processedIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var allSpecIds = specFiles
+            .Select(file => TryParseRequirementId(file.Name))
+            .Where(id => id != null)
+            .Select(id => int.Parse(id!.AsSpan(2)))
+            .ToList();
+        var maxSpecId = allSpecIds.Count > 0 ? allSpecIds.Max() : 0;
+
+        var existingById = requirements
+            .OfType<JsonObject>()
+            .Select(node => node.DeepClone().AsObject())
+            .Where(node => !string.IsNullOrWhiteSpace(GetJsonString(node, "id")))
+            .ToDictionary(node => GetJsonString(node, "id")!, node => node, StringComparer.OrdinalIgnoreCase);
+
+        var currentSpecFiles = new List<FileInfo>();
+        foreach (var originalFile in specFiles)
+        {
+            var specFile = originalFile;
+            var reqId = TryParseRequirementId(specFile.Name);
+            if (reqId == null)
+            {
+                errors.Add($"Invalid filename format: {specFile.Name}");
+                continue;
+            }
+
+            if (processedIds.ContainsKey(reqId))
+            {
+                if (!fixDuplicates)
+                {
+                    duplicates.Add(specFile.Name);
+                    continue;
+                }
+
+                maxSpecId = GetNextAvailableSpecNumber(maxSpecId + 1, specsDir);
+                var newReqId = $"S-{maxSpecId:D4}";
+                var newFileName = reqId + specFile.Name.Substring(reqId.Length);
+                newFileName = newFileName.Replace(reqId, newReqId, StringComparison.OrdinalIgnoreCase);
+                var newPath = Path.Combine(specsDir, newFileName);
+                File.Move(specFile.FullName, newPath);
+                fixedItems.Add($"{specFile.Name} -> {newFileName}");
+                specFile = new FileInfo(newPath);
+                reqId = newReqId;
+            }
+
+            processedIds[reqId] = specFile.Name;
+
+            if (existingById.TryGetValue(reqId, out var existing))
+            {
+                var relativePath = ToRequirementRelativeSpecPath(specFile.Name);
+                if (!string.Equals(GetJsonString(existing, "spec_path"), relativePath, StringComparison.OrdinalIgnoreCase))
+                    updated.Add(reqId);
+                existingById.Remove(reqId);
+            }
+            else
+            {
+                added.Add(reqId);
+            }
+
+            currentSpecFiles.Add(specFile);
+        }
+
+        var orphaned = existingById.Keys.OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToList();
+        var defaultStatus = added.Count > 0 ? PromptForDefaultSpecStatus() : "draft";
+        var rebuiltRequirements = new JsonArray();
+
+        foreach (var specFile in currentSpecFiles.OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var reqId = TryParseRequirementId(specFile.Name)!;
+            var original = requirements
+                .OfType<JsonObject>()
+                .FirstOrDefault(node => string.Equals(GetJsonString(node, "id"), reqId, StringComparison.OrdinalIgnoreCase));
+
+            var metaPath = Path.Combine(specsDir, Path.GetFileNameWithoutExtension(specFile.Name) + ".meta.json");
+            var meta = LoadOptionalJsonObject(metaPath);
+            var resolvedStatus = GetJsonString(original?.AsObject() ?? new JsonObject(), "status") ?? defaultStatus;
+            var metaStatus = GetJsonString(meta ?? new JsonObject(), "status");
+            if (!string.IsNullOrWhiteSpace(metaStatus))
+                resolvedStatus = metaStatus!;
+
+            var title = GetSpecTitle(specFile.FullName, reqId, GetJsonString(original?.AsObject() ?? new JsonObject(), "title"));
+            var reqNode = new JsonObject
+            {
+                ["id"] = reqId,
+                ["spec_path"] = ToRequirementRelativeSpecPath(specFile.Name),
+                ["status"] = resolvedStatus
+            };
+
+            if (!string.IsNullOrWhiteSpace(title))
+                reqNode["title"] = title;
+            if (GetJsonBool(original?.AsObject() ?? new JsonObject(), "commit_on_complete", false))
+                reqNode["commit_on_complete"] = true;
+
+            rebuiltRequirements.Add(reqNode);
+
+            if (original == null && !File.Exists(metaPath))
+            {
+                var newMeta = new JsonObject
+                {
+                    ["status"] = resolvedStatus,
+                    ["priority"] = "medium",
+                    ["tags"] = new JsonArray(),
+                    ["depends_on"] = new JsonArray(),
+                    ["updated_at"] = DateTime.Now.ToString("yyyy-MM-dd")
+                };
+                File.WriteAllText(metaPath, newMeta.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+            }
+        }
+
+        var sortedRequirements = rebuiltRequirements
+            .OfType<JsonObject>()
+            .OrderBy(node => GetJsonString(node, "id"), StringComparer.OrdinalIgnoreCase)
+            .Cast<JsonNode>()
+            .ToArray();
+        document["requirements"] = new JsonArray(sortedRequirements);
+        SaveRequirementsDocument(document);
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Specification Fix[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var summary = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Metric[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned().NoWrap());
+        summary.AddRow("Total specs", currentSpecFiles.Count.ToString());
+        summary.AddRow("Added", added.Count.ToString());
+        summary.AddRow("Updated", updated.Count.ToString());
+        summary.AddRow("Fixed duplicates", fixedItems.Count.ToString());
+        summary.AddRow("Duplicate skips", duplicates.Count.ToString());
+        summary.AddRow("Orphaned", orphaned.Count.ToString());
+        summary.AddRow("Errors", errors.Count.ToString());
+        AnsiConsole.Write(summary);
+        AnsiConsole.WriteLine();
+
+        if (fixedItems.Count > 0)
+            AnsiConsole.MarkupLine($"[cyan]Fixed:[/] {string.Join(", ", fixedItems.Select(item => item.EscapeMarkup()))}");
+        if (duplicates.Count > 0)
+            AnsiConsole.MarkupLine($"[magenta]Duplicates skipped:[/] {string.Join(", ", duplicates.Select(item => item.EscapeMarkup()))}");
+        if (orphaned.Count > 0)
+            AnsiConsole.MarkupLine($"[yellow]Orphaned:[/] {string.Join(", ", orphaned.Select(item => item.EscapeMarkup()))}");
+        if (errors.Count > 0)
+            AnsiConsole.MarkupLine($"[red]Errors:[/] {string.Join(" | ", errors.Select(item => item.EscapeMarkup()))}");
+
+        Environment.ExitCode = errors.Count == 0 ? 0 : 1;
+    }
+
+    static JsonObject LoadRequirementsDocument()
+    {
+        var path = Path.Combine(_felixProjectRoot, ".felix", "requirements.json");
+        if (!File.Exists(path))
+            return new JsonObject { ["requirements"] = new JsonArray() };
+
+        try
+        {
+            var raw = File.ReadAllText(path, Encoding.UTF8).Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+                return new JsonObject { ["requirements"] = new JsonArray() };
+
+            var node = JsonNode.Parse(raw);
+            if (node is JsonArray array)
+                return new JsonObject { ["requirements"] = array };
+            if (node is JsonObject obj)
+            {
+                if (obj["requirements"] is JsonObject singleReq)
+                    obj["requirements"] = new JsonArray(singleReq);
+                else if (obj["requirements"] is not JsonArray)
+                    obj["requirements"] = new JsonArray();
+                return obj;
+            }
+        }
+        catch { }
+
+        return new JsonObject { ["requirements"] = new JsonArray() };
+    }
+
+    static JsonArray GetRequirementsArray(JsonObject document)
+    {
+        if (document["requirements"] is JsonArray array)
+            return array;
+
+        var created = new JsonArray();
+        document["requirements"] = created;
+        return created;
+    }
+
+    static JsonObject? FindRequirementNode(JsonArray requirements, string requirementId)
+        => requirements
+            .OfType<JsonObject>()
+            .FirstOrDefault(node => string.Equals(GetJsonString(node, "id"), requirementId, StringComparison.OrdinalIgnoreCase));
+
+    static void SaveRequirementsDocument(JsonObject document)
+    {
+        var path = Path.Combine(_felixProjectRoot, ".felix", "requirements.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine, Encoding.UTF8);
+    }
+
+    static bool IsValidRequirementId(string requirementId)
+        => System.Text.RegularExpressions.Regex.IsMatch(requirementId, "^S-\\d{4}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    static string NormalizeRequirementStatus(string status)
+        => string.Equals(status, "in-progress", StringComparison.OrdinalIgnoreCase) ? "in_progress" : status.ToLowerInvariant();
+
+    static string? TryParseRequirementId(string fileName)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(fileName, "^(S-\\d{4})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.ToUpperInvariant() : null;
+    }
+
+    static int GetNextAvailableSpecNumber(int startFrom, string specsDir)
+    {
+        var nextId = startFrom;
+        while (File.Exists(Path.Combine(specsDir, $"S-{nextId:D4}.md")) || Directory.GetFiles(specsDir, $"S-{nextId:D4}-*.md").Length > 0)
+        {
+            nextId++;
+        }
+        return nextId;
+    }
+
+    static string ToRequirementRelativeSpecPath(string fileName)
+        => $"specs/{fileName}";
+
+    static string PromptForDefaultSpecStatus()
+    {
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[cyan]Default status for newly discovered specs:[/]")
+                .AddChoices(new[] { "draft", "planned", "in_progress", "blocked", "done", "complete" }));
+
+        return selected;
+    }
+
+    static JsonObject? LoadOptionalJsonObject(string path)
+    {
+        if (!File.Exists(path))
+            return null;
+
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(path))?.AsObject();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static string? GetSpecTitle(string specPath, string requirementId, string? existingTitle)
+    {
+        var fallbackTitle = string.IsNullOrWhiteSpace(existingTitle) ? null : existingTitle.Trim();
+        if (!File.Exists(specPath))
+            return fallbackTitle;
+
+        try
+        {
+            foreach (var line in File.ReadLines(specPath, Encoding.UTF8))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(line, "^\\s*#\\s+(.+?)\\s*$");
+                if (!match.Success)
+                    continue;
+
+                var heading = match.Groups[1].Value.Trim();
+                if (string.IsNullOrWhiteSpace(heading))
+                    break;
+
+                var prefixPattern = $"^(?:{System.Text.RegularExpressions.Regex.Escape(requirementId)})\\s*[:\\-\\u2013\\u2014]\\s*(.+)$";
+                var normalized = System.Text.RegularExpressions.Regex.Match(heading, prefixPattern);
+                var title = normalized.Success ? normalized.Groups[1].Value.Trim() : heading;
+                return string.IsNullOrWhiteSpace(title) ? fallbackTitle : title;
+            }
+        }
+        catch { }
+
+        return fallbackTitle;
     }
 
     /// <summary>
@@ -3402,6 +3819,17 @@ rm -rf "$STAGE_ROOT"
         internal static readonly ConfiguredAgent Back = new("__back__", "< Back>", "", "", false);
     }
 
+    sealed record ConfiguredAgentDetails(string Key, string Name, string Provider, string Adapter, string ModelDisplay, bool IsCurrent, string Executable);
+
+    sealed record SpecFixResult(
+        int TotalSpecs,
+        List<string> Added,
+        List<string> Updated,
+        List<string> Duplicates,
+        List<string> Fixed,
+        List<string> Orphaned,
+        List<string> Errors);
+
     internal sealed record AgentTemplateEntry(string Name, string Provider, string Adapter, string? Model, string? Executable);
 
     internal sealed record AgentSetupChoice(AgentTemplateEntry Template, bool Installed, bool IsConfigured, string ModelDisplay)
@@ -4376,6 +4804,17 @@ rm -rf "$STAGE_ROOT"
 
     static List<ConfiguredAgent>? ReadConfiguredAgents()
     {
+        var detailedAgents = ReadConfiguredAgentDetails();
+        if (detailedAgents == null)
+            return null;
+
+        return detailedAgents
+            .Select(agent => new ConfiguredAgent(agent.Key, agent.Name, agent.Provider, agent.ModelDisplay, agent.IsCurrent))
+            .ToList();
+    }
+
+    static List<ConfiguredAgentDetails>? ReadConfiguredAgentDetails()
+    {
         var agentsPath = Path.Combine(_felixProjectRoot, ".felix", "agents.json");
         if (!File.Exists(agentsPath))
             return null;
@@ -4416,25 +4855,29 @@ rm -rf "$STAGE_ROOT"
                             ? idProp.GetRawText().Trim('"')
                             : null;
                     var name = agent.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+                    var adapter = agent.TryGetProperty("adapter", out var adapterProp) ? adapterProp.GetString() : null;
                     var provider = agent.TryGetProperty("provider", out var providerProp)
                         ? providerProp.GetString()
-                        : agent.TryGetProperty("adapter", out var adapterProp)
-                            ? adapterProp.GetString()
+                        : !string.IsNullOrWhiteSpace(adapter)
+                            ? adapter
                             : name;
                     var model = agent.TryGetProperty("model", out var modelProp) ? modelProp.GetString() : null;
+                    var executable = agent.TryGetProperty("executable", out var executableProp) ? executableProp.GetString() : null;
 
                     if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(provider))
                         return null;
 
-                    return new ConfiguredAgent(
+                    return new ConfiguredAgentDetails(
                         key!,
                         name!,
                         provider!,
+                        string.IsNullOrWhiteSpace(adapter) ? provider! : adapter!,
                         string.IsNullOrWhiteSpace(model) ? "default" : model!,
-                        string.Equals(key, currentAgentId, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(key, currentAgentId, StringComparison.OrdinalIgnoreCase),
+                        string.IsNullOrWhiteSpace(executable) ? GetAgentDefaults(string.IsNullOrWhiteSpace(adapter) ? provider! : adapter!).Executable : executable!);
                 })
                 .Where(agent => agent != null)
-                .Cast<ConfiguredAgent>()
+                .Cast<ConfiguredAgentDetails>()
                 .OrderByDescending(agent => agent.IsCurrent)
                 .ThenBy(agent => agent.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -4443,6 +4886,294 @@ rm -rf "$STAGE_ROOT"
         {
             return null;
         }
+    }
+
+    static void ShowAgentListUI()
+    {
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Configured Agents[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var agents = ReadConfiguredAgentDetails();
+        if (agents == null || agents.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No configured agents found. Run 'felix agent setup' first.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Current[/]").Centered().NoWrap())
+            .AddColumn(new TableColumn("[yellow]Key[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Name[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Provider[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Model[/]"))
+            .AddColumn(new TableColumn("[yellow]Executable[/]"));
+
+        foreach (var agent in agents)
+        {
+            var installed = TestExecutableInstalled(agent.Executable);
+            table.AddRow(
+                agent.IsCurrent ? "[green]*[/]" : "[grey]-[/]",
+                agent.Key.EscapeMarkup(),
+                agent.Name.EscapeMarkup(),
+                agent.Provider.EscapeMarkup(),
+                agent.ModelDisplay.EscapeMarkup(),
+                installed ? $"[green]{agent.Executable.EscapeMarkup()}[/]" : $"[yellow]{agent.Executable.EscapeMarkup()}[/]");
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+        Environment.ExitCode = 0;
+    }
+
+    static void ShowCurrentAgentUI()
+    {
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Current Agent[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var current = ReadConfiguredAgentDetails()?.FirstOrDefault(agent => agent.IsCurrent);
+        if (current == null)
+        {
+            AnsiConsole.MarkupLine("[red]No current agent configured.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var details = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Field[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+        details.AddRow("Key", current.Key.EscapeMarkup());
+        details.AddRow("Name", current.Name.EscapeMarkup());
+        details.AddRow("Provider", current.Provider.EscapeMarkup());
+        details.AddRow("Adapter", current.Adapter.EscapeMarkup());
+        details.AddRow("Model", current.ModelDisplay.EscapeMarkup());
+        details.AddRow("Executable", TestExecutableInstalled(current.Executable)
+            ? $"[green]{current.Executable.EscapeMarkup()}[/]"
+            : $"[yellow]{current.Executable.EscapeMarkup()}[/]");
+
+        AnsiConsole.Write(new Panel(details)
+        {
+            Header = new PanelHeader("[cyan]Agent Details[/]"),
+            Border = BoxBorder.Rounded,
+            BorderStyle = Style.Parse("cyan")
+        });
+        AnsiConsole.WriteLine();
+        Environment.ExitCode = 0;
+    }
+
+    static void ShowAgentInstallHelpUI(string? target)
+    {
+        var templates = ReadAgentTemplates()
+            ?? new List<AgentTemplateEntry>
+            {
+                new("droid", "droid", "droid", null, null),
+                new("claude", "claude", "claude", null, null),
+                new("codex", "codex", "codex", null, null),
+                new("gemini", "gemini", "gemini", null, null),
+                new("copilot", "copilot", "copilot", null, null)
+            };
+
+        if (!string.IsNullOrWhiteSpace(target))
+        {
+            templates = templates
+                .Where(template => string.Equals(template.Name, target, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (templates.Count == 0)
+            {
+                AnsiConsole.MarkupLine($"[red]Unknown agent: {target.EscapeMarkup()}[/]");
+                Environment.ExitCode = 1;
+                return;
+            }
+        }
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Agent Install Help[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Agent[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Executable[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Status[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Guidance[/]"));
+
+        foreach (var template in templates.OrderBy(template => template.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var executable = ResolveExecutableName(template);
+            var installed = TestExecutableInstalled(executable);
+            table.AddRow(
+                template.Name.EscapeMarkup(),
+                executable.EscapeMarkup(),
+                installed ? "[green]installed[/]" : "[yellow]not installed[/]",
+                string.Join(Environment.NewLine, GetAgentInstallGuidance(template.Name)).EscapeMarkup());
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+        Environment.ExitCode = 0;
+    }
+
+    static async Task ShowAgentTestUI(string target)
+    {
+        var agents = ReadConfiguredAgentDetails();
+        if (agents == null || agents.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No configured agents found. Run 'felix agent setup' first.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var agent = target.StartsWith("ag_", StringComparison.OrdinalIgnoreCase)
+            ? agents.FirstOrDefault(candidate => string.Equals(candidate.Key, target, StringComparison.OrdinalIgnoreCase))
+            : agents.FirstOrDefault(candidate => string.Equals(candidate.Name, target, StringComparison.OrdinalIgnoreCase));
+
+        if (agent == null)
+        {
+            AnsiConsole.MarkupLine($"[red]Agent not found: {target.EscapeMarkup()}[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var executablePath = ResolveAgentExecutablePath(agent.Executable);
+        var executableOk = executablePath != null;
+        string versionStatus;
+        string versionBody;
+
+        if (!executableOk)
+        {
+            versionStatus = "[grey]not run[/]";
+            versionBody = "Executable not found on PATH.";
+        }
+        else
+        {
+            var versionResult = await TryRunProcessCaptureAsync(executablePath!, "--version", 5000);
+            if (versionResult.Success)
+            {
+                versionStatus = "[green]ok[/]";
+                versionBody = string.IsNullOrWhiteSpace(versionResult.Output) ? "Version command returned no output." : versionResult.Output.Trim();
+            }
+            else
+            {
+                versionStatus = "[yellow]skipped[/]";
+                versionBody = versionResult.TimedOut
+                    ? "Version check timed out."
+                    : "Version check not supported or returned a non-zero exit code.";
+            }
+        }
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule($"[cyan]Test Agent: {agent.Name.EscapeMarkup()}[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Check[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Result[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Details[/]"));
+        table.AddRow(
+            "Executable",
+            executableOk ? "[green]ok[/]" : "[red]failed[/]",
+            executableOk ? executablePath!.EscapeMarkup() : $"Executable '{agent.Executable.EscapeMarkup()}' not found on PATH");
+        table.AddRow("Version", versionStatus, versionBody.EscapeMarkup());
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+        if (executableOk)
+            AnsiConsole.MarkupLine("[green]Agent test passed.[/]");
+
+        Environment.ExitCode = executableOk ? 0 : 1;
+    }
+
+    static string? ResolveAgentExecutablePath(string executable)
+    {
+        if (string.IsNullOrWhiteSpace(executable))
+            return null;
+
+        if (File.Exists(executable))
+            return Path.GetFullPath(executable);
+
+        var onPath = FindExecutableOnPath(executable);
+        if (!string.IsNullOrWhiteSpace(onPath))
+            return onPath;
+
+        if (string.Equals(executable, "copilot", StringComparison.OrdinalIgnoreCase))
+            return GetCopilotExecutableCandidates().FirstOrDefault(File.Exists);
+
+        return null;
+    }
+
+    static async Task<string> RunProcessCaptureAsync(string fileName, string arguments)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = _felixProjectRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(psi);
+        if (process == null)
+            throw new InvalidOperationException("Failed to start process.");
+
+        var stdout = await process.StandardOutput.ReadToEndAsync();
+        var stderr = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(stderr) ? stdout : stderr);
+
+        return string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
+    }
+
+    sealed record ProcessCaptureAttempt(bool Success, string Output, bool TimedOut);
+
+    static async Task<ProcessCaptureAttempt> TryRunProcessCaptureAsync(string fileName, string arguments, int timeoutMilliseconds)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = _felixProjectRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(psi);
+        if (process == null)
+            return new ProcessCaptureAttempt(false, "Failed to start process.", false);
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        using var cts = new CancellationTokenSource(timeoutMilliseconds);
+
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(true); } catch { }
+            return new ProcessCaptureAttempt(false, string.Empty, true);
+        }
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+        var output = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
+        return new ProcessCaptureAttempt(process.ExitCode == 0, output, false);
     }
 
     static async Task ValidateInteractive(string felixPs1)

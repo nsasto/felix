@@ -136,7 +136,7 @@ function Show-Help {
                 Write-Host "  list                    List requirements and specs"
                 Write-Host "  create <description>       Create a new requirement spec"
                 Write-Host "  fix [--fix-duplicates]     Reconcile specs/ folder with requirements.json"
-                Write-Host "  delete <req-id>            Delete a requirement spec"
+                Write-Host "  delete <req-id> [--yes]    Delete a requirement spec"
                 Write-Host "  status <req-id> <status>   Update a requirement status"
                 Write-Host "  pull [options]             Download changed specs from server"
                 Write-Host "  push [options]             Upload local spec files to server"
@@ -156,6 +156,7 @@ function Show-Help {
                 Write-Host "  felix spec fix"
                 Write-Host "  felix spec fix --fix-duplicates"
                 Write-Host "  felix spec delete S-0001"
+                Write-Host "  felix spec delete S-0001 --yes"
                 Write-Host "  felix spec status S-0001 planned"
                 Write-Host "  felix spec pull"
                 Write-Host "  felix spec pull --dry-run"
@@ -240,6 +241,9 @@ function Show-Help {
                 Write-Host "  felix agent install-help"
                 Write-Host "  felix agent install-help copilot"
                 Write-Host "  felix agent register"
+                Write-Host ""
+                Write-Host "Notes:" -ForegroundColor Yellow
+                Write-Host "  agent test verifies the executable and attempts a short version probe." -ForegroundColor Gray
                 Write-Host ""
             }
             "tui" {
