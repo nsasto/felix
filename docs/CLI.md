@@ -195,6 +195,8 @@ felix run S-0042 --sync
 
 **Behind the scenes:** Felix spawns `felix-agent.ps1` as a subprocess, streams NDJSON events from stdout, and renders them in your chosen format. The agent runs in a loop (up to 100 iterations by default) trying to complete the requirement: building context, calling the LLM, processing responses, running tests, committing changes, and validating success.
 
+When sync is disabled, Felix treats non-git working directories as valid local projects. It skips git-state probing and commit capture instead of failing with repository checks.
+
 **Exit codes tell the story:**
 
 - `0` = Success (requirement completed and validated)

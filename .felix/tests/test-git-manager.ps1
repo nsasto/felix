@@ -146,6 +146,19 @@ Describe "Git Change Detection" {
         Pop-Location
         Remove-TestRepository $repoPath
     }
+
+    It "should return false when directory is not a git repository" {
+        $tempPath = Join-Path $env:TEMP "felix-non-git-$(Get-Random)"
+        New-Item -ItemType Directory -Path $tempPath -Force | Out-Null
+        Push-Location $tempPath
+
+        $isRepo = Test-GitRepository
+
+        Assert-False $isRepo
+
+        Pop-Location
+        Remove-Item $tempPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 Describe "Git Commit Operations" {

@@ -167,16 +167,23 @@ function Invoke-FelixIteration {
         return @{ Continue = $false; ExitCode = 1 }
     }
     
+    $hasGitRepository = Test-GitRepository -WorkingDir $Paths.ProjectPath
+
     # Capture state before execution for planning mode guardrails
-    $beforeState = if ($mode -eq "planning") { Get-GitState -WorkingDir $Paths.ProjectPath } else { $null }
+    $beforeState = if ($mode -eq "planning" -and $hasGitRepository) { Get-GitState -WorkingDir $Paths.ProjectPath } else { $null }
     
     # Capture commit hash before execution
-    Push-Location $Paths.ProjectPath
-    try {
-        $beforeCommitHash = git rev-parse HEAD 2>$null
+    $beforeCommitHash = if ($hasGitRepository) {
+        Push-Location $Paths.ProjectPath
+        try {
+            git rev-parse HEAD 2>$null
+        }
+        finally {
+            Pop-Location
+        }
     }
-    finally {
-        Pop-Location
+    else {
+        $null
     }
     
     # Execute agent

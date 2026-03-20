@@ -306,6 +306,11 @@ function Test-AndEnforcePlanningGuardrails {
     
     # Workflow Stage: check_guardrails
     Set-WorkflowStage -Stage "check_guardrails" -ProjectPath $ProjectPath
+
+    if (-not $BeforeState -or -not (Test-GitRepository -WorkingDir $ProjectPath)) {
+        Emit-Log -Level "debug" -Message "Skipping planning guardrails: project is not a git repository" -Component "guardrail"
+        return @{ Passed = $true }
+    }
     
     $violations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $BeforeState -RunId $RunId
     if ($violations.HasViolations) {

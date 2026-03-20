@@ -41,6 +41,8 @@ function Invoke-TaskCompletion {
         [string]$RunDir,
         
         [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [AllowEmptyString()]
         [string]$BeforeCommitHash,
         
         [Parameter(Mandatory = $false)]
@@ -264,6 +266,8 @@ function Save-TaskChanges {
         [string]$TaskDesc,
         
         [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [AllowEmptyString()]
         [string]$BeforeCommitHash,
         
         [Parameter(Mandatory = $true)]
@@ -281,6 +285,11 @@ function Save-TaskChanges {
     
     # Workflow Stage: commit_changes
     Set-WorkflowStage -Stage "commit_changes" -ProjectPath $ProjectPath
+
+    if (-not (Test-GitRepository -WorkingDir $ProjectPath)) {
+        Emit-Log -Level "debug" -Message "Skipping git diff/commit capture: project is not a git repository" -Component "commit"
+        return
+    }
     
     # Check if agent already committed changes
     Push-Location $ProjectPath

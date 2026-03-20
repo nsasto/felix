@@ -107,6 +107,8 @@ felix tui
 felix procs
 ```
 
+When sync is disabled, local runs do not probe git or backend repo state for projects that are not inside a git repository. That keeps Felix usable against plain directories and unpacked source drops.
+
 **Optional: Enable cloud sync for run artifacts (free)**
 
 Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) - it's free. Then set env vars or add to `.felix/config.json`:

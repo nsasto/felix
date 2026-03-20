@@ -50,6 +50,16 @@ function Get-GitState {
     #>
     param([string]$WorkingDir)
 
+    if (-not (Test-GitRepository -WorkingDir $WorkingDir)) {
+        return @{
+            commitHash     = $null
+            branch         = $null
+            modifiedFiles  = @()
+            untrackedFiles = @()
+            stagedFiles    = @()
+        }
+    }
+
     if ($WorkingDir) {
         Push-Location $WorkingDir
     }
@@ -65,6 +75,39 @@ function Get-GitState {
                 untrackedFiles = @(git ls-files --others --exclude-standard 2>$null)
                 stagedFiles    = @(git diff --cached --name-only 2>$null)
             }
+        }
+        finally {
+            $ErrorActionPreference = $prevErrorAction
+        }
+    }
+    finally {
+        if ($WorkingDir) {
+            Pop-Location
+        }
+    }
+}
+
+function Test-GitRepository {
+    <#
+    .SYNOPSIS
+    Checks whether a directory is inside a git work tree without surfacing native stderr.
+    #>
+    param([string]$WorkingDir)
+
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    if ($WorkingDir) {
+        Push-Location $WorkingDir
+    }
+
+    try {
+        $prevErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = "SilentlyContinue"
+        try {
+            & git rev-parse --is-inside-work-tree *> $null
+            return ($LASTEXITCODE -eq 0)
         }
         finally {
             $ErrorActionPreference = $prevErrorAction
