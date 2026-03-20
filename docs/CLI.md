@@ -840,16 +840,19 @@ felix setup
 
 **What it does:** Guided wizard for configuring a Felix project from scratch (or reconfiguring an existing one). Safe to re-run — idempotent, never overwrites files that already exist.
 
+The installed CLI now presents this flow with a richer Spectre.Console interface instead of a plain `Read-Host` prompt sequence. Searchable pickers are used where they reduce setup friction, while the resulting files and defaults stay compatible with the PowerShell backend.
+
 **Steps:**
 
 1. **Confirm project folder** — defaults to current directory; accepts a different path
 2. **Scaffold** — creates missing `policies/`, `specs/`, `config.json`, `requirements.json`, `state.json` and templates (idempotent)
-3. **Agent profile setup** — optional interactive configuration of provider/model profiles; writes `.felix/agents.json`
-4. **Active agent selection** — selects which configured profile is active in `.felix/config.json` (`agent.agent_id`)
-5. **Auto-select shortcut** — if exactly one agent profile exists, setup auto-selects it and skips the chooser
-6. **Test command** — prompts for backpressure test command
-7. **Mode choice** — local (no server) or remote (server-backed team mode)
-8. **Remote config** — in remote mode, prompts for backend URL and API key, validates key, then offers `spec pull` + `spec fix`
+3. **AGENTS.md check** — offers to create a starter repository operations guide if one does not exist
+4. **Agent profile setup** — optional searchable multi-select of installed providers plus per-provider model selection; writes `.felix/agents.json`
+5. **Active agent selection** — searchable chooser for which configured profile is active in `.felix/config.json` (`agent.agent_id`)
+6. **Auto-select shortcut** — if exactly one agent profile exists, setup auto-selects it and skips the chooser
+7. **Test command** — prompts for backpressure test command
+8. **Mode choice** — local (no server) or remote (server-backed team mode)
+9. **Remote config** — in remote mode, prompts for backend URL and API key, validates key, then offers `spec pull` + `spec fix`
 
 **Note:** Setup now distinguishes between configuring agent profiles (`.felix/agents.json`) and choosing the active profile (`.felix/config.json`) so you are not asked to re-pick providers from a hardcoded list.
 
@@ -905,6 +908,10 @@ felix agent setup
 Interactive configuration for agents and default models. This writes or updates
 `.felix/agents.json` with selected agents and models.
 
+The installed CLI presents this as a searchable multi-select with provider status,
+preselects already-configured profiles, and then prompts for a model for each selected provider.
+Providers that are not installed are shown but cannot be selected, and the command points you to `felix agent install-help <name>` for installation guidance.
+
 For `copilot`, Felix currently uses a curated static model list instead of querying the CLI dynamically. The default Copilot model is `gpt-5.4`.
 
 ### `felix agent install-help [name]` - Show Install Instructions
@@ -918,10 +925,14 @@ felix agent install-help copilot
 
 **When to use this:** When `felix agent setup` shows `Agent not installed` and you need concrete steps for that provider.
 
-### `felix agent use <name>` - Switch Agents
+### `felix agent use <id|name>` - Switch Agents
 
 ```bash
 felix agent use claude
+```
+
+```bash
+felix agent use claude --model sonnet
 ```
 
 **Interactive selection:**
@@ -931,6 +942,8 @@ felix agent use
 ```
 
 **What it does:** Updates `.felix/config.json` to use a different agent profile from `.felix/agents.json`.
+
+When you launch `felix agent use` without a target, the installed CLI shows a searchable picker of configured profiles and, when the provider has multiple known models, a second picker that lets you keep the current model or switch to another one.
 
 **Why you'd switch:**
 

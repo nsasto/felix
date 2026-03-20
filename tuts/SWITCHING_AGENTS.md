@@ -14,6 +14,22 @@ Felix supports 5 agents:
 
 ## One-Time Setup
 
+If Felix is not initialized in your repository yet, start with:
+
+```bash
+felix setup
+```
+
+The installed CLI uses a searchable setup flow that scaffolds the project, optionally creates `AGENTS.md`, configures agent profiles, and lets you pick the active profile.
+
+If you only want to add or update agent profiles later, run:
+
+```bash
+felix agent setup
+```
+
+That focused flow reuses the same searchable UI and keeps already-configured providers selected by default.
+
 ### Install Agent CLIs
 
 Install the agent CLIs you want to use:
@@ -177,6 +193,9 @@ Agent test passed!
 # Switch by name
 felix agent use claude
 
+# Switch by name and change model
+felix agent use claude --model opus
+
 # Switch by ID
 felix agent use ag_ee77df894
 
@@ -184,10 +203,12 @@ felix agent use ag_ee77df894
 felix agent use
 ```
 
+When you use the interactive form, Felix first lets you pick the configured profile, then offers a model picker for providers with multiple known models. Press Enter on the current model to keep it unchanged.
+
 Output:
 
 ```
-Switched to agent: claude (ID: ag_ee77df894)
+Switched to agent: claude (Key: ag_ee77df894)
 ```
 
 ### Step 4: Verify
@@ -200,7 +221,7 @@ Output:
 
 ```
 Current Agent:
-  ID: ag_ee77df894
+  Key: ag_ee77df894
   Name: claude
   Executable: claude
   Adapter: claude
@@ -237,6 +258,7 @@ felix agent test <id|name>
 
 # Switch agent
 felix agent use [id|name]
+felix agent use [id|name] --model <model>
 felix agent use
 ```
 

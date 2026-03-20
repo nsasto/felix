@@ -6,6 +6,8 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 using Spectre.Console;
 
 namespace Felix.Cli;
@@ -486,7 +488,7 @@ class Program
         var setupCmd = new Command("setup", "Configure agents for this project");
         setupCmd.SetHandler(async () =>
         {
-            await ExecutePowerShell(felixPs1, "agent", "setup");
+            await UseAgentSetupInteractive(felixPs1);
         });
 
         var installHelpTargetArg = new Argument<string?>("target", "Agent name to show install guidance for")
@@ -528,7 +530,7 @@ class Program
 
         cmd.SetHandler(async () =>
         {
-            await ExecutePowerShell(felixPs1, "setup");
+            await RunSetupInteractive(felixPs1);
         });
 
         return cmd;
@@ -1897,6 +1899,180 @@ rm -rf "$STAGE_ROOT"
             await ExecutePowerShell(felixPs1, "agent", "use", selected.Key, "--model", selectedModel);
     }
 
+    static Task UseAgentSetupInteractive(string felixPs1)
+    {
+        var felixDir = Path.Combine(_felixProjectRoot, ".felix");
+        if (!Directory.Exists(felixDir))
+        {
+            AnsiConsole.MarkupLine("[yellow]No .felix directory found in the current project. Run 'felix setup' first.[/]");
+            return Task.CompletedTask;
+        }
+
+        var templates = ReadAgentTemplates();
+        if (templates == null || templates.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[red]No agent templates were found. Reinstall Felix or verify the installation files.[/]");
+            return Task.CompletedTask;
+        }
+
+        var existingProfiles = ReadAgentProfiles();
+        var existingByName = existingProfiles.Agents
+            .Where(profile => !string.IsNullOrWhiteSpace(profile.Name))
+            .GroupBy(profile => profile.Name!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var choices = templates
+            .Select(template =>
+            {
+                existingByName.TryGetValue(template.Name, out var existingProfile);
+                var installed = TestExecutableInstalled(ResolveExecutableName(template));
+                var currentModel = existingProfile?.Model;
+                if (string.IsNullOrWhiteSpace(currentModel))
+                    currentModel = template.Model;
+                if (string.IsNullOrWhiteSpace(currentModel))
+                    currentModel = GetAgentDefaults(template.Adapter).Model;
+
+                return new AgentSetupChoice(template, installed, existingProfile != null, currentModel ?? "default");
+            })
+            .OrderByDescending(choice => choice.IsConfigured)
+            .ThenByDescending(choice => choice.Installed)
+            .ThenBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        AnsiConsole.Clear();
+        var rule = new Rule("[cyan]Configure Agent Profiles[/]").RuleStyle(Style.Parse("cyan dim"));
+        AnsiConsole.Write(rule);
+        AnsiConsole.WriteLine();
+
+        var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
+        table.AddColumn("Agent");
+        table.AddColumn("Status");
+        table.AddColumn("Current");
+
+        foreach (var choice in choices)
+        {
+            var currentLabel = choice.IsConfigured
+                ? $"[grey]{choice.ModelDisplay.EscapeMarkup()}[/]"
+                : "[grey]not configured[/]";
+            var statusLabel = choice.Installed ? "[green]installed[/]" : "[yellow]install needed[/]";
+            table.AddRow(choice.Name.EscapeMarkup(), statusLabel, currentLabel);
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+
+        var selectableChoices = choices.Where(choice => choice.Installed).ToList();
+        if (selectableChoices.Count == 0)
+        {
+            RenderAgentInstallGuidance(choices.Where(choice => !choice.Installed).Select(choice => choice.Template));
+            return Task.CompletedTask;
+        }
+
+        var prompt = new MultiSelectionPrompt<AgentSetupChoice>()
+            .Title("[cyan]Select the agent profiles to create or update:[/]")
+            .NotRequired()
+            .InstructionsText("[grey](Space to toggle, Enter to confirm)[/]")
+            .PageSize(10)
+            .UseConverter(choice =>
+            {
+                var configuredTag = choice.IsConfigured ? " [green](configured)[/]" : "";
+                return $"{choice.Name.EscapeMarkup()} [grey](model: {choice.ModelDisplay.EscapeMarkup()})[/]{configuredTag}";
+            });
+
+        prompt.AddChoices(selectableChoices);
+        foreach (var choice in selectableChoices.Where(choice => choice.IsConfigured))
+            prompt.Select(choice);
+
+        var selectedChoices = AnsiConsole.Prompt(prompt);
+        if (selectedChoices.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No agent profiles were selected. Nothing changed.[/]");
+            return Task.CompletedTask;
+        }
+
+        var selectedProfiles = new List<AgentProfileDocument>();
+        var summaryRows = new List<(string Name, string Model, string Key)>();
+        foreach (var choice in selectedChoices.OrderBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var selectedModel = PromptAgentSetupModel(choice);
+            var profile = BuildConfiguredAgentProfile(choice.Template, selectedModel);
+            selectedProfiles.Add(profile);
+            summaryRows.Add((choice.Name, profile.Model ?? "default", profile.Key ?? ""));
+        }
+
+        var updatedProfiles = UpsertAgentProfiles(existingProfiles.Agents, selectedProfiles);
+        WriteAgentProfiles(updatedProfiles);
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Agent Profiles Saved[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var summaryTable = new Table().Border(TableBorder.Rounded).BorderColor(Color.Green3);
+        summaryTable.AddColumn("Agent");
+        summaryTable.AddColumn("Model");
+        summaryTable.AddColumn("Key");
+        foreach (var row in summaryRows)
+            summaryTable.AddRow(row.Name.EscapeMarkup(), row.Model.EscapeMarkup(), row.Key.EscapeMarkup());
+
+        AnsiConsole.Write(summaryTable);
+        AnsiConsole.WriteLine();
+
+        var skipped = choices.Where(choice => !choice.Installed).Select(choice => choice.Template).ToList();
+        if (skipped.Count > 0)
+        {
+            AnsiConsole.MarkupLine("[grey]Some providers remain uninstalled. Use 'felix agent install-help <name>' for setup guidance if needed.[/]");
+        }
+
+        AnsiConsole.MarkupLine("[green]Saved profiles to .felix/agents.json[/]");
+        return Task.CompletedTask;
+    }
+
+    static async Task RunSetupInteractive(string felixPs1)
+    {
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Felix Setup[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var selectedProjectRoot = PromptSetupProjectRoot();
+        _felixProjectRoot = selectedProjectRoot;
+
+        var scaffoldResult = EnsureFelixProjectScaffold(selectedProjectRoot);
+        RenderScaffoldSummary(scaffoldResult);
+
+        var configPath = Path.Combine(selectedProjectRoot, ".felix", "config.json");
+        var config = LoadSetupConfig(configPath);
+        EnsureSetupConfigDefaults(config);
+
+        await EnsureAgentsGuideAsync(selectedProjectRoot);
+
+        if (AnsiConsole.Confirm("Configure or update agent profiles in [cyan].felix/agents.json[/]?", true))
+        {
+            await UseAgentSetupInteractive(felixPs1);
+        }
+
+        RenderDetectedDependencies(selectedProjectRoot);
+        SelectActiveAgent(config);
+        ConfigureBackpressureCommand(config);
+        await ConfigureSyncModeAsync(config);
+
+        SaveSetupConfig(configPath, config);
+
+        if (IsSyncEnabled(config) && AnsiConsole.Confirm("Pull specs from the backend now?", false))
+        {
+            await ExecutePowerShell(felixPs1, "spec", "pull");
+            if (Environment.ExitCode == 0)
+                await ExecutePowerShell(felixPs1, "spec", "fix");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[green]Setup Complete[/]").RuleStyle(Style.Parse("green dim")));
+        AnsiConsole.WriteLine();
+        if (IsSyncEnabled(config))
+            AnsiConsole.MarkupLine("[green]Sync enabled.[/] Runs and specs will use the configured backend.");
+        else
+            AnsiConsole.MarkupLine("[yellow]Sync disabled.[/] Runs will stay local until you re-run setup or use --sync.");
+    }
+
     static Task<string?> PromptAgentModel(string felixPs1, ConfiguredAgent agent)
     {
         var availableModels = ReadAgentModels(agent.Provider);
@@ -2026,6 +2202,949 @@ rm -rf "$STAGE_ROOT"
     {
         internal static readonly ConfiguredAgent Back = new("__back__", "< Back>", "", "", false);
     }
+
+    internal sealed record AgentTemplateEntry(string Name, string Provider, string Adapter, string? Model, string? Executable);
+
+    internal sealed record AgentSetupChoice(AgentTemplateEntry Template, bool Installed, bool IsConfigured, string ModelDisplay)
+    {
+        public string Name => Template.Name;
+    }
+
+    internal sealed class AgentProfilesDocument
+    {
+        [JsonPropertyName("agents")]
+        public List<AgentProfileDocument> Agents { get; set; } = new();
+    }
+
+    internal sealed record ScaffoldResult(bool IsNewProject, List<string> Created, List<string> Skipped, string FelixRoot);
+
+    internal sealed class AgentProfileDocument
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("provider")]
+        public string? Provider { get; set; }
+
+        [JsonPropertyName("adapter")]
+        public string? Adapter { get; set; }
+
+        [JsonPropertyName("model")]
+        public string? Model { get; set; }
+
+        [JsonPropertyName("key")]
+        public string? Key { get; set; }
+
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+    }
+
+    internal sealed record AgentDefaults(string Adapter, string Executable, string Model, string WorkingDirectory, IReadOnlyDictionary<string, object?> AdditionalKeySettings);
+
+    static string PromptAgentSetupModel(AgentSetupChoice choice)
+    {
+        var provider = string.IsNullOrWhiteSpace(choice.Template.Provider) ? choice.Template.Adapter : choice.Template.Provider;
+        var availableModels = ReadAgentModels(provider);
+        var selectedModel = choice.ModelDisplay;
+        if (availableModels == null || availableModels.Count <= 1)
+            return selectedModel;
+
+        var modelChoices = new List<string>();
+        if (!string.IsNullOrWhiteSpace(selectedModel) && !string.Equals(selectedModel, "default", StringComparison.OrdinalIgnoreCase))
+            modelChoices.Add(selectedModel);
+        modelChoices.AddRange(availableModels.Where(model => !modelChoices.Contains(model, StringComparer.OrdinalIgnoreCase)));
+
+        return AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"[cyan]Select model for {choice.Name.EscapeMarkup()}[/] [grey](Enter keeps {selectedModel.EscapeMarkup()})[/]")
+                .PageSize(12)
+                .EnableSearch()
+                .SearchPlaceholderText("[grey](type to filter models)[/]")
+                .AddChoices(modelChoices));
+    }
+
+    static void RenderAgentInstallGuidance(IEnumerable<AgentTemplateEntry> templates)
+    {
+        foreach (var template in templates.OrderBy(template => template.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var panelBody = string.Join(Environment.NewLine, GetAgentInstallGuidance(template.Name));
+            var panel = new Panel($"[grey]{panelBody.EscapeMarkup()}[/]")
+            {
+                Header = new PanelHeader($"[yellow]{template.Name.EscapeMarkup()}[/]"),
+                Border = BoxBorder.Rounded
+            };
+            AnsiConsole.Write(panel);
+            AnsiConsole.WriteLine();
+        }
+    }
+
+    static List<AgentTemplateEntry>? ReadAgentTemplates()
+    {
+        var candidatePaths = new[]
+        {
+            Path.Combine(_felixProjectRoot, ".felix", "agent-templates.json"),
+            Path.Combine(_felixInstallDir, "agent-templates.json"),
+            Path.Combine(_felixInstallDir, ".felix", "agent-templates.json")
+        };
+
+        var templatePath = candidatePaths.FirstOrDefault(File.Exists);
+        if (templatePath == null)
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(templatePath));
+            if (!doc.RootElement.TryGetProperty("agents", out var agentsElement) || agentsElement.ValueKind != JsonValueKind.Array)
+                return null;
+
+            return agentsElement.EnumerateArray()
+                .Select(agent => new AgentTemplateEntry(
+                    agent.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "" : "",
+                    agent.TryGetProperty("provider", out var providerProp) ? providerProp.GetString() ?? "" : "",
+                    agent.TryGetProperty("adapter", out var adapterProp) ? adapterProp.GetString() ?? "" : "",
+                    agent.TryGetProperty("model", out var modelProp) ? modelProp.GetString() : null,
+                    agent.TryGetProperty("executable", out var executableProp) ? executableProp.GetString() : null))
+                .Where(agent => !string.IsNullOrWhiteSpace(agent.Name))
+                .ToList();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static AgentProfilesDocument ReadAgentProfiles()
+    {
+        var agentsPath = Path.Combine(_felixProjectRoot, ".felix", "agents.json");
+        if (!File.Exists(agentsPath))
+            return new AgentProfilesDocument();
+
+        try
+        {
+            return JsonSerializer.Deserialize<AgentProfilesDocument>(File.ReadAllText(agentsPath)) ?? new AgentProfilesDocument();
+        }
+        catch
+        {
+            return new AgentProfilesDocument();
+        }
+    }
+
+    static void WriteAgentProfiles(IEnumerable<AgentProfileDocument> agents)
+    {
+        var agentsPath = Path.Combine(_felixProjectRoot, ".felix", "agents.json");
+        var payload = new AgentProfilesDocument { Agents = agents.ToList() };
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(agentsPath, json + Environment.NewLine);
+    }
+
+    internal static List<AgentProfileDocument> UpsertAgentProfiles(IEnumerable<AgentProfileDocument> existingAgents, IEnumerable<AgentProfileDocument> selectedAgents)
+    {
+        var merged = existingAgents.ToList();
+        foreach (var selected in selectedAgents)
+        {
+            if (string.IsNullOrWhiteSpace(selected.Name))
+                continue;
+
+            var existingIndex = merged.FindIndex(agent => string.Equals(agent.Name, selected.Name, StringComparison.OrdinalIgnoreCase));
+            if (existingIndex >= 0)
+                merged[existingIndex] = selected;
+            else
+                merged.Add(selected);
+        }
+
+        return merged;
+    }
+
+    static AgentProfileDocument BuildConfiguredAgentProfile(AgentTemplateEntry template, string selectedModel)
+    {
+        var provider = string.IsNullOrWhiteSpace(template.Provider) ? template.Adapter : template.Provider;
+        var defaults = GetAgentDefaults(template.Adapter);
+        var key = NewAgentKey(provider, selectedModel, BuildAgentKeySettings(defaults), _felixProjectRoot);
+
+        return new AgentProfileDocument
+        {
+            Name = template.Name,
+            Provider = provider,
+            Adapter = template.Adapter,
+            Model = selectedModel,
+            Key = key,
+            Id = key
+        };
+    }
+
+    static Dictionary<string, object?> BuildAgentKeySettings(AgentDefaults defaults)
+    {
+        var settings = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["executable"] = defaults.Executable,
+            ["working_directory"] = defaults.WorkingDirectory,
+            ["environment"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+        };
+
+        foreach (var pair in defaults.AdditionalKeySettings)
+            settings[pair.Key] = pair.Value;
+
+        return settings;
+    }
+
+    internal static AgentDefaults GetAgentDefaults(string adapterType)
+    {
+        return adapterType.ToLowerInvariant() switch
+        {
+            "droid" => new AgentDefaults("droid", "droid", "claude-opus-4-5-20251101", ".", new Dictionary<string, object?>()),
+            "claude" => new AgentDefaults("claude", "claude", "sonnet", ".", new Dictionary<string, object?>()),
+            "codex" => new AgentDefaults("codex", "codex", "gpt-5.2-codex", ".", new Dictionary<string, object?>()),
+            "gemini" => new AgentDefaults("gemini", "gemini", "auto", ".", new Dictionary<string, object?>()),
+            "copilot" => new AgentDefaults(
+                "copilot",
+                "copilot",
+                "gpt-5.4",
+                ".",
+                new Dictionary<string, object?>
+                {
+                    ["allow_all"] = true,
+                    ["custom_agent"] = "",
+                    ["max_autopilot_continues"] = 10,
+                    ["no_ask_user"] = true
+                }),
+            _ => new AgentDefaults(adapterType, adapterType, "", ".", new Dictionary<string, object?>())
+        };
+    }
+
+    static string ResolveExecutableName(AgentTemplateEntry template)
+    {
+        if (!string.IsNullOrWhiteSpace(template.Executable))
+            return template.Executable;
+
+        return GetAgentDefaults(template.Adapter).Executable;
+    }
+
+    internal static bool TestExecutableInstalled(string executableName)
+    {
+        if (string.IsNullOrWhiteSpace(executableName))
+            return false;
+
+        if (FindExecutableOnPath(executableName) != null)
+            return true;
+
+        if (string.Equals(executableName, "copilot", StringComparison.OrdinalIgnoreCase))
+            return GetCopilotExecutableCandidates().Any(File.Exists);
+
+        return false;
+    }
+
+    static string? FindExecutableOnPath(string executableName)
+    {
+        var pathValue = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathValue))
+            return null;
+
+        var candidateNames = GetExecutableCandidates(executableName);
+        foreach (var path in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            foreach (var candidate in candidateNames)
+            {
+                var fullPath = Path.Combine(path, candidate);
+                if (File.Exists(fullPath))
+                    return fullPath;
+            }
+        }
+
+        return null;
+    }
+
+    static IEnumerable<string> GetExecutableCandidates(string executableName)
+    {
+        if (!OperatingSystem.IsWindows())
+            return new[] { executableName };
+
+        if (!string.IsNullOrWhiteSpace(Path.GetExtension(executableName)))
+            return new[] { executableName };
+
+        return new[] { executableName + ".exe", executableName + ".cmd", executableName + ".bat", executableName + ".ps1", executableName };
+    }
+
+    internal static IReadOnlyList<string> GetCopilotExecutableCandidates(string? appDataOverride = null, string? rootsOverride = null)
+    {
+        var candidates = new List<string>();
+        var candidateDirs = new List<string>();
+
+        var roots = rootsOverride ?? Environment.GetEnvironmentVariable("FELIX_COPILOT_CLI_ROOTS");
+        if (!string.IsNullOrWhiteSpace(roots))
+        {
+            candidateDirs.AddRange(roots.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
+        var appData = appDataOverride ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (!string.IsNullOrWhiteSpace(appData))
+        {
+            var globalStorage = Path.Combine(appData, "Code", "User", "globalStorage");
+            if (Directory.Exists(globalStorage))
+            {
+                candidateDirs.AddRange(Directory.EnumerateDirectories(globalStorage, "github.copilot*")
+                    .Select(path => Path.Combine(path, "copilotCli")));
+            }
+
+            candidateDirs.Add(Path.Combine(appData, ".vscode-copilot"));
+            candidateDirs.Add(Path.Combine(appData, ".vscode-copilot", "bin"));
+        }
+
+        foreach (var dir in candidateDirs.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            candidates.Add(Path.Combine(dir, "copilot.bat"));
+            candidates.Add(Path.Combine(dir, "copilot.cmd"));
+            candidates.Add(Path.Combine(dir, "copilot.exe"));
+            candidates.Add(Path.Combine(dir, "copilot.ps1"));
+        }
+
+        return candidates.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    static IEnumerable<string> GetAgentInstallGuidance(string agentName)
+    {
+        return agentName.ToLowerInvariant() switch
+        {
+            "droid" => new[]
+            {
+                "Install with: npm install -g @factory-ai/droid-cli",
+                "Then verify with: droid --version"
+            },
+            "claude" => new[]
+            {
+                "Install with: npm install -g @anthropic-ai/claude-code",
+                "Then run: claude auth login"
+            },
+            "codex" => new[]
+            {
+                "Install with: npm install -g @openai/codex-cli",
+                "Then run: codex auth"
+            },
+            "gemini" => new[]
+            {
+                "Install with: pip install google-gemini-cli",
+                "Then run: gemini auth login"
+            },
+            "copilot" => new[]
+            {
+                "Install the GitHub Copilot Chat extension in VS Code and allow it to install the Copilot CLI when prompted.",
+                "Or run 'copilot' once in a terminal to trigger the CLI install flow.",
+                "Then run: copilot login"
+            },
+            _ => new[] { "Install via your package manager and ensure the executable is on PATH." }
+        };
+    }
+
+    internal static string NewAgentKey(string provider, string model, IReadOnlyDictionary<string, object?>? agentSettings, string? projectRoot, string? machineNameOverride = null, string? gitRemoteOverride = null)
+    {
+        var machineId = (machineNameOverride ?? Environment.MachineName ?? "unknown").ToLowerInvariant();
+        var projectId = ResolveProjectIdentity(projectRoot, gitRemoteOverride);
+        var settingsString = string.Empty;
+        if (agentSettings != null && agentSettings.Count > 0)
+        {
+            var normalizedSettings = NormalizeForHash(agentSettings);
+            settingsString = JsonSerializer.Serialize(normalizedSettings).Replace(" ", string.Empty, StringComparison.Ordinal);
+        }
+
+        var hashInput = string.Join("::", new[]
+        {
+            provider.ToLowerInvariant(),
+            model.ToLowerInvariant(),
+            settingsString,
+            machineId,
+            projectId
+        });
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(hashInput));
+        return $"ag_{Convert.ToHexString(hash).ToLowerInvariant()[..9]}";
+    }
+
+    static string ResolveProjectIdentity(string? projectRoot, string? gitRemoteOverride)
+    {
+        var basePath = string.IsNullOrWhiteSpace(projectRoot) ? Directory.GetCurrentDirectory() : projectRoot;
+        var gitRemote = string.IsNullOrWhiteSpace(gitRemoteOverride) ? TryReadGitRemoteOrigin(basePath) : gitRemoteOverride;
+        if (!string.IsNullOrWhiteSpace(gitRemote))
+            return NormalizeGitRemote(gitRemote);
+
+        return NormalizeProjectPath(basePath);
+    }
+
+    static string? TryReadGitRemoteOrigin(string projectRoot)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = $"-C \"{projectRoot}\" config --get remote.origin.url",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(startInfo);
+            if (process == null)
+                return null;
+
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit();
+            return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static string NormalizeGitRemote(string gitRemote)
+    {
+        var normalized = gitRemote.Trim().ToLowerInvariant();
+        if (normalized.EndsWith(".git", StringComparison.Ordinal))
+            normalized = normalized[..^4];
+
+        if (normalized.StartsWith("git@", StringComparison.Ordinal))
+        {
+            var separatorIndex = normalized.IndexOf(':');
+            if (separatorIndex > 4)
+            {
+                var host = normalized[4..separatorIndex];
+                var path = normalized[(separatorIndex + 1)..];
+                normalized = $"https://{host}/{path}";
+            }
+        }
+
+        return normalized;
+    }
+
+    static string NormalizeProjectPath(string path)
+    {
+        return path.Trim().TrimEnd('\\', '/').ToLowerInvariant();
+    }
+
+    static object? NormalizeForHash(object? value)
+    {
+        if (value == null)
+            return null;
+
+        if (value is JsonElement jsonElement)
+            return NormalizeJsonElement(jsonElement);
+
+        if (value is IReadOnlyDictionary<string, object?> readOnlyDictionary)
+        {
+            var sorted = new SortedDictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var pair in readOnlyDictionary)
+                sorted[pair.Key] = NormalizeForHash(pair.Value);
+            return sorted;
+        }
+
+        if (value is IDictionary<string, object?> dictionary)
+        {
+            var sorted = new SortedDictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var pair in dictionary)
+                sorted[pair.Key] = NormalizeForHash(pair.Value);
+            return sorted;
+        }
+
+        if (value is System.Collections.IDictionary nonGenericDictionary)
+        {
+            var sorted = new SortedDictionary<string, object?>(StringComparer.Ordinal);
+            foreach (System.Collections.DictionaryEntry entry in nonGenericDictionary)
+                sorted[Convert.ToString(entry.Key) ?? string.Empty] = NormalizeForHash(entry.Value);
+            return sorted;
+        }
+
+        if (value is System.Collections.IEnumerable enumerable && value is not string)
+        {
+            var items = new List<object?>();
+            foreach (var item in enumerable)
+                items.Add(NormalizeForHash(item));
+            return items;
+        }
+
+        return value;
+    }
+
+    static object? NormalizeJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => element.EnumerateObject()
+                .OrderBy(property => property.Name, StringComparer.Ordinal)
+                .ToDictionary(property => property.Name, property => NormalizeJsonElement(property.Value), StringComparer.Ordinal),
+            JsonValueKind.Array => element.EnumerateArray().Select(NormalizeJsonElement).ToList(),
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => null
+        };
+    }
+
+    static string PromptSetupProjectRoot()
+    {
+        var defaultRoot = _felixProjectRoot;
+        var input = AnsiConsole.Prompt(
+            new TextPrompt<string>($"[cyan]Project directory[/] [grey](Enter keeps {defaultRoot.EscapeMarkup()})[/]")
+                .AllowEmpty());
+
+        if (string.IsNullOrWhiteSpace(input))
+            return defaultRoot;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(input.Trim());
+            if (Directory.Exists(fullPath))
+                return fullPath;
+        }
+        catch
+        {
+        }
+
+        AnsiConsole.MarkupLine($"[yellow]Path not found.[/] Using [grey]{defaultRoot.EscapeMarkup()}[/].");
+        return defaultRoot;
+    }
+
+    internal static ScaffoldResult EnsureFelixProjectScaffold(string projectRoot, string? installRootOverride = null)
+    {
+        var installRoot = installRootOverride ?? _felixInstallDir;
+        var felixDir = Path.Combine(projectRoot, ".felix");
+        var created = new List<string>();
+        var skipped = new List<string>();
+        var isNewProject = !Directory.Exists(felixDir);
+
+        if (isNewProject)
+            Directory.CreateDirectory(felixDir);
+
+        WriteIfMissing(Path.Combine(felixDir, "requirements.json"), "{ \"requirements\": [] }" + Environment.NewLine, "requirements.json", created, skipped);
+        WriteIfMissing(Path.Combine(felixDir, "state.json"), "{}" + Environment.NewLine, "state.json", created, skipped);
+
+        var configPath = Path.Combine(felixDir, "config.json");
+        if (!File.Exists(configPath))
+        {
+            var configTemplatePath = Path.Combine(installRoot, "config.json.example");
+            if (File.Exists(configTemplatePath))
+            {
+                File.Copy(configTemplatePath, configPath);
+                created.Add("config.json (from engine template)");
+            }
+            else
+            {
+                File.WriteAllText(configPath, BuildDefaultSetupConfigJson());
+                created.Add("config.json");
+            }
+        }
+        else
+        {
+            skipped.Add("config.json");
+        }
+
+        CopyIfMissing(Path.Combine(installRoot, "config.json.example"), Path.Combine(felixDir, "config.json.example"), "config.json.example (template)", created, skipped);
+        CopyIfMissing(Path.Combine(installRoot, "policies", "allowlist.json"), Path.Combine(felixDir, "policies", "allowlist.json"), "policies/allowlist.json", created, skipped);
+        CopyIfMissing(Path.Combine(installRoot, "policies", "denylist.json"), Path.Combine(felixDir, "policies", "denylist.json"), "policies/denylist.json", created, skipped);
+
+        EnsureDirectory(Path.Combine(projectRoot, "specs"), "specs/", created, skipped);
+        EnsureDirectory(Path.Combine(projectRoot, "runs"), "runs/", created, skipped);
+        EnsureGitIgnore(projectRoot, created, skipped);
+
+        return new ScaffoldResult(isNewProject, created, skipped, installRoot);
+    }
+
+    static void RenderScaffoldSummary(ScaffoldResult scaffold)
+    {
+        var title = scaffold.IsNewProject ? "Initialized new Felix project" : "Project files";
+        var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
+        table.Title = new TableTitle($"[cyan]{title.EscapeMarkup()}[/]");
+        table.AddColumn("Status");
+        table.AddColumn("Path");
+
+        foreach (var item in scaffold.Created)
+            table.AddRow("[green]+ created[/]", item.EscapeMarkup());
+        foreach (var item in scaffold.Skipped)
+            table.AddRow("[grey]- kept[/]", item.EscapeMarkup());
+
+        AnsiConsole.Write(table);
+        AnsiConsole.MarkupLine($"[grey]Engine:[/] {scaffold.FelixRoot.EscapeMarkup()}");
+        AnsiConsole.WriteLine();
+    }
+
+    static JsonObject LoadSetupConfig(string configPath)
+    {
+        if (!File.Exists(configPath))
+            return JsonNode.Parse(BuildDefaultSetupConfigJson())?.AsObject() ?? new JsonObject();
+
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(configPath))?.AsObject() ?? new JsonObject();
+        }
+        catch
+        {
+            AnsiConsole.MarkupLine("[yellow]Existing config.json could not be parsed. Rebuilding with defaults.[/]");
+            return JsonNode.Parse(BuildDefaultSetupConfigJson())?.AsObject() ?? new JsonObject();
+        }
+    }
+
+    static string BuildDefaultSetupConfigJson()
+    {
+        var config = new JsonObject
+        {
+            ["agent"] = new JsonObject { ["agent_id"] = null },
+            ["sync"] = new JsonObject
+            {
+                ["enabled"] = false,
+                ["provider"] = "http",
+                ["base_url"] = "https://api.runfelix.io",
+                ["api_key"] = null
+            }
+        };
+        return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
+    }
+
+    internal static void EnsureSetupConfigDefaults(JsonObject config)
+    {
+        var agent = EnsureObject(config, "agent");
+        if (!agent.ContainsKey("agent_id"))
+            agent["agent_id"] = null;
+
+        var sync = EnsureObject(config, "sync");
+        if (!sync.ContainsKey("enabled")) sync["enabled"] = false;
+        if (!sync.ContainsKey("provider")) sync["provider"] = "http";
+        if (!sync.ContainsKey("base_url") || string.IsNullOrWhiteSpace(sync["base_url"]?.GetValue<string>())) sync["base_url"] = "https://api.runfelix.io";
+        if (!sync.ContainsKey("api_key")) sync["api_key"] = null;
+
+        var backpressure = EnsureObject(config, "backpressure");
+        if (!backpressure.ContainsKey("enabled")) backpressure["enabled"] = false;
+        if (!backpressure.ContainsKey("commands")) backpressure["commands"] = new JsonArray();
+        if (!backpressure.ContainsKey("max_retries")) backpressure["max_retries"] = 3;
+
+        var executor = EnsureObject(config, "executor");
+        if (!executor.ContainsKey("max_iterations")) executor["max_iterations"] = 20;
+        if (!executor.ContainsKey("default_mode")) executor["default_mode"] = "planning";
+        if (!executor.ContainsKey("commit_on_complete")) executor["commit_on_complete"] = true;
+    }
+
+    static async Task EnsureAgentsGuideAsync(string projectRoot)
+    {
+        var agentsPath = Path.Combine(projectRoot, "AGENTS.md");
+        if (File.Exists(agentsPath))
+        {
+            AnsiConsole.MarkupLine("[green]AGENTS.md found.[/] Project guidance is already present.");
+            AnsiConsole.WriteLine();
+            return;
+        }
+
+        var panel = new Panel("Felix works better when AGENTS.md explains how to install dependencies, run tests, build, and start the project.")
+        {
+            Header = new PanelHeader("[yellow]AGENTS.md missing[/]"),
+            Border = BoxBorder.Rounded
+        };
+        AnsiConsole.Write(panel);
+
+        if (AnsiConsole.Confirm("Create a starter AGENTS.md now?", true))
+        {
+            var content = "# Agents - How to Operate This Repository\n\n## Install Dependencies\n\n<!-- Describe how to install project dependencies -->\n\n## Run Tests\n\n<!-- Describe how to run the test suite -->\n\n## Build the Project\n\n<!-- Describe how to build the project -->\n\n## Start the Application\n\n<!-- Describe how to start the application -->\n";
+            File.WriteAllText(agentsPath, content);
+            AnsiConsole.MarkupLine("[green]Created AGENTS.md[/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[yellow]Skipped AGENTS.md creation.[/] Agents will have less project context until you add it.");
+        }
+
+        AnsiConsole.WriteLine();
+        await Task.CompletedTask;
+    }
+
+    static void RenderDetectedDependencies(string projectRoot)
+    {
+        var checks = new[]
+        {
+            (File: "requirements.txt", Label: "Python (requirements.txt)"),
+            (File: "pyproject.toml", Label: "Python (pyproject.toml)"),
+            (File: "package.json", Label: "Node.js (package.json)"),
+            (File: "go.mod", Label: "Go (go.mod)"),
+            (File: "Cargo.toml", Label: "Rust (Cargo.toml)"),
+            (File: "Gemfile", Label: "Ruby (Gemfile)"),
+            (File: "pom.xml", Label: "Java/Maven (pom.xml)"),
+            (File: "build.gradle", Label: "Java/Gradle (build.gradle)")
+        };
+
+        var found = checks.Where(check => File.Exists(Path.Combine(projectRoot, check.File))).Select(check => check.Label).ToList();
+        if (found.Count == 0)
+            AnsiConsole.MarkupLine("[yellow]No recognized dependency file found in the project root.[/]");
+        else
+            AnsiConsole.MarkupLine($"[grey]Detected:[/] {string.Join(", ", found.Select(item => item.EscapeMarkup()))}");
+
+        AnsiConsole.WriteLine();
+    }
+
+    static void SelectActiveAgent(JsonObject config)
+    {
+        var agents = ReadConfiguredAgents();
+        var agentNode = EnsureObject(config, "agent");
+        var currentAgentId = agentNode["agent_id"]?.GetValue<string>();
+
+        if (agents == null || agents.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No configured agent profiles found.[/] Run 'felix agent setup' later if needed.");
+            AnsiConsole.WriteLine();
+            return;
+        }
+
+        if (agents.Count == 1)
+        {
+            agentNode["agent_id"] = agents[0].Key;
+            AnsiConsole.MarkupLine($"[green]Active agent:[/] {agents[0].Name.EscapeMarkup()} [grey]({agents[0].Key.EscapeMarkup()})[/]");
+            AnsiConsole.WriteLine();
+            return;
+        }
+
+        var choices = new List<ConfiguredAgent>();
+        if (!string.IsNullOrWhiteSpace(currentAgentId))
+        {
+            choices.Add(new ConfiguredAgent("__keep__", "Keep current", "", "", false));
+        }
+        choices.AddRange(agents);
+
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<ConfiguredAgent>()
+                .Title("[cyan]Select the active agent Felix should use:[/]")
+                .PageSize(10)
+                .EnableSearch()
+                .SearchPlaceholderText("[grey](type to filter agents or models)[/]")
+                .UseConverter(agent => agent.Key == "__keep__"
+                    ? $"[grey]{agent.Name.EscapeMarkup()}[/]"
+                    : agent.IsCurrent
+                        ? $"[green]*[/] {agent.Name.EscapeMarkup()} [grey](model: {agent.ModelDisplay.EscapeMarkup()}, key: {agent.Key.EscapeMarkup()})[/]"
+                        : $"{agent.Name.EscapeMarkup()} [grey](model: {agent.ModelDisplay.EscapeMarkup()}, key: {agent.Key.EscapeMarkup()})[/]")
+                .AddChoices(choices));
+
+        if (selected.Key != "__keep__")
+            agentNode["agent_id"] = selected.Key;
+
+        AnsiConsole.WriteLine();
+    }
+
+    static void ConfigureBackpressureCommand(JsonObject config)
+    {
+        var backpressure = EnsureObject(config, "backpressure");
+        var commands = backpressure["commands"] as JsonArray ?? new JsonArray();
+        backpressure["commands"] = commands;
+        var currentCommand = commands.Count > 0 ? commands[0]?.GetValue<string>() : null;
+
+        var prompt = new TextPrompt<string>($"[cyan]Test command[/] [grey](Enter keeps {(currentCommand ?? "current empty").EscapeMarkup()})[/]")
+            .AllowEmpty();
+        var value = AnsiConsole.Prompt(prompt);
+
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            backpressure["enabled"] = true;
+            backpressure["commands"] = new JsonArray(value.Trim());
+        }
+
+        AnsiConsole.WriteLine();
+    }
+
+    static async Task ConfigureSyncModeAsync(JsonObject config)
+    {
+        var sync = EnsureObject(config, "sync");
+        var currentMode = IsSyncEnabled(config) ? "remote" : "local";
+        var mode = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"[cyan]Execution mode[/] [grey](current: {currentMode.EscapeMarkup()})[/]")
+                .AddChoices("local", "remote"));
+
+        if (mode == "local")
+        {
+            sync["enabled"] = false;
+            AnsiConsole.MarkupLine("[grey]Local mode selected.[/] Runs will only be saved locally.");
+            AnsiConsole.WriteLine();
+            return;
+        }
+
+        var currentUrl = sync["base_url"]?.GetValue<string>() ?? "https://api.runfelix.io";
+        var newUrl = AnsiConsole.Prompt(
+            new TextPrompt<string>($"[cyan]Backend URL[/] [grey](Enter keeps {currentUrl.EscapeMarkup()})[/]")
+                .AllowEmpty());
+        if (!string.IsNullOrWhiteSpace(newUrl))
+            sync["base_url"] = newUrl.Trim().TrimEnd('/');
+
+        currentUrl = sync["base_url"]?.GetValue<string>() ?? currentUrl;
+        var currentKey = sync["api_key"]?.GetValue<string>();
+        var keyPrompt = currentKey is { Length: > 0 }
+            ? $"[cyan]API key[/] [grey](Enter keeps {currentKey[..Math.Min(12, currentKey.Length)].EscapeMarkup()}...)[/]"
+            : "[cyan]API key[/] [grey](starts with fsk_)[/]";
+        var newKey = AnsiConsole.Prompt(new TextPrompt<string>(keyPrompt).AllowEmpty());
+        if (string.IsNullOrWhiteSpace(newKey))
+            newKey = currentKey;
+        else
+            newKey = newKey.Trim();
+
+        if (string.IsNullOrWhiteSpace(newKey))
+        {
+            sync["enabled"] = false;
+            sync["api_key"] = null;
+            AnsiConsole.MarkupLine("[yellow]No API key provided.[/] Sync stays disabled.");
+            AnsiConsole.WriteLine();
+            return;
+        }
+
+        if (!newKey.StartsWith("fsk_", StringComparison.Ordinal))
+        {
+            sync["enabled"] = false;
+            sync["api_key"] = null;
+            AnsiConsole.MarkupLine("[yellow]Invalid API key format.[/] Expected a key starting with fsk_.");
+            AnsiConsole.WriteLine();
+            return;
+        }
+
+        var validation = await ValidateApiKeyAsync(currentUrl, newKey);
+        if (!validation.IsValid)
+        {
+            sync["enabled"] = false;
+            sync["api_key"] = null;
+            AnsiConsole.MarkupLine($"[yellow]API key validation failed:[/] {validation.ErrorMessage?.EscapeMarkup()}");
+            AnsiConsole.WriteLine();
+            return;
+        }
+
+        sync["api_key"] = newKey;
+        sync["enabled"] = true;
+        sync["provider"] = "http";
+        AnsiConsole.MarkupLine("[green]Valid API key.[/]");
+        if (!string.IsNullOrWhiteSpace(validation.ProjectName))
+            AnsiConsole.MarkupLine($"[grey]Project:[/] {validation.ProjectName!.EscapeMarkup()} [grey][{validation.ProjectId?.EscapeMarkup()}][/]");
+        if (!string.IsNullOrWhiteSpace(validation.OrganizationId))
+            AnsiConsole.MarkupLine($"[grey]Organization:[/] {validation.OrganizationId!.EscapeMarkup()}");
+        if (!string.IsNullOrWhiteSpace(validation.ExpiresAt))
+            AnsiConsole.MarkupLine($"[grey]Expires:[/] {validation.ExpiresAt!.EscapeMarkup()}");
+        AnsiConsole.WriteLine();
+    }
+
+    static async Task<ApiKeyValidationResult> ValidateApiKeyAsync(string baseUrl, string apiKey)
+    {
+        try
+        {
+            using var client = new HttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Get, baseUrl.TrimEnd('/') + "/api/keys/validate");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new ApiKeyValidationResult(false, $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}", null, null, null, null);
+            }
+
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var root = document.RootElement;
+            return new ApiKeyValidationResult(
+                true,
+                null,
+                root.TryGetProperty("project_name", out var projectName) ? projectName.GetString() : null,
+                root.TryGetProperty("project_id", out var projectId) ? projectId.GetRawText().Trim('"') : null,
+                root.TryGetProperty("org_id", out var orgId) ? orgId.GetString() : null,
+                root.TryGetProperty("expires_at", out var expiresAt) ? expiresAt.GetString() : null);
+        }
+        catch (Exception ex)
+        {
+            return new ApiKeyValidationResult(false, ex.Message, null, null, null, null);
+        }
+    }
+
+    static void SaveSetupConfig(string configPath, JsonObject config)
+    {
+        File.WriteAllText(configPath, config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+        AnsiConsole.MarkupLine("[green]Configuration saved to .felix/config.json[/]");
+        AnsiConsole.WriteLine();
+    }
+
+    static bool IsSyncEnabled(JsonObject config)
+    {
+        var sync = EnsureObject(config, "sync");
+        return sync["enabled"]?.GetValue<bool>() ?? false;
+    }
+
+    static JsonObject EnsureObject(JsonObject root, string propertyName)
+    {
+        if (root[propertyName] is JsonObject existing)
+            return existing;
+
+        var created = new JsonObject();
+        root[propertyName] = created;
+        return created;
+    }
+
+    static void WriteIfMissing(string path, string content, string label, List<string> created, List<string> skipped)
+    {
+        if (File.Exists(path))
+        {
+            skipped.Add(label);
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+        created.Add(label);
+    }
+
+    static void CopyIfMissing(string sourcePath, string destinationPath, string label, List<string> created, List<string> skipped)
+    {
+        if (!File.Exists(sourcePath) || File.Exists(destinationPath))
+        {
+            skipped.Add(label);
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        File.Copy(sourcePath, destinationPath);
+        created.Add(label);
+    }
+
+    static void EnsureDirectory(string path, string label, List<string> created, List<string> skipped)
+    {
+        if (Directory.Exists(path))
+        {
+            skipped.Add(label);
+            return;
+        }
+
+        Directory.CreateDirectory(path);
+        created.Add(label);
+    }
+
+    static void EnsureGitIgnore(string projectRoot, List<string> created, List<string> skipped)
+    {
+        var gitignorePath = Path.Combine(projectRoot, ".gitignore");
+        var felixIgnoreLines = new[]
+        {
+            string.Empty,
+            "# Felix local files (machine-specific, may contain API keys)",
+            ".felix/config.json",
+            ".felix/state.json",
+            ".felix/outbox/",
+            ".felix/sync.log",
+            ".felix/spec-manifest.json",
+            "# Felix .meta.json sidecars (server-generated cache, gitignored)",
+            "specs/*.meta.json"
+        };
+        var block = string.Join(Environment.NewLine, felixIgnoreLines) + Environment.NewLine;
+
+        if (File.Exists(gitignorePath))
+        {
+            var existing = File.ReadAllText(gitignorePath);
+            if (existing.Contains(".felix/config.json", StringComparison.Ordinal))
+            {
+                skipped.Add(".gitignore");
+                return;
+            }
+
+            File.AppendAllText(gitignorePath, block);
+            created.Add(".gitignore (updated)");
+            return;
+        }
+
+        File.WriteAllText(gitignorePath, string.Join(Environment.NewLine, felixIgnoreLines.Skip(1)) + Environment.NewLine);
+        created.Add(".gitignore (created)");
+    }
+
+    internal sealed record ApiKeyValidationResult(bool IsValid, string? ErrorMessage, string? ProjectName, string? ProjectId, string? OrganizationId, string? ExpiresAt);
 
     static List<string>? ReadAgentModels(string provider)
     {

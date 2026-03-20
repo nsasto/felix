@@ -66,13 +66,21 @@ felix setup
 The setup wizard walks you through:
 
 - **Scaffolding** - creates `.felix/`, `specs/`, and `runs/` directories
-- **Agent profile setup** - configure one or more agent profiles in `.felix/agents.json`
-- **Active agent selection** - choose which configured profile is active in `.felix/config.json`
+- **Agent profile setup** - a searchable multi-select for installed providers, with per-provider model selection, writing `.felix/agents.json`
+- **Active agent selection** - a searchable picker for the active profile stored in `.felix/config.json`
 - **Supported local agents** - Droid, Claude, Codex, Gemini, and Copilot CLI
 - **Test command** - configure your backpressure command (`pytest`, `npm test`, etc.)
-- **Mode** - local (standalone) or remote (team sync via [runfelix.io](https://runfelix.io))
+- **Mode** - local (standalone) or remote (team sync via [runfelix.io](https://runfelix.io)) with backend URL and API key validation
 
 If exactly one agent profile is configured, setup auto-selects it and skips the chooser. Setup is idempotent - safe to re-run without overwriting existing config.
+
+You can also re-run just the agent-profile flow at any time:
+
+```powershell
+felix agent setup
+```
+
+That focused flow uses the same searchable UI and keeps existing configured profiles preselected.
 
 ### 3. Run
 

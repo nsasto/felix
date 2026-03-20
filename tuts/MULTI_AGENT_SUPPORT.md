@@ -248,7 +248,7 @@ felix agent current
 
 ```
 Current Agent:
-  ID: ag_39535ce5e
+  Key: ag_39535ce5e
   Name: droid
   Executable: droid
   Adapter: droid
@@ -264,9 +264,14 @@ felix agent use ag_ee77df894
 # Switch by name
 felix agent use claude
 
+# Switch by name and pick a specific model
+felix agent use claude --model opus
+
 # Interactive selection
 felix agent use
 ```
+
+In the installed CLI, interactive `felix agent use` is model-aware: it shows a searchable agent picker, then a model picker for providers with multiple known models. Selecting the current model keeps the existing profile key unchanged.
 
 **Process:**
 
@@ -279,8 +284,24 @@ felix agent use
 **Output:**
 
 ```
-Switched to agent: claude (ID: ag_ee77df894)
+Switched to agent: claude (Key: ag_ee77df894)
 ```
+
+### Configuring Agent Profiles
+
+```bash
+felix agent setup
+```
+
+The installed CLI presents `felix agent setup` as a searchable multi-select of installed providers, shows which profiles are already configured, and prompts for a model per selected provider before writing `.felix/agents.json`.
+
+If a provider is shown as not installed, use:
+
+```bash
+felix agent install-help <name>
+```
+
+to get provider-specific installation and login guidance.
 
 **If executable not found:**
 
