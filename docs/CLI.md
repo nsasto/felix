@@ -905,6 +905,8 @@ felix agent setup
 Interactive configuration for agents and default models. This writes or updates
 `.felix/agents.json` with selected agents and models.
 
+For `copilot`, Felix currently uses a curated static model list instead of querying the CLI dynamically. The default Copilot model is `gpt-5.4`.
+
 ### `felix agent install-help [name]` - Show Install Instructions
 
 ```bash

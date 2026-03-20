@@ -85,7 +85,7 @@ try {
                 provider                = "copilot"
                 adapter                 = "copilot"
                 executable              = $shimScript
-                model                   = "gpt-5.3-codex"
+                model                   = "gpt-5.4"
                 working_directory       = $agentWorkDirRel
                 allow_all               = $true
                 no_ask_user             = $true
@@ -151,7 +151,7 @@ try {
     Assert-True ($output -match "__AGENT_ARGS__=.*--yolo") "Expected --yolo argument not present in output.log"
     Assert-True ($output -match "__AGENT_ARGS__=.*--no-ask-user") "Expected --no-ask-user argument not present in output.log"
     Assert-True ($output -match "__AGENT_ARGS__=.*--max-autopilot-continues 2") "Expected max-autopilot-continues argument not present in output.log"
-    Assert-True ($output -match "__AGENT_ARGS__=.*--model gpt-5\.3-codex") "Expected model argument not present in output.log"
+    Assert-True ($output -match "__AGENT_ARGS__=.*--model gpt-5\.4") "Expected model argument not present in output.log"
     Assert-True ($output -match "__AGENT_ARGS__=.*-p") "Expected -p argument not present in output.log"
 
     Write-Host "PASS: Felix invoked copilot adapter with argument-mode prompt transport"

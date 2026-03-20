@@ -78,6 +78,35 @@ copilot login
 # Complete GitHub Copilot CLI login / trust flow
 ```
 
+#### Copilot Models
+
+When you run `felix agent setup` and select `copilot`, Felix offers a curated model list based on currently exposed Copilot options. Felix does not currently query Copilot CLI for models dynamically.
+
+Default:
+
+```text
+gpt-5.4
+```
+
+Current curated options:
+
+```text
+gpt-5.4
+gpt-5.3-codex
+auto
+claude-opus-4.6
+claude-sonnet-4.6
+claude-haiku-4.5
+claude-opus-4.5
+claude-opus-4.6-fast
+claude-sonnet-4
+claude-sonnet-4.5
+gemini-2.5-pro
+gemini-3-flash
+gemini-3-pro
+gemini-3.1-pro
+```
+
 ## Switching Agents
 
 ### Step 1: List Available Agents
