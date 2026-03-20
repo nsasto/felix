@@ -12,6 +12,51 @@ function Get-NextAvailableSpecId {
     return $nextId
 }
 
+function Get-SpecTitle {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SpecPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RequirementId,
+
+        [Parameter(Mandatory = $false)]
+        [AllowNull()]
+        [string]$ExistingTitle = $null
+    )
+
+    $fallbackTitle = if ([string]::IsNullOrWhiteSpace($ExistingTitle)) { $null } else { $ExistingTitle.Trim() }
+
+    if (-not (Test-Path $SpecPath)) {
+        return $fallbackTitle
+    }
+
+    try {
+        foreach ($line in (Get-Content -Path $SpecPath -Encoding UTF8)) {
+            if ($line -match '^\s*#\s+(.+?)\s*$') {
+                $heading = $Matches[1].Trim()
+                if ([string]::IsNullOrWhiteSpace($heading)) {
+                    break
+                }
+
+                $normalizedTitle = $heading
+                if ($normalizedTitle -match ('^(?:' + [regex]::Escape($RequirementId) + ')\s*[:\-\u2013\u2014]\s*(.+)$')) {
+                    $normalizedTitle = $Matches[1].Trim()
+                }
+
+                if (-not [string]::IsNullOrWhiteSpace($normalizedTitle)) {
+                    return $normalizedTitle
+                }
+
+                break
+            }
+        }
+    }
+    catch { }
+
+    return $fallbackTitle
+}
+
 # ── Invoke-SpecFix ────────────────────────────────────────────────────────────
 
 function Invoke-SpecFix {
@@ -221,6 +266,7 @@ function Invoke-SpecFix {
                 # Existing requirement - check .meta.json for a status override
                 $metaPath = Join-Path $specsDir "$($specFile.BaseName).meta.json"
                 $resolvedStatus = $origReq.status
+                $resolvedTitle = Get-SpecTitle -SpecPath $specFile.FullName -RequirementId $reqId -ExistingTitle $origReq.title
                 if (Test-Path $metaPath) {
                     try {
                         $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
@@ -233,6 +279,9 @@ function Invoke-SpecFix {
                     spec_path = "specs/$($specFile.Name)"
                     status    = $resolvedStatus
                 }
+                if (-not [string]::IsNullOrWhiteSpace($resolvedTitle)) {
+                    $reqHash.title = $resolvedTitle
+                }
                 if ($origReq.commit_on_complete -eq $true) {
                     $reqHash.commit_on_complete = $true
                 }
@@ -242,6 +291,7 @@ function Invoke-SpecFix {
                 # New requirement - check .meta.json for a status override
                 $metaPath = Join-Path $specsDir "$($specFile.BaseName).meta.json"
                 $resolvedStatus = $defaultStatus
+                $resolvedTitle = Get-SpecTitle -SpecPath $specFile.FullName -RequirementId $reqId
                 if (Test-Path $metaPath) {
                     try {
                         $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
@@ -249,11 +299,15 @@ function Invoke-SpecFix {
                     }
                     catch {}
                 }
-                $allRequirements += [ordered]@{
+                $reqHash = [ordered]@{
                     id        = $reqId
                     spec_path = "specs/$($specFile.Name)"
                     status    = $resolvedStatus
                 }
+                if (-not [string]::IsNullOrWhiteSpace($resolvedTitle)) {
+                    $reqHash.title = $resolvedTitle
+                }
+                $allRequirements += $reqHash
                 # Write .meta.json sidecar if it doesn't already exist
                 if (-not (Test-Path $metaPath)) {
                     $meta = [ordered]@{
@@ -270,7 +324,7 @@ function Invoke-SpecFix {
     }
     
     # Sort requirements by ID
-    $requirementsData.requirements = $allRequirements | Sort-Object id
+    $requirementsData.requirements = @($allRequirements | Sort-Object id)
     
     # Save requirements.json
     try {

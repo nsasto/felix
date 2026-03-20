@@ -78,18 +78,20 @@ function Show-Help {
             }
             "list" {
                 Write-Host ""
-                Write-Host "felix list [options]" -ForegroundColor Cyan
+                Write-Host "felix spec list [options]" -ForegroundColor Cyan
                 Write-Host ""
                 Write-Host "List requirements with optional filtering."
+                Write-Host "The top-level 'felix list' alias is retained for compatibility."
                 Write-Host ""
                 Write-Host "Options:" -ForegroundColor Yellow
                 Write-Host "  --status <status>            Filter by status (planned, in-progress, done, blocked)"
                 Write-Host "  --format <json|plain|rich>   Output format (default: rich)"
                 Write-Host ""
                 Write-Host "Examples:"
-                Write-Host "  felix list"
+                Write-Host "  felix spec list"
+                Write-Host "  felix spec list --status planned"
+                Write-Host "  felix spec list --status done --format json"
                 Write-Host "  felix list --status planned"
-                Write-Host "  felix list --status done --format json"
                 Write-Host ""
             }
             "validate" {
@@ -131,6 +133,7 @@ function Show-Help {
                 Write-Host "Manage requirement specifications."
                 Write-Host ""
                 Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  list                    List requirements and specs"
                 Write-Host "  create <description>       Create a new requirement spec"
                 Write-Host "  fix [--fix-duplicates]     Reconcile specs/ folder with requirements.json"
                 Write-Host "  delete <req-id>            Delete a requirement spec"
@@ -148,6 +151,7 @@ function Show-Help {
                 Write-Host "  --force               Re-upload and request create-if-missing requirement mappings"
                 Write-Host ""
                 Write-Host "Examples:"
+                Write-Host "  felix spec list"
                 Write-Host "  felix spec create ""Add user authentication"""
                 Write-Host "  felix spec fix"
                 Write-Host "  felix spec fix --fix-duplicates"

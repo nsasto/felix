@@ -99,7 +99,7 @@ class Program
         rootCommand.AddCommand(CreateRunNextCommand(felixPs1, formatOpt));
         rootCommand.AddCommand(CreateLoopCommand(felixPs1, formatOpt));
         rootCommand.AddCommand(CreateStatusCommand(felixPs1, formatOpt));
-        rootCommand.AddCommand(CreateListCommand(felixPs1, formatOpt));
+        rootCommand.AddCommand(CreateListCommand(felixPs1, formatOpt, hiddenAlias: true));
         rootCommand.AddCommand(CreateValidateCommand(felixPs1));
         rootCommand.AddCommand(CreateDepsCommand(felixPs1));
         rootCommand.AddCommand(CreateSpecCommand(felixPs1));
@@ -252,7 +252,7 @@ class Program
         return cmd;
     }
 
-    static Command CreateListCommand(string felixPs1, Option<string> formatOpt)
+    static Command CreateListCommand(string felixPs1, Option<string> formatOpt, bool hiddenAlias = false)
     {
         var statusOpt = new Option<string?>("--status", "Filter by status");
         var priorityOpt = new Option<string?>("--priority", "Filter by priority");
@@ -291,22 +291,33 @@ class Program
             await ExecutePowerShell(felixPs1, args.ToArray());
         }, statusOpt, priorityOpt, tagsOpt, blockedByOpt, withDepsOpt, formatOpt, uiOpt);
 
+        if (hiddenAlias)
+            cmd.IsHidden = true;
+
         return cmd;
     }
 
     static Command CreateValidateCommand(string felixPs1)
     {
         var reqIdArg = new Argument<string>("requirement-id", "Requirement ID to validate");
+        var jsonOpt = new Option<bool>("--json", "Emit machine-readable validation result");
 
         var cmd = new Command("validate", "Run validation checks")
         {
-            reqIdArg
+            reqIdArg,
+            jsonOpt
         };
 
-        cmd.SetHandler(async (reqId) =>
+        cmd.SetHandler(async (reqId, jsonOutput) =>
         {
-            await ExecutePowerShell(felixPs1, "validate", reqId);
-        }, reqIdArg);
+            if (jsonOutput)
+            {
+                await ExecutePowerShell(felixPs1, "validate", reqId, "--json");
+                return;
+            }
+
+            await ShowValidateUI(felixPs1, reqId);
+        }, reqIdArg, jsonOpt);
 
         return cmd;
     }
@@ -331,25 +342,20 @@ class Program
 
         cmd.SetHandler(async (reqId, check, tree, incomplete) =>
         {
-            var args = new List<string> { "deps" };
-
             if (incomplete)
             {
-                args.Add("--incomplete");
-            }
-            else if (!string.IsNullOrEmpty(reqId))
-            {
-                args.Add(reqId);
-                if (check) args.Add("--check");
-                if (tree) args.Add("--tree");
-            }
-            else
-            {
-                Console.Error.WriteLine("Error: requirement-id required unless using --incomplete");
-                Environment.Exit(1);
+                ShowDependencyOverviewUI();
+                return;
             }
 
-            await ExecutePowerShell(felixPs1, args.ToArray());
+            if (!string.IsNullOrEmpty(reqId))
+            {
+                ShowRequirementDependenciesUI(reqId, check, tree);
+                return;
+            }
+
+            Console.Error.WriteLine("Error: requirement-id required unless using --incomplete");
+            Environment.Exit(1);
         }, reqIdArg, checkOpt, treeOpt, incompleteOpt);
 
         return cmd;
@@ -358,6 +364,10 @@ class Program
     static Command CreateSpecCommand(string felixPs1)
     {
         var cmd = new Command("spec", "Spec management utilities");
+
+        var listCmd = CreateListCommand(felixPs1, new Option<string>("--format", () => "rich", "Output format"));
+        listCmd.Description = "List requirements and specs";
+        listCmd.IsHidden = false;
 
         // spec create
         var descArg = new Argument<string?>("description", "Feature description (optional for interactive mode)")
@@ -464,6 +474,7 @@ class Program
             await ExecutePowerShell(felixPs1, args.ToArray());
         }, pushDryRunOpt, pushForceOpt);
 
+        cmd.AddCommand(listCmd);
         cmd.AddCommand(createCmd);
         cmd.AddCommand(fixCmd);
         cmd.AddCommand(deleteCmd);
@@ -627,7 +638,7 @@ class Program
 
         cmd.SetHandler(async () =>
         {
-            await ExecutePowerShell(felixPs1, "version");
+            await ShowVersionUI();
         });
 
         return cmd;
@@ -708,6 +719,15 @@ class Program
         {
             var args = new List<string> { "procs" };
             args.AddRange(subArgs);
+
+            var normalizedSubArgs = subArgs.Length == 0 ? Array.Empty<string>() : subArgs;
+            var subCommand = normalizedSubArgs.Length == 0 ? "list" : normalizedSubArgs[0];
+            if (string.Equals(subCommand, "list", StringComparison.OrdinalIgnoreCase))
+            {
+                await ShowProcessSessionsUI();
+                return;
+            }
+
             await ExecutePowerShell(felixPs1, args.ToArray());
         }, subCmdArg);
 
@@ -770,6 +790,7 @@ class Program
         var state = new FelixRichRunState { CommandLabel = commandLabel };
         bool wasCancelled = false;
         int cancelPressCount = 0;
+        int forceExitInitiated = 0;
         var forceExitRequested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         ConsoleCancelEventHandler? cancelHandler = (_, eventArgs) =>
@@ -786,7 +807,7 @@ class Program
                     state.TerminationReason = "cancel requested";
                     AnsiConsole.MarkupLine("[yellow]Cancellation requested.[/] [grey]Press Ctrl+C again to force exit.[/]");
                 }
-                else
+                else if (pressCount == 2)
                 {
                     state.TerminationReason = "forced after second Ctrl+C";
                     AnsiConsole.MarkupLine("[red]Force exiting...[/] [grey]Killing child process tree.[/]");
@@ -794,6 +815,9 @@ class Program
             }
 
             if (pressCount < 2)
+                return;
+
+            if (Interlocked.Exchange(ref forceExitInitiated, 1) != 0)
                 return;
 
             forceExitRequested.TrySetResult(true);
@@ -806,6 +830,9 @@ class Program
             catch
             {
             }
+
+            Environment.ExitCode = 130;
+            Environment.Exit(130);
         };
 
         lock (_renderSync)
@@ -1238,30 +1265,30 @@ class Program
         int totalCount;
         try
         {
-            var output = ReadRequirementsJson();
-            var doc = JsonDocument.Parse(output);
-            var requirements = doc.RootElement;
-            if (requirements.ValueKind != JsonValueKind.Array)
+            var requirements = ParseRequirementsJson(ReadRequirementsJson()) ?? new List<JsonElement>();
+            if (requirements.Count == 0)
             {
                 AnsiConsole.MarkupLine("[yellow]No requirements found. Run felix setup in a project directory.[/]");
                 return Task.CompletedTask;
             }
 
-            requirementStatusesById = requirements
-                .EnumerateArray()
-                .Where(req => req.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String)
-                .ToDictionary(
-                    req => req.GetProperty("id").GetString() ?? string.Empty,
-                    req => req.TryGetProperty("status", out var statusProp) ? statusProp.GetString() ?? "unknown" : "unknown",
-                    StringComparer.OrdinalIgnoreCase);
-
-            totalCount = requirements.GetArrayLength();
-            filtered = requirements.EnumerateArray().Where(req =>
+            requirementStatusesById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var req in requirements)
             {
-                var status = req.GetProperty("status").GetString();
-                var priority = req.TryGetProperty("priority", out var p) ? p.GetString() : "medium";
-                if (statusFilter != null && status != statusFilter) return false;
-                if (priorityFilter != null && priority != priorityFilter) return false;
+                var id = GetJsonString(req, "id");
+                if (string.IsNullOrWhiteSpace(id))
+                    continue;
+
+                requirementStatusesById[id] = GetJsonString(req, "status") ?? "unknown";
+            }
+
+            totalCount = requirements.Count;
+            filtered = requirements.Where(req =>
+            {
+                var status = GetJsonString(req, "status") ?? "unknown";
+                var priority = GetJsonString(req, "priority") ?? "medium";
+                if (statusFilter != null && !string.Equals(status, statusFilter, StringComparison.OrdinalIgnoreCase)) return false;
+                if (priorityFilter != null && !string.Equals(priority, priorityFilter, StringComparison.OrdinalIgnoreCase)) return false;
                 if (!string.IsNullOrWhiteSpace(tagFilter))
                 {
                     var requestedTags = tagFilter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -1293,7 +1320,7 @@ class Program
                 }
 
                 return true;
-            }).OrderBy(req => req.GetProperty("id").GetString(), StringComparer.OrdinalIgnoreCase).ToList();
+            }).OrderBy(req => GetJsonString(req, "id"), StringComparer.OrdinalIgnoreCase).ToList();
         }
         catch (Exception ex)
         {
@@ -1317,6 +1344,15 @@ class Program
                 BorderStyle = Style.Parse("grey")
             });
             AnsiConsole.WriteLine();
+        }
+
+        if (filtered.Count == 0)
+        {
+            AnsiConsole.MarkupLine(totalCount == 0
+                ? "[yellow]No requirements found. Run felix setup in a project directory.[/]"
+                : "[yellow]No requirements matched the current filters.[/]");
+            AnsiConsole.MarkupLine($"[grey]Showing 0 of {totalCount} requirements[/]");
+            return Task.CompletedTask;
         }
 
         var table = new Table()
@@ -1453,6 +1489,472 @@ class Program
         await process.WaitForExitAsync();
 
         return output;
+    }
+
+    static async Task ShowVersionUI()
+    {
+        var installDir = GetInstallDirectory();
+        var installedVersion = GetInstalledVersion(installDir);
+        var embeddedVersion = ReadEmbeddedVersion();
+        var currentVersion = installedVersion ?? embeddedVersion;
+
+        string branch = "-";
+        string commit = "-";
+        try
+        {
+            branch = (await CaptureGitOutputAsync("rev-parse --abbrev-ref HEAD")) ?? "-";
+            commit = (await CaptureGitOutputAsync("rev-parse --short HEAD")) ?? "-";
+        }
+        catch { }
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Felix Version[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Field[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+
+        table.AddRow("Version", $"[white]{currentVersion.EscapeMarkup()}[/]");
+        table.AddRow("Embedded", $"[grey]{embeddedVersion.EscapeMarkup()}[/]");
+        table.AddRow("Installed", string.IsNullOrWhiteSpace(installedVersion) ? "[grey]not installed[/]" : $"[white]{installedVersion!.EscapeMarkup()}[/]");
+        table.AddRow("Repository", $"[white]{_felixProjectRoot.EscapeMarkup()}[/]");
+        table.AddRow("Branch", $"[white]{branch.EscapeMarkup()}[/]");
+        table.AddRow("Commit", $"[white]{commit.EscapeMarkup()}[/]");
+
+        AnsiConsole.Write(new Panel(table)
+        {
+            Header = new PanelHeader("[cyan]Version Information[/]"),
+            Border = BoxBorder.Rounded,
+            BorderStyle = Style.Parse("cyan")
+        });
+        AnsiConsole.WriteLine();
+    }
+
+    static async Task<string?> CaptureGitOutputAsync(string gitArguments)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = gitArguments,
+            WorkingDirectory = _felixProjectRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(psi);
+        if (process == null)
+            return null;
+
+        var output = (await process.StandardOutput.ReadToEndAsync()).Trim();
+        await process.WaitForExitAsync();
+        return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+    }
+
+    sealed record ActiveSessionInfo(string SessionId, string RequirementId, int Pid, string Agent, string Status, DateTime StartTimeUtc);
+
+    static Task ShowProcessSessionsUI()
+    {
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Active Sessions[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var sessions = ReadActiveSessions();
+        if (sessions.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]No active sessions.[/]");
+            AnsiConsole.WriteLine();
+            return Task.CompletedTask;
+        }
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Session[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Requirement[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Agent[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]PID[/]").RightAligned().NoWrap())
+            .AddColumn(new TableColumn("[yellow]Duration[/]").RightAligned().NoWrap())
+            .AddColumn(new TableColumn("[yellow]Status[/]").Centered().NoWrap());
+
+        foreach (var session in sessions.OrderByDescending(session => session.StartTimeUtc))
+        {
+            var duration = DateTime.UtcNow - session.StartTimeUtc;
+            var durationText = duration.TotalHours >= 1 ? duration.ToString(@"hh\:mm\:ss") : duration.ToString(@"mm\:ss");
+            var statusColor = string.Equals(session.Status, "running", StringComparison.OrdinalIgnoreCase) ? "green" : "yellow";
+            table.AddRow(
+                session.SessionId.EscapeMarkup(),
+                session.RequirementId.EscapeMarkup(),
+                session.Agent.EscapeMarkup(),
+                session.Pid.ToString(),
+                durationText,
+                $"[{statusColor}]{session.Status.EscapeMarkup()}[/]");
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Use [cyan]felix procs kill <session-id>[/] or [cyan]felix procs kill all[/] to terminate sessions.[/]");
+        return Task.CompletedTask;
+    }
+
+    static List<ActiveSessionInfo> ReadActiveSessions()
+    {
+        var sessionsPath = Path.Combine(_felixProjectRoot, ".felix", "sessions.json");
+        if (!File.Exists(sessionsPath))
+            return new List<ActiveSessionInfo>();
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(sessionsPath));
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return new List<ActiveSessionInfo>();
+
+            var sessions = new List<ActiveSessionInfo>();
+            foreach (var session in doc.RootElement.EnumerateArray())
+            {
+                var pid = GetJsonInt(session, "pid");
+                var sessionId = GetJsonString(session, "session_id");
+                var requirementId = GetJsonString(session, "requirement_id") ?? "-";
+                var agent = GetJsonString(session, "agent") ?? "-";
+                var status = GetJsonString(session, "status") ?? "unknown";
+                var startTimeText = GetJsonString(session, "start_time");
+
+                if (string.IsNullOrWhiteSpace(sessionId) || !pid.HasValue)
+                    continue;
+
+                if (!IsProcessRunning(pid.Value))
+                    continue;
+
+                var startTimeUtc = DateTime.TryParse(startTimeText, out var parsedStart)
+                    ? parsedStart.ToUniversalTime()
+                    : DateTime.UtcNow;
+
+                sessions.Add(new ActiveSessionInfo(sessionId!, requirementId, pid.Value, agent, status, startTimeUtc));
+            }
+
+            return sessions;
+        }
+        catch
+        {
+            return new List<ActiveSessionInfo>();
+        }
+    }
+
+    static bool IsProcessRunning(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    static async Task ShowValidateUI(string felixPs1, string requirementId)
+    {
+        var output = await ExecutePowerShellCapture(felixPs1, "validate", requirementId, "--json");
+        var trimmed = output.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            AnsiConsole.MarkupLine("[red]Validation returned no output.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(trimmed);
+            var root = doc.RootElement;
+            var success = GetJsonBool(root, "success") == true;
+            var exitCode = GetJsonInt(root, "exitCode") ?? 1;
+            var reason = GetJsonString(root, "reason") ?? string.Empty;
+            var color = success ? "green" : "red";
+
+            AnsiConsole.Clear();
+            AnsiConsole.Write(new Rule("[cyan]Requirement Validation[/]").RuleStyle(Style.Parse("cyan dim")));
+            AnsiConsole.WriteLine();
+
+            var summary = new Table()
+                .Border(TableBorder.Rounded)
+                .BorderColor(Color.Grey)
+                .AddColumn(new TableColumn("[yellow]Field[/]").NoWrap())
+                .AddColumn(new TableColumn("[yellow]Value[/]"));
+            summary.AddRow("Requirement", $"[white]{requirementId.EscapeMarkup()}[/]");
+            summary.AddRow("Status", $"[{color}]{(success ? "passed" : "failed")}[/]");
+            summary.AddRow("Exit Code", $"[{color}]{exitCode}[/]");
+            summary.AddRow("Reason", $"[white]{reason.EscapeMarkup()}[/]");
+
+            AnsiConsole.Write(new Panel(summary)
+            {
+                Header = new PanelHeader($"[{color}]Validation Summary[/]"),
+                Border = BoxBorder.Rounded,
+                BorderStyle = Style.Parse(color)
+            });
+            AnsiConsole.WriteLine();
+
+            if (root.TryGetProperty("output", out var outputLines) && outputLines.ValueKind == JsonValueKind.Array && outputLines.GetArrayLength() > 0)
+            {
+                var body = string.Join(Environment.NewLine, outputLines.EnumerateArray().Select(line => line.ToString().EscapeMarkup()));
+                AnsiConsole.Write(new Panel($"[grey]{body}[/]")
+                {
+                    Header = new PanelHeader("[cyan]Validator Output[/]"),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = Style.Parse("grey")
+                });
+                AnsiConsole.WriteLine();
+            }
+
+            Environment.ExitCode = exitCode;
+        }
+        catch (JsonException)
+        {
+            await ExecutePowerShell(felixPs1, "validate", requirementId);
+        }
+    }
+
+    static void ShowDependencyOverviewUI()
+    {
+        var requirements = ParseRequirementsJson(ReadRequirementsJson()) ?? new List<JsonElement>();
+        var lookup = requirements
+            .Where(req => GetJsonString(req, "id") is not null)
+            .ToDictionary(req => GetJsonString(req, "id")!, req => req, StringComparer.OrdinalIgnoreCase);
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Incomplete Dependencies[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var rows = new List<(string id, string title, string status, string deps)>();
+        foreach (var requirement in requirements)
+        {
+            var deps = GetRequirementDependencies(requirement);
+            if (deps.Count == 0)
+                continue;
+
+            var incompleteDeps = new List<string>();
+            foreach (var depId in deps)
+            {
+                if (!lookup.TryGetValue(depId, out var depReq))
+                {
+                    incompleteDeps.Add($"{depId} (missing)");
+                    continue;
+                }
+
+                var depStatus = GetJsonString(depReq, "status") ?? "unknown";
+                if (!IsCompletedStatus(depStatus))
+                    incompleteDeps.Add($"{depId} ({depStatus})");
+            }
+
+            if (incompleteDeps.Count == 0)
+                continue;
+
+            rows.Add((
+                GetJsonString(requirement, "id") ?? "-",
+                GetJsonString(requirement, "title") ?? "-",
+                GetJsonString(requirement, "status") ?? "unknown",
+                string.Join(", ", incompleteDeps)));
+        }
+
+        if (rows.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[green]All requirements have complete dependencies.[/]");
+            AnsiConsole.WriteLine();
+            Environment.ExitCode = 0;
+            return;
+        }
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Requirement[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Status[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Title[/]"))
+            .AddColumn(new TableColumn("[yellow]Incomplete Dependencies[/]"));
+
+        foreach (var row in rows.OrderBy(r => r.id, StringComparer.OrdinalIgnoreCase))
+        {
+            table.AddRow(
+                row.id.EscapeMarkup(),
+                RenderStatusMarkup(row.status),
+                row.title.EscapeMarkup(),
+                row.deps.EscapeMarkup());
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+        Environment.ExitCode = 1;
+    }
+
+    static void ShowRequirementDependenciesUI(string requirementId, bool checkOnly, bool showTree)
+    {
+        var requirements = ParseRequirementsJson(ReadRequirementsJson()) ?? new List<JsonElement>();
+        var lookup = requirements
+            .Where(req => GetJsonString(req, "id") is not null)
+            .ToDictionary(req => GetJsonString(req, "id")!, req => req, StringComparer.OrdinalIgnoreCase);
+
+        if (!lookup.TryGetValue(requirementId, out var requirement))
+        {
+            AnsiConsole.MarkupLine($"[red]Requirement {requirementId.EscapeMarkup()} not found.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var dependencies = GetRequirementDependencies(requirement);
+        var incompleteDeps = new List<string>();
+        var missingDeps = new List<string>();
+
+        foreach (var depId in dependencies)
+        {
+            if (!lookup.TryGetValue(depId, out var depReq))
+            {
+                missingDeps.Add(depId);
+                incompleteDeps.Add(depId);
+                continue;
+            }
+
+            var depStatus = GetJsonString(depReq, "status") ?? "unknown";
+            if (!IsCompletedStatus(depStatus))
+                incompleteDeps.Add(depId);
+        }
+
+        var allComplete = incompleteDeps.Count == 0;
+        var borderColor = allComplete ? "green" : "yellow";
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule($"[cyan]Dependency Analysis: {requirementId.EscapeMarkup()}[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var summary = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Field[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+        summary.AddRow("Requirement", $"[white]{requirementId.EscapeMarkup()}[/]");
+        summary.AddRow("Title", $"[white]{(GetJsonString(requirement, "title") ?? "-").EscapeMarkup()}[/]");
+        summary.AddRow("Status", RenderStatusMarkup(GetJsonString(requirement, "status") ?? "unknown"));
+        summary.AddRow("Dependencies", $"[white]{dependencies.Count}[/]");
+        summary.AddRow("Result", allComplete ? "[green]all complete[/]" : "[yellow]incomplete dependencies detected[/]");
+
+        AnsiConsole.Write(new Panel(summary)
+        {
+            Header = new PanelHeader("[cyan]Summary[/]"),
+            Border = BoxBorder.Rounded,
+            BorderStyle = Style.Parse(borderColor)
+        });
+        AnsiConsole.WriteLine();
+
+        if (dependencies.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[green]No dependencies.[/]");
+            AnsiConsole.WriteLine();
+            Environment.ExitCode = 0;
+            return;
+        }
+
+        if (!checkOnly)
+        {
+            var table = new Table()
+                .Border(TableBorder.Rounded)
+                .BorderColor(Color.Grey)
+                .AddColumn(new TableColumn("[yellow]Dependency[/]").NoWrap())
+                .AddColumn(new TableColumn("[yellow]Status[/]").NoWrap())
+                .AddColumn(new TableColumn("[yellow]Priority[/]").NoWrap())
+                .AddColumn(new TableColumn("[yellow]Title[/]"));
+
+            foreach (var depId in dependencies)
+            {
+                if (!lookup.TryGetValue(depId, out var depReq))
+                {
+                    table.AddRow(depId.EscapeMarkup(), "[red]missing[/]", "-", "[grey]Missing from requirements.json[/]");
+                    continue;
+                }
+
+                table.AddRow(
+                    depId.EscapeMarkup(),
+                    RenderStatusMarkup(GetJsonString(depReq, "status") ?? "unknown"),
+                    (GetJsonString(depReq, "priority") ?? "-").EscapeMarkup(),
+                    (GetJsonString(depReq, "title") ?? "-").EscapeMarkup());
+            }
+
+            AnsiConsole.Write(table);
+            AnsiConsole.WriteLine();
+        }
+
+        if (showTree)
+        {
+            var tree = new Tree($"[cyan]{requirementId.EscapeMarkup()}[/]");
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { requirementId };
+            AddDependencyTreeNodes(tree, requirement, lookup, visited);
+            AnsiConsole.Write(tree);
+            AnsiConsole.WriteLine();
+        }
+
+        if (!allComplete)
+        {
+            if (missingDeps.Count > 0)
+                AnsiConsole.MarkupLine($"[red]Missing:[/] {string.Join(", ", missingDeps.Select(dep => dep.EscapeMarkup()))}");
+            if (incompleteDeps.Count > 0)
+                AnsiConsole.MarkupLine($"[yellow]Incomplete:[/] {string.Join(", ", incompleteDeps.Select(dep => dep.EscapeMarkup()))}");
+        }
+
+        Environment.ExitCode = allComplete ? 0 : 1;
+    }
+
+    static void AddDependencyTreeNodes(Tree tree, JsonElement requirement, Dictionary<string, JsonElement> lookup, HashSet<string> visited)
+    {
+        foreach (var depId in GetRequirementDependencies(requirement))
+        {
+            AddDependencyTreeNode(tree, depId, lookup, visited);
+        }
+    }
+
+    static void AddDependencyTreeNode(IHasTreeNodes parent, string depId, Dictionary<string, JsonElement> lookup, HashSet<string> visited)
+    {
+        if (!lookup.TryGetValue(depId, out var depReq))
+        {
+            parent.AddNode($"[red]{depId.EscapeMarkup()} (missing)[/]");
+            return;
+        }
+
+        var status = GetJsonString(depReq, "status") ?? "unknown";
+        var title = GetJsonString(depReq, "title") ?? "-";
+        var color = IsCompletedStatus(status) ? "green" : "yellow";
+        var currentNode = parent.AddNode($"[{color}]{depId.EscapeMarkup()}[/] [grey]{title.EscapeMarkup()} ({status.EscapeMarkup()})[/]");
+
+        if (!visited.Add(depId))
+        {
+            currentNode.AddNode("[grey]cycle detected[/]");
+            return;
+        }
+
+        foreach (var childDepId in GetRequirementDependencies(depReq))
+        {
+            AddDependencyTreeNode(currentNode, childDepId, lookup, visited);
+        }
+
+        visited.Remove(depId);
+    }
+
+    static bool IsCompletedStatus(string? status)
+        => string.Equals(status, "done", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(status, "complete", StringComparison.OrdinalIgnoreCase);
+
+    static string RenderStatusMarkup(string status)
+    {
+        var color = status.ToLowerInvariant() switch
+        {
+            "done" or "complete" => "green",
+            "in_progress" or "reserved" => "yellow",
+            "blocked" => "red",
+            _ => "grey"
+        };
+        return $"[{color}]{status.EscapeMarkup()}[/]";
     }
 
     /// <summary>
@@ -2213,7 +2715,7 @@ rm -rf "$STAGE_ROOT"
     }
 
     // Read requirements.json directly — avoids spawning a PowerShell process just for data.
-    // Handles both bare array [] and wrapped { "requirements": [] } formats.
+    // Handles bare arrays, wrapped arrays, and legacy wrapped single-object payloads.
     static string ReadRequirementsJson()
     {
         var path = Path.Combine(_felixProjectRoot, ".felix", "requirements.json");
@@ -2231,15 +2733,29 @@ rm -rf "$STAGE_ROOT"
                 {
                     if (root.TryGetProperty(key, out var arr) && arr.ValueKind == JsonValueKind.Array)
                         return arr.GetRawText();
+
+                    if (root.TryGetProperty(key, out var single) && single.ValueKind == JsonValueKind.Object)
+                        return $"[{single.GetRawText()}]";
                 }
-                // Single-array-value object fallback
+
+                // Single-value object fallback
                 foreach (var prop in root.EnumerateObject())
                 {
                     if (prop.Value.ValueKind == JsonValueKind.Array)
                         return prop.Value.GetRawText();
+
+                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                        return $"[{prop.Value.GetRawText()}]";
                 }
                 return "[]";
             }
+
+            if (raw.StartsWith("["))
+                return raw;
+
+            if (raw.StartsWith("{"))
+                return $"[{raw}]";
+
             return raw;
         }
         catch { return "[]"; }
