@@ -77,6 +77,23 @@ function Resolve-FelixExecutablePath {
 function Invoke-Agent {
     param([string[]]$AgentArgs)
 
+    function Ensure-AgentConfigSection {
+        param($Config)
+
+        if (-not $Config) {
+            return $null
+        }
+
+        if (-not $Config.PSObject.Properties['agent'] -or $null -eq $Config.agent) {
+            $Config | Add-Member -MemberType NoteProperty -Name agent -Value ([pscustomobject]@{ agent_id = $null }) -Force
+        }
+        elseif (-not $Config.agent.PSObject.Properties['agent_id']) {
+            $Config.agent | Add-Member -MemberType NoteProperty -Name agent_id -Value $null -Force
+        }
+
+        return $Config.agent
+    }
+
     if ($AgentArgs -is [string]) {
         $AgentArgs = @($AgentArgs -split '\s+' | Where-Object { $_ -ne '' })
     }
@@ -157,7 +174,7 @@ function Invoke-Agent {
             $defaults = Get-AgentDefaults -AdapterType $agent.name
             $exeName = if ($agent.PSObject.Properties["executable"] -and $agent.executable) { $agent.executable } else { $defaults.executable }
             $installed = Test-ExecutableInstalled -ExecutableName $exeName
-            $status = if ($installed) { "[OK] installed" } else { "[--] not installed" }
+            $status = if ($installed) { "[OK] installed" } else { "[--] installed" }
 
             Write-Host "$($agent.name) $status" -ForegroundColor $(if ($installed) { "Green" } else { "Yellow" })
             foreach ($line in (Get-AgentInstallGuidance -AgentName $agent.name)) {
@@ -175,6 +192,7 @@ function Invoke-Agent {
     }
     $configPath = Join-Path $RepoRoot ".felix\config.json"
     $config = Get-FelixConfig -ConfigFile $configPath
+    $agentConfigSection = Ensure-AgentConfigSection -Config $config
     $agentsFile = Join-Path $RepoRoot ".felix\agents.json"
     
     if (-not (Test-Path $agentsFile)) {
@@ -198,7 +216,7 @@ function Invoke-Agent {
             Write-Host ""
             
             foreach ($agent in $agents) {
-                $isCurrent = ($agent.key -eq $config.agent.agent_id)
+                $isCurrent = ($agent.key -eq $agentConfigSection.agent_id)
                 $marker = if ($isCurrent) { "*" } else { " " }
                 $color = if ($isCurrent) { "Green" } else { "White" }
                 $provider = if ($agent.PSObject.Properties["provider"]) { $agent.provider } elseif ($agent.PSObject.Properties["adapter"]) { $agent.adapter } else { $null }
@@ -213,7 +231,7 @@ function Invoke-Agent {
             }
         }
         "current" {
-            $currentId = $config.agent.agent_id
+            $currentId = $agentConfigSection.agent_id
             $current = $agents | Where-Object { $_.key -eq $currentId } | Select-Object -First 1
             
             if ($current) {
@@ -353,7 +371,7 @@ function Invoke-Agent {
             }
             
             # Update config.json
-            $config.agent.agent_id = $agent.key
+            $agentConfigSection.agent_id = $agent.key
             $configPath = Join-Path $RepoRoot ".felix\config.json"
             $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
             
@@ -508,7 +526,7 @@ function Invoke-Agent {
                 $reporter = New-PluginReporter -Config @{ base_url = $targetUrl; api_key = $apiKey } -FelixDir $felixDir
             }
 
-            $currentId = $config.agent.agent_id
+            $currentId = $agentConfigSection.agent_id
             $agentConfig = $agents | Where-Object { $_.key -eq $currentId } | Select-Object -First 1
             if (-not $agentConfig) {
                 Write-Error "Current agent (ID: $currentId) not found in agents.json"

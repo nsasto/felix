@@ -28,7 +28,7 @@ $failedTests = @()
 
 foreach ($tf in $testFiles) {
     Write-Host ">>> $($tf.BaseName)" -ForegroundColor Yellow
-    $output = & powershell.exe -NoProfile -File $tf.FullName 2>&1 | Out-String
+    $output = & powershell.exe -NoProfile -Command "& { . '$($tf.FullName)' } 2>&1" | Out-String
     $lines = $output -split "`n"
     foreach ($line in $lines) {
         if ($line -match '^\s*$' -or
