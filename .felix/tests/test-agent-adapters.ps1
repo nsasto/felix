@@ -75,7 +75,7 @@ Describe "Get-AgentDefaults" {
         $defaults = Get-AgentDefaults -AdapterType "copilot"
         Assert-Equal "copilot" $defaults.adapter
         Assert-Equal "copilot" $defaults.executable
-        Assert-Equal "auto" $defaults.model
+        Assert-Equal "" $defaults.model
         Assert-True $defaults.allow_all
         Assert-True $defaults.no_ask_user
     }
@@ -223,6 +223,13 @@ Describe "CopilotAdapter.ParseResponse" {
         $result = $adapter.ParseResponse("Output`n<promise> ALL_COMPLETE </promise>")
         Assert-True $result.IsComplete
         Assert-Equal "complete" $result.NextMode
+    }
+
+    It "should mark unavailable-model output as an error" {
+        $adapter = [CopilotAdapter]::new()
+        $result = $adapter.ParseResponse('Error: Model "auto" from --model flag is not available.')
+        Assert-False $result.IsComplete
+        Assert-Equal 'Model "auto" from --model flag is not available' $result.Error
     }
 }
 

@@ -43,6 +43,7 @@ The system has injected the following — do NOT re-read these files:
 7. Update the plan file: change `- [ ]` to `- [x]` for the completed task
 8. If this was the last task, update `.felix/requirements.json`: set `status` to `"complete"` and `updated_at` to today's date
 9. Output a run report and signal completion
+10. End your final response with the exact completion marker Felix expects
 
 ## Task Selection
 
@@ -76,3 +77,15 @@ After updating the plan, include exactly one signal:
 - `<promise>ALL_COMPLETE</promise>` — all tasks in the plan are checked off, requirement is complete
 
 **How to decide:** after marking your task `- [x]`, check if any `- [ ]` tasks remain. If yes → `TASK_COMPLETE`. If none remain → `ALL_COMPLETE`.
+
+## Mandatory Output Contract
+
+- Your final response must end with exactly one standalone completion marker line.
+- Do not paraphrase the marker.
+- Do not wrap the marker in a code fence, bullet, or sentence.
+- Do not replace it with prose like "completed", "wrapping up", or "done".
+- Valid final line examples only:
+  - `<promise>TASK_COMPLETE</promise>`
+  - `<promise>ALL_COMPLETE</promise>`
+
+If you do not emit one of those exact final lines, Felix cannot reliably detect task completion.

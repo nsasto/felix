@@ -207,7 +207,7 @@ function Get-RunReporter {
         $syncEnabled = $true
         $syncConfig = @{
             provider = "fastapi"
-            base_url = if ($env:FELIX_SYNC_URL) { $env:FELIX_SYNC_URL } else { "http://localhost:8080" }
+            base_url = if ($env:FELIX_SYNC_URL) { $env:FELIX_SYNC_URL } else { "https://api.felix.io" }
             api_key  = $env:FELIX_SYNC_KEY
         }
     }
@@ -219,7 +219,7 @@ function Get-RunReporter {
     
     # Build final sync config with environment variable overrides
     $finalConfig = @{
-        base_url = if ($env:FELIX_SYNC_URL) { $env:FELIX_SYNC_URL } elseif ($syncConfig.base_url) { $syncConfig.base_url } else { "http://localhost:8080" }
+        base_url = if ($env:FELIX_SYNC_URL) { $env:FELIX_SYNC_URL } elseif ($syncConfig.base_url) { $syncConfig.base_url } else { "https://api.felix.io" }
         api_key  = if ($env:FELIX_SYNC_KEY) { $env:FELIX_SYNC_KEY } elseif ($syncConfig.api_key) { $syncConfig.api_key } else { $null }
     }
     

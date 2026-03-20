@@ -445,6 +445,11 @@ class CopilotAdapter {
             Error      = $null
         }
 
+        if ($output -match 'Model\s+"[^"]+"\s+from\s+--model\s+flag\s+is\s+not\s+available') {
+            $result.Error = ($matches[0]).Trim()
+            return $result
+        }
+
         if ($output -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
             $result.IsComplete = $true
             $result.NextMode = "building"
@@ -565,7 +570,7 @@ function Get-AgentDefaults {
             return @{
                 adapter                 = "copilot"
                 executable              = "copilot"
-                model                   = "auto"
+                model                   = ""
                 working_directory       = "."
                 environment             = @{}
                 allow_all               = $true

@@ -37,7 +37,7 @@ Write-Host "[2/4] Building copilot invocation..." -ForegroundColor Gray
 $copilotAgent = [pscustomobject]@{
     adapter                 = "copilot"
     executable              = "copilot"
-    model                   = "auto"
+    model                   = ""
     allow_all               = $true
     no_ask_user             = $true
     max_autopilot_continues = 3

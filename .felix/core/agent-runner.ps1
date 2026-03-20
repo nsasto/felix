@@ -280,7 +280,7 @@ function Invoke-AgentExecution {
         $exitCode = $processResult.ExitCode
         $succeeded = $processResult.Succeeded
 
-        if (-not $succeeded -and $adapterType -eq "copilot" -and ($processArgs -contains "--model") -and (Test-CopilotModelUnavailableOutput -Output $output)) {
+        if ($adapterType -eq "copilot" -and ($processArgs -contains "--model") -and (Test-CopilotModelUnavailableOutput -Output $output)) {
             Emit-Log -Level "warn" -Message "Copilot rejected configured model '$($AgentConfig.model)'; retrying without --model" -Component "agent"
 
             $retryProcessArgs = Remove-ArgumentPair -Arguments $processArgs -Flag "--model"

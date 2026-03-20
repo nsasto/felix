@@ -47,6 +47,8 @@ $stats = @{
     events_by_type     = @{}
 }
 
+$script:CategoryColumnWidth = 10
+
 function Update-Stats {
     param([PSCustomObject]$Event)
     
@@ -159,6 +161,19 @@ function Format-Timestamp {
     catch {
         return $IsoTimestamp
     }
+}
+
+function Write-CategoryLine {
+    param(
+        [string]$Timestamp,
+        [string]$Category,
+        [string]$Message,
+        [string]$CategoryColor = $colors.White,
+        [string]$MessageColor = $colors.White
+    )
+
+    $paddedCategory = $Category.PadRight($script:CategoryColumnWidth)
+    Write-Host "$($colors.Dim)[$Timestamp]$($colors.Reset) ${CategoryColor}${paddedCategory}$($colors.Reset) ${MessageColor}${Message}$($colors.Reset)"
 }
 
 # Format-MarkdownText is now provided by text-utils.ps1
@@ -286,7 +301,7 @@ function Render-Rich {
         "iteration_completed" {
             $outcomeColor = if ($data.outcome -eq "success") { $colors.Green } else { $colors.Red }
             Write-Host ""
-            Write-Host "$($colors.Dim)[$timestamp] Iteration $($data.iteration) completed: $outcomeColor$($data.outcome)$($colors.Reset)"
+            Write-CategoryLine -Timestamp $timestamp -Category "Iteration" -Message $data.outcome -CategoryColor $outcomeColor -MessageColor $outcomeColor
         }
         
         "log" {
@@ -300,7 +315,8 @@ function Render-Rich {
             
             $component = if ($data.component) { "[$($data.component)]" } else { "" }
             $formattedMessage = Format-MarkdownText -Text $data.message
-            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset) $levelColor$($data.level.ToUpper())$($colors.Reset) $component $formattedMessage"
+            $message = if ($component) { "$component $formattedMessage" } else { $formattedMessage }
+            Write-CategoryLine -Timestamp $timestamp -Category $data.level.ToUpper() -Message $message -CategoryColor $levelColor
         }
         
         "agent_execution_started" {
@@ -324,17 +340,18 @@ function Render-Rich {
         }
         
         "validation_command_started" {
-            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset) $($colors.Blue)Running:$($colors.Reset) [$($data.type)] $($data.command)"
+            Write-CategoryLine -Timestamp $timestamp -Category "Running" -Message "[$($data.type)] $($data.command)" -CategoryColor $colors.Blue
         }
         
         "validation_command_completed" {
             $status = if ($data.passed) {
-                "$($colors.Green) PASSED$($colors.Reset)"
+                "PASSED"
             }
             else {
-                "$($colors.Red) FAILED (exit code: $($data.exit_code))$($colors.Reset)"
+                "FAILED (exit code: $($data.exit_code))"
             }
-            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset)   $status"
+            $statusColor = if ($data.passed) { $colors.Green } else { $colors.Red }
+            Write-CategoryLine -Timestamp $timestamp -Category "Validation" -Message $status -CategoryColor $statusColor -MessageColor $statusColor
         }
         
         "validation_completed" {
@@ -357,12 +374,12 @@ function Render-Rich {
         }
         
         "state_transitioned" {
-            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset) $($colors.Magenta)State:$($colors.Reset) $($data.from)  $($data.to)"
+            Write-CategoryLine -Timestamp $timestamp -Category "State" -Message "$($data.from) -> $($data.to)" -CategoryColor $colors.Magenta
         }
         
         "artifact_created" {
             $sizeKb = if ($data.size_bytes) { ($data.size_bytes / 1KB).ToString("F1") + " KB" } else { "unknown" }
-            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset) $($colors.Cyan)Artifact:$($colors.Reset) $($data.path) ($($data.type), $sizeKb)"
+            Write-CategoryLine -Timestamp $timestamp -Category "Artifact" -Message "$($data.path) ($($data.type), $sizeKb)" -CategoryColor $colors.Cyan
         }
         
         "error_occurred" {
@@ -437,13 +454,13 @@ function Render-Rich {
         
         "prompt_requested" {
             # File-based prompt for UI/TUI integration - show minimal info
-            Write-Host "$($colors.Dim)[$timestamp]$($colors.Reset) $($colors.Cyan)Prompt:$($colors.Reset) Waiting for response (prompt_id: $($data.prompt_id))"
+            Write-CategoryLine -Timestamp $timestamp -Category "Prompt" -Message "Waiting for response (prompt_id: $($data.prompt_id))" -CategoryColor $colors.Cyan
         }
         
         default {
             # Unknown event type - show raw JSON
             $dataJson = $data | ConvertTo-Json -Compress
-            Write-Host "$($colors.Dim)[$timestamp] $($type): $dataJson$($colors.Reset)"
+            Write-CategoryLine -Timestamp $timestamp -Category "Event" -Message "${type}: $dataJson" -CategoryColor $colors.Dim -MessageColor $colors.Dim
         }
     }
 }

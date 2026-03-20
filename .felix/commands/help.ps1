@@ -229,7 +229,7 @@ function Show-Help {
                 Write-Host "  felix agent list"
                 Write-Host "  felix agent current"
                 Write-Host "  felix agent use codex"
-                Write-Host "  felix agent use copilot --model auto"
+                Write-Host "  felix agent use copilot --model claude-haiku-4.5"
                 Write-Host "  felix agent set-default claude"
                 Write-Host "  felix agent test claude"
                 Write-Host "  felix agent setup"

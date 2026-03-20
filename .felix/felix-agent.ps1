@@ -546,7 +546,7 @@ try {
     # Agent Registration and Heartbeat Functions
     # ============================================================================
 
-    $script:BackendBaseUrl = "http://localhost:8080"
+    $script:BackendBaseUrl = "https://api.runfelix.io"
     $script:HeartbeatJob = $null
 
     # No wrappers needed - call module functions directly with all parameters

@@ -17,12 +17,33 @@ class Program
     // Set once in Main(); used by ExecutePowerShell* to inject env vars into subprocesses.
     static string _felixInstallDir = "";
     static string _felixProjectRoot = "";
+    static readonly object _renderSync = new();
+    const int FelixCategoryColumnWidth = 10;
     const string DefaultUpdateRepo = "nsasto/felix";
     const string DefaultWindowsReleaseRid = "win-x64";
 
     internal sealed record GitHubReleaseAsset(string Name, string DownloadUrl);
     internal sealed record GitHubReleaseMetadata(string TagName, IReadOnlyList<GitHubReleaseAsset> Assets);
     internal sealed record UpdateReleasePlan(string CurrentVersion, string TargetVersion, GitHubReleaseAsset ZipAsset, GitHubReleaseAsset ChecksumAsset, string[] AcceptedChecksumFileNames, bool HasInstalledCopy);
+    sealed class FelixRichRunState
+    {
+        public string CommandLabel { get; init; } = "Felix";
+        public string? RunId { get; set; }
+        public string? RequirementId { get; set; }
+        public string? LatestMode { get; set; }
+        public string? AgentName { get; set; }
+        public string? CompletionStatus { get; set; }
+        public int? Iteration { get; set; }
+        public int? MaxIterations { get; set; }
+        public int Errors { get; set; }
+        public int Warnings { get; set; }
+        public int TasksCompleted { get; set; }
+        public int TasksFailed { get; set; }
+        public int ValidationsPassed { get; set; }
+        public int ValidationsFailed { get; set; }
+        public double? DurationSeconds { get; set; }
+        public string? TerminationReason { get; set; }
+    }
 
     static async Task<int> Main(string[] args)
     {
@@ -130,12 +151,17 @@ class Program
         cmd.SetHandler(async (reqId, format, verbose, quiet, sync) =>
         {
             var args = new List<string> { "run", reqId };
-            if (format != "rich") args.AddRange(new[] { "--format", format });
             if (verbose) args.Add("--verbose");
             if (quiet) args.Add("--quiet");
             if (sync) args.Add("--sync");
 
-            await ExecutePowerShell(felixPs1, args.ToArray());
+            if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
+                await ExecuteFelixRichCommand(felixPs1, "Run Requirement", args.ToArray());
+            else
+            {
+                args.AddRange(new[] { "--format", format });
+                await ExecutePowerShell(felixPs1, args.ToArray());
+            }
         }, reqIdArg, formatOpt, verboseOpt, quietOpt, syncOpt);
 
         return cmd;
@@ -155,9 +181,14 @@ class Program
         {
             var args = new List<string> { "loop" };
             if (maxIter.HasValue) args.AddRange(new[] { "--max-iterations", maxIter.Value.ToString() });
-            if (format != "rich") args.AddRange(new[] { "--format", format });
 
-            await ExecutePowerShell(felixPs1, args.ToArray());
+            if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
+                await ExecuteFelixRichCommand(felixPs1, "Continuous Loop", args.ToArray());
+            else
+            {
+                args.AddRange(new[] { "--format", format });
+                await ExecutePowerShell(felixPs1, args.ToArray());
+            }
         }, maxIterOpt, formatOpt);
 
         return cmd;
@@ -177,9 +208,14 @@ class Program
         {
             var args = new List<string> { "run-next" };
             if (sync) args.Add("--sync");
-            if (format != "rich") args.AddRange(new[] { "--format", format });
 
-            await ExecutePowerShell(felixPs1, args.ToArray());
+            if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
+                await ExecuteFelixRichCommand(felixPs1, "Run Next Requirement", args.ToArray());
+            else
+            {
+                args.AddRange(new[] { "--format", format });
+                await ExecutePowerShell(felixPs1, args.ToArray());
+            }
         }, syncOpt, formatOpt);
 
         return cmd;
@@ -238,9 +274,9 @@ class Program
 
         cmd.SetHandler(async (status, priority, tags, blockedBy, withDeps, format, useUI) =>
         {
-            if (useUI)
+            if (useUI || string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
             {
-                await ShowListUI(felixPs1, status, priority);
+                await ShowListUI(felixPs1, status, priority, tags, blockedBy, withDeps);
                 return;
             }
 
@@ -704,27 +740,7 @@ class Program
 
     static async Task ExecutePowerShell(string felixPs1, params string[] args)
     {
-        var quotedArgs = string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
-
-        // Try pwsh first (PowerShell 7+), fall< Back to powershell (Windows PowerShell 5.1)
-        var pwshPath = FindPowerShell();
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = pwshPath,
-            Arguments = $"-NoProfile -File \"{felixPs1}\" {quotedArgs}",
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = false,
-            CreateNoWindow = false
-        };
-
-        // Inject context so PS scripts know where engine files live and what the project dir is
-        if (!string.IsNullOrEmpty(_felixInstallDir))
-            psi.Environment["FELIX_INSTALL_DIR"] = _felixInstallDir;
-        if (!string.IsNullOrEmpty(_felixProjectRoot))
-            psi.Environment["FELIX_PROJECT_ROOT"] = _felixProjectRoot;
+        var psi = CreateFelixProcessStartInfo(felixPs1, args, createNoWindow: false);
 
         var process = new Process { StartInfo = psi };
 
@@ -744,6 +760,437 @@ class Program
         await process.WaitForExitAsync();
 
         Environment.ExitCode = process.ExitCode;
+    }
+
+    static async Task ExecuteFelixRichCommand(string felixPs1, string commandLabel, params string[] args)
+    {
+        var commandArgs = new List<string>(args) { "--format", "json" };
+        var psi = CreateFelixProcessStartInfo(felixPs1, commandArgs, createNoWindow: true);
+        using var process = new Process { StartInfo = psi };
+        var state = new FelixRichRunState { CommandLabel = commandLabel };
+        bool wasCancelled = false;
+        int cancelPressCount = 0;
+        var forceExitRequested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        ConsoleCancelEventHandler? cancelHandler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            wasCancelled = true;
+
+            var pressCount = Interlocked.Increment(ref cancelPressCount);
+
+            lock (_renderSync)
+            {
+                if (pressCount == 1)
+                {
+                    state.TerminationReason = "cancel requested";
+                    AnsiConsole.MarkupLine("[yellow]Cancellation requested.[/] [grey]Press Ctrl+C again to force exit.[/]");
+                }
+                else
+                {
+                    state.TerminationReason = "forced after second Ctrl+C";
+                    AnsiConsole.MarkupLine("[red]Force exiting...[/] [grey]Killing child process tree.[/]");
+                }
+            }
+
+            if (pressCount < 2)
+                return;
+
+            forceExitRequested.TrySetResult(true);
+
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+            }
+        };
+
+        lock (_renderSync)
+        {
+            AnsiConsole.Clear();
+            AnsiConsole.Write(new Rule($"[cyan]{commandLabel.EscapeMarkup()}[/]").RuleStyle(Style.Parse("cyan dim")));
+            AnsiConsole.WriteLine();
+        }
+
+        Console.CancelKeyPress += cancelHandler;
+
+        try
+        {
+            process.Start();
+
+            var stdoutTask = ConsumeFelixOutputAsync(process.StandardOutput, state);
+            var stderrTask = ConsumeFelixErrorAsync(process.StandardError, state);
+            var waitForExitTask = process.WaitForExitAsync();
+
+            await Task.WhenAny(waitForExitTask, forceExitRequested.Task);
+
+            if (forceExitRequested.Task.IsCompleted)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                        process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                }
+            }
+
+            await Task.WhenAll(stdoutTask, stderrTask, waitForExitTask);
+
+            RenderFelixRunSummary(state, wasCancelled ? 130 : process.ExitCode, wasCancelled);
+            Environment.ExitCode = wasCancelled ? 130 : process.ExitCode;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= cancelHandler;
+
+            if (!process.HasExited)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+            }
+        }
+    }
+
+    static ProcessStartInfo CreateFelixProcessStartInfo(string felixPs1, IEnumerable<string> args, bool createNoWindow)
+    {
+        var quotedArgs = string.Join(" ", args.Select(QuotePowerShellArgument));
+        var pwshPath = FindPowerShell();
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = pwshPath,
+            Arguments = $"-NoProfile -File \"{felixPs1}\" {quotedArgs}",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = false,
+            CreateNoWindow = createNoWindow
+        };
+
+        if (!string.IsNullOrEmpty(_felixInstallDir))
+            psi.Environment["FELIX_INSTALL_DIR"] = _felixInstallDir;
+        if (!string.IsNullOrEmpty(_felixProjectRoot))
+            psi.Environment["FELIX_PROJECT_ROOT"] = _felixProjectRoot;
+
+        return psi;
+    }
+
+    static string QuotePowerShellArgument(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return "\"\"";
+
+        return value.Any(ch => char.IsWhiteSpace(ch) || ch == '"')
+            ? $"\"{value.Replace("\"", "\\\"", StringComparison.Ordinal)}\""
+            : value;
+    }
+
+    static async Task ConsumeFelixOutputAsync(StreamReader reader, FelixRichRunState state)
+    {
+        while (true)
+        {
+            var line = await reader.ReadLineAsync();
+            if (line == null)
+                break;
+
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            RenderFelixOutputLine(line, state);
+        }
+    }
+
+    static async Task ConsumeFelixErrorAsync(StreamReader reader, FelixRichRunState state)
+    {
+        while (true)
+        {
+            var line = await reader.ReadLineAsync();
+            if (line == null)
+                break;
+
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            state.Errors++;
+            lock (_renderSync)
+                RenderFelixDetailLine("STDERR", "red", line.Trim().EscapeMarkup());
+        }
+    }
+
+    static void RenderFelixOutputLine(string line, FelixRichRunState state)
+    {
+        var trimmed = line.Trim();
+        try
+        {
+            using var doc = JsonDocument.Parse(trimmed);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("type", out var typeElement) || !root.TryGetProperty("data", out var dataElement))
+            {
+                lock (_renderSync)
+                    AnsiConsole.MarkupLine($"[grey]{trimmed.EscapeMarkup()}[/]");
+                return;
+            }
+
+            RenderFelixEvent(typeElement.GetString() ?? string.Empty, dataElement, state);
+        }
+        catch (JsonException)
+        {
+            lock (_renderSync)
+                AnsiConsole.MarkupLine($"[grey]{trimmed.EscapeMarkup()}[/]");
+        }
+    }
+
+    static void RenderFelixEvent(string eventType, JsonElement data, FelixRichRunState state)
+    {
+        switch (eventType)
+        {
+            case "run_started":
+                {
+                    state.RunId = GetJsonString(data, "run_id");
+                    state.RequirementId = GetJsonString(data, "requirement_id");
+                    var body = new Markup(
+                        $"[grey]Run ID[/] [white]{(state.RunId ?? "init").EscapeMarkup()}[/]\n" +
+                        $"[grey]Requirement[/] [white]{(state.RequirementId ?? "loop").EscapeMarkup()}[/]");
+                    lock (_renderSync)
+                        AnsiConsole.Write(new Panel(body)
+                        {
+                            Header = new PanelHeader("[cyan]Run Started[/]"),
+                            Border = BoxBorder.Rounded,
+                            BorderStyle = Style.Parse("cyan")
+                        });
+                    break;
+                }
+            case "iteration_started":
+                {
+                    state.Iteration = GetJsonInt(data, "iteration");
+                    state.MaxIterations = GetJsonInt(data, "max_iterations");
+                    state.LatestMode = GetJsonString(data, "mode");
+                    var mode = (state.LatestMode ?? "running").ToUpperInvariant().EscapeMarkup();
+                    var label = state.Iteration.HasValue && state.MaxIterations.HasValue
+                        ? $"Iteration {state.Iteration}/{state.MaxIterations} • {mode}"
+                        : $"{mode}";
+                    lock (_renderSync)
+                    {
+                        AnsiConsole.WriteLine();
+                        AnsiConsole.Write(new Rule($"[yellow]{label}[/]").RuleStyle(Style.Parse("yellow dim")));
+                        AnsiConsole.WriteLine();
+                    }
+                    break;
+                }
+            case "iteration_completed":
+                {
+                    var outcome = GetJsonString(data, "outcome") ?? "unknown";
+                    var color = string.Equals(outcome, "success", StringComparison.OrdinalIgnoreCase) ? "green" : "red";
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Iteration", color, outcome.EscapeMarkup());
+                    break;
+                }
+            case "log":
+                {
+                    var level = GetJsonString(data, "level") ?? "info";
+                    var component = GetJsonString(data, "component");
+                    var message = GetJsonString(data, "message") ?? string.Empty;
+                    if (string.Equals(level, "warn", StringComparison.OrdinalIgnoreCase)) state.Warnings++;
+                    if (string.Equals(level, "error", StringComparison.OrdinalIgnoreCase)) state.Errors++;
+                    var color = level switch
+                    {
+                        "debug" => "grey",
+                        "info" => "white",
+                        "warn" => "yellow",
+                        "error" => "red",
+                        _ => "white"
+                    };
+                    var detail = string.IsNullOrWhiteSpace(component)
+                        ? message.EscapeMarkup()
+                        : $"[grey][[{component.EscapeMarkup()}]][/] {message.EscapeMarkup()}";
+                    lock (_renderSync)
+                        RenderFelixDetailLine(level.ToUpperInvariant(), color, detail);
+                    break;
+                }
+            case "agent_execution_started":
+                {
+                    state.AgentName = GetJsonString(data, "agent_name") ?? state.AgentName;
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Agent", "cyan", $"{(state.AgentName ?? "unknown").EscapeMarkup()} [grey]started[/]");
+                    break;
+                }
+            case "agent_execution_completed":
+                {
+                    var duration = GetJsonDouble(data, "duration_seconds");
+                    if (duration.HasValue)
+                        state.DurationSeconds = duration;
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Agent", "green", $"execution complete{(duration.HasValue ? $" [grey]({duration.Value:F1}s)[/]" : string.Empty)}");
+                    break;
+                }
+            case "validation_started":
+                {
+                    var validationType = GetJsonString(data, "validation_type") ?? "validation";
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Validation", "blue", $"started [grey]({validationType.EscapeMarkup()})[/]");
+                    break;
+                }
+            case "validation_command_started":
+                {
+                    var command = GetJsonString(data, "command") ?? string.Empty;
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Running", "blue", command.EscapeMarkup());
+                    break;
+                }
+            case "validation_command_completed":
+                {
+                    var passed = GetJsonBool(data, "passed") == true;
+                    if (passed) state.ValidationsPassed++; else state.ValidationsFailed++;
+                    var label = passed ? "passed" : $"failed (exit {GetJsonInt(data, "exit_code") ?? -1})";
+                    var color = passed ? "green" : "red";
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Validation", color, label.EscapeMarkup());
+                    break;
+                }
+            case "task_completed":
+                {
+                    var signal = GetJsonString(data, "signal") ?? string.Empty;
+                    if (signal.Contains("FAIL", StringComparison.OrdinalIgnoreCase)) state.TasksFailed++; else state.TasksCompleted++;
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Task", "green", signal.EscapeMarkup());
+                    break;
+                }
+            case "state_transitioned":
+                {
+                    var from = GetJsonString(data, "from") ?? "unknown";
+                    var to = GetJsonString(data, "to") ?? "unknown";
+                    state.LatestMode = to;
+                    lock (_renderSync)
+                        RenderFelixDetailLine("State", "grey", $"{from.EscapeMarkup()} [grey]->[/] {to.EscapeMarkup()}");
+                    break;
+                }
+            case "artifact_created":
+                {
+                    var path = GetJsonString(data, "path") ?? string.Empty;
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Artifact", "grey", path.EscapeMarkup());
+                    break;
+                }
+            case "error_occurred":
+                {
+                    state.Errors++;
+                    var errorType = GetJsonString(data, "error_type") ?? "error";
+                    var message = GetJsonString(data, "message") ?? string.Empty;
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Error", "red", $"{errorType.EscapeMarkup()} [grey]-[/] {message.EscapeMarkup()}");
+                    break;
+                }
+            case "run_completed":
+                {
+                    state.CompletionStatus = GetJsonString(data, "status") ?? state.CompletionStatus;
+                    var duration = GetJsonDouble(data, "duration_seconds");
+                    if (duration.HasValue)
+                        state.DurationSeconds = duration;
+                    break;
+                }
+            default:
+                {
+                    lock (_renderSync)
+                        RenderFelixDetailLine("Event", "grey", eventType.EscapeMarkup());
+                    break;
+                }
+        }
+    }
+
+    static void RenderFelixDetailLine(string category, string color, string detail)
+    {
+        var paddedCategory = category.PadRight(FelixCategoryColumnWidth).EscapeMarkup();
+        AnsiConsole.MarkupLine($"[{color}]{paddedCategory}[/] {detail}");
+    }
+
+    static void RenderFelixRunSummary(FelixRichRunState state, int exitCode, bool wasCancelled)
+    {
+        var status = wasCancelled
+            ? "cancelled"
+            : string.IsNullOrWhiteSpace(state.CompletionStatus)
+                ? (exitCode == 0 ? "success" : "failed")
+                : state.CompletionStatus!;
+        var color = exitCode == 0 && !wasCancelled ? "green" : wasCancelled ? "yellow" : "red";
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Field[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+
+        table.AddRow("Status", $"[{color}]{status.EscapeMarkup()}[/]");
+        table.AddRow("Exit Code", $"[{color}]{exitCode}[/]");
+        if (!string.IsNullOrWhiteSpace(state.TerminationReason)) table.AddRow("Termination", $"[white]{state.TerminationReason!.EscapeMarkup()}[/]");
+        if (!string.IsNullOrWhiteSpace(state.RequirementId)) table.AddRow("Requirement", $"[white]{state.RequirementId!.EscapeMarkup()}[/]");
+        if (!string.IsNullOrWhiteSpace(state.RunId)) table.AddRow("Run ID", $"[white]{state.RunId!.EscapeMarkup()}[/]");
+        if (!string.IsNullOrWhiteSpace(state.AgentName)) table.AddRow("Agent", $"[white]{state.AgentName!.EscapeMarkup()}[/]");
+        if (!string.IsNullOrWhiteSpace(state.LatestMode)) table.AddRow("Last Mode", $"[white]{state.LatestMode!.EscapeMarkup()}[/]");
+        if (state.Iteration.HasValue && state.MaxIterations.HasValue) table.AddRow("Iteration", $"[white]{state.Iteration}/{state.MaxIterations}[/]");
+        if (state.DurationSeconds.HasValue) table.AddRow("Duration", $"[white]{state.DurationSeconds.Value:F1}s[/]");
+        table.AddRow("Warnings", state.Warnings == 0 ? "[grey]0[/]" : $"[yellow]{state.Warnings}[/]");
+        table.AddRow("Errors", state.Errors == 0 ? "[grey]0[/]" : $"[red]{state.Errors}[/]");
+        table.AddRow("Tasks", $"[green]{state.TasksCompleted} complete[/] / [red]{state.TasksFailed} failed[/]");
+        table.AddRow("Validations", $"[green]{state.ValidationsPassed} passed[/] / [red]{state.ValidationsFailed} failed[/]");
+
+        lock (_renderSync)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Panel(table)
+            {
+                Header = new PanelHeader($"[{color}]Execution Summary[/]"),
+                Border = BoxBorder.Rounded,
+                BorderStyle = Style.Parse(color)
+            });
+            AnsiConsole.WriteLine();
+        }
+    }
+
+    static string? GetJsonString(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.ToString(),
+            JsonValueKind.True => bool.TrueString,
+            JsonValueKind.False => bool.FalseString,
+            _ => value.ToString()
+        };
+    }
+
+    static int? GetJsonInt(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Number)
+            return null;
+
+        return value.TryGetInt32(out var number) ? number : null;
+    }
+
+    static double? GetJsonDouble(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Number)
+            return null;
+
+        return value.TryGetDouble(out var number) ? number : null;
+    }
+
+    static bool? GetJsonBool(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => null
+        };
     }
 
     static string FindPowerShell()
@@ -780,13 +1227,14 @@ class Program
         return OperatingSystem.IsWindows() ? "powershell.exe" : "pwsh";
     }
 
-    static Task ShowListUI(string felixPs1, string? statusFilter, string? priorityFilter)
+    static Task ShowListUI(string felixPs1, string? statusFilter, string? priorityFilter, string? tagFilter, string? blockedByFilter, bool withDeps)
     {
         var rule = new Rule("[cyan]Requirements List[/]").RuleStyle(Style.Parse("cyan dim"));
         AnsiConsole.Write(rule);
         AnsiConsole.WriteLine();
 
         List<JsonElement> filtered;
+        Dictionary<string, string> requirementStatusesById;
         int totalCount;
         try
         {
@@ -798,6 +1246,15 @@ class Program
                 AnsiConsole.MarkupLine("[yellow]No requirements found. Run felix setup in a project directory.[/]");
                 return Task.CompletedTask;
             }
+
+            requirementStatusesById = requirements
+                .EnumerateArray()
+                .Where(req => req.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String)
+                .ToDictionary(
+                    req => req.GetProperty("id").GetString() ?? string.Empty,
+                    req => req.TryGetProperty("status", out var statusProp) ? statusProp.GetString() ?? "unknown" : "unknown",
+                    StringComparer.OrdinalIgnoreCase);
+
             totalCount = requirements.GetArrayLength();
             filtered = requirements.EnumerateArray().Where(req =>
             {
@@ -805,13 +1262,61 @@ class Program
                 var priority = req.TryGetProperty("priority", out var p) ? p.GetString() : "medium";
                 if (statusFilter != null && status != statusFilter) return false;
                 if (priorityFilter != null && priority != priorityFilter) return false;
+                if (!string.IsNullOrWhiteSpace(tagFilter))
+                {
+                    var requestedTags = tagFilter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    if (requestedTags.Length > 0)
+                    {
+                        var requirementTags = GetRequirementTags(req);
+                        if (!requestedTags.Any(tag => requirementTags.Contains(tag, StringComparer.OrdinalIgnoreCase)))
+                            return false;
+                    }
+                }
+
+                if (string.Equals(blockedByFilter, "incomplete-deps", StringComparison.OrdinalIgnoreCase))
+                {
+                    var dependencies = GetRequirementDependencies(req);
+                    if (dependencies.Count == 0)
+                        return false;
+
+                    var hasIncompleteDependency = dependencies.Any(depId =>
+                    {
+                        if (!requirementStatusesById.TryGetValue(depId, out var depStatus))
+                            return true;
+
+                        return !string.Equals(depStatus, "done", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(depStatus, "complete", StringComparison.OrdinalIgnoreCase);
+                    });
+
+                    if (!hasIncompleteDependency)
+                        return false;
+                }
+
                 return true;
-            }).ToList();
+            }).OrderBy(req => req.GetProperty("id").GetString(), StringComparer.OrdinalIgnoreCase).ToList();
         }
         catch (Exception ex)
         {
             AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
             return Task.CompletedTask;
+        }
+
+        var filters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(statusFilter)) filters.Add($"status={statusFilter}");
+        if (!string.IsNullOrWhiteSpace(priorityFilter)) filters.Add($"priority={priorityFilter}");
+        if (!string.IsNullOrWhiteSpace(tagFilter)) filters.Add($"tags={tagFilter}");
+        if (!string.IsNullOrWhiteSpace(blockedByFilter)) filters.Add($"blocked-by={blockedByFilter}");
+        if (withDeps) filters.Add("with-deps");
+
+        if (filters.Count > 0)
+        {
+            AnsiConsole.Write(new Panel($"[grey]{string.Join("   ", filters.Select(filter => filter.EscapeMarkup()))}[/]")
+            {
+                Header = new PanelHeader("[cyan]Active Filters[/]"),
+                Border = BoxBorder.Rounded,
+                BorderStyle = Style.Parse("grey")
+            });
+            AnsiConsole.WriteLine();
         }
 
         var table = new Table()
@@ -822,6 +1327,9 @@ class Program
             .AddColumn(new TableColumn("[yellow]Status[/]").Centered())
             .AddColumn(new TableColumn("[yellow]Priority[/]").Centered());
 
+        if (withDeps)
+            table.AddColumn(new TableColumn("[yellow]Dependencies[/]").Width(36));
+
         foreach (var req in filtered)
         {
             var id = req.GetProperty("id").GetString() ?? "";
@@ -830,12 +1338,14 @@ class Program
                       : "";
             var status = req.GetProperty("status").GetString() ?? "";
             var priority = req.TryGetProperty("priority", out var p) ? p.GetString() : "medium";
+            var dependencies = GetRequirementDependencies(req);
 
             var statusColor = status switch
             {
                 "complete" => "green",
                 "done" => "blue",
                 "in_progress" => "yellow",
+                "in-progress" => "yellow",
                 "planned" => "cyan",
                 "blocked" => "red",
                 _ => "white"
@@ -852,18 +1362,68 @@ class Program
 
             if (title.Length > 57) title = title.Substring(0, 54) + "...";
 
-            table.AddRow(
+            var cells = new List<string>
+            {
                 $"[cyan]{id}[/]",
                 $"[white]{title.EscapeMarkup()}[/]",
-                $"[{statusColor}]{status}[/]",
-                $"[{priorityColor}]{priority}[/]"
-            );
+                $"[{statusColor}]{status.EscapeMarkup()}[/]",
+                $"[{priorityColor}]{priority.EscapeMarkup()}[/]"
+            };
+
+            if (withDeps)
+            {
+                var dependencyText = dependencies.Count == 0
+                    ? "[grey]-[/]"
+                    : string.Join(", ",
+                        dependencies.Select(depId =>
+                        {
+                            if (!requirementStatusesById.TryGetValue(depId, out var depStatus))
+                                return $"[red]{depId.EscapeMarkup()} (missing)[/]";
+
+                            var depColor = string.Equals(depStatus, "done", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(depStatus, "complete", StringComparison.OrdinalIgnoreCase)
+                                ? "green"
+                                : "yellow";
+                            return $"[{depColor}]{depId.EscapeMarkup()} ({depStatus.EscapeMarkup()})[/]";
+                        }));
+                cells.Add(dependencyText);
+            }
+
+            table.AddRow(cells.ToArray());
         }
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[grey]Showing {filtered.Count} of {totalCount} requirements[/]");
         return Task.CompletedTask;
+    }
+
+    static List<string> GetRequirementTags(JsonElement requirement)
+    {
+        if (!requirement.TryGetProperty("tags", out var tagsElement) || tagsElement.ValueKind != JsonValueKind.Array)
+            return new List<string>();
+
+        return tagsElement
+            .EnumerateArray()
+            .Where(tag => tag.ValueKind == JsonValueKind.String)
+            .Select(tag => tag.GetString())
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Select(tag => tag!)
+            .ToList();
+    }
+
+    static List<string> GetRequirementDependencies(JsonElement requirement)
+    {
+        if (!requirement.TryGetProperty("depends_on", out var depsElement) || depsElement.ValueKind != JsonValueKind.Array)
+            return new List<string>();
+
+        return depsElement
+            .EnumerateArray()
+            .Where(dep => dep.ValueKind == JsonValueKind.String)
+            .Select(dep => dep.GetString())
+            .Where(dep => !string.IsNullOrWhiteSpace(dep))
+            .Select(dep => dep!)
+            .ToList();
     }
 
     static async Task<string> ExecutePowerShellCapture(string felixPs1, params string[] args)
@@ -1908,14 +2468,14 @@ rm -rf "$STAGE_ROOT"
         else if (command == "Run Next")
         {
             AnsiConsole.Clear();
-            await ExecutePowerShell(felixPs1, "run-next");
+            await ExecuteFelixRichCommand(felixPs1, "Run Next Requirement", "run-next");
         }
         else if (command == "Run Agent")
             await RunAgentInteractive(felixPs1);
         else if (command == "Run Loop")
         {
             AnsiConsole.Clear();
-            await ExecutePowerShell(felixPs1, "loop");
+            await ExecuteFelixRichCommand(felixPs1, "Continuous Loop", "loop");
         }
         else if (command == "Validate")
             await ValidateInteractive(felixPs1);
@@ -1961,7 +2521,7 @@ rm -rf "$STAGE_ROOT"
         if (statusFilter == "< Back") return;
         if (statusFilter == "All") statusFilter = null;
 
-        await ShowListUI(felixPs1, statusFilter, null);
+        await ShowListUI(felixPs1, statusFilter, null, null, null, false);
     }
 
     static async Task ShowDependencies(string felixPs1)
@@ -2318,7 +2878,7 @@ rm -rf "$STAGE_ROOT"
         var reqId = selected.Split(':')[0];
 
         AnsiConsole.Clear();
-        await ExecutePowerShell(felixPs1, "run", reqId);
+        await ExecuteFelixRichCommand(felixPs1, "Run Requirement", "run", reqId);
     }
 
     sealed record ConfiguredAgent(string Key, string Name, string Provider, string ModelDisplay, bool IsCurrent)

@@ -447,7 +447,7 @@ function Invoke-Agent {
                 $config.sync.base_url
             }
             else {
-                "http://localhost:8080"
+                "https://api.runfelix.io"
             }
 
             $apiKey = if ($syncActive) {

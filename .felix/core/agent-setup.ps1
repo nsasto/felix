@@ -152,7 +152,7 @@ function Get-ModelsForProvider {
             claude  = @("sonnet", "opus")
             codex   = @("gpt-5.2-codex", "gpt-5.4-codex")
             gemini  = @("auto")
-            copilot = @("auto", "gpt-5.4", "gpt-5.3-codex", "claude-opus-4.6", "claude-sonnet-4.6", "claude-haiku-4.5", "claude-opus-4.5", "claude-opus-4.6-fast", "claude-sonnet-4", "claude-sonnet-4.5", "gemini-2.5-pro", "gemini-3-flash", "gemini-3-pro", "gemini-3.1-pro")
+            copilot = @("gpt-5.4", "gpt-5.3-codex", "claude-opus-4.6", "claude-sonnet-4.6", "claude-haiku-4.5", "claude-opus-4.5", "claude-opus-4.6-fast", "claude-sonnet-4", "claude-sonnet-4.5", "gemini-2.5-pro", "gemini-3-flash", "gemini-3-pro", "gemini-3.1-pro")
         }
     }
 

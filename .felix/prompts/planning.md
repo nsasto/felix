@@ -42,7 +42,7 @@ You still need to read the **requirement spec** (path shown in Current Requireme
 4. Verify completeness: map every spec item to at least one task
 5. Simplify: remove unnecessary complexity, merge redundant tasks
 6. Save the plan file to the output path
-7. If the plan covers all spec items and tasks are small enough → signal `PLAN_COMPLETE`
+7. If the plan covers all spec items and tasks are small enough -> signal `PLANNING_COMPLETE`
 8. If you spot gaps or over-complexity → refine and iterate
 
 ## Plan Format
@@ -85,10 +85,12 @@ All other modifications will be reverted.
 
 ## Completion
 
-Output `<promise>PLAN_COMPLETE</promise>` when the plan:
+Output `<promise>PLANNING_COMPLETE</promise>` when the plan:
 
 - Covers every spec item
 - Has tasks small enough for single iterations
 - Uses the simplest viable approach
 
-If the plan needs more work, continue refining — do not signal completion until satisfied.
+The completion marker must appear as a standalone literal line in your final response.
+
+If the plan needs more work, continue refining - do not signal completion until satisfied.

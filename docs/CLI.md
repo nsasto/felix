@@ -914,7 +914,7 @@ The installed CLI presents this as a searchable multi-select with provider statu
 preselects already-configured profiles, and then prompts for a model for each selected provider.
 Providers that are not installed are shown but cannot be selected, and the command points you to `felix agent install-help <name>` for installation guidance.
 
-For `copilot`, Felix currently uses a curated static model list instead of querying the CLI dynamically. The default Copilot model is `auto`, and Felix retries without `--model` if the configured Copilot model is no longer available.
+For `copilot`, Felix currently uses a curated static model list instead of querying the CLI dynamically. By default Felix does not pass `--model` for Copilot, and Felix retries without `--model` if a configured Copilot model is no longer available.
 
 ### `felix agent install-help [name]` - Show Install Instructions
 
@@ -953,7 +953,7 @@ If you prefer wording that emphasizes the persistent default rather than the imm
 
 ```bash
 felix agent set-default claude
-felix agent set-default copilot --model auto
+felix agent set-default copilot
 ```
 
 **Interactive selection:**
