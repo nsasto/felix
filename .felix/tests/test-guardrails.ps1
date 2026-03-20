@@ -56,7 +56,7 @@ Describe "Test-PlanningModeGuardrails" {
             $beforeState = Get-GitState -WorkingDir $repo
             
             # Modify state.json
-            @{ test = "data" } | ConvertTo-Json | Set-Content (Join-Path $repo "felix\state.json")
+            @{ test = "data" } | ConvertTo-Json | Set-Content (Join-Path $repo ".felix\state.json")
             
             $violations = Test-PlanningModeGuardrails -WorkingDir $repo -BeforeState $beforeState
             

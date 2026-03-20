@@ -97,5 +97,10 @@ function Set-TestRequirements {
     } | ConvertTo-Json -Depth 10 | Set-Content $requirementsFile
 }
 
-Export-ModuleMember -Function New-TestRepository, Remove-TestRepository, New-TestRequirement, Set-TestRequirements
+try {
+    Export-ModuleMember -Function New-TestRepository, Remove-TestRepository, New-TestRequirement, Set-TestRequirements
+}
+catch {
+    # Allow dot-sourcing this helper from standalone test scripts.
+}
 

@@ -28,9 +28,19 @@ $failedTests = @()
 
 foreach ($tf in $testFiles) {
     Write-Host ">>> $($tf.BaseName)" -ForegroundColor Yellow
-    $output = & powershell.exe -NoProfile -Command "& { . '$($tf.FullName)' } 2>&1" | Out-String
+    $output = & powershell.exe -NoProfile -File $tf.FullName 2>&1 | Out-String
     $lines = $output -split "`n"
     foreach ($line in $lines) {
+        if ($line -match '^\s*$' -or
+            $line -match '^powershell\.exe\s*:\s*Switched to branch' -or
+            $line -match '^powershell\.exe\s*:\s*Switched to a new branch' -or
+            $line -match '^At .*run-git-test\.ps1:' -or
+            $line -match '^\s*\+ .*~+' -or
+            $line -match '^\s*\+ CategoryInfo' -or
+            $line -match '^\s*\+ FullyQualifiedErrorId\s*:\s*NativeCommandError') {
+            continue
+        }
+
         if ($line -match '\[PASS\]') {
             $totalPass++
             Write-Host $line.Trim()
