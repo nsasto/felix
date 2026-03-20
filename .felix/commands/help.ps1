@@ -244,6 +244,8 @@ function Show-Help {
                 Write-Host ""
                 Write-Host "Notes:" -ForegroundColor Yellow
                 Write-Host "  agent test verifies the executable and attempts a short version probe." -ForegroundColor Gray
+                Write-Host "  use/set-default may update agents.json when --model changes the deterministic agent key." -ForegroundColor Gray
+                Write-Host "  register can continue non-interactively with configured sync values." -ForegroundColor Gray
                 Write-Host ""
             }
             "tui" {
@@ -291,6 +293,9 @@ function Show-Help {
                 Write-Host "  - Agent name"
                 Write-Host "  - Process ID (PID)"
                 Write-Host "  - Running duration"
+                Write-Host ""
+                Write-Host "Notes:" -ForegroundColor Yellow
+                Write-Host "  procs kill force-terminates the tracked process tree and removes the session record." -ForegroundColor Gray
                 Write-Host ""
             }
             default {

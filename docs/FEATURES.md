@@ -203,7 +203,26 @@ See **[Writing Plugins](PLUGINS.md)** for the full authoring guide.
 - Switch between configured agents
 - Support multiple LLM providers (Droid, Claude, Codex, Gemini, Copilot)
 - Update config.json atomically
+- Recompute deterministic agent keys when `--model` changes the active profile identity
 - Immediate effect on next execution
+
+**`felix agent register`**
+
+- Register the current configured agent with the sync backend
+- Show sync target details before attempting registration
+- Safe to re-run and safe in non-interactive shells
+
+**`felix procs kill <session-id|all>`**
+
+- Stop tracked Felix agent sessions from the CLI
+- Clean stale `.felix/sessions.json` entries automatically
+- Remove session records after termination
+
+**`felix spec pull` / `felix spec push`**
+
+- Sync local specs with the backend server
+- Support dry-run, force, and delete semantics for pull
+- Chunk uploads and retry failed push batches
 
 ### Terminal UI
 

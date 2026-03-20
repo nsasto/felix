@@ -451,11 +451,7 @@ class Program
 
         pullCmd.SetHandler(async (dryRun, delete, force) =>
         {
-            var args = new List<string> { "spec", "pull" };
-            if (dryRun) args.Add("--dry-run");
-            if (delete) args.Add("--delete");
-            if (force) args.Add("--force");
-            await ExecutePowerShell(felixPs1, args.ToArray());
+            await RunSpecPullUI(dryRun, delete, force);
         }, dryRunOpt, deleteOpt, forceOpt2);
 
         // spec push
@@ -470,10 +466,7 @@ class Program
 
         pushCmd.SetHandler(async (dryRun, force) =>
         {
-            var args = new List<string> { "spec", "push" };
-            if (dryRun) args.Add("--dry-run");
-            if (force) args.Add("--force");
-            await ExecutePowerShell(felixPs1, args.ToArray());
+            await RunSpecPushUI(dryRun, force);
         }, pushDryRunOpt, pushForceOpt);
 
         cmd.AddCommand(listCmd);
@@ -524,11 +517,9 @@ class Program
         useCmd.SetHandler(async (target, model) =>
         {
             if (string.IsNullOrEmpty(target))
-                await UseAgentInteractive(felixPs1, "use");
-            else if (string.IsNullOrEmpty(model))
-                await ExecutePowerShell(felixPs1, "agent", "use", target);
+                await UseAgentInteractive("use");
             else
-                await ExecutePowerShell(felixPs1, "agent", "use", target, "--model", model);
+                await UseAgentSelectionUI(target, model, setDefault: false);
         }, targetArg, useModelOpt);
 
         var setDefaultTargetArg = new Argument<string?>("target", "Agent ID or name to set as default")
@@ -547,11 +538,9 @@ class Program
         setDefaultCmd.SetHandler(async (target, model) =>
         {
             if (string.IsNullOrEmpty(target))
-                await UseAgentInteractive(felixPs1, "set-default");
-            else if (string.IsNullOrEmpty(model))
-                await ExecutePowerShell(felixPs1, "agent", "set-default", target);
+                await UseAgentInteractive("set-default");
             else
-                await ExecutePowerShell(felixPs1, "agent", "set-default", target, "--model", model);
+                await UseAgentSelectionUI(target, model, setDefault: true);
         }, setDefaultTargetArg, setDefaultModelOpt);
 
         // agent test
@@ -588,7 +577,7 @@ class Program
         var registerCmd = new Command("register", "Register the current agent with the sync server");
         registerCmd.SetHandler(async () =>
         {
-            await ExecutePowerShell(felixPs1, "agent", "register");
+            await RegisterCurrentAgentUI();
         });
 
         cmd.AddCommand(listCmd);
@@ -727,6 +716,12 @@ class Program
             if (string.Equals(subCommand, "list", StringComparison.OrdinalIgnoreCase))
             {
                 await ShowProcessSessionsUI();
+                return;
+            }
+
+            if (string.Equals(subCommand, "kill", StringComparison.OrdinalIgnoreCase))
+            {
+                await KillProcessSessionsUI(normalizedSubArgs.Skip(1).ToArray());
                 return;
             }
 
@@ -1565,7 +1560,7 @@ class Program
         AnsiConsole.Write(new Rule("[cyan]Active Sessions[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
-        var sessions = ReadActiveSessions();
+        var sessions = ReadActiveSessions(cleanupFile: true);
         if (sessions.Count == 0)
         {
             AnsiConsole.MarkupLine("[grey]No active sessions.[/]");
@@ -1603,7 +1598,93 @@ class Program
         return Task.CompletedTask;
     }
 
-    static List<ActiveSessionInfo> ReadActiveSessions()
+    static async Task KillProcessSessionsUI(string[] subArgs)
+    {
+        if (subArgs.Length == 0)
+        {
+            AnsiConsole.MarkupLine("[red]Usage: felix procs kill <session-id|all>[/]");
+            AnsiConsole.MarkupLine("[grey]Tip: Use 'felix procs list' to see active sessions.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var target = subArgs[0];
+        var sessions = ReadActiveSessions(cleanupFile: true);
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Terminate Sessions[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        if (string.Equals(target, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            if (sessions.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[grey]No active sessions to kill.[/]");
+                Environment.ExitCode = 0;
+                return;
+            }
+
+            var table = new Table()
+                .Border(TableBorder.Rounded)
+                .BorderColor(Color.Grey)
+                .AddColumn(new TableColumn("[yellow]Session[/]").NoWrap())
+                .AddColumn(new TableColumn("[yellow]Requirement[/]").NoWrap())
+                .AddColumn(new TableColumn("[yellow]PID[/]").RightAligned().NoWrap())
+                .AddColumn(new TableColumn("[yellow]Result[/]").NoWrap());
+
+            var remainingSessions = sessions.ToList();
+            var failed = 0;
+            foreach (var session in sessions.OrderBy(session => session.SessionId, StringComparer.OrdinalIgnoreCase))
+            {
+                var success = TryStopSession(session, out var error);
+                if (success)
+                    remainingSessions.RemoveAll(candidate => string.Equals(candidate.SessionId, session.SessionId, StringComparison.OrdinalIgnoreCase));
+                else
+                    failed++;
+
+                table.AddRow(
+                    session.SessionId.EscapeMarkup(),
+                    session.RequirementId.EscapeMarkup(),
+                    session.Pid.ToString(),
+                    success ? "[green]terminated[/]" : $"[red]{(string.IsNullOrWhiteSpace(error) ? "failed" : error.EscapeMarkup())}[/]");
+            }
+
+            SaveActiveSessions(remainingSessions);
+            AnsiConsole.Write(table);
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine(failed == 0
+                ? "[green]All sessions terminated.[/]"
+                : $"[yellow]{failed} session(s) could not be terminated.[/]");
+            Environment.ExitCode = failed == 0 ? 0 : 1;
+            return;
+        }
+
+        var sessionToKill = sessions.FirstOrDefault(session => string.Equals(session.SessionId, target, StringComparison.OrdinalIgnoreCase));
+        if (sessionToKill == null)
+        {
+            AnsiConsole.MarkupLine($"[red]Session not found: {target.EscapeMarkup()}[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (TryStopSession(sessionToKill, out var singleError))
+        {
+            SaveActiveSessions(sessions.Where(session => !string.Equals(session.SessionId, sessionToKill.SessionId, StringComparison.OrdinalIgnoreCase)).ToList());
+            AnsiConsole.MarkupLine($"[green]Session terminated:[/] {sessionToKill.SessionId.EscapeMarkup()} [grey](req: {sessionToKill.RequirementId.EscapeMarkup()}, pid: {sessionToKill.Pid})[/]");
+            Environment.ExitCode = 0;
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"[red]Failed to terminate session:[/] {sessionToKill.SessionId.EscapeMarkup()}");
+            if (!string.IsNullOrWhiteSpace(singleError))
+                AnsiConsole.MarkupLine($"[red]{singleError.EscapeMarkup()}[/]");
+            Environment.ExitCode = 1;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    static List<ActiveSessionInfo> ReadActiveSessions(bool cleanupFile = false)
     {
         var sessionsPath = Path.Combine(_felixProjectRoot, ".felix", "sessions.json");
         if (!File.Exists(sessionsPath))
@@ -1612,11 +1693,16 @@ class Program
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(sessionsPath));
-            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            if (doc.RootElement.ValueKind is not (JsonValueKind.Array or JsonValueKind.Object))
                 return new List<ActiveSessionInfo>();
 
             var sessions = new List<ActiveSessionInfo>();
-            foreach (var session in doc.RootElement.EnumerateArray())
+            var needsCleanup = false;
+            var sessionElements = doc.RootElement.ValueKind == JsonValueKind.Array
+                ? doc.RootElement.EnumerateArray().ToArray()
+                : new[] { doc.RootElement };
+
+            foreach (var session in sessionElements)
             {
                 var pid = GetJsonInt(session, "pid");
                 var sessionId = GetJsonString(session, "session_id");
@@ -1626,10 +1712,16 @@ class Program
                 var startTimeText = GetJsonString(session, "start_time");
 
                 if (string.IsNullOrWhiteSpace(sessionId) || !pid.HasValue)
+                {
+                    needsCleanup = true;
                     continue;
+                }
 
                 if (!IsProcessRunning(pid.Value))
+                {
+                    needsCleanup = true;
                     continue;
+                }
 
                 var startTimeUtc = DateTime.TryParse(startTimeText, out var parsedStart)
                     ? parsedStart.ToUniversalTime()
@@ -1637,6 +1729,9 @@ class Program
 
                 sessions.Add(new ActiveSessionInfo(sessionId!, requirementId, pid.Value, agent, status, startTimeUtc));
             }
+
+            if (cleanupFile && needsCleanup)
+                SaveActiveSessions(sessions);
 
             return sessions;
         }
@@ -1655,6 +1750,90 @@ class Program
         }
         catch
         {
+            return false;
+        }
+    }
+
+    static void SaveActiveSessions(IReadOnlyCollection<ActiveSessionInfo> sessions)
+    {
+        var sessionsPath = Path.Combine(_felixProjectRoot, ".felix", "sessions.json");
+        var felixDir = Path.GetDirectoryName(sessionsPath);
+        if (!string.IsNullOrWhiteSpace(felixDir))
+            Directory.CreateDirectory(felixDir);
+
+        if (sessions.Count == 0)
+        {
+            if (File.Exists(sessionsPath))
+                File.Delete(sessionsPath);
+            return;
+        }
+
+        var payload = new JsonArray();
+        foreach (var session in sessions)
+        {
+            payload.Add(new JsonObject
+            {
+                ["session_id"] = session.SessionId,
+                ["requirement_id"] = session.RequirementId,
+                ["pid"] = session.Pid,
+                ["agent"] = session.Agent,
+                ["start_time"] = session.StartTimeUtc.ToString("o"),
+                ["status"] = session.Status
+            });
+        }
+
+        File.WriteAllText(sessionsPath, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+
+    static bool TryStopSession(ActiveSessionInfo session, out string? error)
+    {
+        error = null;
+
+        try
+        {
+            if (!IsProcessRunning(session.Pid))
+                return true;
+
+            if (OperatingSystem.IsWindows())
+            {
+                var taskKill = new ProcessStartInfo
+                {
+                    FileName = "taskkill",
+                    Arguments = $"/F /T /PID {session.Pid}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(taskKill);
+                if (process == null)
+                {
+                    error = "Failed to launch taskkill.";
+                    return false;
+                }
+
+                process.WaitForExit();
+            }
+            else
+            {
+                using var process = Process.GetProcessById(session.Pid);
+                process.Kill(true);
+                process.WaitForExit(5000);
+            }
+
+            Thread.Sleep(500);
+            if (IsProcessRunning(session.Pid))
+            {
+                error = $"Process {session.Pid} is still running.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
             return false;
         }
     }
@@ -2242,6 +2421,517 @@ class Program
             AnsiConsole.MarkupLine($"[red]Errors:[/] {string.Join(" | ", errors.Select(item => item.EscapeMarkup()))}");
 
         Environment.ExitCode = errors.Count == 0 ? 0 : 1;
+    }
+
+    sealed record RemoteSpecFile(string Path, string Hash);
+    sealed record SpecPushFile(string Path, string ContentBase64);
+    sealed record SpecPushResult(string Path, bool Uploaded, string? Error);
+
+    static async Task RunSpecPullUI(bool dryRun, bool delete, bool force)
+    {
+        if (!TryResolveSpecSyncSettings(out var baseUrl, out var apiKey))
+            return;
+
+        var manifest = LoadSpecManifest();
+        var checkPayload = new JsonObject { ["files"] = BuildManifestFilesObject(manifest) };
+        var checkResponse = await PostJsonAsync(baseUrl, "/api/sync/specs/check", checkPayload, apiKey, 15);
+        if (!checkResponse.Success)
+        {
+            AnsiConsole.MarkupLine($"[red]Failed to check specs with server:[/] {(checkResponse.Error ?? "unknown error").EscapeMarkup()}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var downloads = new List<RemoteSpecFile>();
+        var deletes = new List<string>();
+
+        try
+        {
+            using var document = JsonDocument.Parse(checkResponse.Content ?? "{}");
+            if (document.RootElement.TryGetProperty("download", out var downloadElement) && downloadElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in downloadElement.EnumerateArray())
+                {
+                    var path = GetJsonString(entry, "path");
+                    var hash = GetJsonString(entry, "hash");
+                    if (!string.IsNullOrWhiteSpace(path) && !string.IsNullOrWhiteSpace(hash))
+                        downloads.Add(new RemoteSpecFile(path!, hash!));
+                }
+            }
+
+            if (document.RootElement.TryGetProperty("delete", out var deleteElement) && deleteElement.ValueKind == JsonValueKind.Array)
+            {
+                deletes.AddRange(deleteElement.EnumerateArray()
+                    .Where(item => item.ValueKind == JsonValueKind.String)
+                    .Select(item => item.GetString())
+                    .Where(item => !string.IsNullOrWhiteSpace(item))!
+                    .Cast<string>());
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Server response could not be parsed:[/] {ex.Message.EscapeMarkup()}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Spec Pull[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        if (downloads.Count == 0 && deletes.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[green]Already up to date.[/]");
+            Environment.ExitCode = 0;
+            return;
+        }
+
+        var results = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Action[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Path[/]"))
+            .AddColumn(new TableColumn("[yellow]Result[/]"));
+
+        var newFileCount = 0;
+        foreach (var entry in downloads.OrderBy(item => item.Path, StringComparer.OrdinalIgnoreCase))
+        {
+            var destinationPath = Path.Combine(_felixProjectRoot, entry.Path.Replace('/', Path.DirectorySeparatorChar));
+            var tracked = manifest.ContainsKey(entry.Path);
+            var exists = File.Exists(destinationPath);
+            var action = exists ? "update" : "download";
+
+            if (dryRun)
+            {
+                results.AddRow(action, entry.Path.EscapeMarkup(), "[yellow]dry-run[/]");
+                continue;
+            }
+
+            if (exists && !tracked && !force)
+            {
+                results.AddRow(action, entry.Path.EscapeMarkup(), "[yellow]skipped: local file not in manifest[/]");
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            var downloadResult = await DownloadSpecFileAsync(baseUrl, entry.Path, apiKey);
+            if (!downloadResult.Success || downloadResult.Bytes == null)
+            {
+                results.AddRow(action, entry.Path.EscapeMarkup(), $"[red]{(downloadResult.Error ?? "download failed").EscapeMarkup()}[/]");
+                continue;
+            }
+
+            await File.WriteAllBytesAsync(destinationPath, downloadResult.Bytes);
+            var actualHash = ComputeFileSha256(destinationPath);
+            var expectedHash = entry.Hash.ToLowerInvariant();
+            manifest[entry.Path] = entry.Hash;
+            if (!tracked)
+            {
+                newFileCount++;
+                TryCreateSpecMetaSidecar(entry.Path);
+            }
+
+            var resultMarkup = string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase)
+                ? "[green]ok[/]"
+                : $"[yellow]hash mismatch (expected {expectedHash.EscapeMarkup()}, got {actualHash.EscapeMarkup()})[/]";
+            results.AddRow(action, entry.Path.EscapeMarkup(), resultMarkup);
+        }
+
+        foreach (var relPath in deletes.OrderBy(item => item, StringComparer.OrdinalIgnoreCase))
+        {
+            if (dryRun)
+            {
+                results.AddRow("delete", relPath.EscapeMarkup(), "[yellow]dry-run[/]");
+                continue;
+            }
+
+            if (delete)
+            {
+                var destinationPath = Path.Combine(_felixProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(destinationPath))
+                    File.Delete(destinationPath);
+                manifest.Remove(relPath);
+                results.AddRow("delete", relPath.EscapeMarkup(), "[green]deleted[/]");
+            }
+            else
+            {
+                results.AddRow("delete", relPath.EscapeMarkup(), "[grey]skipped (--delete not set)[/]");
+            }
+        }
+
+        AnsiConsole.Write(results);
+        AnsiConsole.WriteLine();
+
+        if (!dryRun)
+            SaveSpecManifest(manifest);
+
+        if (dryRun)
+            AnsiConsole.MarkupLine("[yellow]Dry run complete. No files were changed.[/]");
+        else
+            AnsiConsole.MarkupLine("[green]Spec pull complete.[/]");
+
+        if (!dryRun && newFileCount > 0)
+            AnsiConsole.MarkupLine($"[cyan]Hint:[/] {newFileCount} new spec file(s) downloaded. Run 'felix spec fix' to register them in requirements.json.");
+
+        Environment.ExitCode = 0;
+    }
+
+    static async Task RunSpecPushUI(bool dryRun, bool force)
+    {
+        if (!TryResolveSpecSyncSettings(out var baseUrl, out var apiKey))
+            return;
+
+        var specsDir = Path.Combine(_felixProjectRoot, "specs");
+        if (!Directory.Exists(specsDir))
+        {
+            AnsiConsole.MarkupLine($"[red]No specs directory found at:[/] {specsDir.EscapeMarkup()}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var specFiles = Directory.GetFiles(specsDir, "*.md", SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .Select(path => new SpecPushFile(GetSpecRelativePath(specsDir, path), Convert.ToBase64String(File.ReadAllBytes(path))))
+            .ToList();
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Spec Push[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        if (specFiles.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No spec files found in specs/.[/]");
+            Environment.ExitCode = 0;
+            return;
+        }
+
+        if (dryRun)
+        {
+            var table = new Table()
+                .Border(TableBorder.Rounded)
+                .BorderColor(Color.Grey)
+                .AddColumn(new TableColumn("[yellow]Path[/]"));
+            foreach (var file in specFiles)
+                table.AddRow(file.Path.EscapeMarkup());
+            AnsiConsole.Write(table);
+            AnsiConsole.WriteLine();
+            if (force)
+                AnsiConsole.MarkupLine("[yellow]--force would request create-if-missing requirement mappings on the server.[/]");
+            AnsiConsole.MarkupLine("[yellow]Dry run complete. No files were uploaded.[/]");
+            Environment.ExitCode = 0;
+            return;
+        }
+
+        var chunkSize = GetIntEnvironmentVariable("FELIX_SPEC_PUSH_CHUNK_SIZE", 10);
+        var timeoutSec = GetIntEnvironmentVariable("FELIX_SPEC_PUSH_TIMEOUT_SEC", 120);
+        var maxRetries = GetIntEnvironmentVariable("FELIX_SPEC_PUSH_RETRIES", 2);
+        var allResults = new List<SpecPushResult>();
+        var totalChunks = (int)Math.Ceiling(specFiles.Count / (double)chunkSize);
+
+        for (var chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
+        {
+            var chunk = specFiles.Skip(chunkIndex * chunkSize).Take(chunkSize).ToList();
+            var payload = new JsonObject
+            {
+                ["files"] = new JsonArray(chunk.Select(file => new JsonObject
+                {
+                    ["path"] = file.Path,
+                    ["content"] = file.ContentBase64
+                }).ToArray<JsonNode>())
+            };
+
+            if (force)
+            {
+                payload["force"] = true;
+                payload["create_missing_requirements"] = true;
+                payload["create_requirements_if_missing"] = true;
+            }
+
+            HttpStringResult? uploadResponse = null;
+            for (var attempt = 1; attempt <= maxRetries + 1; attempt++)
+            {
+                uploadResponse = await PostJsonAsync(baseUrl, "/api/sync/specs/upload", payload, apiKey, timeoutSec);
+                if (uploadResponse.Success)
+                    break;
+
+                if (attempt > maxRetries)
+                {
+                    AnsiConsole.MarkupLine($"[red]Failed to upload chunk {chunkIndex + 1}/{totalChunks}:[/] {(uploadResponse.Error ?? "unknown error").EscapeMarkup()}");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
+                var delaySeconds = attempt * 5;
+                AnsiConsole.MarkupLine($"[yellow]Retrying chunk {chunkIndex + 1}/{totalChunks} in {delaySeconds}s:[/] {(uploadResponse.Error ?? "upload failed").EscapeMarkup()}");
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(uploadResponse!.Content ?? "{}");
+                if (document.RootElement.TryGetProperty("results", out var resultsElement) && resultsElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var result in resultsElement.EnumerateArray())
+                    {
+                        var path = GetJsonString(result, "path") ?? "-";
+                        var uploaded = result.TryGetProperty("uploaded", out var uploadedElement) && uploadedElement.ValueKind == JsonValueKind.True;
+                        var error = GetJsonString(result, "error");
+                        if (!string.IsNullOrWhiteSpace(error))
+                            error = error.Replace("â??", "-", StringComparison.Ordinal);
+                        allResults.Add(new SpecPushResult(path, uploaded, error));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Upload response could not be parsed:[/] {ex.Message.EscapeMarkup()}");
+                Environment.ExitCode = 1;
+                return;
+            }
+        }
+
+        var resultTable = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Path[/]"))
+            .AddColumn(new TableColumn("[yellow]Result[/]"))
+            .AddColumn(new TableColumn("[yellow]Details[/]"));
+
+        var uploadedCount = 0;
+        var skippedCount = 0;
+        var missingRequirementCount = 0;
+        var forceCreateNotHonoredCount = 0;
+
+        foreach (var result in allResults)
+        {
+            if (result.Uploaded)
+            {
+                uploadedCount++;
+                resultTable.AddRow(result.Path.EscapeMarkup(), "[green]uploaded[/]", "-");
+                continue;
+            }
+
+            skippedCount++;
+            var detail = result.Error ?? "skipped";
+            if (detail.Contains("No requirement found with this spec_path", StringComparison.OrdinalIgnoreCase))
+            {
+                missingRequirementCount++;
+                if (force)
+                    forceCreateNotHonoredCount++;
+                detail = "No matching requirement for this spec_path on the server project. Verify backend URL/API key project mapping, then bootstrap remote requirements.";
+            }
+
+            resultTable.AddRow(result.Path.EscapeMarkup(), "[yellow]skipped[/]", detail.EscapeMarkup());
+        }
+
+        AnsiConsole.Write(resultTable);
+        AnsiConsole.WriteLine();
+
+        if (skippedCount == 0)
+        {
+            AnsiConsole.MarkupLine($"[green]Spec push complete. {uploadedCount} file(s) uploaded.[/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"[yellow]Spec push complete. {uploadedCount} uploaded, {skippedCount} skipped.[/]");
+            if (force && forceCreateNotHonoredCount > 0)
+            {
+                AnsiConsole.MarkupLine($"[yellow]Server did not create {forceCreateNotHonoredCount} missing requirement mapping(s) despite --force.[/]");
+                AnsiConsole.MarkupLine("[grey]This backend may not support create-if-missing in spec upload yet.[/]");
+            }
+
+            if (missingRequirementCount == skippedCount && skippedCount > 0)
+            {
+                AnsiConsole.MarkupLine("[grey]All skipped specs are missing requirement rows on the server project (local files exist).[/]");
+                AnsiConsole.MarkupLine("[grey]Check FELIX_SYNC_URL + API key project mapping, then bootstrap requirements on the backend.[/]");
+                AnsiConsole.MarkupLine("[grey]Tip: 'felix spec fix' updates local requirements.json only; it does not create remote requirement rows.[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[grey]Skipped specs may not have matching requirements in the DB yet.[/]");
+                AnsiConsole.MarkupLine("[grey]Run 'felix spec fix' then retry.[/]");
+            }
+        }
+
+        Environment.ExitCode = skippedCount == 0 ? 0 : 0;
+    }
+
+    static bool TryResolveSpecSyncSettings(out string baseUrl, out string apiKey)
+    {
+        baseUrl = string.Empty;
+        apiKey = string.Empty;
+
+        var configPath = Path.Combine(_felixProjectRoot, ".felix", "config.json");
+        if (!File.Exists(configPath))
+        {
+            AnsiConsole.MarkupLine("[red]No .felix/config.json found. Run 'felix setup' first.[/]");
+            Environment.ExitCode = 1;
+            return false;
+        }
+
+        var config = LoadSetupConfig(configPath);
+        EnsureSetupConfigDefaults(config);
+        var sync = EnsureObject(config, "sync");
+
+        baseUrl = Environment.GetEnvironmentVariable("FELIX_SYNC_URL")
+            ?? GetOptionalJsonString(sync, "base_url")
+            ?? string.Empty;
+        apiKey = Environment.GetEnvironmentVariable("FELIX_SYNC_KEY")
+            ?? GetOptionalJsonString(sync, "api_key")
+            ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            AnsiConsole.MarkupLine("[red]sync.base_url is not set in .felix/config.json. Run 'felix setup' to configure it.[/]");
+            Environment.ExitCode = 1;
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            AnsiConsole.MarkupLine("[red]sync.api_key is not set in .felix/config.json or FELIX_SYNC_KEY. Run 'felix setup' to add your API key.[/]");
+            Environment.ExitCode = 1;
+            return false;
+        }
+
+        return true;
+    }
+
+    static Dictionary<string, string> LoadSpecManifest()
+    {
+        var manifestPath = Path.Combine(_felixProjectRoot, ".felix", "spec-manifest.json");
+        var manifest = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(manifestPath))
+            return manifest;
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            if (document.RootElement.TryGetProperty("files", out var filesElement) && filesElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in filesElement.EnumerateObject())
+                {
+                    if (property.Value.ValueKind == JsonValueKind.String)
+                        manifest[property.Name] = property.Value.GetString() ?? string.Empty;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return manifest;
+    }
+
+    static JsonObject BuildManifestFilesObject(IReadOnlyDictionary<string, string> manifest)
+    {
+        var filesObject = new JsonObject();
+        foreach (var pair in manifest.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            filesObject[pair.Key] = pair.Value;
+        return filesObject;
+    }
+
+    static void SaveSpecManifest(IReadOnlyDictionary<string, string> manifest)
+    {
+        var manifestPath = Path.Combine(_felixProjectRoot, ".felix", "spec-manifest.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
+        var payload = new JsonObject
+        {
+            ["synced_at"] = DateTime.UtcNow.ToString("o"),
+            ["files"] = BuildManifestFilesObject(manifest)
+        };
+        File.WriteAllText(manifestPath, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+
+    sealed record HttpStringResult(bool Success, string? Content, string? Error);
+    sealed record HttpBytesResult(bool Success, byte[]? Bytes, string? Error);
+
+    static async Task<HttpStringResult> PostJsonAsync(string baseUrl, string endpoint, JsonObject payload, string apiKey, int timeoutSeconds)
+    {
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(timeoutSeconds) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, baseUrl.TrimEnd('/') + endpoint)
+            {
+                Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json")
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            using var response = await client.SendAsync(request);
+            var content = await response.Content.ReadAsStringAsync();
+            return response.IsSuccessStatusCode
+                ? new HttpStringResult(true, content, null)
+                : new HttpStringResult(false, content, ExtractApiErrorMessage(content) ?? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
+        }
+        catch (Exception ex)
+        {
+            return new HttpStringResult(false, null, ex.Message);
+        }
+    }
+
+    static async Task<HttpBytesResult> DownloadSpecFileAsync(string baseUrl, string relativePath, string apiKey)
+    {
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var encodedPath = Uri.EscapeDataString(relativePath);
+            using var request = new HttpRequestMessage(HttpMethod.Get, baseUrl.TrimEnd('/') + "/api/sync/specs/file?path=" + encodedPath);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            using var response = await client.SendAsync(request);
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            return response.IsSuccessStatusCode
+                ? new HttpBytesResult(true, bytes, null)
+                : new HttpBytesResult(false, null, ExtractApiErrorMessage(Encoding.UTF8.GetString(bytes)) ?? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
+        }
+        catch (Exception ex)
+        {
+            return new HttpBytesResult(false, null, ex.Message);
+        }
+    }
+
+    static string ComputeFileSha256(string path)
+    {
+        using var sha = SHA256.Create();
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(sha.ComputeHash(stream)).ToLowerInvariant();
+    }
+
+    static void TryCreateSpecMetaSidecar(string relativePath)
+    {
+        if (!relativePath.StartsWith("specs/", StringComparison.OrdinalIgnoreCase) || !relativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var fileName = Path.GetFileName(relativePath);
+        var requirementId = TryParseRequirementId(fileName);
+        if (requirementId == null)
+            return;
+
+        var metaRelativePath = relativePath[..^3] + ".meta.json";
+        var metaPath = Path.Combine(_felixProjectRoot, metaRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(metaPath))
+            return;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(metaPath)!);
+        var payload = new JsonObject
+        {
+            ["status"] = "planned",
+            ["priority"] = "medium",
+            ["tags"] = new JsonArray(),
+            ["depends_on"] = new JsonArray(),
+            ["updated_at"] = DateTime.UtcNow.ToString("yyyy-MM-dd")
+        };
+        File.WriteAllText(metaPath, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+
+    static string GetSpecRelativePath(string specsDir, string fullPath)
+    {
+        var relative = Path.GetRelativePath(specsDir, fullPath).Replace('\\', '/');
+        return "specs/" + relative.TrimStart('/');
+    }
+
+    static int GetIntEnvironmentVariable(string variableName, int fallback)
+    {
+        var raw = Environment.GetEnvironmentVariable(variableName);
+        return int.TryParse(raw, out var parsed) && parsed > 0 ? parsed : fallback;
     }
 
     static JsonObject LoadRequirementsDocument()
@@ -3471,7 +4161,7 @@ rm -rf "$STAGE_ROOT"
         Console.ReadKey(true);
     }
 
-    static async Task UseAgentInteractive(string felixPs1, string subCommand = "use")
+    static async Task UseAgentInteractive(string subCommand = "use")
     {
         var agents = ReadConfiguredAgents();
         if (agents == null || agents.Count == 0)
@@ -3506,13 +4196,13 @@ rm -rf "$STAGE_ROOT"
         if (selected.Key == ConfiguredAgent.Back.Key)
             return;
 
-        var selectedModel = await PromptAgentModel(felixPs1, selected);
+        var selectedModel = await PromptAgentModel(selected);
 
         AnsiConsole.Clear();
-        if (string.Equals(selectedModel, selected.ModelDisplay, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(selectedModel))
-            await ExecutePowerShell(felixPs1, "agent", subCommand, selected.Key);
-        else
-            await ExecutePowerShell(felixPs1, "agent", subCommand, selected.Key, "--model", selectedModel);
+        var requestedModel = string.Equals(selectedModel, selected.ModelDisplay, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(selectedModel)
+            ? null
+            : selectedModel;
+        await UseAgentSelectionUI(selected.Key, requestedModel, string.Equals(subCommand, "set-default", StringComparison.OrdinalIgnoreCase));
     }
 
     static Task UseAgentSetupInteractive(string felixPs1)
@@ -3689,7 +4379,7 @@ rm -rf "$STAGE_ROOT"
             AnsiConsole.MarkupLine("[yellow]Sync disabled.[/] Runs will stay local until you re-run setup or use --sync.");
     }
 
-    static Task<string?> PromptAgentModel(string felixPs1, ConfiguredAgent agent)
+    static Task<string?> PromptAgentModel(ConfiguredAgent agent)
     {
         var availableModels = ReadAgentModels(agent.Provider);
         if (availableModels == null || availableModels.Count <= 1)
@@ -3964,6 +4654,38 @@ rm -rf "$STAGE_ROOT"
         File.WriteAllText(agentsPath, json + Environment.NewLine);
     }
 
+    static JsonObject LoadAgentProfilesJson()
+    {
+        var agentsPath = Path.Combine(_felixProjectRoot, ".felix", "agents.json");
+        if (!File.Exists(agentsPath))
+            return new JsonObject { ["agents"] = new JsonArray() };
+
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(agentsPath))?.AsObject() ?? new JsonObject { ["agents"] = new JsonArray() };
+        }
+        catch
+        {
+            return new JsonObject { ["agents"] = new JsonArray() };
+        }
+    }
+
+    static JsonArray EnsureAgentProfilesArray(JsonObject document)
+    {
+        if (document["agents"] is JsonArray agents)
+            return agents;
+
+        var created = new JsonArray();
+        document["agents"] = created;
+        return created;
+    }
+
+    static void SaveAgentProfilesJson(JsonObject document)
+    {
+        var agentsPath = Path.Combine(_felixProjectRoot, ".felix", "agents.json");
+        File.WriteAllText(agentsPath, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+
     internal static List<AgentProfileDocument> UpsertAgentProfiles(IEnumerable<AgentProfileDocument> existingAgents, IEnumerable<AgentProfileDocument> selectedAgents)
     {
         var merged = existingAgents.ToList();
@@ -4010,6 +4732,36 @@ rm -rf "$STAGE_ROOT"
 
         foreach (var pair in defaults.AdditionalKeySettings)
             settings[pair.Key] = pair.Value;
+
+        return settings;
+    }
+
+    static Dictionary<string, object?> BuildAgentKeySettings(JsonObject agentNode, AgentDefaults defaults)
+    {
+        var settings = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        var executable = GetOptionalJsonString(agentNode, "executable");
+        if (string.IsNullOrWhiteSpace(executable))
+            executable = defaults.Executable;
+        if (!string.IsNullOrWhiteSpace(executable))
+            settings["executable"] = executable;
+
+        var workingDirectory = GetOptionalJsonString(agentNode, "working_directory");
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            workingDirectory = defaults.WorkingDirectory;
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+            settings["working_directory"] = workingDirectory;
+
+        settings["environment"] = ConvertJsonNodeToObject(agentNode["environment"]) ?? new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        foreach (var pair in defaults.AdditionalKeySettings)
+        {
+            var value = agentNode.ContainsKey(pair.Key) ? ConvertJsonNodeToObject(agentNode[pair.Key]) : pair.Value;
+            if (value is string stringValue && string.IsNullOrWhiteSpace(stringValue))
+                continue;
+            if (value != null)
+                settings[pair.Key] = value;
+        }
 
         return settings;
     }
@@ -4888,6 +5640,141 @@ rm -rf "$STAGE_ROOT"
         }
     }
 
+    static async Task UseAgentSelectionUI(string target, string? requestedModel, bool setDefault)
+    {
+        var profilesDocument = LoadAgentProfilesJson();
+        var agents = EnsureAgentProfilesArray(profilesDocument);
+        if (agents.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No configured agents found. Run 'felix agent setup' first.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var selectedAgent = FindAgentProfileNode(agents, target);
+        if (selectedAgent == null)
+        {
+            AnsiConsole.MarkupLine($"[red]Agent not found: {target.EscapeMarkup()}[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var selectedAgentKey = GetAgentProfileKey(selectedAgent);
+        var selectedAgentName = GetOptionalJsonString(selectedAgent, "name") ?? target;
+        var selectedModel = GetOptionalJsonString(selectedAgent, "model") ?? string.Empty;
+        var profilesChanged = false;
+
+        if (!string.IsNullOrWhiteSpace(requestedModel) && !string.Equals(selectedModel, requestedModel, StringComparison.OrdinalIgnoreCase))
+        {
+            var adapterType = GetOptionalJsonString(selectedAgent, "adapter")
+                ?? GetOptionalJsonString(selectedAgent, "provider")
+                ?? GetOptionalJsonString(selectedAgent, "name")
+                ?? string.Empty;
+            var provider = GetOptionalJsonString(selectedAgent, "provider")
+                ?? adapterType;
+
+            var defaults = GetAgentDefaults(adapterType);
+            var keySettings = BuildAgentKeySettings(selectedAgent, defaults);
+            var newKey = NewAgentKey(provider, requestedModel, keySettings, _felixProjectRoot);
+            var existingAgent = FindAgentProfileNode(agents, newKey);
+
+            if (existingAgent != null)
+            {
+                selectedAgent = existingAgent;
+                selectedAgentKey = GetAgentProfileKey(selectedAgent);
+                selectedAgentName = GetOptionalJsonString(selectedAgent, "name") ?? selectedAgentName;
+                selectedModel = GetOptionalJsonString(selectedAgent, "model") ?? requestedModel;
+            }
+            else
+            {
+                selectedAgent["model"] = requestedModel;
+                selectedAgent["key"] = newKey;
+                if (selectedAgent.ContainsKey("id"))
+                    selectedAgent["id"] = newKey;
+
+                selectedAgentKey = newKey;
+                selectedModel = requestedModel;
+                profilesChanged = true;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedAgentKey))
+        {
+            AnsiConsole.MarkupLine($"[red]Agent '{selectedAgentName.EscapeMarkup()}' is missing a key in agents.json.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (profilesChanged)
+            SaveAgentProfilesJson(profilesDocument);
+
+        var configPath = Path.Combine(_felixProjectRoot, ".felix", "config.json");
+        var config = LoadSetupConfig(configPath);
+        EnsureSetupConfigDefaults(config);
+        EnsureObject(config, "agent")["agent_id"] = selectedAgentKey;
+        File.WriteAllText(configPath, config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+
+        AnsiConsole.Write(new Panel($"[white]{selectedAgentName.EscapeMarkup()}[/]\n[grey]Key:[/] {selectedAgentKey.EscapeMarkup()}\n[grey]Model:[/] {(string.IsNullOrWhiteSpace(selectedModel) ? "default" : selectedModel).EscapeMarkup()}")
+        {
+            Header = new PanelHeader(setDefault ? "[green]Default Agent Updated[/]" : "[green]Active Agent Updated[/]"),
+            Border = BoxBorder.Rounded,
+            BorderStyle = Style.Parse("green")
+        });
+        AnsiConsole.WriteLine();
+        Environment.ExitCode = 0;
+        await Task.CompletedTask;
+    }
+
+    static JsonObject? FindAgentProfileNode(JsonArray agents, string target)
+    {
+        foreach (var node in agents)
+        {
+            if (node is not JsonObject agent)
+                continue;
+
+            if (target.StartsWith("ag_", StringComparison.OrdinalIgnoreCase))
+            {
+                var key = GetAgentProfileKey(agent);
+                if (string.Equals(key, target, StringComparison.OrdinalIgnoreCase))
+                    return agent;
+            }
+            else
+            {
+                var name = GetOptionalJsonString(agent, "name");
+                if (string.Equals(name, target, StringComparison.OrdinalIgnoreCase))
+                    return agent;
+            }
+        }
+
+        return null;
+    }
+
+    static string? GetAgentProfileKey(JsonObject agent)
+    {
+        return GetOptionalJsonString(agent, "key")
+            ?? GetOptionalJsonString(agent, "id");
+    }
+
+    static string? GetOptionalJsonString(JsonObject obj, string propertyName)
+    {
+        if (obj[propertyName] is JsonValue value && value.TryGetValue<string>(out var stringValue) && !string.IsNullOrWhiteSpace(stringValue))
+            return stringValue;
+
+        return null;
+    }
+
+    static object? ConvertJsonNodeToObject(JsonNode? node)
+    {
+        return node switch
+        {
+            null => null,
+            JsonObject jsonObject => jsonObject.ToDictionary(pair => pair.Key, pair => ConvertJsonNodeToObject(pair.Value), StringComparer.Ordinal),
+            JsonArray jsonArray => jsonArray.Select(ConvertJsonNodeToObject).ToList(),
+            JsonValue jsonValue => jsonValue.GetValue<object?>(),
+            _ => node.ToJsonString()
+        };
+    }
+
     static void ShowAgentListUI()
     {
         AnsiConsole.Clear();
@@ -5091,6 +5978,208 @@ rm -rf "$STAGE_ROOT"
             AnsiConsole.MarkupLine("[green]Agent test passed.[/]");
 
         Environment.ExitCode = executableOk ? 0 : 1;
+    }
+
+    static async Task RegisterCurrentAgentUI()
+    {
+        var configPath = Path.Combine(_felixProjectRoot, ".felix", "config.json");
+        var config = LoadSetupConfig(configPath);
+        EnsureSetupConfigDefaults(config);
+        var interactiveInput = !Console.IsInputRedirected;
+
+        var profilesDocument = LoadAgentProfilesJson();
+        var agents = EnsureAgentProfilesArray(profilesDocument);
+        var currentAgentId = GetOptionalJsonString(EnsureObject(config, "agent"), "agent_id");
+        if (string.IsNullOrWhiteSpace(currentAgentId))
+        {
+            AnsiConsole.MarkupLine("[red]No current agent configured.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var currentAgent = FindAgentProfileNode(agents, currentAgentId);
+        if (currentAgent == null)
+        {
+            AnsiConsole.MarkupLine($"[red]Current agent (ID: {currentAgentId.EscapeMarkup()}) not found in agents.json.[/]");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var sync = EnsureObject(config, "sync");
+        var syncEnabled = IsSyncEnabled(config);
+        var targetUrl = syncEnabled
+            ? GetOptionalJsonString(sync, "base_url") ?? "https://api.runfelix.io"
+            : Environment.GetEnvironmentVariable("FELIX_SYNC_URL")
+                ?? GetOptionalJsonString(sync, "base_url")
+                ?? "https://api.runfelix.io";
+
+        var apiKey = syncEnabled
+            ? GetOptionalJsonString(sync, "api_key")
+            : Environment.GetEnvironmentVariable("FELIX_SYNC_KEY")
+                ?? GetOptionalJsonString(sync, "api_key");
+
+        if (!syncEnabled)
+        {
+            var disabledPanel = new Panel($"[yellow]Sync is not enabled in this project.[/]\n[grey]Target URL:[/] {targetUrl.EscapeMarkup()}\n[grey]API key:[/] {MaskApiKey(apiKey).EscapeMarkup()}")
+            {
+                Header = new PanelHeader("[yellow]Registration Warning[/]"),
+                Border = BoxBorder.Rounded,
+                BorderStyle = Style.Parse("yellow")
+            };
+            AnsiConsole.Write(disabledPanel);
+            if (interactiveInput && !AnsiConsole.Confirm("Attempt registration anyway?", false))
+            {
+                AnsiConsole.MarkupLine("[grey]Cancelled.[/]");
+                Environment.ExitCode = 0;
+                return;
+            }
+
+            if (!interactiveInput)
+                AnsiConsole.MarkupLine("[grey]Non-interactive input detected. Continuing with the current sync settings.[/]");
+        }
+
+        AnsiConsole.MarkupLine($"[grey]URL:[/] {targetUrl.EscapeMarkup()}");
+        AnsiConsole.MarkupLine($"[grey]Key:[/] {MaskApiKey(apiKey).EscapeMarkup()}");
+        if (interactiveInput)
+        {
+            var overrideKey = AnsiConsole.Prompt(
+                new TextPrompt<string>("[cyan]Press Enter to use the current key, or paste a new API key[/]")
+                    .AllowEmpty());
+            if (!string.IsNullOrWhiteSpace(overrideKey))
+                apiKey = overrideKey.Trim();
+        }
+
+        var payload = BuildAgentRegistrationPayload(currentAgent, "felix agent register");
+        var gitUrl = GetOptionalJsonString(payload, "git_url");
+
+        if (string.IsNullOrWhiteSpace(gitUrl))
+            AnsiConsole.MarkupLine("[yellow]No git remote 'origin' found. Registration may fail with API key auth.[/]");
+
+        var agentName = GetOptionalJsonString(currentAgent, "name") ?? currentAgentId;
+        AnsiConsole.MarkupLine($"[cyan]Registering agent '{agentName.EscapeMarkup()}'...[/]");
+
+        var result = await SendJsonRequestWithStatusAsync(targetUrl, "/api/agents/register-sync", payload, apiKey);
+        if (result.Success)
+        {
+            AnsiConsole.MarkupLine($"[green]Agent registered successfully.[/] [grey](key: {(GetOptionalJsonString(payload, "key") ?? currentAgentId).EscapeMarkup()})[/]");
+            Environment.ExitCode = 0;
+            return;
+        }
+
+        AnsiConsole.MarkupLine("[red]Registration failed.[/]");
+        if (!string.IsNullOrWhiteSpace(result.Error))
+            AnsiConsole.MarkupLine($"[red]{result.Error.EscapeMarkup()}[/]");
+        AnsiConsole.MarkupLine("[grey]Run 'felix agent register' again to supply a different key.[/]");
+        Environment.ExitCode = 1;
+    }
+
+    static JsonObject BuildAgentRegistrationPayload(JsonObject agentConfig, string source)
+    {
+        var provider = GetOptionalJsonString(agentConfig, "adapter")
+            ?? GetOptionalJsonString(agentConfig, "name")
+            ?? string.Empty;
+        var model = GetOptionalJsonString(agentConfig, "model") ?? string.Empty;
+        var agentKey = NewAgentKey(provider, model, new Dictionary<string, object?>(), _felixProjectRoot);
+        var hostname = Environment.MachineName;
+        if (string.IsNullOrWhiteSpace(hostname))
+        {
+            try
+            {
+                hostname = System.Net.Dns.GetHostName();
+            }
+            catch
+            {
+                hostname = "unknown";
+            }
+        }
+
+        var payload = new JsonObject
+        {
+            ["key"] = agentKey,
+            ["provider"] = provider,
+            ["model"] = model,
+            ["agent_settings"] = new JsonObject(),
+            ["machine_id"] = hostname,
+            ["name"] = GetOptionalJsonString(agentConfig, "name") ?? provider,
+            ["type"] = "cli",
+            ["metadata"] = new JsonObject
+            {
+                ["hostname"] = hostname,
+                ["adapter"] = provider,
+                ["source"] = source
+            }
+        };
+
+        if (!string.IsNullOrWhiteSpace(model))
+            ((JsonObject)payload["metadata"]!)["model"] = model;
+
+        var gitUrl = TryReadGitRemoteOrigin(_felixProjectRoot);
+        if (!string.IsNullOrWhiteSpace(gitUrl))
+            payload["git_url"] = gitUrl;
+
+        return payload;
+    }
+
+    sealed record HttpRequestResult(bool Success, int StatusCode, string? Error);
+
+    static async Task<HttpRequestResult> SendJsonRequestWithStatusAsync(string baseUrl, string endpoint, JsonObject payload, string? apiKey)
+    {
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, baseUrl.TrimEnd('/') + endpoint)
+            {
+                Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json")
+            };
+            if (!string.IsNullOrWhiteSpace(apiKey))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            using var response = await client.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+                return new HttpRequestResult(true, (int)response.StatusCode, null);
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            return new HttpRequestResult(false, (int)response.StatusCode, ExtractApiErrorMessage(responseBody) ?? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
+        }
+        catch (Exception ex)
+        {
+            return new HttpRequestResult(false, 0, ex.Message);
+        }
+    }
+
+    static string? ExtractApiErrorMessage(string? responseBody)
+    {
+        if (string.IsNullOrWhiteSpace(responseBody))
+            return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                if (document.RootElement.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
+                    return detail.GetString();
+                if (document.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
+                    return error.GetString();
+                if (document.RootElement.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
+                    return message.GetString();
+            }
+        }
+        catch
+        {
+        }
+
+        return responseBody.Trim();
+    }
+
+    static string MaskApiKey(string? apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return "(none - will attempt without key)";
+
+        return apiKey.Length <= 12
+            ? apiKey
+            : apiKey[..12] + "...";
     }
 
     static string? ResolveAgentExecutablePath(string executable)

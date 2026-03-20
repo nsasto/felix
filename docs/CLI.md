@@ -645,7 +645,9 @@ felix spec pull --delete
 1. Calls `POST /api/sync/specs/check` with a manifest of local file hashes
 2. Server responds with which files are missing, outdated, or current
 3. Downloads only the files that differ (`.md` specs and `.meta.json` sidecars)
-4. Writes them to `specs/` in the project
+4. Writes them into the repo, updates `.felix/spec-manifest.json`, and optionally removes files the server no longer tracks
+
+If a newly downloaded markdown spec does not yet have a `.meta.json` sidecar, Felix creates a fallback sidecar locally so metadata resolution stays consistent until the next full sync.
 
 **What are `.meta.json` sidecars?**
 
@@ -673,6 +675,12 @@ Each spec has an accompanying `specs/S-NNNN-name.meta.json` file containing rich
 
 **Authentication:** Requires `sync.api_key` in `.felix/config.json` or `FELIX_SYNC_KEY` env var.
 
+**Safety rules:**
+
+- Existing local files that are not tracked in `.felix/spec-manifest.json` are skipped unless you pass `--force`
+- Server-deleted files are only removed locally when you pass `--delete`
+- `--dry-run` shows planned download, update, and delete actions without touching files
+
 ```bash
 # Typical workflow before running the agent loop in team mode
 felix spec pull
@@ -699,7 +707,9 @@ felix spec push --dry-run
 felix spec push --force
 ```
 
-**What it does:** Reads all `*.md` files from `specs/`, encodes them as base64, and sends them in a single batch to `POST /api/sync/specs/upload`. The server decodes and upserts each spec into the `requirement_content` table (DB-authoritative storage).
+**What it does:** Reads all `*.md` files from `specs/`, encodes them as base64, and uploads them to `POST /api/sync/specs/upload` in chunks. Felix retries failed chunks before giving up and reports per-file upload or skip results after the server responds.
+
+When `--force` is set, Felix asks the server to create missing requirement mappings if the backend supports that behavior.
 
 **Authentication:** Requires `sync.api_key` in `.felix/config.json` or `FELIX_SYNC_KEY` env var.
 
@@ -944,6 +954,8 @@ felix agent use
 
 **What it does:** Updates `.felix/config.json` to use a different agent profile from `.felix/agents.json`.
 
+If you pass `--model` and that model changes the agent identity, Felix also rewrites the matching entry in `.felix/agents.json` with the new deterministic `ag_...` key before updating `.felix/config.json`.
+
 When you launch `felix agent use` without a target, the installed CLI shows a searchable picker of configured profiles and, when the provider has multiple known models, a second picker that lets you keep the current model or switch to another one.
 
 If you prefer wording that emphasizes the persistent default rather than the immediate switch, use the alias `felix agent set-default`.
@@ -962,6 +974,8 @@ felix agent set-default
 ```
 
 **What it does:** Updates `.felix/config.json` to persist the default agent Felix should use for future runs. This is an alias for the same underlying operation as `felix agent use`, but named for the "set my default" workflow.
+
+Like `felix agent use`, the command can also update `.felix/agents.json` when a model switch produces a different deterministic agent key.
 
 **Why you'd switch:**
 
@@ -997,6 +1011,7 @@ felix agent register
 
 - Shows the target URL and API key prefix before attempting
 - Prompts to proceed if sync is disabled in config
+- Continues safely in non-interactive shells by using the configured sync values without prompting
 - Safe to re-run — uses an upsert (`ON CONFLICT DO UPDATE`) so repeated calls just refresh metadata
 - Surfaces backend error detail inline: key mismatch, git URL mismatch, DB errors
 
@@ -1057,12 +1072,11 @@ felix procs kill S-0042-20260217-143022-it1
 felix procs kill all
 ```
 
-**What it does:** Gracefully terminates an agent process:
+**What it does:** Force-terminates tracked agent processes and removes their entries from `.felix/sessions.json`.
 
-1. Sends termination signal
-2. Waits for agent to finish current iteration
-3. Cleans up lock files
-4. Updates requirement status
+- `felix procs kill <session-id>` stops one tracked session
+- `felix procs kill all` stops every tracked session in the repo
+- stale session records are cleaned up automatically when Felix reads `.felix/sessions.json`
 
 **When you need this:**
 
@@ -1070,7 +1084,7 @@ felix procs kill all
 - You realized the spec is wrong mid-execution
 - You need to free up CPU/memory for something else
 
-**Safety:** This is a graceful shutdown. The agent finishes its current LLM call before exiting and commits any pending changes.
+**Safety:** This is a force stop of the tracked process tree, not a graceful "finish the current iteration" shutdown. Use it when you want the session gone now.
 
 ---
 
