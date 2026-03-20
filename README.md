@@ -82,6 +82,15 @@ felix agent setup
 
 That focused flow uses the same searchable UI and keeps existing configured profiles preselected.
 
+To change the persistent default agent later, use:
+
+```powershell
+felix agent set-default
+felix agent set-default copilot --model gpt-5.4
+```
+
+`felix agent set-default` is an alias for the same persistent selection written by `felix agent use`.
+
 ### 3. Run
 
 ```powershell

@@ -205,6 +205,8 @@ felix agent use
 
 When you use the interactive form, Felix first lets you pick the configured profile, then offers a model picker for providers with multiple known models. Press Enter on the current model to keep it unchanged.
 
+If you prefer more explicit wording for the same persistent config change, use `felix agent set-default` instead of `felix agent use`.
+
 Output:
 
 ```
@@ -260,7 +262,14 @@ felix agent test <id|name>
 felix agent use [id|name]
 felix agent use [id|name] --model <model>
 felix agent use
+
+# Set persistent default agent
+felix agent set-default [id|name]
+felix agent set-default [id|name] --model <model>
+felix agent set-default
 ```
+
+`set-default` is an alias for the same persistent selection operation as `use`.
 
 ## Examples
 

@@ -273,6 +273,13 @@ felix agent use
 
 In the installed CLI, interactive `felix agent use` is model-aware: it shows a searchable agent picker, then a model picker for providers with multiple known models. Selecting the current model keeps the existing profile key unchanged.
 
+If you prefer more explicit wording for the same persistent config change, use the alias:
+
+```bash
+felix agent set-default claude
+felix agent set-default
+```
+
 **Process:**
 
 1. Validates agent exists in agents.json

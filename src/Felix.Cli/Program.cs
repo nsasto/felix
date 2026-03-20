@@ -467,12 +467,35 @@ class Program
         useCmd.SetHandler(async (target, model) =>
         {
             if (string.IsNullOrEmpty(target))
-                await UseAgentInteractive(felixPs1);
+                await UseAgentInteractive(felixPs1, "use");
             else if (string.IsNullOrEmpty(model))
                 await ExecutePowerShell(felixPs1, "agent", "use", target);
             else
                 await ExecutePowerShell(felixPs1, "agent", "use", target, "--model", model);
         }, targetArg, useModelOpt);
+
+        var setDefaultTargetArg = new Argument<string?>("target", "Agent ID or name to set as default")
+        {
+            Arity = ArgumentArity.ZeroOrOne
+        };
+        var setDefaultModelOpt = new Option<string?>("--model", "Model to use with the selected default agent")
+        {
+            Arity = ArgumentArity.ZeroOrOne
+        };
+        var setDefaultCmd = new Command("set-default", "Set the persistent default agent")
+        {
+            setDefaultTargetArg
+        };
+        setDefaultCmd.AddOption(setDefaultModelOpt);
+        setDefaultCmd.SetHandler(async (target, model) =>
+        {
+            if (string.IsNullOrEmpty(target))
+                await UseAgentInteractive(felixPs1, "set-default");
+            else if (string.IsNullOrEmpty(model))
+                await ExecutePowerShell(felixPs1, "agent", "set-default", target);
+            else
+                await ExecutePowerShell(felixPs1, "agent", "set-default", target, "--model", model);
+        }, setDefaultTargetArg, setDefaultModelOpt);
 
         // agent test
         var testTargetArg = new Argument<string>("target", "Agent ID or name to test");
@@ -516,6 +539,7 @@ class Program
         cmd.AddCommand(listCmd);
         cmd.AddCommand(currentCmd);
         cmd.AddCommand(useCmd);
+        cmd.AddCommand(setDefaultCmd);
         cmd.AddCommand(testCmd);
         cmd.AddCommand(setupCmd);
         cmd.AddCommand(installHelpCmd);
@@ -1860,7 +1884,7 @@ rm -rf "$STAGE_ROOT"
         Console.ReadKey(true);
     }
 
-    static async Task UseAgentInteractive(string felixPs1)
+    static async Task UseAgentInteractive(string felixPs1, string subCommand = "use")
     {
         var agents = ReadConfiguredAgents();
         if (agents == null || agents.Count == 0)
@@ -1870,13 +1894,18 @@ rm -rf "$STAGE_ROOT"
         }
 
         AnsiConsole.Clear();
-        var rule = new Rule("[cyan]Select Active Agent[/]").RuleStyle(Style.Parse("cyan dim"));
+        var title = string.Equals(subCommand, "set-default", StringComparison.OrdinalIgnoreCase)
+            ? "[cyan]Set Default Agent[/]"
+            : "[cyan]Select Active Agent[/]";
+        var rule = new Rule(title).RuleStyle(Style.Parse("cyan dim"));
         AnsiConsole.Write(rule);
         AnsiConsole.WriteLine();
 
         var selected = AnsiConsole.Prompt(
             new SelectionPrompt<ConfiguredAgent>()
-                .Title("[cyan]Choose the agent Felix should use:[/]")
+                .Title(string.Equals(subCommand, "set-default", StringComparison.OrdinalIgnoreCase)
+                    ? "[cyan]Choose the default agent Felix should use:[/]"
+                    : "[cyan]Choose the agent Felix should use:[/]")
                 .PageSize(10)
                 .EnableSearch()
                 .SearchPlaceholderText("[grey](type to filter agents or models)[/]")
@@ -1894,9 +1923,9 @@ rm -rf "$STAGE_ROOT"
 
         AnsiConsole.Clear();
         if (string.Equals(selectedModel, selected.ModelDisplay, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(selectedModel))
-            await ExecutePowerShell(felixPs1, "agent", "use", selected.Key);
+            await ExecutePowerShell(felixPs1, "agent", subCommand, selected.Key);
         else
-            await ExecutePowerShell(felixPs1, "agent", "use", selected.Key, "--model", selectedModel);
+            await ExecutePowerShell(felixPs1, "agent", subCommand, selected.Key, "--model", selectedModel);
     }
 
     static Task UseAgentSetupInteractive(string felixPs1)

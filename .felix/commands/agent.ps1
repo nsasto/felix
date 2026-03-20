@@ -94,11 +94,13 @@ function Invoke-Agent {
             Show-Help -SubCommand "agent"
             return
         }
-        Write-Host "Usage: felix agent <list|current|use|test|setup|install-help|register> [args]"
+        Write-Host "Usage: felix agent <list|current|use|set-default|test|setup|install-help|register> [args]"
         return
     }
     
     $subCmd = $AgentArgs[0]
+    $isSetDefaultCommand = [string]::Equals([string]$subCmd, "set-default", [System.StringComparison]::OrdinalIgnoreCase)
+    $effectiveSubCmd = if ($isSetDefaultCommand) { "use" } else { $subCmd }
     $subArgs = if ($AgentArgs.Count -gt 1) { @($AgentArgs[1..($AgentArgs.Count - 1)]) } else { @() }
 
     function Resolve-AgentTargetInput {
@@ -189,7 +191,7 @@ function Invoke-Agent {
         }
     }
     
-    switch ($subCmd) {
+    switch ($effectiveSubCmd) {
         "list" {
             Write-Host ""
             Write-Host "Available Agents:" -ForegroundColor Cyan
@@ -356,7 +358,12 @@ function Invoke-Agent {
             $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
             
             Write-Host ""
-            Write-Host "Switched to agent: $($agent.name) (Key: $($agent.key))" -ForegroundColor Green
+            if ($isSetDefaultCommand) {
+                Write-Host "Default agent set to: $($agent.name) (Key: $($agent.key))" -ForegroundColor Green
+            }
+            else {
+                Write-Host "Switched to agent: $($agent.name) (Key: $($agent.key))" -ForegroundColor Green
+            }
             Write-Host ""
         }
         "test" {

@@ -945,6 +945,23 @@ felix agent use
 
 When you launch `felix agent use` without a target, the installed CLI shows a searchable picker of configured profiles and, when the provider has multiple known models, a second picker that lets you keep the current model or switch to another one.
 
+If you prefer wording that emphasizes the persistent default rather than the immediate switch, use the alias `felix agent set-default`.
+
+### `felix agent set-default <id|name>` - Set The Persistent Default
+
+```bash
+felix agent set-default claude
+felix agent set-default copilot --model gpt-5.4
+```
+
+**Interactive selection:**
+
+```bash
+felix agent set-default
+```
+
+**What it does:** Updates `.felix/config.json` to persist the default agent Felix should use for future runs. This is an alias for the same underlying operation as `felix agent use`, but named for the "set my default" workflow.
+
 **Why you'd switch:**
 
 - `droid` is fast and cheap, good for bulk work
