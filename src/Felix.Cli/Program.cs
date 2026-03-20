@@ -200,6 +200,12 @@ class Program
 
         cmd.SetHandler(async (reqId, format) =>
         {
+            if (string.IsNullOrEmpty(reqId) && string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
+            {
+                await ShowStatusUI(felixPs1);
+                return;
+            }
+
             var args = new List<string> { "status" };
             if (!string.IsNullOrEmpty(reqId)) args.Add(reqId);
             if (format != "rich") args.AddRange(new[] { "--format", format });
@@ -992,7 +998,9 @@ class Program
         GitHubReleaseMetadata release;
         try
         {
-            release = await GetLatestGitHubReleaseAsync(DefaultUpdateRepo);
+            release = await AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .StartAsync("Checking GitHub releases...", _ => GetLatestGitHubReleaseAsync(DefaultUpdateRepo));
         }
         catch (Exception ex)
         {
@@ -1011,11 +1019,8 @@ class Program
         var comparison = CompareVersions(plan.CurrentVersion, plan.TargetVersion);
         var updateAvailable = !plan.HasInstalledCopy || comparison < 0;
 
-        AnsiConsole.MarkupLine("[cyan]Felix CLI Updater[/]");
-        AnsiConsole.MarkupLine("[grey]──────────────────────────────[/]");
-        AnsiConsole.MarkupLine($"[grey]Current:[/] {plan.CurrentVersion.EscapeMarkup()}");
-        AnsiConsole.MarkupLine($"[grey]Latest:[/]  {plan.TargetVersion.EscapeMarkup()}");
-        AnsiConsole.MarkupLine($"[grey]Source:[/]  https://github.com/{DefaultUpdateRepo}/releases/latest");
+        RenderUpdateOverview(plan, installDir, releaseRid, updateAvailable, checkOnly);
+        AnsiConsole.MarkupLine($"[grey]Source:[/] https://github.com/{DefaultUpdateRepo}/releases/latest");
 
         if (!updateAvailable)
         {
@@ -1039,9 +1044,7 @@ class Program
 
         if (!assumeYes)
         {
-            var prompt = plan.HasInstalledCopy
-                ? $"Install Felix {plan.TargetVersion} to {installDir}?"
-                : $"Install Felix {plan.TargetVersion} to {installDir}? No existing installed copy was found.";
+            var prompt = BuildUpdateActionPrompt(plan, installDir);
 
             if (!AnsiConsole.Confirm(prompt))
             {
@@ -1053,7 +1056,16 @@ class Program
         string stageRoot;
         try
         {
-            stageRoot = await DownloadAndStageReleaseAsync(plan);
+            stageRoot = await AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .StartAsync("Preparing update...", async ctx =>
+                {
+                    return await DownloadAndStageReleaseAsync(plan, message =>
+                    {
+                        ctx.Status(message);
+                        ctx.Refresh();
+                    });
+                });
         }
         catch (Exception ex)
         {
@@ -1074,15 +1086,8 @@ class Program
             return 1;
         }
 
-        if (addedToPath)
-        {
-            AnsiConsole.MarkupLine($"[green]✓[/] Added [grey]{installDir.EscapeMarkup()}[/] to User PATH");
-        }
-
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[green]Felix {plan.TargetVersion.EscapeMarkup()} staged successfully.[/]");
-        AnsiConsole.MarkupLine("[grey]The update helper will replace the installed files after this process exits.[/]");
-        AnsiConsole.MarkupLine("[grey]Run 'felix version' again in a few seconds to confirm the new version.[/]");
+        RenderUpdateSuccess(plan, installDir, addedToPath);
         return 0;
     }
 
@@ -1230,7 +1235,95 @@ class Program
         return string.Compare(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
     }
 
-    static async Task<string> DownloadAndStageReleaseAsync(UpdateReleasePlan plan)
+    static void RenderUpdateOverview(UpdateReleasePlan plan, string installDir, string releaseRid, bool updateAvailable, bool checkOnly)
+    {
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[cyan]Felix Update[/]").RuleStyle(Style.Parse("cyan dim")));
+        AnsiConsole.WriteLine();
+
+        var statusMarkup = !plan.HasInstalledCopy
+            ? "[yellow]Ready to install[/]"
+            : updateAvailable
+                ? "[yellow]Update available[/]"
+                : "[green]Up to date[/]";
+
+        var actionMarkup = checkOnly
+            ? "[grey]Check only[/]"
+            : updateAvailable
+                ? "[cyan]Will stage installer after confirmation[/]"
+                : "[grey]No action needed[/]";
+
+        var summaryTable = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(updateAvailable ? Color.Yellow : Color.Green3)
+            .AddColumn(new TableColumn("[yellow]Field[/]").RightAligned())
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+
+        summaryTable.AddRow("[grey]Status[/]", statusMarkup);
+        summaryTable.AddRow("[grey]Current[/]", $"[white]{plan.CurrentVersion.EscapeMarkup()}[/]");
+        summaryTable.AddRow("[grey]Latest[/]", $"[white]{plan.TargetVersion.EscapeMarkup()}[/]");
+        summaryTable.AddRow("[grey]Platform[/]", $"[white]{releaseRid.EscapeMarkup()}[/]");
+        summaryTable.AddRow("[grey]Install Dir[/]", $"[grey]{installDir.EscapeMarkup()}[/]");
+        summaryTable.AddRow("[grey]Package[/]", $"[grey]{plan.ZipAsset.Name.EscapeMarkup()}[/]");
+        summaryTable.AddRow("[grey]Action[/]", actionMarkup);
+
+        AnsiConsole.Write(summaryTable);
+        AnsiConsole.WriteLine();
+
+        var nextStepMessage = !plan.HasInstalledCopy
+            ? "Felix did not find an installed CLI in the standard install directory. Continuing will install the latest packaged release there and wire it into your user PATH when needed."
+            : updateAvailable
+                ? "Felix will download the published release zip, verify the checksum, stage the payload, and hand off to the updater helper after this process exits."
+                : "The installed CLI already matches the latest published GitHub release for this platform.";
+
+        if (checkOnly)
+        {
+            nextStepMessage += " This run only checks availability and does not modify the installation.";
+        }
+
+        var panel = new Panel($"[grey]{nextStepMessage.EscapeMarkup()}[/]")
+        {
+            Header = new PanelHeader("Next", Justify.Left),
+            Border = BoxBorder.Rounded,
+            BorderStyle = new Style(Color.Grey)
+        };
+
+        AnsiConsole.Write(panel);
+        AnsiConsole.WriteLine();
+    }
+
+    static string BuildUpdateActionPrompt(UpdateReleasePlan plan, string installDir)
+    {
+        return plan.HasInstalledCopy
+            ? $"Replace Felix {plan.CurrentVersion} with {plan.TargetVersion} in {installDir}?"
+            : $"Install Felix {plan.TargetVersion} to {installDir}?";
+    }
+
+    static void RenderUpdateSuccess(UpdateReleasePlan plan, string installDir, bool addedToPath)
+    {
+        var resultsTable = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Green3)
+            .AddColumn(new TableColumn("[yellow]Step[/]"))
+            .AddColumn(new TableColumn("[yellow]Result[/]"));
+
+        resultsTable.AddRow("[green]Downloaded package[/]", $"[grey]{plan.ZipAsset.Name.EscapeMarkup()}[/]");
+        resultsTable.AddRow("[green]Verified checksum[/]", $"[grey]{plan.ChecksumAsset.Name.EscapeMarkup()}[/]");
+        resultsTable.AddRow("[green]Staged payload[/]", $"[grey]{installDir.EscapeMarkup()}[/]");
+
+        if (addedToPath)
+        {
+            resultsTable.AddRow("[green]Updated PATH[/]", $"[grey]{installDir.EscapeMarkup()}[/]");
+        }
+
+        AnsiConsole.Write(resultsTable);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[green]Felix {plan.TargetVersion.EscapeMarkup()} staged successfully.[/]");
+        AnsiConsole.MarkupLine("[grey]The update helper will replace the installed files after this process exits.[/]");
+        AnsiConsole.MarkupLine("[grey]Run 'felix version' again in a few seconds to confirm the new version.[/]");
+    }
+
+    static async Task<string> DownloadAndStageReleaseAsync(UpdateReleasePlan plan, Action<string>? onProgress = null)
     {
         var stageRoot = Path.Combine(Path.GetTempPath(), $"felix-update-{Guid.NewGuid():N}");
         Directory.CreateDirectory(stageRoot);
@@ -1241,15 +1334,16 @@ class Program
 
         using var client = CreateGitHubHttpClient();
 
-        AnsiConsole.MarkupLine($"[grey]Downloading[/] {plan.ZipAsset.Name.EscapeMarkup()} ...");
+        onProgress?.Invoke($"Downloading {plan.ZipAsset.Name}...");
         await DownloadFileAsync(client, plan.ZipAsset.DownloadUrl, zipPath);
 
-        AnsiConsole.MarkupLine($"[grey]Downloading[/] {plan.ChecksumAsset.Name.EscapeMarkup()} ...");
+        onProgress?.Invoke($"Downloading {plan.ChecksumAsset.Name}...");
         await DownloadFileAsync(client, plan.ChecksumAsset.DownloadUrl, checksumPath);
 
+        onProgress?.Invoke("Verifying checksum...");
         VerifyDownloadedChecksum(checksumPath, zipPath, plan.AcceptedChecksumFileNames);
-        AnsiConsole.MarkupLine("[green]✓[/] Checksum verified");
 
+        onProgress?.Invoke("Extracting release payload...");
         ZipFile.ExtractToDirectory(zipPath, payloadDir);
 
         var executableName = GetExecutableFileName();
@@ -3322,11 +3416,124 @@ rm -rf "$STAGE_ROOT"
         await ExecutePowerShell(felixPs1, "spec", "create", description);
     }
 
+    static (string Color, string Icon, string Label) GetRequirementStatusStyle(string status)
+    {
+        return status switch
+        {
+            "draft" => ("grey", ".", "Draft"),
+            "complete" => ("green", "*", "Complete"),
+            "done" => ("blue", "+", "Done"),
+            "in_progress" => ("yellow", ">", "In Progress"),
+            "planned" => ("cyan1", "o", "Planned"),
+            "blocked" => ("red", "x", "Blocked"),
+            _ => ("grey", "?", status)
+        };
+    }
+
+    static void RenderRequirementDistribution(int total, IReadOnlyDictionary<string, int> statusCounts)
+    {
+        if (total <= 0)
+            return;
+
+        var draft = statusCounts.GetValueOrDefault("draft", 0);
+        var complete = statusCounts.GetValueOrDefault("complete", 0);
+        var done = statusCounts.GetValueOrDefault("done", 0);
+        var inProgress = statusCounts.GetValueOrDefault("in_progress", 0);
+        var planned = statusCounts.GetValueOrDefault("planned", 0);
+        var blocked = statusCounts.GetValueOrDefault("blocked", 0);
+
+        var barWidth = 64;
+        var draftWidth = (int)Math.Round((draft / (double)total) * barWidth);
+        var completeWidth = (int)Math.Round((complete / (double)total) * barWidth);
+        var doneWidth = (int)Math.Round((done / (double)total) * barWidth);
+        var inProgressWidth = (int)Math.Round((inProgress / (double)total) * barWidth);
+        var plannedWidth = (int)Math.Round((planned / (double)total) * barWidth);
+        var usedWidth = draftWidth + completeWidth + doneWidth + inProgressWidth + plannedWidth;
+        var blockedWidth = Math.Max(0, barWidth - usedWidth);
+
+        AnsiConsole.MarkupLine(
+            $"[grey]{"".PadRight(draftWidth, '█')}[/]" +
+            $"[green]{"".PadRight(completeWidth, '█')}[/]" +
+            $"[blue]{"".PadRight(doneWidth, '█')}[/]" +
+            $"[yellow]{"".PadRight(inProgressWidth, '█')}[/]" +
+            $"[cyan1]{"".PadRight(plannedWidth, '█')}[/]" +
+            $"[red]{"".PadRight(blockedWidth, '█')}[/]");
+        AnsiConsole.WriteLine();
+    }
+
+    static void AddSettingsRow(Table table, string label, string value)
+    {
+        table.AddRow($"[grey]{label.EscapeMarkup()}[/]", value);
+    }
+
+    static string GetJsonString(JsonObject obj, string propertyName, string fallback = "-")
+    {
+        var value = obj[propertyName];
+        if (value == null)
+            return fallback;
+
+        return value switch
+        {
+            JsonValue jsonValue => jsonValue.TryGetValue<string>(out var stringValue) && !string.IsNullOrWhiteSpace(stringValue)
+                ? stringValue
+                : jsonValue.ToJsonString(),
+            _ => value.ToJsonString()
+        };
+    }
+
+    static int GetJsonInt(JsonObject obj, string propertyName, int fallback)
+    {
+        var value = obj[propertyName];
+        if (value is JsonValue jsonValue && jsonValue.TryGetValue<int>(out var intValue))
+            return intValue;
+
+        return fallback;
+    }
+
+    static bool GetJsonBool(JsonObject obj, string propertyName, bool fallback)
+    {
+        var value = obj[propertyName];
+        if (value is JsonValue jsonValue && jsonValue.TryGetValue<bool>(out var boolValue))
+            return boolValue;
+
+        return fallback;
+    }
+
+    static string FormatBoolSetting(bool value)
+    {
+        return value ? "[green]enabled[/]" : "[grey]disabled[/]";
+    }
+
+    static string FormatApiKeyStatus(JsonObject sync)
+    {
+        var apiKey = sync["api_key"] as JsonValue;
+        return apiKey != null && apiKey.TryGetValue<string>(out var value) && !string.IsNullOrWhiteSpace(value)
+            ? "[green]set[/]"
+            : "[grey]not set[/]";
+    }
+
+    static string FormatCommandsSummary(JsonObject backpressure)
+    {
+        var commands = backpressure["commands"] as JsonArray;
+        if (commands == null || commands.Count == 0)
+            return "[grey]0 commands[/]";
+
+        return $"[white]{commands.Count} command{(commands.Count == 1 ? "" : "s")}[/]";
+    }
+
+    static string FormatDisabledPluginsSummary(JsonObject plugins)
+    {
+        var disabled = plugins["disabled"] as JsonArray;
+        if (disabled == null || disabled.Count == 0)
+            return "[grey]0 disabled[/]";
+
+        return $"[white]{disabled.Count} disabled[/]";
+    }
+
     static Task ShowStatusUI(string felixPs1)
     {
         AnsiConsole.Clear();
-        var rule = new Rule("[cyan]Requirements Dashboard[/]").RuleStyle(Style.Parse("cyan dim"));
-        AnsiConsole.Write(rule);
+        AnsiConsole.Write(new Rule("[cyan]Felix Status[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
         Dictionary<string, int> statusCounts;
@@ -3334,13 +3541,21 @@ rm -rf "$STAGE_ROOT"
         try
         {
             var output = ReadRequirementsJson();
-            var doc = JsonDocument.Parse(output);
+            var trimmed = output.Trim();
+            if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("["))
+            {
+                AnsiConsole.MarkupLine("[yellow]No requirements found. Run felix setup in a project directory.[/]");
+                return Task.CompletedTask;
+            }
+
+            using var doc = JsonDocument.Parse(trimmed);
             var requirements = doc.RootElement;
             if (requirements.ValueKind != JsonValueKind.Array)
             {
                 AnsiConsole.MarkupLine("[yellow]No requirements found. Run felix setup in a project directory.[/]");
                 return Task.CompletedTask;
             }
+
             total = requirements.GetArrayLength();
             statusCounts = new Dictionary<string, int>();
             foreach (var req in requirements.EnumerateArray())
@@ -3351,33 +3566,110 @@ rm -rf "$STAGE_ROOT"
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[red]Error: {ex.Message.EscapeMarkup()}[/]");
             return Task.CompletedTask;
         }
 
-        var table = new Table()
+        var configuredAgents = ReadConfiguredAgents() ?? new List<ConfiguredAgent>();
+        var currentAgent = configuredAgents.FirstOrDefault(agent => agent.IsCurrent);
+
+        var configPath = Path.Combine(_felixProjectRoot, ".felix", "config.json");
+        var config = LoadSetupConfig(configPath);
+        EnsureSetupConfigDefaults(config);
+
+        var agentConfig = EnsureObject(config, "agent");
+        var sync = EnsureObject(config, "sync");
+        var backpressure = EnsureObject(config, "backpressure");
+        var executor = EnsureObject(config, "executor");
+        var plugins = EnsureObject(config, "plugins");
+        var paths = EnsureObject(config, "paths");
+
+        var statusTable = new Table()
             .Border(TableBorder.Rounded)
             .BorderColor(Color.Grey)
-            .AddColumn(new TableColumn("[yellow]Status[/]").RightAligned())
-            .AddColumn(new TableColumn("[yellow]Count[/]").Centered());
+            .AddColumn(new TableColumn("[yellow]Status[/]").NoWrap().Width(16))
+            .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned().NoWrap().Width(7))
+            .AddColumn(new TableColumn("[yellow]Share[/]").RightAligned().NoWrap().Width(7));
 
-        foreach (var (status, count) in statusCounts.OrderByDescending(x => x.Value))
+        foreach (var status in new[] { "draft", "in_progress", "planned", "blocked", "done", "complete" })
         {
-            var (color, emoji) = status switch
-            {
-                "complete" => ("green", "✓"),
-                "done" => ("blue", "●"),
-                "in_progress" => ("yellow", "⟳"),
-                "planned" => ("cyan", "○"),
-                "blocked" => ("red", "✗"),
-                _ => ("white", "?")
-            };
-            table.AddRow($"[{color}]{emoji} {status}[/]", $"[{color} bold]{count}[/]");
+            var count = statusCounts.GetValueOrDefault(status, 0);
+            if (count == 0)
+                continue;
+
+            var style = GetRequirementStatusStyle(status);
+            var percent = total == 0 ? 0 : (int)Math.Round((count / (double)total) * 100);
+            statusTable.AddRow(
+                $"[{style.Color}]{style.Icon} {style.Label.EscapeMarkup()}[/]",
+                $"[{style.Color} bold]{count}[/]",
+                $"[{style.Color}]{percent}%[/]");
         }
 
-        AnsiConsole.Write(table);
+        var settingsTable = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .Expand()
+            .AddColumn(new TableColumn("[yellow]Setting[/]").RightAligned().NoWrap().Width(24))
+            .AddColumn(new TableColumn("[yellow]Value[/]"));
+
+        var activeAgentLabel = currentAgent == null
+            ? $"[grey]{GetJsonString(agentConfig, "agent_id", "not set").EscapeMarkup()}[/]"
+            : $"[white]{currentAgent.Name.EscapeMarkup()}[/] [grey](provider: {currentAgent.Provider.EscapeMarkup()}, model: {currentAgent.ModelDisplay.EscapeMarkup()}, key: {currentAgent.Key.EscapeMarkup()})[/]";
+
+        AddSettingsRow(settingsTable, "Active Agent", activeAgentLabel);
+        AddSettingsRow(settingsTable, "Executor Mode", $"[white]{GetJsonString(executor, "mode", "local").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Max Iterations", $"[white]{GetJsonInt(executor, "max_iterations", 20)}[/]");
+        AddSettingsRow(settingsTable, "Default Mode", $"[white]{GetJsonString(executor, "default_mode", "planning").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Commit On Complete", FormatBoolSetting(GetJsonBool(executor, "commit_on_complete", true)));
+        AddSettingsRow(settingsTable, "Sync", FormatBoolSetting(GetJsonBool(sync, "enabled", false)));
+        AddSettingsRow(settingsTable, "Sync Provider", $"[white]{GetJsonString(sync, "provider", "http").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Sync Base URL", $"[grey]{GetJsonString(sync, "base_url", "https://api.runfelix.io").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Sync API Key", FormatApiKeyStatus(sync));
+        AddSettingsRow(settingsTable, "Backpressure", FormatBoolSetting(GetJsonBool(backpressure, "enabled", false)));
+        AddSettingsRow(settingsTable, "Backpressure Retries", $"[white]{GetJsonInt(backpressure, "max_retries", 3)}[/]");
+        AddSettingsRow(settingsTable, "Backpressure Commands", FormatCommandsSummary(backpressure));
+        AddSettingsRow(settingsTable, "Plugins", FormatBoolSetting(GetJsonBool(plugins, "enabled", false)));
+        AddSettingsRow(settingsTable, "Disabled Plugins", FormatDisabledPluginsSummary(plugins));
+        AddSettingsRow(settingsTable, "Plugin Discovery", $"[grey]{GetJsonString(plugins, "discovery_path", ".felix/plugins").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Specs Path", $"[grey]{GetJsonString(paths, "specs", "specs").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Runs Path", $"[grey]{GetJsonString(paths, "runs", "runs").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Agents Guide", $"[grey]{GetJsonString(paths, "agents", "AGENTS.md").EscapeMarkup()}[/]");
+
+        var requirementsConfigured = statusCounts.Keys.Count(status => statusCounts.GetValueOrDefault(status, 0) > 0);
+        var activeAgentSummary = currentAgent == null
+            ? "[grey]not set[/]"
+            : $"[white]{currentAgent.Name.EscapeMarkup()}[/] [grey]({currentAgent.ModelDisplay.EscapeMarkup()})[/]";
+
+        var overviewTable = new Table()
+            .Border(TableBorder.None)
+            .HideHeaders()
+            .Expand()
+            .AddColumn(new TableColumn(string.Empty).NoWrap().Width(22))
+            .AddColumn(new TableColumn(string.Empty));
+
+        overviewTable.AddRow("[grey]Project[/]", $"[white]{_felixProjectRoot.EscapeMarkup()}[/]");
+        overviewTable.AddRow("[grey]Total Requirements[/]", $"[white]{total}[/]");
+        overviewTable.AddRow("[grey]Statuses In Use[/]", $"[white]{requirementsConfigured}[/]");
+        overviewTable.AddRow("[grey]Configured Agents[/]", $"[white]{configuredAgents.Count}[/]");
+        overviewTable.AddRow("[grey]Active Agent[/]", activeAgentSummary);
+
+        var summaryPanel = new Panel(overviewTable)
+        {
+            Header = new PanelHeader("Overview", Justify.Left),
+            Border = BoxBorder.Rounded,
+            BorderStyle = new Style(Color.Grey),
+            Expand = true,
+            Padding = new Padding(1, 0, 1, 0)
+        };
+
+        AnsiConsole.Write(summaryPanel);
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[grey]Total: {total} requirement{(total != 1 ? "s" : "")}[/]");
+        RenderRequirementDistribution(total, statusCounts);
+        AnsiConsole.Write(statusTable);
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(settingsTable);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[grey]Configured agents:[/] {configuredAgents.Count}");
         return Task.CompletedTask;
     }
 
