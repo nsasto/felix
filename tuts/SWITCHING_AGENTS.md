@@ -199,6 +199,10 @@ felix agent list
 # Check current agent
 felix agent current
 
+# Show install help
+felix agent install-help
+felix agent install-help copilot
+
 # Test agent
 felix agent test <id|name>
 

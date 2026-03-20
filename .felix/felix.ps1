@@ -197,7 +197,7 @@ switch ($Command) {
     }
     "agent" {
         . "$FelixRoot\commands\agent.ps1"
-        Invoke-Agent -AgentArgs $remainingArgs
+        Invoke-Agent -AgentArgs @($remainingArgs)
     }
     "procs" {
         . "$FelixRoot\commands\procs.ps1"

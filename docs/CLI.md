@@ -905,6 +905,17 @@ felix agent setup
 Interactive configuration for agents and default models. This writes or updates
 `.felix/agents.json` with selected agents and models.
 
+### `felix agent install-help [name]` - Show Install Instructions
+
+```bash
+felix agent install-help
+felix agent install-help copilot
+```
+
+**What it does:** Prints install and login guidance for all supported agents, or for one named agent.
+
+**When to use this:** When `felix agent setup` shows `Agent not installed` and you need concrete steps for that provider.
+
 ### `felix agent use <name>` - Switch Agents
 
 ```bash
@@ -925,6 +936,7 @@ felix agent use
 - `claude` has better reasoning for complex problems
 - `codex` uses a diff-based workflow (different UX)
 - `gemini` if you want to test Google's model
+- `copilot` uses GitHub Copilot CLI autopilot locally
 
 **Behind the scenes:** Agents are just different LLM adapters with different executables. They all speak the same protocol (JSON events) and follow the same workflow, but have different strengths.
 

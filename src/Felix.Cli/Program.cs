@@ -482,6 +482,22 @@ class Program
             await ExecutePowerShell(felixPs1, "agent", "setup");
         });
 
+        var installHelpTargetArg = new Argument<string?>("target", "Agent name to show install guidance for")
+        {
+            Arity = ArgumentArity.ZeroOrOne
+        };
+        var installHelpCmd = new Command("install-help", "Show install/login guidance for one or all agents")
+        {
+            installHelpTargetArg
+        };
+        installHelpCmd.SetHandler(async (target) =>
+        {
+            if (string.IsNullOrEmpty(target))
+                await ExecutePowerShell(felixPs1, "agent", "install-help");
+            else
+                await ExecutePowerShell(felixPs1, "agent", "install-help", target);
+        }, installHelpTargetArg);
+
         var registerCmd = new Command("register", "Register the current agent with the sync server");
         registerCmd.SetHandler(async () =>
         {
@@ -493,6 +509,7 @@ class Program
         cmd.AddCommand(useCmd);
         cmd.AddCommand(testCmd);
         cmd.AddCommand(setupCmd);
+        cmd.AddCommand(installHelpCmd);
         cmd.AddCommand(registerCmd);
 
         return cmd;

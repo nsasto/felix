@@ -77,6 +77,16 @@ function Resolve-FelixExecutablePath {
 function Invoke-Agent {
     param([string[]]$AgentArgs)
 
+    if ($AgentArgs -is [string]) {
+        $AgentArgs = @($AgentArgs -split '\s+' | Where-Object { $_ -ne '' })
+    }
+    elseif ($AgentArgs.Count -gt 0 -and $AgentArgs[0] -is [char]) {
+        $AgentArgs = @(((-join $AgentArgs) -split '\s+') | Where-Object { $_ -ne '' })
+    }
+    else {
+        $AgentArgs = @($AgentArgs)
+    }
+
     if (-not $AgentArgs -or $AgentArgs.Count -eq 0) {
         $helpPath = Join-Path $PSScriptRoot "help.ps1"
         if (Test-Path $helpPath) {
@@ -84,17 +94,64 @@ function Invoke-Agent {
             Show-Help -SubCommand "agent"
             return
         }
-        Write-Host "Usage: felix agent <list|current|use|test|setup> [args]"
+        Write-Host "Usage: felix agent <list|current|use|test|setup|install-help|register> [args]"
         return
     }
     
     $subCmd = $AgentArgs[0]
-    $subArgs = if ($AgentArgs.Count -gt 1) { $AgentArgs[1..($AgentArgs.Count - 1)] } else { @() }
+    $subArgs = if ($AgentArgs.Count -gt 1) { @($AgentArgs[1..($AgentArgs.Count - 1)]) } else { @() }
 
-    if ($subCmd -eq "setup") {
+    if ($subCmd -in @("setup", "install-help")) {
         . "$PSScriptRoot\..\core\agent-setup.ps1"
         $felixRoot = if ($env:FELIX_INSTALL_DIR) { $env:FELIX_INSTALL_DIR } else { Split-Path -Parent $PSScriptRoot }
-        Invoke-AgentSetup -ProjectRoot $RepoRoot -FelixRoot $felixRoot | Out-Null
+        if ($subCmd -eq "setup") {
+            Invoke-AgentSetup -ProjectRoot $RepoRoot -FelixRoot $felixRoot | Out-Null
+            return
+        }
+
+        $availableAgents = @(Get-AvailableAgents -FelixRoot $felixRoot)
+        if ($availableAgents.Count -eq 0) {
+            $availableAgents = @(
+                [pscustomobject]@{ name = "droid" },
+                [pscustomobject]@{ name = "claude" },
+                [pscustomobject]@{ name = "codex" },
+                [pscustomobject]@{ name = "gemini" },
+                [pscustomobject]@{ name = "copilot" }
+            )
+        }
+
+        $targetAgent = if ($subArgs.Count -gt 0) {
+            ((@($subArgs) | ForEach-Object { [string]$_ }) -join '').Trim().ToLower()
+        } else { $null }
+        $agentsToShow = @()
+
+        if ($targetAgent) {
+            $match = $availableAgents | Where-Object { $_.name -eq $targetAgent } | Select-Object -First 1
+            if (-not $match) {
+                Write-Error "Unknown agent: $targetAgent"
+                exit 1
+            }
+            $agentsToShow = @($match)
+        }
+        else {
+            $agentsToShow = $availableAgents
+        }
+
+        Write-Host ""
+        Write-Host "Agent Install Help" -ForegroundColor Cyan
+        Write-Host ""
+        foreach ($agent in $agentsToShow) {
+            $defaults = Get-AgentDefaults -AdapterType $agent.name
+            $exeName = if ($agent.PSObject.Properties["executable"] -and $agent.executable) { $agent.executable } else { $defaults.executable }
+            $installed = Test-ExecutableInstalled -ExecutableName $exeName
+            $status = if ($installed) { "[OK] installed" } else { "[--] not installed" }
+
+            Write-Host "$($agent.name) $status" -ForegroundColor $(if ($installed) { "Green" } else { "Yellow" })
+            foreach ($line in (Get-AgentInstallGuidance -AgentName $agent.name)) {
+                Write-Host "  $line" -ForegroundColor Gray
+            }
+            Write-Host ""
+        }
         return
     }
 

@@ -221,6 +221,7 @@ function Show-Help {
                 Write-Host "  use <id|name>         Switch active agent"
                 Write-Host "  test <id|name>        Test agent connectivity"
                 Write-Host "  setup                 Configure agents for this project"
+                Write-Host "  install-help [name]   Show install/login guidance for one or all agents"
                 Write-Host "  register              Register current agent with the sync server"
                 Write-Host ""
                 Write-Host "Examples:"
@@ -229,6 +230,8 @@ function Show-Help {
                 Write-Host "  felix agent use codex"
                 Write-Host "  felix agent test claude"
                 Write-Host "  felix agent setup"
+                Write-Host "  felix agent install-help"
+                Write-Host "  felix agent install-help copilot"
                 Write-Host "  felix agent register"
                 Write-Host ""
             }
