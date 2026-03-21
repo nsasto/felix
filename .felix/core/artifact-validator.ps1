@@ -166,13 +166,167 @@ function Test-IterationArtifacts {
     }
 }
 
+function Test-IterationContract {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Mode,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RunDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RequirementId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AgentOutput,
+
+        [Parameter(Mandatory = $false)]
+        [AllowEmptyString()]
+        [string]$PreviousPlanContent = ""
+    )
+
+    $signal = Get-CompletionSignal -Output $AgentOutput -AllowPlanningAlias
+    $planPath = Get-RunPlanPath -RunDir $RunDir -RequirementId $RequirementId
+
+    if ($Mode -eq "planning" -and $signal -ne "PLAN_COMPLETE") {
+        return @{
+            IsValid  = $false
+            Reason   = "Missing exact standalone <promise>PLAN_COMPLETE</promise> line for planning completion."
+            Signal   = $signal
+            PlanPath = $planPath
+        }
+    }
+
+    if ($Mode -eq "building" -and $signal -notin @("TASK_COMPLETE", "ALL_COMPLETE")) {
+        return @{
+            IsValid  = $false
+            Reason   = "Missing exact standalone <promise>TASK_COMPLETE</promise> or <promise>ALL_COMPLETE</promise> line for building completion."
+            Signal   = $signal
+            PlanPath = $planPath
+        }
+    }
+
+    $artifactResult = Test-IterationArtifacts -Mode $Mode -RunDir $RunDir -RequirementId $RequirementId -AgentOutput $AgentOutput -PreviousPlanContent $PreviousPlanContent
+    return @{
+        IsValid  = $artifactResult.IsValid
+        Reason   = $artifactResult.Reason
+        Signal   = $artifactResult.Signal
+        PlanPath = $artifactResult.PlanPath
+    }
+}
+
+function New-ContractRepairPrompt {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BasePrompt,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Mode,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Reason,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PlanPath
+    )
+
+    $requiredSignal = if ($Mode -eq "planning") {
+        "<promise>PLAN_COMPLETE</promise>"
+    }
+    else {
+        "<promise>TASK_COMPLETE</promise> or <promise>ALL_COMPLETE</promise>"
+    }
+
+    $repairInstructions = @"
+
+---
+
+# Contract Repair
+
+Your previous response was invalid.
+
+Reason: $Reason
+
+Retry once and fix only the output-contract issue. Update **$PlanPath** if needed and end with the required exact standalone completion line:
+
+$requiredSignal
+"@
+
+    return ($BasePrompt + $repairInstructions)
+}
+
+function Invoke-ContractRepairFlow {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BasePrompt,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Mode,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RunDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RequirementId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$InitialOutput,
+
+        [Parameter(Mandatory = $false)]
+        [AllowEmptyString()]
+        [string]$PreviousPlanContent = "",
+
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$RetryExecution
+    )
+
+    $output = $InitialOutput
+    $validation = Test-IterationContract -Mode $Mode -RunDir $RunDir -RequirementId $RequirementId -AgentOutput $output -PreviousPlanContent $PreviousPlanContent
+    $attempts = 0
+    $lastRetryResult = $null
+
+    while (-not $validation.IsValid -and $attempts -lt 1) {
+        $attempts++
+        $retryPrompt = New-ContractRepairPrompt -BasePrompt $BasePrompt -Mode $Mode -Reason $validation.Reason -PlanPath $validation.PlanPath
+        $lastRetryResult = & $RetryExecution $retryPrompt $attempts
+
+        if (-not $lastRetryResult.Succeeded) {
+            return @{
+                IsValid       = $false
+                Output        = $lastRetryResult.Output
+                Validation    = @{
+                    Reason   = "Corrective retry failed before producing a valid contract response."
+                    Signal   = $null
+                    PlanPath = $validation.PlanPath
+                }
+                RetryAttempts = $attempts
+                RetryResult   = $lastRetryResult
+            }
+        }
+
+        $output = $lastRetryResult.Output
+        $validation = Test-IterationContract -Mode $Mode -RunDir $RunDir -RequirementId $RequirementId -AgentOutput $output -PreviousPlanContent $PreviousPlanContent
+    }
+
+    return @{
+        IsValid       = $validation.IsValid
+        Output        = $output
+        Validation    = $validation
+        RetryAttempts = $attempts
+        RetryResult   = $lastRetryResult
+    }
+}
+
 function Write-ArtifactValidationFailure {
     param(
         [Parameter(Mandatory = $true)]
         [string]$RunDir,
 
         [Parameter(Mandatory = $true)]
-        [string]$Message
+        [string]$Message,
+
+        [Parameter(Mandatory = $false)]
+        [int]$RetryAttempts = 0
     )
 
     $reportPath = Join-Path $RunDir "artifact-validation.md"
@@ -184,6 +338,8 @@ function Write-ArtifactValidationFailure {
 ## Reason
 
 $Message
+
+**Retry Attempts:** $RetryAttempts
 "@
 
     Set-Content $reportPath $content -Encoding UTF8

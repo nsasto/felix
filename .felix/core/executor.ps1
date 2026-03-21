@@ -217,22 +217,37 @@ function Invoke-FelixIteration {
         }
     }
 
-    $artifactValidation = Test-IterationArtifacts `
+    $contractFlow = Invoke-ContractRepairFlow `
+        -BasePrompt $fullPrompt `
         -Mode $mode `
         -RunDir $runDir `
         -RequirementId $CurrentRequirement.id `
-        -AgentOutput $output `
-        -PreviousPlanContent $planContent
+        -InitialOutput $output `
+        -PreviousPlanContent $planContent `
+        -RetryExecution {
+            param($RepairPrompt, $AttemptNumber)
+            Emit-Log -Level "warn" -Message "Contract violation detected, issuing corrective retry (attempt $AttemptNumber)" -Component "contract"
+            Invoke-AgentExecution `
+                -AgentConfig $AgentConfig `
+                -Prompt $RepairPrompt `
+                -ProjectPath $Paths.ProjectPath `
+                -RunId $runId `
+                -RunDir $runDir `
+                -VerboseMode:$VerboseMode
+        }
 
-    if ($artifactValidation.IsRequired -and -not $artifactValidation.IsValid) {
-        $reportPath = Write-ArtifactValidationFailure -RunDir $runDir -Message $artifactValidation.Reason
+    $output = $contractFlow.Output
+
+    if (-not $contractFlow.IsValid) {
+        $reportPath = Write-ArtifactValidationFailure -RunDir $runDir -Message $contractFlow.Validation.Reason -RetryAttempts $contractFlow.RetryAttempts
         $relPath = $reportPath.Replace($Paths.ProjectPath + "\", "")
         Emit-Artifact -Path $relPath -Type "report" -SizeBytes (Get-Item $reportPath).Length
-        Emit-Error -ErrorType "ArtifactValidationFailed" -Message $artifactValidation.Reason -Severity "error" -Context @{
+        Emit-Error -ErrorType "ArtifactValidationFailed" -Message $contractFlow.Validation.Reason -Severity "error" -Context @{
             mode           = $mode
             requirement_id = $CurrentRequirement.id
-            plan_path      = $artifactValidation.PlanPath
-            signal         = $artifactValidation.Signal
+            plan_path      = $contractFlow.Validation.PlanPath
+            signal         = $contractFlow.Validation.Signal
+            retry_attempts = $contractFlow.RetryAttempts
         }
 
         $State.last_iteration_outcome = "failure"
