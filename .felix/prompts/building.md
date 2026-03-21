@@ -44,6 +44,14 @@ The system has injected the following — do NOT re-read these files:
 8. If this was the last task, update `.felix/requirements.json`: set `status` to `"complete"` and `updated_at` to today's date
 9. Output a run report and signal completion
 
+## Output Contract
+
+1. Update the plan file using literal markdown. Change the actual checkbox from `- [ ]` to `- [x]`; do not merely describe that you completed the task.
+2. Your completion marker must appear as its own standalone final line.
+3. The only valid completion markers are `<promise>TASK_COMPLETE</promise>` and `<promise>ALL_COMPLETE</promise>`.
+4. Do not place completion markers inline with other text.
+5. Do not output broad completion phrases like "task complete" or "requirement met" as a substitute for the exact marker.
+
 ## Task Selection
 
 From the plan in context, select the first `- [ ]` item that:
@@ -76,3 +84,5 @@ After updating the plan, include exactly one signal:
 - `<promise>ALL_COMPLETE</promise>` — all tasks in the plan are checked off, requirement is complete
 
 **How to decide:** after marking your task `- [x]`, check if any `- [ ]` tasks remain. If yes → `TASK_COMPLETE`. If none remain → `ALL_COMPLETE`.
+
+The completion marker must be the final line of your response with no trailing prose.

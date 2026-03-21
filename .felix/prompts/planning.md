@@ -45,6 +45,14 @@ You still need to read the **requirement spec** (path shown in Current Requireme
 7. If the plan covers all spec items and tasks are small enough → signal `PLAN_COMPLETE`
 8. If you spot gaps or over-complexity → refine and iterate
 
+## Output Contract
+
+1. Write markdown to the plan file literally. Do not describe markdown formatting in prose; write the actual headings, checkboxes, and bold markers into the file.
+2. The completion marker must appear as its own standalone final line in your response.
+3. Use exactly `<promise>PLAN_COMPLETE</promise>` as the planning completion marker.
+4. Do not use `<promise>PLANNING_COMPLETE</promise>`.
+5. Do not place the completion marker inline with any other text.
+
 ## Plan Format
 
 Save as a new file at the path specified in context:
@@ -90,5 +98,7 @@ Output `<promise>PLAN_COMPLETE</promise>` when the plan:
 - Covers every spec item
 - Has tasks small enough for single iterations
 - Uses the simplest viable approach
+
+The completion marker must be the final line of your response with no trailing prose.
 
 If the plan needs more work, continue refining — do not signal completion until satisfied.
