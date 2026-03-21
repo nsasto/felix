@@ -98,21 +98,27 @@ Describe "DroidAdapter.FormatPrompt" {
 
 Describe "DroidAdapter.DetectCompletion" {
 
-    It "should detect PLANNING_COMPLETE signal" {
+    It "should detect PLAN_COMPLETE signal" {
         $adapter = [DroidAdapter]::new()
-        $output = "<promise> PLANNING_COMPLETE </promise>"
+        $output = "<promise>PLAN_COMPLETE</promise>"
+        Assert-True ($adapter.DetectCompletion($output))
+    }
+
+    It "should detect PLANNING_COMPLETE alias signal" {
+        $adapter = [DroidAdapter]::new()
+        $output = "<promise>PLANNING_COMPLETE</promise>"
         Assert-True ($adapter.DetectCompletion($output))
     }
 
     It "should detect TASK_COMPLETE signal" {
         $adapter = [DroidAdapter]::new()
-        $output = "<promise> TASK_COMPLETE </promise>"
+        $output = "<promise>TASK_COMPLETE</promise>"
         Assert-True ($adapter.DetectCompletion($output))
     }
 
     It "should detect ALL_COMPLETE signal" {
         $adapter = [DroidAdapter]::new()
-        $output = "<promise> ALL_COMPLETE </promise>"
+        $output = "<promise>ALL_COMPLETE</promise>"
         Assert-True ($adapter.DetectCompletion($output))
     }
 
@@ -125,23 +131,30 @@ Describe "DroidAdapter.DetectCompletion" {
 
 Describe "DroidAdapter.ParseResponse" {
 
-    It "should detect PLANNING_COMPLETE in XML" {
+    It "should detect PLAN_COMPLETE in XML" {
         $adapter = [DroidAdapter]::new()
-        $result = $adapter.ParseResponse("Some output`n<promise> PLANNING_COMPLETE </promise>")
+        $result = $adapter.ParseResponse("Some output`n<promise>PLAN_COMPLETE</promise>")
+        Assert-True $result.IsComplete
+        Assert-Equal "building" $result.NextMode
+    }
+
+    It "should support PLANNING_COMPLETE alias in XML" {
+        $adapter = [DroidAdapter]::new()
+        $result = $adapter.ParseResponse("Some output`n<promise>PLANNING_COMPLETE</promise>")
         Assert-True $result.IsComplete
         Assert-Equal "building" $result.NextMode
     }
 
     It "should detect TASK_COMPLETE in XML" {
         $adapter = [DroidAdapter]::new()
-        $result = $adapter.ParseResponse("Output`n<promise> TASK_COMPLETE </promise>")
+        $result = $adapter.ParseResponse("Output`n<promise>TASK_COMPLETE</promise>")
         Assert-True $result.IsComplete
         Assert-Equal "continue" $result.NextMode
     }
 
     It "should detect ALL_COMPLETE in XML" {
         $adapter = [DroidAdapter]::new()
-        $result = $adapter.ParseResponse("Output`n<promise> ALL_COMPLETE </promise>")
+        $result = $adapter.ParseResponse("Output`n<promise>ALL_COMPLETE</promise>")
         Assert-True $result.IsComplete
         Assert-Equal "complete" $result.NextMode
     }
@@ -172,15 +185,32 @@ Describe "ClaudeAdapter.FormatPrompt" {
 
 Describe "ClaudeAdapter.DetectCompletion" {
 
-    It "should detect planning complete signal" {
+    It "should detect exact plan completion signal" {
         $adapter = [ClaudeAdapter]::new()
-        $output = "planning complete"
+        $output = "<promise>PLAN_COMPLETE</promise>"
         Assert-True ($adapter.DetectCompletion($output))
     }
 
-    It "should return false for no signal" {
+    It "should return false for phrase-only output" {
         $adapter = [ClaudeAdapter]::new()
-        Assert-False ($adapter.DetectCompletion("no signal here"))
+        Assert-False ($adapter.DetectCompletion("planning complete"))
+    }
+}
+
+Describe "Completion signal helpers" {
+
+    It "should prefer ALL_COMPLETE over TASK_COMPLETE" {
+        $output = @(
+            "<promise>TASK_COMPLETE</promise>",
+            "<promise>ALL_COMPLETE</promise>"
+        ) -join "`n"
+
+        Assert-Equal "ALL_COMPLETE" (Get-CompletionSignal -Output $output -AllowPlanningAlias)
+    }
+
+    It "should reject inline completion tags" {
+        $output = "done <promise>TASK_COMPLETE</promise> now"
+        Assert-Null (Get-CompletionSignal -Output $output -AllowPlanningAlias)
     }
 }
 
@@ -218,11 +248,32 @@ Describe "Get-AgentInvocation" {
 
 Describe "CopilotAdapter.ParseResponse" {
 
+    It "should detect PLAN_COMPLETE in XML" {
+        $adapter = [CopilotAdapter]::new()
+        $result = $adapter.ParseResponse("<promise>PLAN_COMPLETE</promise>")
+        Assert-True $result.IsComplete
+        Assert-Equal "building" $result.NextMode
+    }
+
     It "should detect ALL_COMPLETE in XML" {
         $adapter = [CopilotAdapter]::new()
-        $result = $adapter.ParseResponse("Output`n<promise> ALL_COMPLETE </promise>")
+        $result = $adapter.ParseResponse("Output`n<promise>ALL_COMPLETE</promise>")
         Assert-True $result.IsComplete
         Assert-Equal "complete" $result.NextMode
+    }
+
+    It "should reject phrase-only completion text" {
+        $adapter = [CopilotAdapter]::new()
+        $result = $adapter.ParseResponse("requirement met")
+        Assert-False $result.IsComplete
+        Assert-Null $result.NextMode
+    }
+
+    It "should reject inline completion tags" {
+        $adapter = [CopilotAdapter]::new()
+        $result = $adapter.ParseResponse("status: <promise>TASK_COMPLETE</promise>")
+        Assert-False $result.IsComplete
+        Assert-Null $result.NextMode
     }
 }
 
