@@ -12,6 +12,7 @@ backpressure validation, git operations, and plugin hooks.
 . "$PSScriptRoot\mode-selector.ps1"
 . "$PSScriptRoot\prompt-builder.ps1"
 . "$PSScriptRoot\agent-runner.ps1"
+. "$PSScriptRoot\artifact-validator.ps1"
 . "$PSScriptRoot\task-handler.ps1"
 
 function Invoke-FelixIteration {
@@ -214,6 +215,34 @@ function Invoke-FelixIteration {
         if (-not $guardrailResult.Passed) {
             return @{ Continue = $true; ExitCode = 0 }
         }
+    }
+
+    $artifactValidation = Test-IterationArtifacts `
+        -Mode $mode `
+        -RunDir $runDir `
+        -RequirementId $CurrentRequirement.id `
+        -AgentOutput $output `
+        -PreviousPlanContent $planContent
+
+    if ($artifactValidation.IsRequired -and -not $artifactValidation.IsValid) {
+        $reportPath = Write-ArtifactValidationFailure -RunDir $runDir -Message $artifactValidation.Reason
+        $relPath = $reportPath.Replace($Paths.ProjectPath + "\", "")
+        Emit-Artifact -Path $relPath -Type "report" -SizeBytes (Get-Item $reportPath).Length
+        Emit-Error -ErrorType "ArtifactValidationFailed" -Message $artifactValidation.Reason -Severity "error" -Context @{
+            mode           = $mode
+            requirement_id = $CurrentRequirement.id
+            plan_path      = $artifactValidation.PlanPath
+            signal         = $artifactValidation.Signal
+        }
+
+        $State.last_iteration_outcome = "failure"
+        $State.status = "ready"
+        $State.updated_at = Get-Date -Format "o"
+        $State | ConvertTo-Json | Set-Content $Paths.StateFile
+
+        New-IterationReport -RunDir $runDir -Mode $mode -Iteration $Iteration -State $State -AgentOutput $output
+        Emit-IterationCompleted -Iteration $Iteration -Outcome "failure"
+        return @{ Continue = $false; ExitCode = 1 }
     }
     
     # Process task completion
