@@ -52,11 +52,11 @@ function Get-CompletionSignal {
     $pattern = Get-CompletionSignalPattern
     $signals = @(
         ($Output -split "`r`n|`n|`r") |
-            ForEach-Object {
-                if ($_ -match $pattern) {
-                    $Matches[1]
-                }
+        ForEach-Object {
+            if ($_ -match $pattern) {
+                $Matches[1]
             }
+        }
     )
 
     if ($signals.Count -eq 0) {
