@@ -26,6 +26,9 @@ class Program
 
     static async Task<int> Main(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], "copilot-bridge", StringComparison.OrdinalIgnoreCase))
+            return await CopilotBridgeCommand.ExecuteAsync(args.Skip(1).ToArray());
+
         var rootCommand = new RootCommand("Felix - Autonomous agent executor");
 
         // 'felix install' extracts PS scripts from the embedded zip — no PS needed yet.

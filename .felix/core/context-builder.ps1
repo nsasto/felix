@@ -2,6 +2,7 @@
 # Analyzes project structure and generates comprehensive CONTEXT.md
 
 . "$PSScriptRoot\output-normalizer.ps1"
+. "$PSScriptRoot\copilot-bridge.ps1"
 
 function Invoke-ContextBuilder {
     <#
@@ -383,22 +384,6 @@ function Invoke-AgentForContextBuild {
         throw "Agent profile could not be resolved for context build"
     }
 
-    # Build agent command
-    $agentExe = Resolve-FelixExecutablePath $agentProfile.executable
-    if (-not $agentExe) {
-        $agentName = if ($agentProfile.name) { $agentProfile.name } else { "unknown" }
-        throw "Agent executable is empty or not found for agent '$agentName'. Run 'felix setup' or 'felix agent use <name|key>' to configure a valid agent."
-    }
-
-    $cmd = Get-Command $agentExe -ErrorAction SilentlyContinue
-    if (-not $cmd) {
-        throw "Agent executable not found: $agentExe"
-    }
-
-    if ($cmd.CommandType -notin @('Application', 'ExternalScript')) {
-        throw "Agent executable is not an Application: $agentExe (found: $($cmd.CommandType))"
-    }
-
     $adapterType = if ($agentProfile.adapter) { $agentProfile.adapter } elseif ($agentProfile.name) { $agentProfile.name } else { "droid" }
     $adapter = Get-AgentAdapter -AdapterType $adapterType -ErrorAction SilentlyContinue
     $formattedPrompt = $Prompt
@@ -423,6 +408,25 @@ function Invoke-AgentForContextBuild {
         Join-Path $Paths.ProjectPath $agentWorkingDir
     }
 
+    # Build agent command only for direct execution. Copilot bridge resolves the child executable internally.
+    $agentExe = $null
+    if (-not ($adapterType -eq "copilot" -and (Test-UseCopilotCliBridge))) {
+        $agentExe = Resolve-FelixExecutablePath $agentProfile.executable
+        if (-not $agentExe) {
+            $agentName = if ($agentProfile.name) { $agentProfile.name } else { "unknown" }
+            throw "Agent executable is empty or not found for agent '$agentName'. Run 'felix setup' or 'felix agent use <name|key>' to configure a valid agent."
+        }
+
+        $cmd = Get-Command $agentExe -ErrorAction SilentlyContinue
+        if (-not $cmd) {
+            throw "Agent executable not found: $agentExe"
+        }
+
+        if ($cmd.CommandType -notin @('Application', 'ExternalScript')) {
+            throw "Agent executable is not an Application: $agentExe (found: $($cmd.CommandType))"
+        }
+    }
+
     $envBackup = @{}
     
     $tempPrompt = $null
@@ -432,36 +436,44 @@ function Invoke-AgentForContextBuild {
     }
     
     try {
-        if ($agentProfile.environment) {
-            foreach ($prop in $agentProfile.environment.PSObject.Properties) {
-                $key = $prop.Name
-                $value = [string]$prop.Value
-                $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
-                [Environment]::SetEnvironmentVariable($key, $value, "Process")
-            }
+        if ($adapterType -eq "copilot" -and (Test-UseCopilotCliBridge)) {
+            Emit-Log -Level "info" -Message "Using C# Copilot bridge for context build" -Component "context-builder"
+            $bridgeResult = Invoke-CopilotCliBridge -AgentConfig $agentProfile -Prompt $Prompt -WorkingDirectory $agentCwd
+            $response = $bridgeResult.Output
+            $exitCode = $bridgeResult.ExitCode
         }
+        else {
+            if ($agentProfile.environment) {
+                foreach ($prop in $agentProfile.environment.PSObject.Properties) {
+                    $key = $prop.Name
+                    $value = [string]$prop.Value
+                    $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                    [Environment]::SetEnvironmentVariable($key, $value, "Process")
+                }
+            }
 
-        # Execute agent (following LEARNINGS.md patterns)
-        $prevErrorAction = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"  # Allow stderr without termination (LEARNINGS.md)
-        
-        try {
-            Push-Location $agentCwd
+            # Execute agent (following LEARNINGS.md patterns)
+            $prevErrorAction = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"  # Allow stderr without termination (LEARNINGS.md)
+            
             try {
-                if ($promptMode -eq "argument") {
-                    $response = & $agentExe @agentArgs 2>&1 | Out-String
+                Push-Location $agentCwd
+                try {
+                    if ($promptMode -eq "argument") {
+                        $response = & $agentExe @agentArgs 2>&1 | Out-String
+                    }
+                    else {
+                        $response = Get-Content $tempPrompt -Raw | & $agentExe @agentArgs 2>&1 | Out-String
+                    }
                 }
-                else {
-                    $response = Get-Content $tempPrompt -Raw | & $agentExe @agentArgs 2>&1 | Out-String
+                finally {
+                    Pop-Location
                 }
+                $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
             }
             finally {
-                Pop-Location
+                $ErrorActionPreference = $prevErrorAction
             }
-            $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-        }
-        finally {
-            $ErrorActionPreference = $prevErrorAction
         }
         
         if ($exitCode -ne 0) {

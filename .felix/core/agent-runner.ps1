@@ -7,6 +7,7 @@ Handles agent subprocess execution via adapter and enforces planning mode restri
 #>
 
 . "$PSScriptRoot\output-normalizer.ps1"
+. "$PSScriptRoot\copilot-bridge.ps1"
 
 function Invoke-AgentExecution {
     <#
@@ -47,12 +48,25 @@ function Invoke-AgentExecution {
     }
     
     $executable = $AgentConfig.executable
-    $resolvedExecutable = $null
-    $invocation = Get-AgentInvocation -AdapterType $adapterType -Config $AgentConfig -Prompt $Prompt -VerboseMode:$VerboseMode.IsPresent
-    $formattedPrompt = $invocation.FormattedPrompt
-    $agentArgs = @($invocation.Arguments)
-    $promptMode = $invocation.PromptMode
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
+    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
+        $agentWorkingDir
+    }
+    else {
+        Join-Path $ProjectPath $agentWorkingDir
+    }
+
+    $resolvedExecutable = $null
+    $invocation = $null
+    $formattedPrompt = $Prompt
+    $agentArgs = @()
+    $promptMode = "stdin"
+    if (-not ($adapterType -eq "copilot" -and (Test-UseCopilotCliBridge))) {
+        $invocation = Get-AgentInvocation -AdapterType $adapterType -Config $AgentConfig -Prompt $Prompt -VerboseMode:$VerboseMode.IsPresent
+        $formattedPrompt = $invocation.FormattedPrompt
+        $agentArgs = @($invocation.Arguments)
+        $promptMode = $invocation.PromptMode
+    }
     $startTime = Get-Date
     
     # Hook: OnPreExecution
@@ -67,160 +81,172 @@ function Invoke-AgentExecution {
         Write-Verbose "[PLUGINS] Using modified executable arguments"
     }
 
-    $resolvedExecutable = if (Get-Command Resolve-FelixExecutablePath -ErrorAction SilentlyContinue) {
-        Resolve-FelixExecutablePath $executable
-    }
-    else {
-        $null
-    }
-
-    if (-not $resolvedExecutable) {
-        $message = "Agent executable not found: '$executable'. Ensure it is installed and/or on PATH (Windows npm global shim dir is usually '$($env:APPDATA)\\npm')."
-        Emit-Error -ErrorType "AgentExecutableNotFound" -Message $message -Severity "fatal" -Context @{
-            agent_name = $AgentConfig.name
-            agent_id   = $AgentConfig.key
-            executable = $executable
-        }
-
-        $duration = (Get-Date) - $startTime
-        $output = $message
-
-        # Write raw output to run directory
-        $outputPath = Join-Path $RunDir "output.log"
-        Set-Content $outputPath $output -Encoding UTF8
-        $relPath = $outputPath.Replace($ProjectPath + "\", "")
-        Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
-
-        Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
-        Emit-Log -Level "error" -Message "Execution failed: executable not found" -Component "agent"
-
-        return @{
-            Output             = $output
-            Duration           = $duration
-            Parsed             = @{
-                Output     = $output
-                IsComplete = $false
-                NextMode   = $null
-                Error      = "AgentExecutableNotFound"
-            }
-            ExitCode           = 127
-            Succeeded          = $false
-            ResolvedExecutable = $null
-        }
-    }
-
-    # Execute the agent and capture output
-    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
-        $agentWorkingDir
-    }
-    else {
-        Join-Path $ProjectPath $agentWorkingDir
-    }
-
-    $processFilePath = $resolvedExecutable
-    $processArgs = @($agentArgs)
-    if ($resolvedExecutable -and $resolvedExecutable.EndsWith(".ps1")) {
-        $processFilePath = "powershell.exe"
-        $processArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $resolvedExecutable) + $agentArgs
-    }
-
     $envBackup = @{}
     $exitCode = 0
     $succeeded = $true
     try {
-        # Apply agent environment variables (best-effort)
-        if ($AgentConfig.environment) {
-            foreach ($prop in $AgentConfig.environment.PSObject.Properties) {
-                $key = $prop.Name
-                $value = [string]$prop.Value
-                $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
-                [Environment]::SetEnvironmentVariable($key, $value, "Process")
-            }
-        }
-
-        # Execute using Start-Process + redirected streams to avoid PowerShell treating stderr lines as errors
-        $inputPath = $null
-        $stdoutPath = [System.IO.Path]::GetTempFileName()
-        $stderrPath = [System.IO.Path]::GetTempFileName()
-
-        try {
-            if ($promptMode -eq "stdin") {
-                $inputPath = [System.IO.Path]::GetTempFileName()
-                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-                [System.IO.File]::WriteAllText($inputPath, $formattedPrompt, $utf8NoBom)
-            }
-
-            $argString = (@($processArgs) | ForEach-Object {
-                    $a = [string]$_
-                    if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
-                }) -join ' '
-
-            if ($promptMode -eq "stdin") {
-                $p = Start-Process `
-                    -FilePath $processFilePath `
-                    -ArgumentList $argString `
-                    -WorkingDirectory $agentCwd `
-                    -NoNewWindow `
-                    -PassThru `
-                    -RedirectStandardInput $inputPath `
-                    -RedirectStandardOutput $stdoutPath `
-                    -RedirectStandardError $stderrPath
-            }
-            else {
-                $p = Start-Process `
-                    -FilePath $processFilePath `
-                    -ArgumentList $argString `
-                    -WorkingDirectory $agentCwd `
-                    -NoNewWindow `
-                    -PassThru `
-                    -RedirectStandardOutput $stdoutPath `
-                    -RedirectStandardError $stderrPath
-            }
-
-            # Poll for process exit, emitting heartbeat events every 20s so the
-            # NDJSON consumer and server know the agent is alive during long LLM calls.
-            # (Start-Process -Wait would block the PS thread, preventing any emission.)
-            $heartbeatIntervalSec = 20
-            $lastHeartbeat = Get-Date
-            while (-not $p.HasExited) {
-                Start-Sleep -Milliseconds 500
-                $elapsed = ((Get-Date) - $lastHeartbeat).TotalSeconds
-                if ($elapsed -ge $heartbeatIntervalSec) {
-                    Emit-Event -EventType "agent_heartbeat" -Data @{
-                        agent_running   = $true
-                        elapsed_seconds = [int]((Get-Date) - $startTime).TotalSeconds
-                    }
-                    $lastHeartbeat = Get-Date
-                }
-            }
-            $p.WaitForExit()
-            $exitCode = [int]$p.ExitCode
-
-            $stdout = ""
-            $stderr = ""
-            if (Test-Path $stdoutPath) { $stdout = Get-Content -Raw -LiteralPath $stdoutPath -ErrorAction SilentlyContinue }
-            if (Test-Path $stderrPath) { $stderr = Get-Content -Raw -LiteralPath $stderrPath -ErrorAction SilentlyContinue }
-
-            $output = $stdout
-            if (-not [string]::IsNullOrWhiteSpace($stderr)) {
-                if (-not [string]::IsNullOrWhiteSpace($output)) { $output += "`n" }
-                $output += $stderr
-            }
-
-            if ($exitCode -ne 0) {
-                $succeeded = $false
-                Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
+        if ($adapterType -eq "copilot" -and (Test-UseCopilotCliBridge)) {
+            Emit-Log -Level "info" -Message "Using C# Copilot bridge for agent execution" -Component "agent"
+            $bridgeResult = Invoke-CopilotCliBridge -AgentConfig $AgentConfig -Prompt $Prompt -WorkingDirectory $agentCwd
+            $output = $bridgeResult.Output
+            $exitCode = $bridgeResult.ExitCode
+            $succeeded = $bridgeResult.Succeeded
+            $resolvedExecutable = $bridgeResult.ResolvedExecutable
+            if (-not $succeeded) {
+                Emit-Error -ErrorType "AgentExecutionFailed" -Message "Copilot bridge exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
                     agent_name = $AgentConfig.name
                     agent_id   = $AgentConfig.key
                     executable = $executable
                     resolved   = $resolvedExecutable
                     exit_code  = $exitCode
+                    bridge     = $true
                 }
             }
         }
-        finally {
-            foreach ($path in @($inputPath, $stdoutPath, $stderrPath)) {
-                try { if ($path -and (Test-Path $path)) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } } catch { }
+        else {
+            $resolvedExecutable = if (Get-Command Resolve-FelixExecutablePath -ErrorAction SilentlyContinue) {
+                Resolve-FelixExecutablePath $executable
+            }
+            else {
+                $null
+            }
+
+            if (-not $resolvedExecutable) {
+                $message = "Agent executable not found: '$executable'. Ensure it is installed and/or on PATH (Windows npm global shim dir is usually '$($env:APPDATA)\\npm')."
+                Emit-Error -ErrorType "AgentExecutableNotFound" -Message $message -Severity "fatal" -Context @{
+                    agent_name = $AgentConfig.name
+                    agent_id   = $AgentConfig.key
+                    executable = $executable
+                }
+
+                $duration = (Get-Date) - $startTime
+                $output = $message
+
+                # Write raw output to run directory
+                $outputPath = Join-Path $RunDir "output.log"
+                Set-Content $outputPath $output -Encoding UTF8
+                $relPath = $outputPath.Replace($ProjectPath + "\", "")
+                Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
+
+                Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
+                Emit-Log -Level "error" -Message "Execution failed: executable not found" -Component "agent"
+
+                return @{
+                    Output             = $output
+                    Duration           = $duration
+                    Parsed             = @{
+                        Output     = $output
+                        IsComplete = $false
+                        NextMode   = $null
+                        Error      = "AgentExecutableNotFound"
+                    }
+                    ExitCode           = 127
+                    Succeeded          = $false
+                    ResolvedExecutable = $null
+                }
+            }
+
+            $processFilePath = $resolvedExecutable
+            $processArgs = @($agentArgs)
+            if ($resolvedExecutable -and $resolvedExecutable.EndsWith(".ps1")) {
+                $processFilePath = "powershell.exe"
+                $processArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $resolvedExecutable) + $agentArgs
+            }
+
+            # Apply agent environment variables (best-effort)
+            if ($AgentConfig.environment) {
+                foreach ($prop in $AgentConfig.environment.PSObject.Properties) {
+                    $key = $prop.Name
+                    $value = [string]$prop.Value
+                    $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                    [Environment]::SetEnvironmentVariable($key, $value, "Process")
+                }
+            }
+
+            # Execute using Start-Process + redirected streams to avoid PowerShell treating stderr lines as errors
+            $inputPath = $null
+            $stdoutPath = [System.IO.Path]::GetTempFileName()
+            $stderrPath = [System.IO.Path]::GetTempFileName()
+
+            try {
+                if ($promptMode -eq "stdin") {
+                    $inputPath = [System.IO.Path]::GetTempFileName()
+                    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                    [System.IO.File]::WriteAllText($inputPath, $formattedPrompt, $utf8NoBom)
+                }
+
+                $argString = (@($processArgs) | ForEach-Object {
+                        $a = [string]$_
+                        if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
+                    }) -join ' '
+
+                if ($promptMode -eq "stdin") {
+                    $p = Start-Process `
+                        -FilePath $processFilePath `
+                        -ArgumentList $argString `
+                        -WorkingDirectory $agentCwd `
+                        -NoNewWindow `
+                        -PassThru `
+                        -RedirectStandardInput $inputPath `
+                        -RedirectStandardOutput $stdoutPath `
+                        -RedirectStandardError $stderrPath
+                }
+                else {
+                    $p = Start-Process `
+                        -FilePath $processFilePath `
+                        -ArgumentList $argString `
+                        -WorkingDirectory $agentCwd `
+                        -NoNewWindow `
+                        -PassThru `
+                        -RedirectStandardOutput $stdoutPath `
+                        -RedirectStandardError $stderrPath
+                }
+
+                # Poll for process exit, emitting heartbeat events every 20s so the
+                # NDJSON consumer and server know the agent is alive during long LLM calls.
+                # (Start-Process -Wait would block the PS thread, preventing any emission.)
+                $heartbeatIntervalSec = 20
+                $lastHeartbeat = Get-Date
+                while (-not $p.HasExited) {
+                    Start-Sleep -Milliseconds 500
+                    $elapsed = ((Get-Date) - $lastHeartbeat).TotalSeconds
+                    if ($elapsed -ge $heartbeatIntervalSec) {
+                        Emit-Event -EventType "agent_heartbeat" -Data @{
+                            agent_running   = $true
+                            elapsed_seconds = [int]((Get-Date) - $startTime).TotalSeconds
+                        }
+                        $lastHeartbeat = Get-Date
+                    }
+                }
+                $p.WaitForExit()
+                $exitCode = [int]$p.ExitCode
+
+                $stdout = ""
+                $stderr = ""
+                if (Test-Path $stdoutPath) { $stdout = Get-Content -Raw -LiteralPath $stdoutPath -ErrorAction SilentlyContinue }
+                if (Test-Path $stderrPath) { $stderr = Get-Content -Raw -LiteralPath $stderrPath -ErrorAction SilentlyContinue }
+
+                $output = $stdout
+                if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+                    if (-not [string]::IsNullOrWhiteSpace($output)) { $output += "`n" }
+                    $output += $stderr
+                }
+
+                if ($exitCode -ne 0) {
+                    $succeeded = $false
+                    Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
+                        agent_name = $AgentConfig.name
+                        agent_id   = $AgentConfig.key
+                        executable = $executable
+                        resolved   = $resolvedExecutable
+                        exit_code  = $exitCode
+                    }
+                }
+            }
+            finally {
+                foreach ($path in @($inputPath, $stdoutPath, $stderrPath)) {
+                    try { if ($path -and (Test-Path $path)) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } } catch { }
+                }
             }
         }
     }
