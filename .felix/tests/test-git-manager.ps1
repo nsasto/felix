@@ -70,6 +70,29 @@ Describe "Feature Branch Initialization" {
 
 Describe "Git State Capture" {
 
+    It "should report no repository when .git is missing" {
+        $projectRoot = Join-Path $env:TEMP "git-state-$(Get-Random)"
+        New-Item -ItemType Directory -Path $projectRoot -Force | Out-Null
+        Push-Location $projectRoot
+
+        try {
+            Assert-False (Test-GitRepository -WorkingDir $projectRoot)
+
+            $state = Get-GitState
+
+            Assert-Null $state.commitHash
+            Assert-Null $state.branch
+            Assert-Equal 0 $state.modifiedFiles.Count
+            Assert-Equal 0 $state.untrackedFiles.Count
+            Assert-Equal 0 $state.stagedFiles.Count
+            Assert-False (Test-GitChanges)
+        }
+        finally {
+            Pop-Location
+            Remove-Item $projectRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     It "should capture clean state" {
         $repoPath = New-TestRepository
         Push-Location $repoPath

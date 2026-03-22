@@ -6,6 +6,7 @@ Tests for task-handler.ps1 - New-IterationReport
 . "$PSScriptRoot/test-framework.ps1"
 . "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/agent-adapters.ps1"
+. "$PSScriptRoot/../core/git-manager.ps1"
 . "$PSScriptRoot/../core/task-handler.ps1"
 
 function Set-WorkflowStage {
@@ -83,6 +84,45 @@ Describe "New-IterationReport" {
         }
         finally {
             Remove-Item $runDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe "Save-TaskChanges" {
+
+    It "should skip git operations when the project is not a repository" {
+        $projectRoot = Join-Path $env:TEMP "task-handler-$(Get-Random)"
+        $runDir = Join-Path $projectRoot "runs\run-1"
+        New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+
+        $script:CommitLogMessage = $null
+
+        function git { throw "git should not be called when no repository exists" }
+        function Emit-Log {
+            param($Level, $Message, $Component)
+            if ($Component -eq 'commit') {
+                $script:CommitLogMessage = $Message
+            }
+        }
+
+        try {
+            Save-TaskChanges `
+                -ProjectPath $projectRoot `
+                -TaskDesc "local change" `
+                -BeforeCommitHash "" `
+                -Config ([pscustomobject]@{ executor = [pscustomobject]@{ commit_on_complete = $true } }) `
+                -CurrentRequirement ([pscustomobject]@{ id = 'S-0001'; commit_on_complete = $true }) `
+                -RunDir $runDir `
+                -NoCommit
+
+            Assert-Equal "Skipping git capture and commit because project is not a git repository" $script:CommitLogMessage
+            Assert-False (Test-Path (Join-Path $runDir 'diff.patch')) "diff.patch should not be created without git"
+        }
+        finally {
+            Remove-Item Function:\git -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-Log -ErrorAction SilentlyContinue
+            Remove-Item Variable:\script:CommitLogMessage -ErrorAction SilentlyContinue
+            Remove-Item $projectRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }

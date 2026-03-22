@@ -51,6 +51,98 @@ function Initialize-ExecutorGitRepo {
 
 Describe "Invoke-FelixIteration contract enforcement" {
 
+    It "should skip git operations for local runs without a repository" {
+        $projectRoot = Join-Path $env:TEMP "executor-contract-$(Get-Random)"
+        $runsDir = Join-Path $projectRoot "runs"
+        $felixDir = Join-Path $projectRoot ".felix"
+        New-Item -ItemType Directory -Path $projectRoot, $runsDir, $felixDir -Force | Out-Null
+        Set-Content (Join-Path $felixDir "requirements.json") '{"requirements":[]}' -Encoding UTF8
+        Set-Content (Join-Path $felixDir "state.json") '{}' -Encoding UTF8
+
+        $script:TaskCompletionOutput = $null
+        $script:CompletionSignalOutput = $null
+
+        function git { throw "git should not be called for a local run without a repository" }
+        function Set-WorkflowStage { param([string]$Stage, [string]$ProjectPath) }
+        function Emit-AgentExecutionStarted { param($AgentName, $AgentId) }
+        function Initialize-PluginSystem { param($Config, [string]$RunId) }
+        function Emit-IterationStarted { param($Iteration, $MaxIterations, $RequirementId, $Mode) }
+        function Emit-IterationCompleted { param($Iteration, $Outcome) }
+        function Emit-Artifact { param($Path, $Type, $SizeBytes) }
+        function Emit-Error { param($ErrorType, $Message, $Severity, $Context) }
+        function Emit-Log { param($Level, $Message, $Component) }
+        function Invoke-PluginHook { param($HookName, $RunId, $HookData) return @{ ContinueIteration = $true } }
+        function Invoke-PluginHookSafely { param($HookName, $RunId, $HookData) return @{} }
+        function Get-ExecutionMode { param($CurrentRequirement, $State, $Config, $RunsDir, $RunId, $RunDir, $AgentState) return @{ Mode = 'planning'; PlanPath = $null; PlanContent = $null } }
+        function New-IterationPrompt { param($Mode, $CurrentRequirement, $State, $Config, $Paths, $RunId, $RunDir, $PlanContent, $NoCommit) return 'base prompt' }
+        function Get-GitState { param([string]$WorkingDir) throw 'Get-GitState should not be called for a local run without a repository' }
+        function Test-AndEnforcePlanningGuardrails { param($ProjectPath, $BeforeState, $RunId, $RunDir, $State, $StateFile) throw 'Planning guardrails should not run without a repository' }
+        function Invoke-AgentExecution {
+            param($AgentConfig, [string]$Prompt, [string]$ProjectPath, [string]$RunId, [string]$RunDir, [switch]$VerboseMode)
+            Set-Content (Join-Path $RunDir 'plan-S-0001.md') (New-ExecutorPlanContent -Tasks @('- [ ] Local task')) -Encoding UTF8
+            return @{ Output = '<promise>PLAN_COMPLETE</promise>'; Succeeded = $true }
+        }
+        function Invoke-TaskCompletion {
+            param($Output, $Mode, $CurrentRequirement, $State, $Config, $AgentState, $Paths, $RunId, $RunDir, $BeforeCommitHash, $NoCommit)
+            $script:TaskCompletionOutput = $Output
+            return @{ ShouldContinue = $true }
+        }
+        function Invoke-CompletionSignals {
+            param($AgentOutput, $Mode, $CurrentRequirement, $State, $AgentState, $RequirementsFile)
+            $script:CompletionSignalOutput = $AgentOutput
+            return @{ ShouldExit = $false }
+        }
+        function New-IterationReport { param($RunDir, $Mode, $Iteration, $State, $AgentOutput) }
+
+        try {
+            $result = Invoke-FelixIteration `
+                -Iteration 1 `
+                -MaxIterations 5 `
+                -CurrentRequirement ([pscustomobject]@{ id = 'S-0001'; title = 'Contract'; status = 'in_progress' }) `
+                -State @{} `
+                -Config ([pscustomobject]@{ executor = [pscustomobject]@{ mode = 'local'; default_mode = 'planning' } }) `
+                -AgentConfig ([pscustomobject]@{ name = 'copilot'; key = 'ag1'; adapter = 'copilot'; executable = 'copilot' }) `
+                -AgentState (New-ExecutorTestAgentState -Mode 'Planning') `
+                -Paths @{
+                ProjectPath      = $projectRoot
+                RunsDir          = $runsDir
+                StateFile        = (Join-Path $felixDir 'state.json')
+                RequirementsFile = (Join-Path $felixDir 'requirements.json')
+                AgentsFile       = (Join-Path $projectRoot 'AGENTS.md')
+                PromptsDir       = (Join-Path $projectRoot 'prompts')
+            } `
+                -NoCommit
+
+            Assert-True $result.Continue
+            Assert-Equal '<promise>PLAN_COMPLETE</promise>' $script:TaskCompletionOutput
+            Assert-Equal '<promise>PLAN_COMPLETE</promise>' $script:CompletionSignalOutput
+        }
+        finally {
+            Remove-Item Function:\git -ErrorAction SilentlyContinue
+            Remove-Item Function:\Set-WorkflowStage -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-AgentExecutionStarted -ErrorAction SilentlyContinue
+            Remove-Item Function:\Initialize-PluginSystem -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-IterationStarted -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-IterationCompleted -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-Artifact -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-Error -ErrorAction SilentlyContinue
+            Remove-Item Function:\Emit-Log -ErrorAction SilentlyContinue
+            Remove-Item Function:\Invoke-PluginHook -ErrorAction SilentlyContinue
+            Remove-Item Function:\Invoke-PluginHookSafely -ErrorAction SilentlyContinue
+            Remove-Item Function:\Get-ExecutionMode -ErrorAction SilentlyContinue
+            Remove-Item Function:\New-IterationPrompt -ErrorAction SilentlyContinue
+            Remove-Item Function:\Get-GitState -ErrorAction SilentlyContinue
+            Remove-Item Function:\Test-AndEnforcePlanningGuardrails -ErrorAction SilentlyContinue
+            Remove-Item Function:\Invoke-AgentExecution -ErrorAction SilentlyContinue
+            Remove-Item Function:\Invoke-TaskCompletion -ErrorAction SilentlyContinue
+            Remove-Item Function:\Invoke-CompletionSignals -ErrorAction SilentlyContinue
+            Remove-Item Function:\New-IterationReport -ErrorAction SilentlyContinue
+            Remove-Item Variable:\script:TaskCompletionOutput -ErrorAction SilentlyContinue
+            Remove-Item Variable:\script:CompletionSignalOutput -ErrorAction SilentlyContinue
+            Remove-Item $projectRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     It "should retry once and continue with the repaired output" {
         $projectRoot = Join-Path $env:TEMP "executor-contract-$(Get-Random)"
         $runsDir = Join-Path $projectRoot "runs"

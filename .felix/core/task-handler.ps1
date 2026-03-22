@@ -41,6 +41,7 @@ function Invoke-TaskCompletion {
         [string]$RunDir,
         
         [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
         [string]$BeforeCommitHash,
         
         [Parameter(Mandatory = $false)]
@@ -264,6 +265,7 @@ function Save-TaskChanges {
         [string]$TaskDesc,
         
         [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
         [string]$BeforeCommitHash,
         
         [Parameter(Mandatory = $true)]
@@ -281,6 +283,18 @@ function Save-TaskChanges {
     
     # Workflow Stage: commit_changes
     Set-WorkflowStage -Stage "commit_changes" -ProjectPath $ProjectPath
+
+    $hasGitRepo = if (Get-Command Test-GitRepository -ErrorAction SilentlyContinue) {
+        Test-GitRepository -WorkingDir $ProjectPath
+    }
+    else {
+        Test-Path (Join-Path $ProjectPath ".git")
+    }
+
+    if (-not $hasGitRepo) {
+        Emit-Log -Level "info" -Message "Skipping git capture and commit because project is not a git repository" -Component "commit"
+        return
+    }
     
     # Check if agent already committed changes
     Push-Location $ProjectPath

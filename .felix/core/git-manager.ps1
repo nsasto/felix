@@ -43,6 +43,20 @@ function Initialize-FeatureBranch {
     return $branchName
 }
 
+function Test-GitRepository {
+    <#
+    .SYNOPSIS
+    Checks whether a project directory is backed by a git repository
+    #>
+    param([string]$WorkingDir)
+
+    if ([string]::IsNullOrWhiteSpace($WorkingDir)) {
+        $WorkingDir = (Get-Location).Path
+    }
+
+    return (Test-Path (Join-Path $WorkingDir ".git"))
+}
+
 function Get-GitState {
     <#
     .SYNOPSIS
@@ -55,6 +69,16 @@ function Get-GitState {
     }
     
     try {
+        if (-not (Test-GitRepository -WorkingDir (Get-Location).Path)) {
+            return @{
+                commitHash     = $null
+                branch         = $null
+                modifiedFiles  = @()
+                untrackedFiles = @()
+                stagedFiles    = @()
+            }
+        }
+
         $prevErrorAction = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
         try {
@@ -83,6 +107,10 @@ function Test-GitChanges {
     Checks if there are uncommitted changes
     #>
     param()
+
+    if (-not (Test-GitRepository -WorkingDir (Get-Location).Path)) {
+        return $false
+    }
 
     $status = git status --porcelain 2>&1
     return ($null -ne $status -and $status.Length -gt 0)

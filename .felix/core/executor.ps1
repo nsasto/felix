@@ -167,17 +167,29 @@ function Invoke-FelixIteration {
     if (-not $fullPrompt) {
         return @{ Continue = $false; ExitCode = 1 }
     }
+
+    $hasGitRepo = if (Get-Command Test-GitRepository -ErrorAction SilentlyContinue) {
+        Test-GitRepository -WorkingDir $Paths.ProjectPath
+    }
+    else {
+        Test-Path (Join-Path $Paths.ProjectPath ".git")
+    }
     
     # Capture state before execution for planning mode guardrails
-    $beforeState = if ($mode -eq "planning") { Get-GitState -WorkingDir $Paths.ProjectPath } else { $null }
+    $beforeState = if ($mode -eq "planning" -and $hasGitRepo) { Get-GitState -WorkingDir $Paths.ProjectPath } else { $null }
     
     # Capture commit hash before execution
-    Push-Location $Paths.ProjectPath
-    try {
-        $beforeCommitHash = git rev-parse HEAD 2>$null
+    if ($hasGitRepo) {
+        Push-Location $Paths.ProjectPath
+        try {
+            $beforeCommitHash = git rev-parse HEAD 2>$null
+        }
+        finally {
+            Pop-Location
+        }
     }
-    finally {
-        Pop-Location
+    else {
+        $beforeCommitHash = ""
     }
     
     # Execute agent
@@ -203,7 +215,7 @@ function Invoke-FelixIteration {
     }
     
     # Planning Mode Guardrails
-    if ($mode -eq "planning") {
+    if ($mode -eq "planning" -and $hasGitRepo) {
         $guardrailResult = Test-AndEnforcePlanningGuardrails `
             -ProjectPath $Paths.ProjectPath `
             -BeforeState $beforeState `
