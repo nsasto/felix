@@ -22,14 +22,13 @@ function Assert-True {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\\..")).Path
-$felixAgentScript = Join-Path $repoRoot "\...felix\\felix-agent.ps1"
-$shimScript = Join-Path $repoRoot "\...felix\\tests\\agent-shim.ps1"
+$felixAgentScript = Join-Path $repoRoot ".felix\felix-agent.ps1"
+$shimScript = Join-Path $repoRoot ".felix\tests\agent-shim.ps1"
 
-Assert-True (Test-Path $felixAgentScript) "Missing \...felix/felix-agent.ps1 at $felixAgentScript"
+Assert-True (Test-Path $felixAgentScript) "Missing .felix/felix-agent.ps1 at $felixAgentScript"
 Assert-True (Test-Path $shimScript) "Missing agent shim at $shimScript"
 
 $projectRoot = New-TempDir -Prefix "felix-agent-invoke-project"
-$felixHome = New-TempDir -Prefix "felix-agent-invoke-home"
 
 try {
     $specsDir = Join-Path $projectRoot "specs"
@@ -64,11 +63,6 @@ try {
     # Minimal state
     Set-Content (Join-Path $felixDir "state.json") (@{ status = "idle" } | ConvertTo-Json) -Encoding UTF8
 
-    # Ensure BUILDING mode is possible: seed a plan in runs/
-    $seedRunDir = Join-Path $runsDir "seed"
-    New-Item -ItemType Directory -Path $seedRunDir -Force | Out-Null
-    Set-Content (Join-Path $seedRunDir "plan-S-0001.md") "# Plan`n`n## Tasks`n`n- [ ] Smoke task`n" -Encoding UTF8
-
     # Project AGENTS.md (not used because backpressure disabled, but keeps Felix context sane)
     Set-Content (Join-Path $projectRoot "AGENTS.md") "# Agent Invocation Smoke Test`n" -Encoding UTF8
 
@@ -85,15 +79,12 @@ try {
         Pop-Location
     }
 
-    # Isolated Felix home for this test (do not touch real ~/.felix)
-    $env:FELIX_HOME = $felixHome
-
-    # Point Felix at our shim agent via agent_id
-    $agentId = 99
+    # Point Felix at our shim agent via repo-local .felix/agents.json
+    $agentKey = "ag_shim_invoke"
     $agentsJson = @{
         agents = @(
             @{
-                id                = $agentId
+                key               = $agentKey
                 name              = "shim-agent"
                 adapter           = "droid"
                 executable        = $shimScript
@@ -104,8 +95,7 @@ try {
             }
         )
     } | ConvertTo-Json -Depth 10
-    New-Item -ItemType Directory -Path $felixHome -Force | Out-Null
-    Set-Content (Join-Path $felixHome "agents.json") $agentsJson -Encoding UTF8
+    Set-Content (Join-Path $felixDir "agents.json") $agentsJson -Encoding UTF8
 
     $config = @{
         version      = "0.1.0"
@@ -116,7 +106,7 @@ try {
             commit_on_complete = $false
         }
         agent        = @{
-            agent_id = $agentId
+            agent_id = $agentKey
         }
         paths        = @{
             specs  = "specs"
@@ -130,7 +120,7 @@ try {
         }
         plugins      = @{
             enabled                      = $false
-            discovery_path               = "\...felix/plugins"
+            discovery_path               = ".felix/plugins"
             api_version                  = "v1"
             disabled                     = @()
             state_retention_days         = 7
@@ -163,8 +153,6 @@ try {
 }
 finally {
     Remove-Item -Recurse -Force $projectRoot -ErrorAction SilentlyContinue
-    Remove-Item -Recurse -Force $felixHome -ErrorAction SilentlyContinue
-    Remove-Item Env:\\FELIX_HOME -ErrorAction SilentlyContinue
 }
 
 

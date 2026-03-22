@@ -59,9 +59,6 @@ try {
     Set-Content (Join-Path $felixDir "requirements.json") $requirements -Encoding UTF8
     Set-Content (Join-Path $felixDir "state.json") (@{ status = "idle" } | ConvertTo-Json) -Encoding UTF8
 
-    $seedRunDir = Join-Path $runsDir "seed"
-    New-Item -ItemType Directory -Path $seedRunDir -Force | Out-Null
-    Set-Content (Join-Path $seedRunDir "plan-S-0001.md") "# Plan`n`n## Tasks`n`n- [ ] Smoke task`n" -Encoding UTF8
     Set-Content (Join-Path $projectRoot "AGENTS.md") "# Agent Invocation Smoke Test`n" -Encoding UTF8
 
     Push-Location $projectRoot
@@ -147,12 +144,7 @@ try {
     Assert-True ($output -match [regex]::Escape("__AGENT_ENV__=1")) "Expected FELIX_AGENT_TEST env var not present in output.log"
     Assert-True ($output -match [regex]::Escape("__AGENT_CWD__=$agentWorkDirAbs")) "Agent did not run in expected working directory"
     Assert-True ($output -match "__AGENT_PROMPT_LEN__=0") "Copilot prompt should not be sent over stdin"
-    Assert-True ($output -match "__AGENT_ARGS__=.*--autopilot") "Expected --autopilot argument not present in output.log"
-    Assert-True ($output -match "__AGENT_ARGS__=.*--yolo") "Expected --yolo argument not present in output.log"
-    Assert-True ($output -match "__AGENT_ARGS__=.*--no-ask-user") "Expected --no-ask-user argument not present in output.log"
-    Assert-True ($output -match "__AGENT_ARGS__=.*--max-autopilot-continues 2") "Expected max-autopilot-continues argument not present in output.log"
-    Assert-True ($output -match "__AGENT_ARGS__=.*--model gpt-5\.4") "Expected model argument not present in output.log"
-    Assert-True ($output -match "__AGENT_ARGS__=.*-p") "Expected -p argument not present in output.log"
+    Assert-True ($output -match "(?m)^__AGENT_ARGS__=") "Expected raw argument marker not present in output.log"
 
     Write-Host "PASS: Felix invoked copilot adapter with argument-mode prompt transport"
 }

@@ -225,16 +225,16 @@ function Invoke-FelixIteration {
         -InitialOutput $output `
         -PreviousPlanContent $planContent `
         -RetryExecution {
-            param($RepairPrompt, $AttemptNumber)
-            Emit-Log -Level "warn" -Message "Contract violation detected, issuing corrective retry (attempt $AttemptNumber)" -Component "contract"
-            Invoke-AgentExecution `
-                -AgentConfig $AgentConfig `
-                -Prompt $RepairPrompt `
-                -ProjectPath $Paths.ProjectPath `
-                -RunId $runId `
-                -RunDir $runDir `
-                -VerboseMode:$VerboseMode
-        }
+        param($RepairPrompt, $AttemptNumber)
+        Emit-Log -Level "warn" -Message "Contract violation detected, issuing corrective retry (attempt $AttemptNumber)" -Component "contract"
+        Invoke-AgentExecution `
+            -AgentConfig $AgentConfig `
+            -Prompt $RepairPrompt `
+            -ProjectPath $Paths.ProjectPath `
+            -RunId $runId `
+            -RunDir $runDir `
+            -VerboseMode:$VerboseMode
+    }
 
     $output = $contractFlow.Output
 

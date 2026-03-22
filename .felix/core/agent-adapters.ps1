@@ -49,12 +49,20 @@ function Get-CompletionSignal {
         return $null
     }
 
-    $matches = [regex]::Matches($Output, (Get-CompletionSignalPattern))
-    if ($matches.Count -eq 0) {
+    $pattern = Get-CompletionSignalPattern
+    $signals = @(
+        ($Output -split "`r`n|`n|`r") |
+            ForEach-Object {
+                if ($_ -match $pattern) {
+                    $Matches[1]
+                }
+            }
+    )
+
+    if ($signals.Count -eq 0) {
         return $null
     }
 
-    $signals = @($matches | ForEach-Object { $_.Groups[1].Value })
     if ($signals -contains "ALL_COMPLETE") {
         return "ALL_COMPLETE"
     }
