@@ -286,8 +286,15 @@ function Save-TaskChanges {
     # Workflow Stage: commit_changes
     Set-WorkflowStage -Stage "commit_changes" -ProjectPath $ProjectPath
 
-    if (-not (Test-GitRepository -WorkingDir $ProjectPath)) {
-        Emit-Log -Level "debug" -Message "Skipping git diff/commit capture: project is not a git repository" -Component "commit"
+    $hasGitRepo = if (Get-Command Test-GitRepository -ErrorAction SilentlyContinue) {
+        Test-GitRepository -WorkingDir $ProjectPath
+    }
+    else {
+        Test-Path (Join-Path $ProjectPath ".git")
+    }
+
+    if (-not $hasGitRepo) {
+        Emit-Log -Level "info" -Message "Skipping git capture and commit because project is not a git repository" -Component "commit"
         return
     }
     
@@ -403,8 +410,10 @@ function Invoke-CompletionSignals {
         [string]$RequirementsFile
     )
     
+    $signal = Get-CompletionSignal -Output $AgentOutput -AllowPlanningAlias
+
     # Transition to BUILDING if planning completed
-    if ($Mode -eq "planning" -and $AgentOutput -match '<promise>PLANNING_COMPLETE</promise>') {
+    if ($Mode -eq "planning" -and $signal -eq "PLAN_COMPLETE") {
         Emit-PhaseCompleted -Phase "planning" -Signal "PLAN_COMPLETE"
         Emit-Log -Level "info" -Message "Planning complete, transitioning to BUILDING mode" -Component "plan"
         $State.last_mode = "building"
@@ -418,7 +427,7 @@ function Invoke-CompletionSignals {
     
     # Check ALL_COMPLETE first (more specific than TASK_COMPLETE)
     Emit-Log -Level "debug" -Message "Checking for ALL_COMPLETE signal..." -Component "executor"
-    if ($AgentOutput -match '<promise>ALL_COMPLETE</promise>') {
+    if ($signal -eq "ALL_COMPLETE") {
         Emit-Log -Level "info" -Message "ALL_COMPLETE signal detected, marking requirement complete" -Component "executor"
         Write-Host "[EXECUTOR] ALL_COMPLETE detected, returning ExitCode=0" -ForegroundColor Green
         # Workflow Stage: update_status
@@ -450,7 +459,7 @@ function Invoke-CompletionSignals {
     }
     
     # Task complete - continue to next iteration
-    if ($AgentOutput -match '<promise>TASK_COMPLETE</promise>') {
+    if ($signal -eq "TASK_COMPLETE") {
         Emit-Log -Level "info" -Message "Task complete signal detected, continuing to next task" -Component "executor"
         return @{ ShouldExit = $false }
     }

@@ -45,6 +45,14 @@ The system has injected the following — do NOT re-read these files:
 9. Output a run report and signal completion
 10. End your final response with the exact completion marker Felix expects
 
+## Output Contract
+
+1. Update the plan file using literal markdown. Change the actual checkbox from `- [ ]` to `- [x]`; do not merely describe that you completed the task.
+2. Your completion marker must appear as its own standalone final line.
+3. The only valid completion markers are `<promise>TASK_COMPLETE</promise>` and `<promise>ALL_COMPLETE</promise>`.
+4. Do not place completion markers inline with other text.
+5. Do not output broad completion phrases like "task complete" or "requirement met" as a substitute for the exact marker.
+
 ## Task Selection
 
 From the plan in context, select the first `- [ ]` item that:

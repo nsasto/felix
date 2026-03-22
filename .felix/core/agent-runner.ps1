@@ -6,6 +6,8 @@ Agent process executor and planning guardrails
 Handles agent subprocess execution via adapter and enforces planning mode restrictions.
 #>
 
+. "$PSScriptRoot\output-normalizer.ps1"
+
 function Remove-ArgumentPair {
     param(
         [Parameter(Mandatory = $true)]
@@ -329,8 +331,13 @@ function Invoke-AgentExecution {
     }
     $duration = (Get-Date) - $startTime
     
-    # Parse response using adapter
-    $parsedResponse = $adapter.ParseResponse($output)
+    # Parse normalized response using adapter while preserving raw output for artifacts.
+    $normalizedOutput = Normalize-AgentOutput -Output $output -AdapterType $adapterType
+    $parsedResponse = $adapter.ParseResponse($normalizedOutput)
+    if (-not $parsedResponse.Output) {
+        $parsedResponse.Output = $normalizedOutput
+    }
+    $parsedResponse.NormalizedOutput = $normalizedOutput
     if (-not $succeeded) {
         $parsedResponse.Error = "AgentExecutionFailed"
     }
@@ -362,6 +369,7 @@ function Invoke-AgentExecution {
         Output             = $output
         Duration           = $duration
         Parsed             = $parsedResponse
+        NormalizedOutput   = $normalizedOutput
         ExitCode           = $exitCode
         Succeeded          = $succeeded
         ResolvedExecutable = $resolvedExecutable

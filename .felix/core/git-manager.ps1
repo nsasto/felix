@@ -43,6 +43,20 @@ function Initialize-FeatureBranch {
     return $branchName
 }
 
+function Test-GitRepository {
+    <#
+    .SYNOPSIS
+    Checks whether a project directory is backed by a git repository
+    #>
+    param([string]$WorkingDir)
+
+    if ([string]::IsNullOrWhiteSpace($WorkingDir)) {
+        $WorkingDir = (Get-Location).Path
+    }
+
+    return (Test-Path (Join-Path $WorkingDir ".git"))
+}
+
 function Get-GitState {
     <#
     .SYNOPSIS
@@ -65,6 +79,16 @@ function Get-GitState {
     }
     
     try {
+        if (-not (Test-GitRepository -WorkingDir (Get-Location).Path)) {
+            return @{
+                commitHash     = $null
+                branch         = $null
+                modifiedFiles  = @()
+                untrackedFiles = @()
+                stagedFiles    = @()
+            }
+        }
+
         $prevErrorAction = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
         try {
@@ -87,45 +111,16 @@ function Get-GitState {
     }
 }
 
-function Test-GitRepository {
-    <#
-    .SYNOPSIS
-    Checks whether a directory is inside a git work tree without surfacing native stderr.
-    #>
-    param([string]$WorkingDir)
-
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        return $false
-    }
-
-    if ($WorkingDir) {
-        Push-Location $WorkingDir
-    }
-
-    try {
-        $prevErrorAction = $ErrorActionPreference
-        $ErrorActionPreference = "SilentlyContinue"
-        try {
-            & git rev-parse --is-inside-work-tree *> $null
-            return ($LASTEXITCODE -eq 0)
-        }
-        finally {
-            $ErrorActionPreference = $prevErrorAction
-        }
-    }
-    finally {
-        if ($WorkingDir) {
-            Pop-Location
-        }
-    }
-}
-
 function Test-GitChanges {
     <#
     .SYNOPSIS
     Checks if there are uncommitted changes
     #>
     param()
+
+    if (-not (Test-GitRepository -WorkingDir (Get-Location).Path)) {
+        return $false
+    }
 
     $status = git status --porcelain 2>&1
     return ($null -ne $status -and $status.Length -gt 0)

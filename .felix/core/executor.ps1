@@ -12,6 +12,7 @@ backpressure validation, git operations, and plugin hooks.
 . "$PSScriptRoot\mode-selector.ps1"
 . "$PSScriptRoot\prompt-builder.ps1"
 . "$PSScriptRoot\agent-runner.ps1"
+. "$PSScriptRoot\artifact-validator.ps1"
 . "$PSScriptRoot\task-handler.ps1"
 
 function Invoke-FelixIteration {
@@ -166,24 +167,29 @@ function Invoke-FelixIteration {
     if (-not $fullPrompt) {
         return @{ Continue = $false; ExitCode = 1 }
     }
-    
-    $hasGitRepository = Test-GitRepository -WorkingDir $Paths.ProjectPath
+
+    $hasGitRepo = if (Get-Command Test-GitRepository -ErrorAction SilentlyContinue) {
+        Test-GitRepository -WorkingDir $Paths.ProjectPath
+    }
+    else {
+        Test-Path (Join-Path $Paths.ProjectPath ".git")
+    }
 
     # Capture state before execution for planning mode guardrails
-    $beforeState = if ($mode -eq "planning" -and $hasGitRepository) { Get-GitState -WorkingDir $Paths.ProjectPath } else { $null }
+    $beforeState = if ($mode -eq "planning" -and $hasGitRepo) { Get-GitState -WorkingDir $Paths.ProjectPath } else { $null }
     
     # Capture commit hash before execution
-    $beforeCommitHash = if ($hasGitRepository) {
+    if ($hasGitRepo) {
         Push-Location $Paths.ProjectPath
         try {
-            git rev-parse HEAD 2>$null
+            $beforeCommitHash = git rev-parse HEAD 2>$null
         }
         finally {
             Pop-Location
         }
     }
     else {
-        $null
+        $beforeCommitHash = ""
     }
     
     # Execute agent
@@ -209,7 +215,7 @@ function Invoke-FelixIteration {
     }
     
     # Planning Mode Guardrails
-    if ($mode -eq "planning") {
+    if ($mode -eq "planning" -and $hasGitRepo) {
         $guardrailResult = Test-AndEnforcePlanningGuardrails `
             -ProjectPath $Paths.ProjectPath `
             -BeforeState $beforeState `
@@ -221,6 +227,49 @@ function Invoke-FelixIteration {
         if (-not $guardrailResult.Passed) {
             return @{ Continue = $true; ExitCode = 0 }
         }
+    }
+
+    $contractFlow = Invoke-ContractRepairFlow `
+        -BasePrompt $fullPrompt `
+        -Mode $mode `
+        -RunDir $runDir `
+        -RequirementId $CurrentRequirement.id `
+        -InitialOutput $output `
+        -PreviousPlanContent $planContent `
+        -RetryExecution {
+        param($RepairPrompt, $AttemptNumber)
+        Emit-Log -Level "warn" -Message "Contract violation detected, issuing corrective retry (attempt $AttemptNumber)" -Component "contract"
+        Invoke-AgentExecution `
+            -AgentConfig $AgentConfig `
+            -Prompt $RepairPrompt `
+            -ProjectPath $Paths.ProjectPath `
+            -RunId $runId `
+            -RunDir $runDir `
+            -VerboseMode:$VerboseMode
+    }
+
+    $output = $contractFlow.Output
+
+    if (-not $contractFlow.IsValid) {
+        $reportPath = Write-ArtifactValidationFailure -RunDir $runDir -Message $contractFlow.Validation.Reason -RetryAttempts $contractFlow.RetryAttempts
+        $relPath = $reportPath.Replace($Paths.ProjectPath + "\", "")
+        Emit-Artifact -Path $relPath -Type "report" -SizeBytes (Get-Item $reportPath).Length
+        Emit-Error -ErrorType "ArtifactValidationFailed" -Message $contractFlow.Validation.Reason -Severity "error" -Context @{
+            mode           = $mode
+            requirement_id = $CurrentRequirement.id
+            plan_path      = $contractFlow.Validation.PlanPath
+            signal         = $contractFlow.Validation.Signal
+            retry_attempts = $contractFlow.RetryAttempts
+        }
+
+        $State.last_iteration_outcome = "failure"
+        $State.status = "ready"
+        $State.updated_at = Get-Date -Format "o"
+        $State | ConvertTo-Json | Set-Content $Paths.StateFile
+
+        New-IterationReport -RunDir $runDir -Mode $mode -Iteration $Iteration -State $State -AgentOutput $output
+        Emit-IterationCompleted -Iteration $Iteration -Outcome "failure"
+        return @{ Continue = $false; ExitCode = 1 }
     }
     
     # Process task completion

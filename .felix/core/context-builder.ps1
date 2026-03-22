@@ -1,6 +1,8 @@
 # Context Builder Module
 # Analyzes project structure and generates comprehensive CONTEXT.md
 
+. "$PSScriptRoot\output-normalizer.ps1"
+
 function Invoke-ContextBuilder {
     <#
     .SYNOPSIS
@@ -467,7 +469,8 @@ function Invoke-AgentForContextBuild {
         }
 
         if ($adapter) {
-            $parsed = $adapter.ParseResponse($response)
+            $normalizedResponse = Normalize-AgentOutput -Output $response -AdapterType $agentProfile.adapter
+            $parsed = $adapter.ParseResponse($normalizedResponse)
             if ($parsed -and $parsed.Error) {
                 throw $parsed.Error
             }

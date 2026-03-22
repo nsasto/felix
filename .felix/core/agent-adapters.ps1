@@ -15,6 +15,96 @@ Each adapter handles agent-specific:
 - CLI argument construction
 #>
 
+function Get-CompletionSignalPattern {
+    return '(?m)^[ \t]*<promise>(PLAN_COMPLETE|PLANNING_COMPLETE|TASK_COMPLETE|ALL_COMPLETE)</promise>[ \t]*$'
+}
+
+function Resolve-LegacyCompletionSignal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Signal
+    )
+
+    switch ($Signal.Trim()) {
+        "PLAN_COMPLETE" { return "PLAN_COMPLETE" }
+        "PLANNING_COMPLETE" { return "PLAN_COMPLETE" }
+        "TASK_COMPLETE" { return "TASK_COMPLETE" }
+        "ALL_COMPLETE" { return "ALL_COMPLETE" }
+        default { return $null }
+    }
+}
+
+function Get-CompletionSignal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$AllowPlanningAlias
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return $null
+    }
+
+    $pattern = Get-CompletionSignalPattern
+    $signals = @(
+        ($Output -split "`r`n|`n|`r") |
+        ForEach-Object {
+            if ($_ -match $pattern) {
+                $Matches[1]
+            }
+        }
+    )
+
+    if ($signals.Count -eq 0) {
+        return $null
+    }
+
+    if ($signals -contains "ALL_COMPLETE") {
+        return "ALL_COMPLETE"
+    }
+
+    if ($signals -contains "TASK_COMPLETE") {
+        return "TASK_COMPLETE"
+    }
+
+    if ($signals -contains "PLAN_COMPLETE") {
+        return "PLAN_COMPLETE"
+    }
+
+    if ($AllowPlanningAlias -and $signals -contains "PLANNING_COMPLETE") {
+        return "PLAN_COMPLETE"
+    }
+
+    return $null
+}
+
+function Set-CompletionResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Result,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Signal
+    )
+
+    $Result.IsComplete = $true
+    switch ($Signal) {
+        "PLAN_COMPLETE" {
+            $Result.NextMode = "building"
+        }
+        "TASK_COMPLETE" {
+            $Result.NextMode = "continue"
+        }
+        "ALL_COMPLETE" {
+            $Result.NextMode = "complete"
+        }
+    }
+}
+
 # ============================================================================
 # DROID ADAPTER (Factory.ai)
 # ============================================================================
@@ -112,22 +202,10 @@ class DroidAdapter {
                 }
                 # Legacy: completion_signal events (old json format)
                 elseif ($event.type -eq 'completion_signal' -or $event.signal) {
-                    $signal = if ($event.signal) { $event.signal } else { $event.data }
-                    if ($signal -match 'PLANNING_COMPLETE') {
-                        $result.IsComplete = $true
-                        $result.NextMode = "building"
-                        $foundCompletion = $true
-                        break
-                    }
-                    elseif ($signal -match 'TASK_COMPLETE') {
-                        $result.IsComplete = $true
-                        $result.NextMode = "continue"
-                        $foundCompletion = $true
-                        break
-                    }
-                    elseif ($signal -match 'ALL_COMPLETE') {
-                        $result.IsComplete = $true
-                        $result.NextMode = "complete"
+                    $signalValue = if ($event.signal) { $event.signal } else { $event.data }
+                    $signal = Resolve-LegacyCompletionSignal -Signal ([string]$signalValue)
+                    if ($signal) {
+                        Set-CompletionResult -Result $result -Signal $signal
                         $foundCompletion = $true
                         break
                     }
@@ -141,34 +219,17 @@ class DroidAdapter {
         # If stream-json format, use finalText as output
         if ($isStreamJson -and $finalText) {
             $result.Output = $finalText
-            
-            # Check finalText for completion signals
-            if ($finalText -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
-                $result.IsComplete = $true
-                $result.NextMode = "building"
-            }
-            elseif ($finalText -match '(?s)<promise>\s*TASK_COMPLETE\s*</promise>') {
-                $result.IsComplete = $true
-                $result.NextMode = "continue"
-            }
-            elseif ($finalText -match '(?s)<promise>\s*ALL_COMPLETE\s*</promise>') {
-                $result.IsComplete = $true
-                $result.NextMode = "complete"
+
+            $signal = Get-CompletionSignal -Output $finalText -AllowPlanningAlias
+            if ($signal) {
+                Set-CompletionResult -Result $result -Signal $signal
             }
         }
-        # Fallback: Check for XML completion signals (backward compatibility)
+        # Fallback: Check normalized output for exact completion signals.
         elseif (-not $foundCompletion) {
-            if ($output -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
-                $result.IsComplete = $true
-                $result.NextMode = "building"
-            }
-            elseif ($output -match '(?s)<promise>\s*TASK_COMPLETE\s*</promise>') {
-                $result.IsComplete = $true
-                $result.NextMode = "continue"
-            }
-            elseif ($output -match '(?s)<promise>\s*ALL_COMPLETE\s*</promise>') {
-                $result.IsComplete = $true
-                $result.NextMode = "complete"
+            $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
+            if ($signal) {
+                Set-CompletionResult -Result $result -Signal $signal
             }
         }
 
@@ -182,14 +243,15 @@ class DroidAdapter {
             try {
                 $event = $line | ConvertFrom-Json -ErrorAction SilentlyContinue
                 if ($event.type -eq 'completion_signal' -or $event.signal) {
-                    return $true
+                    if (Resolve-LegacyCompletionSignal -Signal ([string](if ($event.signal) { $event.signal } else { $event.data }))) {
+                        return $true
+                    }
                 }
             }
             catch { }
         }
-        
-        # Fallback: XML signals
-        return $output -match '(?s)<promise>\s*(PLANNING_COMPLETE|TASK_COMPLETE|ALL_COMPLETE)\s*</promise>'
+
+        return [bool](Get-CompletionSignal -Output $output -AllowPlanningAlias)
     }
 
     [string[]] BuildArgs([object]$config) {
@@ -235,38 +297,16 @@ class ClaudeAdapter {
             Error      = $null
         }
 
-        # Try parsing JSON output first
-        try {
-            $json = $output | ConvertFrom-Json -ErrorAction SilentlyContinue
-            if ($json.status -eq "complete") {
-                $result.IsComplete = $true
-                $result.NextMode = "complete"
-            }
-            elseif ($json.next_phase -eq "building") {
-                $result.IsComplete = $true
-                $result.NextMode = "building"
-            }
-        }
-        catch {
-            # Fallback: Look for text markers
-            if ($output -match '(?i)(planning\s+complete|ready\s+to\s+build)') {
-                $result.IsComplete = $true
-                $result.NextMode = "building"
-            }
-            elseif ($output -match '(?i)(all\s+tasks?\s+complete|requirement\s+met)') {
-                $result.IsComplete = $true
-                $result.NextMode = "complete"
-            }
+        $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
+        if ($signal) {
+            Set-CompletionResult -Result $result -Signal $signal
         }
 
         return $result
     }
 
     [bool] DetectCompletion([string]$output) {
-        # Check for completion markers
-        if ($output -match '"status"\s*:\s*"complete"') { return $true }
-        if ($output -match '(?i)(planning\s+complete|all\s+tasks?\s+complete|requirement\s+met)') { return $true }
-        return $false
+        return [bool](Get-CompletionSignal -Output $output -AllowPlanningAlias)
     }
 
     [string[]] BuildArgs([object]$config) {
@@ -305,31 +345,16 @@ class CodexAdapter {
             Error      = $null
         }
 
-        # Codex uses diff-based workflow
-        # Look for "Applied changes" or "No changes needed"
-        if ($output -match '(?i)(applied\s+\d+\s+change|changes?\s+applied|committed)') {
-            # Changes were made, check if planning or building
-            if ($output -match '(?i)plan\s+created') {
-                $result.IsComplete = $true
-                $result.NextMode = "building"
-            }
-            else {
-                # Assume building iteration complete
-                $result.IsComplete = $true
-                $result.NextMode = "building"
-            }
-        }
-        elseif ($output -match '(?i)(no\s+changes?\s+needed|already\s+complete|task\s+complete)') {
-            $result.IsComplete = $true
-            $result.NextMode = "complete"
+        $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
+        if ($signal) {
+            Set-CompletionResult -Result $result -Signal $signal
         }
 
         return $result
     }
 
     [bool] DetectCompletion([string]$output) {
-        if ($output -match '(?i)(applied|committed|no\s+changes?\s+needed|complete)') { return $true }
-        return $false
+        return [bool](Get-CompletionSignal -Output $output -AllowPlanningAlias)
     }
 
     [string[]] BuildArgs([object]$config) {
@@ -371,39 +396,16 @@ class GeminiAdapter {
             Error      = $null
         }
 
-        # Gemini supports JSON streaming
-        try {
-            # Try parsing as JSON
-            $json = $output | ConvertFrom-Json -ErrorAction SilentlyContinue
-            
-            if ($json.phase_complete) {
-                $result.IsComplete = $true
-                $result.NextMode = if ($json.next_phase) { $json.next_phase } else { "building" }
-            }
-            elseif ($json.status -eq "done") {
-                $result.IsComplete = $true
-                $result.NextMode = "complete"
-            }
-        }
-        catch {
-            # Fallback: Text pattern matching
-            if ($output -match '(?i)(phase\s+complete|ready\s+for\s+next)') {
-                $result.IsComplete = $true
-                $result.NextMode = "building"
-            }
-            elseif ($output -match '(?i)(all\s+done|task\s+complete|requirements?\s+met)') {
-                $result.IsComplete = $true
-                $result.NextMode = "complete"
-            }
+        $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
+        if ($signal) {
+            Set-CompletionResult -Result $result -Signal $signal
         }
 
         return $result
     }
 
     [bool] DetectCompletion([string]$output) {
-        if ($output -match '"phase_complete"\s*:\s*true') { return $true }
-        if ($output -match '(?i)(phase\s+complete|all\s+done|task\s+complete)') { return $true }
-        return $false
+        return [bool](Get-CompletionSignal -Output $output -AllowPlanningAlias)
     }
 
     [string[]] BuildArgs([object]$config) {
@@ -450,34 +452,16 @@ class CopilotAdapter {
             return $result
         }
 
-        if ($output -match '(?s)<promise>\s*PLANNING_COMPLETE\s*</promise>') {
-            $result.IsComplete = $true
-            $result.NextMode = "building"
-        }
-        elseif ($output -match '(?s)<promise>\s*TASK_COMPLETE\s*</promise>') {
-            $result.IsComplete = $true
-            $result.NextMode = "continue"
-        }
-        elseif ($output -match '(?s)<promise>\s*ALL_COMPLETE\s*</promise>') {
-            $result.IsComplete = $true
-            $result.NextMode = "complete"
-        }
-        elseif ($output -match '(?i)(planning\s+complete|ready\s+to\s+build)') {
-            $result.IsComplete = $true
-            $result.NextMode = "building"
-        }
-        elseif ($output -match '(?i)(all\s+tasks?\s+complete|requirement\s+met|task\s+complete)') {
-            $result.IsComplete = $true
-            $result.NextMode = "complete"
+        $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
+        if ($signal) {
+            Set-CompletionResult -Result $result -Signal $signal
         }
 
         return $result
     }
 
     [bool] DetectCompletion([string]$output) {
-        if ($output -match '(?s)<promise>\s*(PLANNING_COMPLETE|TASK_COMPLETE|ALL_COMPLETE)\s*</promise>') { return $true }
-        if ($output -match '(?i)(planning\s+complete|ready\s+to\s+build|all\s+tasks?\s+complete|requirement\s+met|task\s+complete)') { return $true }
-        return $false
+        return [bool](Get-CompletionSignal -Output $output -AllowPlanningAlias)
     }
 
     [string[]] BuildArgs([object]$config) {
