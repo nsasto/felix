@@ -1,5 +1,6 @@
-# Test Copilot Agent CLI
-# Verifies that GitHub Copilot CLI is installed and can execute basic prompts programmatically
+# Manual Copilot smoke test
+# Verifies that GitHub Copilot CLI is installed and can execute a basic prompt programmatically.
+# This script is intentionally manual-only and is not part of the default CI or run-git-test.ps1 suite.
 
 param(
     [switch]$Verbose
@@ -11,13 +12,13 @@ $ErrorActionPreference = "Continue"
 
 $agentName = "Copilot"
 $executable = "copilot"
-$logFile = "test-agent-copilot.log"
+$logFile = "manual-test-agent-copilot.log"
 $testPrompt = "Output exactly: TEST_OK"
 $timeoutSeconds = 60
 
 Write-Host ""
-Write-Host "Testing $agentName Agent CLI" -ForegroundColor Cyan
-Write-Host "==============================" -ForegroundColor Cyan
+Write-Host "Testing $agentName Agent CLI (manual-only)" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "[1/4] Checking for $executable CLI..." -ForegroundColor Gray

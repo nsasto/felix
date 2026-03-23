@@ -12,7 +12,7 @@ $testFiles = Get-ChildItem $testDir -Filter "test-*.ps1" | Where-Object {
     $_.Name -notmatch "test-droid-flags" -and
     $_.Name -notmatch "test-droid-verbose" -and
     $_.Name -notmatch "test-agent-claude" -and
-    $_.Name -notmatch "test-agent-copilot" -and
+    $_.Name -notmatch "manual-test-agent-copilot" -and
     $_.Name -notmatch "test-agent-codex" -and
     $_.Name -notmatch "test-agent-droid" -and
     $_.Name -notmatch "test-agent-gemini" -and

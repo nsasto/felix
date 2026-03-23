@@ -19,11 +19,11 @@ $results = @()
 
 # Test each agent provider
 $agents = @(
-    @{ Name = "Droid";  Script = "test-agent-droid.ps1" }
+    @{ Name = "Droid"; Script = "test-agent-droid.ps1" }
     @{ Name = "Claude"; Script = "test-agent-claude.ps1" }
-    @{ Name = "Codex";  Script = "test-agent-codex.ps1" }
+    @{ Name = "Codex"; Script = "test-agent-codex.ps1" }
     @{ Name = "Gemini"; Script = "test-agent-gemini.ps1" }
-    @{ Name = "Copilot"; Script = "test-agent-copilot.ps1" }
+    @{ Name = "Copilot"; Script = "manual-test-agent-copilot.ps1" }
 )
 
 foreach ($agent in $agents) {
@@ -32,8 +32,8 @@ foreach ($agent in $agents) {
     if (-not (Test-Path $scriptPath)) {
         Write-Host "ERROR: Test script not found: $($agent.Script)" -ForegroundColor Red
         $results += @{
-            Name = $agent.Name
-            Status = "ERROR"
+            Name     = $agent.Name
+            Status   = "ERROR"
             ExitCode = -1
             Duration = 0
         }
@@ -59,8 +59,8 @@ foreach ($agent in $agents) {
     }
     
     $results += @{
-        Name = $agent.Name
-        Status = $status
+        Name     = $agent.Name
+        Status   = $status
         ExitCode = $exitCode
         Duration = $duration
     }
@@ -88,9 +88,9 @@ $errorCount = 0
 
 foreach ($result in $results) {
     $statusColor = switch ($result.Status) {
-        "PASS"  { "Green"; $passCount++ }
-        "FAIL"  { "Red"; $failCount++ }
-        "SKIP"  { "Yellow"; $skipCount++ }
+        "PASS" { "Green"; $passCount++ }
+        "FAIL" { "Red"; $failCount++ }
+        "SKIP" { "Yellow"; $skipCount++ }
         "ERROR" { "Red"; $errorCount++ }
     }
     

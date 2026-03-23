@@ -7,6 +7,7 @@ Handles agent subprocess execution via adapter and enforces planning mode restri
 #>
 
 . "$PSScriptRoot\output-normalizer.ps1"
+. "$PSScriptRoot\copilot-bridge.ps1"
 
 function Remove-ArgumentPair {
     param(
@@ -179,12 +180,25 @@ function Invoke-AgentExecution {
     }
     
     $executable = $AgentConfig.executable
-    $resolvedExecutable = $null
-    $invocation = Get-AgentInvocation -AdapterType $adapterType -Config $AgentConfig -Prompt $Prompt -VerboseMode:$VerboseMode.IsPresent
-    $formattedPrompt = $invocation.FormattedPrompt
-    $agentArgs = @($invocation.Arguments)
-    $promptMode = $invocation.PromptMode
     $agentWorkingDir = if ($AgentConfig.working_directory) { $AgentConfig.working_directory } else { "." }
+    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
+        $agentWorkingDir
+    }
+    else {
+        Join-Path $ProjectPath $agentWorkingDir
+    }
+
+    $resolvedExecutable = $null
+    $invocation = $null
+    $formattedPrompt = $Prompt
+    $agentArgs = @()
+    $promptMode = "stdin"
+    if (-not ($adapterType -eq "copilot" -and (Test-UseCopilotCliBridge))) {
+        $invocation = Get-AgentInvocation -AdapterType $adapterType -Config $AgentConfig -Prompt $Prompt -VerboseMode:$VerboseMode.IsPresent
+        $formattedPrompt = $invocation.FormattedPrompt
+        $agentArgs = @($invocation.Arguments)
+        $promptMode = $invocation.PromptMode
+    }
     $startTime = Get-Date
     
     # Hook: OnPreExecution
@@ -199,117 +213,128 @@ function Invoke-AgentExecution {
         Write-Verbose "[PLUGINS] Using modified executable arguments"
     }
 
-    $resolvedExecutable = if (Get-Command Resolve-FelixExecutablePath -ErrorAction SilentlyContinue) {
-        Resolve-FelixExecutablePath $executable
-    }
-    else {
-        $null
-    }
-
-    if (-not $resolvedExecutable) {
-        $message = "Agent executable not found: '$executable'. Ensure it is installed and/or on PATH (Windows npm global shim dir is usually '$($env:APPDATA)\\npm')."
-        Emit-Error -ErrorType "AgentExecutableNotFound" -Message $message -Severity "fatal" -Context @{
-            agent_name = $AgentConfig.name
-            agent_id   = $AgentConfig.key
-            executable = $executable
-        }
-
-        $duration = (Get-Date) - $startTime
-        $output = $message
-
-        # Write raw output to run directory
-        $outputPath = Join-Path $RunDir "output.log"
-        Set-Content $outputPath $output -Encoding UTF8
-        $relPath = $outputPath.Replace($ProjectPath + "\", "")
-        Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
-
-        Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
-        Emit-Log -Level "error" -Message "Execution failed: executable not found" -Component "agent"
-
-        return @{
-            Output             = $output
-            Duration           = $duration
-            Parsed             = @{
-                Output     = $output
-                IsComplete = $false
-                NextMode   = $null
-                Error      = "AgentExecutableNotFound"
-            }
-            ExitCode           = 127
-            Succeeded          = $false
-            ResolvedExecutable = $null
-        }
-    }
-
-    # Execute the agent and capture output
-    $agentCwd = if ([System.IO.Path]::IsPathRooted($agentWorkingDir)) {
-        $agentWorkingDir
-    }
-    else {
-        Join-Path $ProjectPath $agentWorkingDir
-    }
-
-    $processFilePath = $resolvedExecutable
-    $processArgs = @($agentArgs)
-    if ($resolvedExecutable -and $resolvedExecutable.EndsWith(".ps1")) {
-        $processFilePath = "powershell.exe"
-        $processArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $resolvedExecutable) + $agentArgs
-    }
-
     $envBackup = @{}
     $exitCode = 0
     $succeeded = $true
     try {
-        # Apply agent environment variables (best-effort)
-        if ($AgentConfig.environment) {
-            foreach ($prop in $AgentConfig.environment.PSObject.Properties) {
-                $key = $prop.Name
-                $value = [string]$prop.Value
-                $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
-                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        if ($adapterType -eq "copilot" -and (Test-UseCopilotCliBridge)) {
+            Emit-Log -Level "info" -Message "Using C# Copilot bridge for agent execution" -Component "agent"
+            $bridgeResult = Invoke-CopilotCliBridge -AgentConfig $AgentConfig -Prompt $Prompt -WorkingDirectory $agentCwd
+            $output = $bridgeResult.Output
+            $exitCode = $bridgeResult.ExitCode
+            $succeeded = $bridgeResult.Succeeded
+            $resolvedExecutable = $bridgeResult.ResolvedExecutable
+
+            if (-not $succeeded) {
+                Emit-Error -ErrorType "AgentExecutionFailed" -Message "Copilot bridge exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
+                    agent_name = $AgentConfig.name
+                    agent_id   = $AgentConfig.key
+                    executable = $executable
+                    resolved   = $resolvedExecutable
+                    exit_code  = $exitCode
+                    bridge     = $true
+                }
             }
         }
+        else {
+            $resolvedExecutable = if (Get-Command Resolve-FelixExecutablePath -ErrorAction SilentlyContinue) {
+                Resolve-FelixExecutablePath $executable
+            }
+            else {
+                $null
+            }
 
-        $processResult = Invoke-AgentSubprocess `
-            -ProcessFilePath $processFilePath `
-            -ProcessArgs $processArgs `
-            -WorkingDirectory $agentCwd `
-            -PromptMode $promptMode `
-            -Prompt $formattedPrompt `
-            -StartTime $startTime
+            if (-not $resolvedExecutable) {
+                $message = "Agent executable not found: '$executable'. Ensure it is installed and/or on PATH (Windows npm global shim dir is usually '$($env:APPDATA)\\npm')."
+                Emit-Error -ErrorType "AgentExecutableNotFound" -Message $message -Severity "fatal" -Context @{
+                    agent_name = $AgentConfig.name
+                    agent_id   = $AgentConfig.key
+                    executable = $executable
+                }
 
-        $output = $processResult.Output
-        $exitCode = $processResult.ExitCode
-        $succeeded = $processResult.Succeeded
+                $duration = (Get-Date) - $startTime
+                $output = $message
 
-        if ($adapterType -eq "copilot" -and ($processArgs -contains "--model") -and (Test-CopilotModelUnavailableOutput -Output $output)) {
-            Emit-Log -Level "warn" -Message "Copilot rejected configured model '$($AgentConfig.model)'; retrying without --model" -Component "agent"
+                $outputPath = Join-Path $RunDir "output.log"
+                Set-Content $outputPath $output -Encoding UTF8
+                $relPath = $outputPath.Replace($ProjectPath + "\", "")
+                Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
 
-            $retryProcessArgs = Remove-ArgumentPair -Arguments $processArgs -Flag "--model"
-            $retryResult = Invoke-AgentSubprocess `
+                Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
+                Emit-Log -Level "error" -Message "Execution failed: executable not found" -Component "agent"
+
+                return @{
+                    Output             = $output
+                    Duration           = $duration
+                    Parsed             = @{
+                        Output     = $output
+                        IsComplete = $false
+                        NextMode   = $null
+                        Error      = "AgentExecutableNotFound"
+                    }
+                    ExitCode           = 127
+                    Succeeded          = $false
+                    ResolvedExecutable = $null
+                }
+            }
+
+            $processFilePath = $resolvedExecutable
+            $processArgs = @($agentArgs)
+            if ($resolvedExecutable -and $resolvedExecutable.EndsWith(".ps1")) {
+                $processFilePath = "powershell.exe"
+                $processArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $resolvedExecutable) + $agentArgs
+            }
+
+            if ($AgentConfig.environment) {
+                foreach ($prop in $AgentConfig.environment.PSObject.Properties) {
+                    $key = $prop.Name
+                    $value = [string]$prop.Value
+                    $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                    [Environment]::SetEnvironmentVariable($key, $value, "Process")
+                }
+            }
+
+            $processResult = Invoke-AgentSubprocess `
                 -ProcessFilePath $processFilePath `
-                -ProcessArgs $retryProcessArgs `
+                -ProcessArgs $processArgs `
                 -WorkingDirectory $agentCwd `
                 -PromptMode $promptMode `
                 -Prompt $formattedPrompt `
                 -StartTime $startTime
 
-            $output = $retryResult.Output
-            $exitCode = $retryResult.ExitCode
-            $succeeded = $retryResult.Succeeded
+            $output = $processResult.Output
+            $exitCode = $processResult.ExitCode
+            $succeeded = $processResult.Succeeded
 
-            if ($succeeded) {
-                Emit-Log -Level "info" -Message "Copilot retry without explicit model succeeded" -Component "agent"
+            if ($adapterType -eq "copilot" -and ($processArgs -contains "--model") -and (Test-CopilotModelUnavailableOutput -Output $output)) {
+                Emit-Log -Level "warn" -Message "Copilot rejected configured model '$($AgentConfig.model)'; retrying without --model" -Component "agent"
+
+                $retryProcessArgs = Remove-ArgumentPair -Arguments $processArgs -Flag "--model"
+                $retryResult = Invoke-AgentSubprocess `
+                    -ProcessFilePath $processFilePath `
+                    -ProcessArgs $retryProcessArgs `
+                    -WorkingDirectory $agentCwd `
+                    -PromptMode $promptMode `
+                    -Prompt $formattedPrompt `
+                    -StartTime $startTime
+
+                $output = $retryResult.Output
+                $exitCode = $retryResult.ExitCode
+                $succeeded = $retryResult.Succeeded
+
+                if ($succeeded) {
+                    Emit-Log -Level "info" -Message "Copilot retry without explicit model succeeded" -Component "agent"
+                }
             }
-        }
 
-        if (-not $succeeded) {
-            Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
-                agent_name = $AgentConfig.name
-                agent_id   = $AgentConfig.key
-                executable = $executable
-                resolved   = $resolvedExecutable
-                exit_code  = $exitCode
+            if (-not $succeeded) {
+                Emit-Error -ErrorType "AgentExecutionFailed" -Message "Agent process exited non-zero (exit code: $exitCode)" -Severity "error" -Context @{
+                    agent_name = $AgentConfig.name
+                    agent_id   = $AgentConfig.key
+                    executable = $executable
+                    resolved   = $resolvedExecutable
+                    exit_code  = $exitCode
+                }
             }
         }
     }
