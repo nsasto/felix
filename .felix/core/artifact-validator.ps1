@@ -10,6 +10,31 @@ function Get-RunPlanPath {
     return (Join-Path $RunDir "plan-$RequirementId.md")
 }
 
+function Test-JsonOnlyResponse {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return @{ IsValid = $false; Reason = "Agent response is empty; expected JSON object response." }
+    }
+
+    $trimmed = $Output.Trim()
+    if (-not ($trimmed.StartsWith("{") -and $trimmed.EndsWith("}"))) {
+        return @{ IsValid = $false; Reason = "Response must be JSON only (single JSON object with no prose or markdown)." }
+    }
+
+    try {
+        $null = $trimmed | ConvertFrom-Json -ErrorAction Stop
+        return @{ IsValid = $true; Reason = $null }
+    }
+    catch {
+        return @{ IsValid = $false; Reason = "Response is not valid JSON: $($_.Exception.Message)" }
+    }
+}
+
 function Get-PlanCheckboxSummary {
     param(
         [Parameter(Mandatory = $true)]
@@ -191,6 +216,18 @@ function Test-IterationContract {
     $signal = Get-CompletionSignal -Output $AgentOutput -AllowPlanningAlias
     $planPath = Get-RunPlanPath -RunDir $RunDir -RequirementId $RequirementId
 
+    if ($Mode -eq "building") {
+        $jsonOnlyResult = Test-JsonOnlyResponse -Output $AgentOutput
+        if (-not $jsonOnlyResult.IsValid) {
+            return @{
+                IsValid  = $false
+                Reason   = $jsonOnlyResult.Reason
+                Signal   = $signal
+                PlanPath = $planPath
+            }
+        }
+    }
+
     if ($Mode -eq "planning" -and $signal -ne "PLAN_COMPLETE") {
         $planningFallback = Test-PlanningArtifact -RunDir $RunDir -RequirementId $RequirementId
         if ($planningFallback.IsValid) {
@@ -204,7 +241,7 @@ function Test-IterationContract {
 
         return @{
             IsValid  = $false
-            Reason   = "Missing exact standalone <promise>PLAN_COMPLETE</promise> line for planning completion."
+            Reason   = "Missing completion.signal=PLAN_COMPLETE in JSON response for planning completion."
             Signal   = $signal
             PlanPath = $planPath
         }
@@ -232,7 +269,7 @@ function Test-IterationContract {
 
         return @{
             IsValid  = $false
-            Reason   = "Missing exact standalone <promise>TASK_COMPLETE</promise> or <promise>ALL_COMPLETE</promise> line for building completion."
+            Reason   = "Missing completion.signal=TASK_COMPLETE or completion.signal=ALL_COMPLETE in JSON response for building completion."
             Signal   = $signal
             PlanPath = $planPath
         }

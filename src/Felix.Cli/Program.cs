@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Spectre.Console;
 
 namespace Felix.Cli;
@@ -46,6 +47,8 @@ partial class Program
         public bool HasContractViolation { get; set; }
         public string? LastAgentResponseContent { get; set; }
         public int LastAgentResponseLength { get; set; }
+        public bool ExitHandlerSeen { get; set; }
+        public DateTimeOffset? ExitHandlerSeenAtUtc { get; set; }
         public bool IsVerbose { get; init; }
         public bool IsSync { get; init; }
     }
@@ -597,7 +600,32 @@ partial class Program
             var stderrTask = ConsumeFelixErrorAsync(process.StandardError, state);
             var waitForExitTask = process.WaitForExitAsync();
 
-            await Task.WhenAny(waitForExitTask, forceExitRequested.Task);
+            while (true)
+            {
+                var completed = await Task.WhenAny(waitForExitTask, forceExitRequested.Task, Task.Delay(500));
+                if (completed == waitForExitTask || completed == forceExitRequested.Task)
+                    break;
+
+                if (!state.ExitHandlerSeen || state.ExitHandlerSeenAtUtc is null || process.HasExited)
+                    continue;
+
+                var elapsedSinceExitIntent = DateTimeOffset.UtcNow - state.ExitHandlerSeenAtUtc.Value;
+                if (elapsedSinceExitIntent <= TimeSpan.FromSeconds(8))
+                    continue;
+
+                lock (_renderSync)
+                    RenderFelixDetailLine("INFO", "yellow", "Process did not exit after exit-handler signal; forcing termination");
+
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                }
+
+                break;
+            }
 
             if (forceExitRequested.Task.IsCompleted)
             {
@@ -730,6 +758,12 @@ partial class Program
         }
         catch (JsonException)
         {
+            if (trimmed.Contains("[EXIT-HANDLER] About to call exit", StringComparison.OrdinalIgnoreCase))
+            {
+                state.ExitHandlerSeen = true;
+                state.ExitHandlerSeenAtUtc ??= DateTimeOffset.UtcNow;
+            }
+
             lock (_renderSync)
                 AnsiConsole.MarkupLine($"[grey]{trimmed.EscapeMarkup()}[/]");
         }
@@ -860,8 +894,19 @@ partial class Program
                     lock (_renderSync)
                     {
                         RenderFelixDetailLine("Response", "cyan", suffix);
-                        foreach (var responseLine in content.Split('\n').Take(40))
-                            AnsiConsole.MarkupLine($"  [grey]{responseLine.EscapeMarkup()}[/]");
+
+                        if (TryExtractJsonResponse(content, out var responseJson, out var hadEnvelopeText))
+                        {
+                            if (hadEnvelopeText)
+                                RenderFelixDetailLine("Format", "yellow", "Response included non-JSON wrapper text; parsed inner JSON payload");
+
+                            RenderResponseJsonFields(responseJson);
+                        }
+                        else
+                        {
+                            foreach (var responseLine in content.Split('\n').Take(40))
+                                AnsiConsole.MarkupLine($"  [grey]{responseLine.EscapeMarkup()}[/]");
+                        }
                     }
                     break;
                 }
@@ -1053,6 +1098,99 @@ partial class Program
             JsonValueKind.False => false,
             _ => null
         };
+    }
+
+    static bool TryExtractJsonResponse(string content, out JsonElement payload, out bool hadEnvelopeText)
+    {
+        payload = default;
+        hadEnvelopeText = false;
+
+        content ??= string.Empty;
+        var trimmed = content.Trim();
+        if (trimmed.Length == 0)
+            return false;
+
+        if (TryParseJsonPayload(trimmed, out payload))
+            return true;
+
+        var fenceMatch = Regex.Match(content, "```json\\s*(\\{.*?\\})\\s*```", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (fenceMatch.Success)
+        {
+            hadEnvelopeText = true;
+            if (TryParseJsonPayload(fenceMatch.Groups[1].Value, out payload))
+                return true;
+        }
+
+        var firstBrace = content.IndexOf('{');
+        var lastBrace = content.LastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace)
+        {
+            hadEnvelopeText = true;
+            var candidate = content.Substring(firstBrace, lastBrace - firstBrace + 1);
+            if (TryParseJsonPayload(candidate, out payload))
+                return true;
+        }
+
+        return false;
+    }
+
+    static bool TryParseJsonPayload(string text, out JsonElement payload)
+    {
+        payload = default;
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return false;
+
+            payload = doc.RootElement.Clone();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    static void RenderResponseJsonFields(JsonElement root)
+    {
+        foreach (var (key, value) in FlattenJsonFields(root, null))
+        {
+            RenderFelixDetailLine(key, "grey", value.EscapeMarkup());
+        }
+    }
+
+    static IEnumerable<(string Key, string Value)> FlattenJsonFields(JsonElement element, string? prefix)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in element.EnumerateObject())
+            {
+                var nextPrefix = string.IsNullOrWhiteSpace(prefix) ? prop.Name : $"{prefix}.{prop.Name}";
+                foreach (var pair in FlattenJsonFields(prop.Value, nextPrefix))
+                    yield return pair;
+            }
+
+            yield break;
+        }
+
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            var values = element.EnumerateArray().Select(v => v.ValueKind == JsonValueKind.String ? (v.GetString() ?? string.Empty) : v.ToString());
+            yield return (prefix ?? "value", string.Join(", ", values));
+            yield break;
+        }
+
+        var scalar = element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? string.Empty,
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null => "null",
+            _ => element.ToString()
+        };
+
+        yield return (prefix ?? "value", scalar);
     }
 
     static string FindPowerShell()

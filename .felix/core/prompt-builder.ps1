@@ -54,11 +54,9 @@ function New-IterationPrompt {
     # Gather context
     $contextParts = @()
     
-    # Add AGENTS.md if exists
-    if (Test-Path $Paths.AgentsFile) {
-        $agentsContent = Get-Content $Paths.AgentsFile -Raw
-        $contextParts += "# How to Run This Project`n`n$agentsContent"
-    }
+    # Reference AGENTS.md and CONTEXT.md instead of embedding full content
+    # This reduces token bloat and forces agents to actively read these files
+    $contextParts += "# File References - Read These from Disk`n`nThe system provides these reference files in the project root (read them yourself):`n`n- **AGENTS.md** - contains 'How to Run This Project' with commands for testing, building, and running the application`n- **CONTEXT.md** - contains project structure, technology stack, conventions, and patterns`n`nRead these files from the project root before starting work. Both are essential to understanding how to complete this requirement."
     
     # Add Requirements context
     $requirements = Get-Content $Paths.RequirementsFile -Raw | ConvertFrom-Json
@@ -100,6 +98,10 @@ function New-IterationPrompt {
     
     $reqSummary = $reqContext | ConvertTo-Json -Depth 10
     $contextParts += "# Current Requirement Context`n`n``````json`n$reqSummary`n```````n`n*Note: Full requirements list available at ``.felix/requirements.json`` if you need to check other requirements.*"
+    
+    # Add reference to the requirement spec file
+    $specPath = if ($CurrentRequirement.spec_path) { $CurrentRequirement.spec_path } else { "specs/$($CurrentRequirement.id).md" }
+    $contextParts += "# Requirement Specification`n`nRead the full acceptance criteria and constraints in: **$specPath**`n`nYou MUST understand every line of the spec before planning or implementing."
     
     # Add current requirement header
     $contextParts += "# Current Requirement`n`nYou are working on: **$($CurrentRequirement.id)** - $($CurrentRequirement.title)"

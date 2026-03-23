@@ -35,6 +35,63 @@ function Resolve-LegacyCompletionSignal {
     }
 }
 
+function Get-CompletionSignalFromJsonText {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return $null
+    }
+
+    $candidates = @()
+    $trimmed = $Output.Trim()
+
+    if ($trimmed.StartsWith("{")) {
+        $candidates += $trimmed
+    }
+
+    # Support markdown-wrapped JSON responses (```json ... ```)
+    $fencedMatch = [regex]::Match($Output, '(?is)```json\s*(\{.*?\})\s*```')
+    if ($fencedMatch.Success) {
+        $candidates += $fencedMatch.Groups[1].Value
+    }
+
+    # Support mixed prose + JSON by taking the broad outer object slice.
+    $firstBrace = $Output.IndexOf('{')
+    $lastBrace = $Output.LastIndexOf('}')
+    if ($firstBrace -ge 0 -and $lastBrace -gt $firstBrace) {
+        $candidates += $Output.Substring($firstBrace, $lastBrace - $firstBrace + 1)
+    }
+
+    foreach ($candidate in $candidates | Select-Object -Unique) {
+        try {
+            $json = $candidate | ConvertFrom-Json -ErrorAction Stop
+
+            if ($json.completion -and $json.completion.signal) {
+                $signal = Resolve-LegacyCompletionSignal -Signal ([string]$json.completion.signal)
+                if ($signal) {
+                    return $signal
+                }
+            }
+
+            if ($json.response_metadata -and $json.response_metadata.signal) {
+                $signal = Resolve-LegacyCompletionSignal -Signal ([string]$json.response_metadata.signal)
+                if ($signal) {
+                    return $signal
+                }
+            }
+        }
+        catch {
+            # Ignore malformed candidate, continue
+        }
+    }
+
+    return $null
+}
+
 function Get-CompletionSignal {
     param(
         [Parameter(Mandatory = $true)]
@@ -49,6 +106,13 @@ function Get-CompletionSignal {
         return $null
     }
 
+    # First, try to parse JSON payloads (pure JSON, fenced JSON, or mixed prose+JSON).
+    $jsonSignal = Get-CompletionSignalFromJsonText -Output $Output
+    if ($jsonSignal) {
+        return $jsonSignal
+    }
+
+    # Fallback: Use regex pattern for old plain-text format with <promise> tags
     $pattern = Get-CompletionSignalPattern
     $signals = @(
         ($Output -split "`r`n|`n|`r") |

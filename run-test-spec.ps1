@@ -10,7 +10,8 @@ if (Test-Path ".env") {
         $value = $pair[1].Trim()
         if ($value.StartsWith('"') -and $value.EndsWith('"')) {
             $value = $value.Substring(1, $value.Length - 2)
-        } elseif ($value.StartsWith("'") -and $value.EndsWith("'")) {
+        }
+        elseif ($value.StartsWith("'") -and $value.EndsWith("'")) {
             $value = $value.Substring(1, $value.Length - 2)
         }
         Set-Item -Path ("Env:{0}" -f $name) -Value $value
@@ -27,5 +28,5 @@ Write-Host "================================" -ForegroundColor Green
 Write-Host "Running test spec: s-0000" -ForegroundColor Green
 Write-Host "================================" -ForegroundColor Green
 write-Host ""
-felix run s-0000 --sync -Verbose
+felix run s-0000 -Verbose
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
