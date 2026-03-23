@@ -1794,7 +1794,7 @@ partial class Program
 
         try
         {
-            LaunchUpdateHelper(stageRoot, installDir, releaseRid);
+            LaunchUpdateHelper(stageRoot, installDir, releaseRid, plan.TargetVersion);
         }
         catch (Exception ex)
         {
@@ -1803,7 +1803,7 @@ partial class Program
         }
 
         AnsiConsole.WriteLine();
-        RenderUpdateSuccess(plan, installDir, addedToPath);
+        RenderUpdateSuccess(plan, installDir, addedToPath, stageRoot);
         return 0;
     }
 
@@ -2015,7 +2015,7 @@ partial class Program
             : $"Install Felix {plan.TargetVersion} to {installDir}?";
     }
 
-    static void RenderUpdateSuccess(UpdateReleasePlan plan, string installDir, bool addedToPath)
+    static void RenderUpdateSuccess(UpdateReleasePlan plan, string installDir, bool addedToPath, string stageRoot = "")
     {
         var resultsTable = new Table()
             .Border(TableBorder.Rounded)
@@ -2035,8 +2035,12 @@ partial class Program
         AnsiConsole.Write(resultsTable);
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[green]Felix {plan.TargetVersion.EscapeMarkup()} staged successfully.[/]");
-        AnsiConsole.MarkupLine("[grey]The update helper will replace the installed files after this process exits.[/]");
-        AnsiConsole.MarkupLine("[grey]Run 'felix version' again in a few seconds to confirm the new version.[/]");
+        AnsiConsole.MarkupLine("[grey]The updater is running in the background. Wait a few seconds, then run 'felix version' to confirm.[/]");
+        if (!string.IsNullOrWhiteSpace(stageRoot))
+        {
+            var logPath = Path.Combine(stageRoot, "update-log.txt");
+            AnsiConsole.MarkupLine($"[grey]If the version does not change, check the update log: {logPath.EscapeMarkup()}[/]");
+        }
     }
 
     static async Task<string> DownloadAndStageReleaseAsync(UpdateReleasePlan plan, Action<string>? onProgress = null)
@@ -2129,7 +2133,7 @@ partial class Program
         return (hash, fileName);
     }
 
-    static void LaunchUpdateHelper(string stageRoot, string installDir, string releaseRid)
+    static void LaunchUpdateHelper(string stageRoot, string installDir, string releaseRid, string targetVersion = "")
     {
         var isWindows = releaseRid.StartsWith("win-", StringComparison.OrdinalIgnoreCase);
         var helperExtension = isWindows ? ".ps1" : ".sh";
@@ -2144,7 +2148,7 @@ partial class Program
             startInfo = new ProcessStartInfo
             {
                 FileName = FindPowerShell(),
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{helperScriptPath}\" -ParentPid {Environment.ProcessId} -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\"",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{helperScriptPath}\" -ParentPid {Environment.ProcessId} -StageRoot \"{stageRoot}\" -InstallDir \"{installDir}\" -TargetVersion \"{targetVersion}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
@@ -2155,7 +2159,7 @@ partial class Program
             startInfo = new ProcessStartInfo
             {
                 FileName = "/bin/sh",
-                Arguments = $"\"{helperScriptPath}\" {Environment.ProcessId} \"{stageRoot}\" \"{installDir}\"",
+                Arguments = $"\"{helperScriptPath}\" {Environment.ProcessId} \"{stageRoot}\" \"{installDir}\" \"{targetVersion}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -2173,31 +2177,53 @@ partial class Program
 param(
     [int]$ParentPid,
     [string]$StageRoot,
-    [string]$InstallDir
+    [string]$InstallDir,
+    [string]$TargetVersion = ''
 )
 
-$ErrorActionPreference = 'Stop'
+$logFile = Join-Path $StageRoot 'update-log.txt'
+
+function Write-Log {
+    param([string]$Message)
+    $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+    ""$ts  $Message"" | Out-File -FilePath $logFile -Append -Encoding UTF8
+}
 
 try {
-    Wait-Process -Id $ParentPid -ErrorAction SilentlyContinue
-} catch {
+    Write-Log 'Update helper started'
+
+    try {
+        Wait-Process -Id $ParentPid -ErrorAction SilentlyContinue
+    } catch { }
+
+Start - Sleep - Milliseconds 750
+
+    $payloadDir = Join - Path $StageRoot 'payload'
+    if (-not (Test-Path -LiteralPath $payloadDir)) {
+        throw ""Update payload directory not found: $payloadDir""
+    }
+
+    New - Item - ItemType Directory - Path $InstallDir - Force | Out - Null
+
+    Get - ChildItem - LiteralPath $payloadDir - Force | ForEach - Object {
+        $destination = Join - Path $InstallDir $_.Name
+        Copy - Item - LiteralPath $_.FullName - Destination $destination - Force - ErrorAction Stop
+        Write - Log ""Copied: $($_.Name)""
+    }
+
+if (-not[string]::IsNullOrWhiteSpace($TargetVersion))
+{
+        $versionFile = Join - Path $InstallDir 'version.txt'
+        Set - Content - LiteralPath $versionFile - Value $TargetVersion - Encoding UTF8 - NoNewline
+        Write - Log ""Wrote version.txt: $TargetVersion""
+    }
+
+Write - Log 'Update complete'
+    Remove - Item - LiteralPath $StageRoot - Recurse - Force - ErrorAction SilentlyContinue
 }
-
-Start-Sleep -Milliseconds 750
-
-$payloadDir = Join-Path $StageRoot 'payload'
-if (-not (Test-Path -LiteralPath $payloadDir)) {
-    throw ""Update payload directory not found: $payloadDir""
+catch {
+    Write - Log ""Error: $_""
 }
-
-New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-
-Get-ChildItem -LiteralPath $payloadDir -Force | ForEach-Object {
-    $destination = Join-Path $InstallDir $_.Name
-    Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
-}
-
-Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
 ";
 
     internal static string BuildUnixUpdateHelperScript() => """
@@ -2205,6 +2231,15 @@ Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinu
 PARENT_PID="$1"
 STAGE_ROOT="$2"
 INSTALL_DIR="$3"
+TARGET_VERSION="$4"
+
+LOG_FILE="$STAGE_ROOT/update-log.txt"
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S')  $1" >> "$LOG_FILE" 2>/dev/null
+}
+
+log 'Update helper started'
 
 case "$PARENT_PID" in
     ''|*[!0-9]*)
@@ -2220,15 +2255,27 @@ fi
 
 PAYLOAD_DIR="$STAGE_ROOT/payload"
 if [ ! -d "$PAYLOAD_DIR" ]; then
-    echo "Update payload directory not found: $PAYLOAD_DIR" >&2
+    log "Error: payload directory not found: $PAYLOAD_DIR"
     exit 1
 fi
 
 mkdir -p "$INSTALL_DIR"
-cp -R "$PAYLOAD_DIR"/. "$INSTALL_DIR"/
+if ! cp -R "$PAYLOAD_DIR"/. "$INSTALL_DIR"/; then
+    log 'Error: cp failed'
+    exit 1
+fi
+log 'Files copied'
+
 if [ -f "$INSTALL_DIR/felix" ]; then
     chmod +x "$INSTALL_DIR/felix"
 fi
+
+if [ -n "$TARGET_VERSION" ]; then
+    printf '%s' "$TARGET_VERSION" > "$INSTALL_DIR/version.txt"
+    log "Wrote version.txt: $TARGET_VERSION"
+fi
+
+log 'Update complete'
 rm -rf "$STAGE_ROOT"
 """;
 
