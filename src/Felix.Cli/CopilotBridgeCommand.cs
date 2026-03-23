@@ -262,28 +262,12 @@ internal static class CopilotBridgeCommand
 
     private static string NormalizeResolvedCopilotPath(string resolvedPath)
     {
-        if (!OperatingSystem.IsWindows())
-            return resolvedPath;
-
-        var fileName = Path.GetFileNameWithoutExtension(resolvedPath);
-        var extension = Path.GetExtension(resolvedPath);
-        if (!string.Equals(fileName, "copilot", StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(extension, ".ps1", StringComparison.OrdinalIgnoreCase))
-        {
-            return resolvedPath;
-        }
-
-        var directory = Path.GetDirectoryName(resolvedPath);
-        if (string.IsNullOrWhiteSpace(directory))
-            return resolvedPath;
-
-        foreach (var siblingName in new[] { "copilot.bat", "copilot.cmd", "copilot.exe" })
-        {
-            var siblingPath = Path.Combine(directory, siblingName);
-            if (File.Exists(siblingPath))
-                return siblingPath;
-        }
-
+        // Return the resolved path as-is. Invoking copilot.ps1 directly via
+        // 'pwsh -File copilot.ps1' (handled by CreateLaunchSpec) correctly
+        // populates $MyInvocation.MyCommand.Path inside the script.
+        // Preferring .bat/.cmd siblings is deliberately avoided because npm shims
+        // call copilot.ps1 via 'powershell -Command' which leaves
+        // $MyInvocation.MyCommand.Path empty, breaking copilot's own shim.
         return resolvedPath;
     }
 
@@ -314,7 +298,7 @@ internal static class CopilotBridgeCommand
         if (!string.IsNullOrWhiteSpace(Path.GetExtension(executableName)))
             return new[] { executableName };
 
-        return new[] { executableName + ".exe", executableName + ".cmd", executableName + ".bat", executableName + ".ps1", executableName };
+        return new[] { executableName + ".exe", executableName + ".ps1", executableName + ".cmd", executableName + ".bat", executableName };
     }
 
     private static LaunchSpec CreateLaunchSpec(string resolvedExecutable, IReadOnlyList<string> arguments)
@@ -351,6 +335,21 @@ internal static class CopilotBridgeCommand
 
         foreach (var entry in environment)
             startInfo.Environment[entry.Key] = entry.Value ?? string.Empty;
+
+        // If calling a .ps1 wrapper directly, prepend its directory to PATH so that
+        // Get-Command inside the script can find itself (needed by self-referential
+        // bootstrapper scripts like the GitHub Copilot CLI shim).
+        var ext = Path.GetExtension(resolvedExecutable);
+        if (OperatingSystem.IsWindows() && ext.Equals(".ps1", StringComparison.OrdinalIgnoreCase))
+        {
+            var scriptDir = Path.GetDirectoryName(resolvedExecutable);
+            if (!string.IsNullOrEmpty(scriptDir))
+            {
+                var currentPath = startInfo.Environment.TryGetValue("PATH", out var p) ? p ?? string.Empty : Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                if (!currentPath.Split(';').Any(d => string.Equals(d.Trim(), scriptDir, StringComparison.OrdinalIgnoreCase)))
+                    startInfo.Environment["PATH"] = scriptDir + ";" + currentPath;
+            }
+        }
 
         using var process = new Process { StartInfo = startInfo };
         process.Start();

@@ -100,7 +100,10 @@ function Test-BuildingArtifact {
         $before = Get-PlanCheckboxSummary -Content $PreviousPlanContent
         $after = Get-PlanCheckboxSummary -Content $content
 
-        if ($after.Checked -le $before.Checked) {
+        # If everything is already checked off, no new ticks are required.
+        $allAlreadyDone = ($after.Unchecked -eq 0 -and $after.Checked -gt 0)
+
+        if (-not $allAlreadyDone -and $after.Checked -le $before.Checked) {
             return @{ IsValid = $false; Reason = "Task completion was signaled without checking off any plan items."; PlanPath = $planPath }
         }
 
@@ -189,6 +192,16 @@ function Test-IterationContract {
     $planPath = Get-RunPlanPath -RunDir $RunDir -RequirementId $RequirementId
 
     if ($Mode -eq "planning" -and $signal -ne "PLAN_COMPLETE") {
+        $planningFallback = Test-PlanningArtifact -RunDir $RunDir -RequirementId $RequirementId
+        if ($planningFallback.IsValid) {
+            return @{
+                IsValid  = $true
+                Reason   = $null
+                Signal   = "PLAN_COMPLETE"
+                PlanPath = $planningFallback.PlanPath
+            }
+        }
+
         return @{
             IsValid  = $false
             Reason   = "Missing exact standalone <promise>PLAN_COMPLETE</promise> line for planning completion."
@@ -198,6 +211,25 @@ function Test-IterationContract {
     }
 
     if ($Mode -eq "building" -and $signal -notin @("TASK_COMPLETE", "ALL_COMPLETE")) {
+        $buildingFallback = Test-BuildingArtifact -RunDir $RunDir -RequirementId $RequirementId -PreviousPlanContent $PreviousPlanContent -Signal "TASK_COMPLETE"
+        if ($buildingFallback.IsValid) {
+            $inferredSignal = "TASK_COMPLETE"
+            if (Test-Path $buildingFallback.PlanPath) {
+                $currentPlan = Get-Content $buildingFallback.PlanPath -Raw
+                $summary = Get-PlanCheckboxSummary -Content $currentPlan
+                if ($summary.Unchecked -eq 0 -and $summary.Checked -gt 0) {
+                    $inferredSignal = "ALL_COMPLETE"
+                }
+            }
+
+            return @{
+                IsValid  = $true
+                Reason   = $null
+                Signal   = $inferredSignal
+                PlanPath = $buildingFallback.PlanPath
+            }
+        }
+
         return @{
             IsValid  = $false
             Reason   = "Missing exact standalone <promise>TASK_COMPLETE</promise> or <promise>ALL_COMPLETE</promise> line for building completion."
@@ -288,7 +320,7 @@ function Invoke-ContractRepairFlow {
     while (-not $validation.IsValid -and $attempts -lt 1) {
         $attempts++
         $retryPrompt = New-ContractRepairPrompt -BasePrompt $BasePrompt -Mode $Mode -Reason $validation.Reason -PlanPath $validation.PlanPath
-        $lastRetryResult = & $RetryExecution $retryPrompt $attempts
+        $lastRetryResult = & $RetryExecution $retryPrompt $attempts $validation.Reason
 
         if (-not $lastRetryResult.Succeeded) {
             return @{
@@ -304,7 +336,15 @@ function Invoke-ContractRepairFlow {
             }
         }
 
-        $output = $lastRetryResult.Output
+        $output = if ($lastRetryResult.Parsed -and $lastRetryResult.Parsed.Output) {
+            $lastRetryResult.Parsed.Output
+        }
+        elseif ($lastRetryResult.NormalizedOutput) {
+            $lastRetryResult.NormalizedOutput
+        }
+        else {
+            $lastRetryResult.Output
+        }
         $validation = Test-IterationContract -Mode $Mode -RunDir $RunDir -RequirementId $RequirementId -AgentOutput $output -PreviousPlanContent $PreviousPlanContent
     }
 

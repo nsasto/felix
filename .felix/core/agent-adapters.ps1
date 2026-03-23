@@ -183,6 +183,11 @@ class DroidAdapter {
                             elseif ($event.result) {
                                 $result.Output = [string]$event.result
                                 $foundCompletion = $true
+                                # Detect completion signal embedded in the result text
+                                $innerSignal = Get-CompletionSignal -Output ([string]$event.result) -AllowPlanningAlias
+                                if ($innerSignal) {
+                                    Set-CompletionResult -Result $result -Signal $innerSignal
+                                }
                             }
                         }
                         "completion" {

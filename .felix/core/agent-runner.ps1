@@ -374,6 +374,28 @@ function Invoke-AgentExecution {
         }
     }
     
+    # Emit response content for visibility (helps diagnose contract violations).
+    # Use the parsed inner text if available so contract-checking signals (<promise> tags)
+    # are visible; fall back to normalizedOutput for non-JSON adapters.
+    $responseText = if ($parsedResponse.Output -and $parsedResponse.Output -ne $normalizedOutput) {
+        $parsedResponse.Output
+    }
+    else {
+        $normalizedOutput
+    }
+    $previewLen = 3000
+    $responsePreview = if ($responseText.Length -gt $previewLen) {
+        $responseText.Substring(0, $previewLen)
+    }
+    else {
+        $responseText
+    }
+    Emit-Event -EventType "agent_response" -Data @{
+        content   = $responsePreview
+        length    = $responseText.Length
+        truncated = ($responseText.Length -gt $previewLen)
+    }
+
     # Write raw output to run directory
     $outputPath = Join-Path $RunDir "output.log"
     Set-Content $outputPath $output -Encoding UTF8

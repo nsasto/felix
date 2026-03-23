@@ -25,6 +25,9 @@ function Invoke-RunNext {
         elseif ($Args[$i] -eq "--sync") {
             $syncEnabled = $true
         }
+        elseif ($Args[$i] -eq "--verbose") {
+            $VerboseMode = $true
+        }
     }
 
     # Load engine dependencies

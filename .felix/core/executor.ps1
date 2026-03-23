@@ -202,6 +202,17 @@ function Invoke-FelixIteration {
         -VerboseMode:$VerboseMode
     
     $output = $executionResult.Output
+    # Use parsed output for signal/contract checking so the raw JSON envelope doesn't hide
+    # <promise> tags that are embedded inside the agent's JSON result string.
+    $parsedOutput = if ($executionResult.Parsed -and $executionResult.Parsed.Output) {
+        $executionResult.Parsed.Output
+    }
+    elseif ($executionResult.NormalizedOutput) {
+        $executionResult.NormalizedOutput
+    }
+    else {
+        $executionResult.Output
+    }
 
     if ($executionResult.Succeeded -eq $false) {
         $State.last_iteration_outcome = "failure"
@@ -234,11 +245,12 @@ function Invoke-FelixIteration {
         -Mode $mode `
         -RunDir $runDir `
         -RequirementId $CurrentRequirement.id `
-        -InitialOutput $output `
+        -InitialOutput $parsedOutput `
         -PreviousPlanContent $planContent `
         -RetryExecution {
-        param($RepairPrompt, $AttemptNumber)
-        Emit-Log -Level "warn" -Message "Contract violation detected, issuing corrective retry (attempt $AttemptNumber)" -Component "contract"
+        param($RepairPrompt, $AttemptNumber, $ViolationReason)
+        $reasonSuffix = if ($ViolationReason) { " - $ViolationReason" } else { "" }
+        Emit-Log -Level "warn" -Message "Contract violation detected, issuing corrective retry (attempt $AttemptNumber)$reasonSuffix" -Component "contract"
         Invoke-AgentExecution `
             -AgentConfig $AgentConfig `
             -Prompt $RepairPrompt `

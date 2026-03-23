@@ -43,6 +43,11 @@ partial class Program
         public int ValidationsFailed { get; set; }
         public double? DurationSeconds { get; set; }
         public string? TerminationReason { get; set; }
+        public bool HasContractViolation { get; set; }
+        public string? LastAgentResponseContent { get; set; }
+        public int LastAgentResponseLength { get; set; }
+        public bool IsVerbose { get; init; }
+        public bool IsSync { get; init; }
     }
 
     static async Task<int> Main(string[] args)
@@ -200,17 +205,21 @@ partial class Program
     static Command CreateRunNextCommand(string felixPs1, Option<string> formatOpt)
     {
         var syncOpt = new Option<bool>("--sync", "Temporarily enable sync (overrides config)");
+        var verboseOpt = new Option<bool>("--verbose", "Enable verbose logging");
+        verboseOpt.AddAlias("-Verbose");
 
         var cmd = new Command("run-next", "Claim and run next available requirement (local or server-assigned)")
         {
             syncOpt,
+            verboseOpt,
         };
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler(async (sync, format) =>
+        cmd.SetHandler(async (sync, verbose, format) =>
         {
             var args = new List<string> { "run-next" };
             if (sync) args.Add("--sync");
+            if (verbose) args.Add("--verbose");
 
             if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
                 await ExecuteFelixRichCommand(felixPs1, "Run Next Requirement", args.ToArray());
@@ -219,7 +228,7 @@ partial class Program
                 args.AddRange(new[] { "--format", format });
                 await ExecutePowerShell(felixPs1, args.ToArray());
             }
-        }, syncOpt, formatOpt);
+        }, syncOpt, verboseOpt, formatOpt);
 
         return cmd;
     }
@@ -519,7 +528,12 @@ partial class Program
         var commandArgs = new List<string>(args) { "--format", "json" };
         var psi = CreateFelixProcessStartInfo(felixPs1, commandArgs, createNoWindow: true);
         using var process = new Process { StartInfo = psi };
-        var state = new FelixRichRunState { CommandLabel = commandLabel };
+        var state = new FelixRichRunState
+        {
+            CommandLabel = commandLabel,
+            IsVerbose = args.Contains("--verbose", StringComparer.OrdinalIgnoreCase),
+            IsSync = args.Contains("--sync", StringComparer.OrdinalIgnoreCase),
+        };
         bool wasCancelled = false;
         int cancelPressCount = 0;
         int forceExitInitiated = 0;
@@ -569,7 +583,6 @@ partial class Program
 
         lock (_renderSync)
         {
-            AnsiConsole.Clear();
             AnsiConsole.Write(new Rule($"[cyan]{commandLabel.EscapeMarkup()}[/]").RuleStyle(Style.Parse("cyan dim")));
             AnsiConsole.WriteLine();
         }
@@ -598,7 +611,16 @@ partial class Program
                 }
             }
 
-            await Task.WhenAll(stdoutTask, stderrTask, waitForExitTask);
+            // Wait for process to fully exit first
+            await waitForExitTask;
+
+            // Forcibly close our reader ends of the pipe. This immediately unblocks any
+            // pending ReadLineAsync in stdoutTask/stderrTask — necessary because grandchild
+            // processes spawned by droid (Node workers, python, etc.) inherit the write end
+            // of the pipe and keep it open after PowerShell exits.
+            try { process.StandardOutput.Close(); } catch { }
+            try { process.StandardError.Close(); } catch { }
+            await Task.WhenAll(stdoutTask, stderrTask);
 
             RenderFelixRunSummary(state, wasCancelled ? 130 : process.ExitCode, wasCancelled);
             Environment.ExitCode = wasCancelled ? 130 : process.ExitCode;
@@ -650,34 +672,44 @@ partial class Program
 
     static async Task ConsumeFelixOutputAsync(StreamReader reader, FelixRichRunState state)
     {
-        while (true)
+        try
         {
-            var line = await reader.ReadLineAsync();
-            if (line == null)
-                break;
+            while (true)
+            {
+                var line = await reader.ReadLineAsync();
+                if (line == null)
+                    break;
 
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
 
-            RenderFelixOutputLine(line, state);
+                RenderFelixOutputLine(line, state);
+            }
         }
+        catch (ObjectDisposedException) { }
+        catch (IOException) { }
     }
 
     static async Task ConsumeFelixErrorAsync(StreamReader reader, FelixRichRunState state)
     {
-        while (true)
+        try
         {
-            var line = await reader.ReadLineAsync();
-            if (line == null)
-                break;
+            while (true)
+            {
+                var line = await reader.ReadLineAsync();
+                if (line == null)
+                    break;
 
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
 
-            state.Errors++;
-            lock (_renderSync)
-                RenderFelixDetailLine("STDERR", "red", line.Trim().EscapeMarkup());
+                state.Errors++;
+                lock (_renderSync)
+                    RenderFelixDetailLine("STDERR", "red", line.Trim().EscapeMarkup());
+            }
         }
+        catch (ObjectDisposedException) { }
+        catch (IOException) { }
     }
 
     static void RenderFelixOutputLine(string line, FelixRichRunState state)
@@ -714,13 +746,23 @@ partial class Program
                     var body = new Markup(
                         $"[grey]Run ID[/] [white]{(state.RunId ?? "init").EscapeMarkup()}[/]\n" +
                         $"[grey]Requirement[/] [white]{(state.RequirementId ?? "loop").EscapeMarkup()}[/]");
+                    var flags = new List<string>();
+                    if (state.IsVerbose) flags.Add("verbose");
+                    if (state.IsSync) flags.Add("sync");
+                    var flagsLine = flags.Count > 0
+                        ? $"[grey]Flags[/] [cyan]{string.Join(", ", flags).EscapeMarkup()}[/]"
+                        : "[grey]Flags[/] [grey]none[/]";
                     lock (_renderSync)
+                    {
                         AnsiConsole.Write(new Panel(body)
                         {
                             Header = new PanelHeader("[cyan]Run Started[/]"),
                             Border = BoxBorder.Rounded,
                             BorderStyle = Style.Parse("cyan")
                         });
+                        AnsiConsole.MarkupLine(flagsLine);
+                        AnsiConsole.WriteLine();
+                    }
                     break;
                 }
             case "iteration_started":
@@ -755,6 +797,22 @@ partial class Program
                     var message = GetJsonString(data, "message") ?? string.Empty;
                     if (string.Equals(level, "warn", StringComparison.OrdinalIgnoreCase)) state.Warnings++;
                     if (string.Equals(level, "error", StringComparison.OrdinalIgnoreCase)) state.Errors++;
+                    if (message.Contains("Contract violation", StringComparison.OrdinalIgnoreCase))
+                    {
+                        state.HasContractViolation = true;
+                        // Retroactively display the last agent response to help diagnose
+                        if (state.LastAgentResponseContent is { } cachedResp)
+                        {
+                            lock (_renderSync)
+                            {
+                                RenderFelixDetailLine("Response", "yellow",
+                                    $"[yellow](response that triggered violation — {state.LastAgentResponseLength} chars)[/]");
+                                foreach (var respLine in cachedResp.Split('\n').Take(40))
+                                    AnsiConsole.MarkupLine($"  [grey]{respLine.EscapeMarkup()}[/]");
+                            }
+                            state.LastAgentResponseContent = null;
+                        }
+                    }
                     var color = level switch
                     {
                         "debug" => "grey",
@@ -784,6 +842,27 @@ partial class Program
                         state.DurationSeconds = duration;
                     lock (_renderSync)
                         RenderFelixDetailLine("Agent", "green", $"execution complete{(duration.HasValue ? $" [grey]({duration.Value:F1}s)[/]" : string.Empty)}");
+                    break;
+                }
+            case "agent_response":
+                {
+                    var content = GetJsonString(data, "content") ?? string.Empty;
+                    var length = GetJsonInt(data, "length") ?? 0;
+                    var truncated = GetJsonBool(data, "truncated") == true;
+
+                    // Cache so contract violation handler can display it retroactively
+                    state.LastAgentResponseContent = content;
+                    state.LastAgentResponseLength = length;
+
+                    var suffix = truncated
+                        ? $" [grey](first 3000 of {length} chars - see output.log for full)[/]"
+                        : $" [grey]({length} chars)[/]";
+                    lock (_renderSync)
+                    {
+                        RenderFelixDetailLine("Response", "cyan", suffix);
+                        foreach (var responseLine in content.Split('\n').Take(40))
+                            AnsiConsole.MarkupLine($"  [grey]{responseLine.EscapeMarkup()}[/]");
+                    }
                     break;
                 }
             case "validation_started":
@@ -1263,7 +1342,6 @@ partial class Program
         }
         catch { }
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[cyan]Felix Version[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -1331,7 +1409,6 @@ partial class Program
             var reason = GetJsonString(root, "reason") ?? string.Empty;
             var color = success ? "green" : "red";
 
-            AnsiConsole.Clear();
             AnsiConsole.Write(new Rule("[cyan]Requirement Validation[/]").RuleStyle(Style.Parse("cyan dim")));
             AnsiConsole.WriteLine();
 
@@ -1380,7 +1457,6 @@ partial class Program
             .Where(req => GetJsonString(req, "id") is not null)
             .ToDictionary(req => GetJsonString(req, "id")!, req => req, StringComparer.OrdinalIgnoreCase);
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[cyan]Incomplete Dependencies[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -1480,7 +1556,6 @@ partial class Program
         var allComplete = incompleteDeps.Count == 0;
         var borderColor = allComplete ? "green" : "yellow";
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule($"[cyan]Dependency Analysis: {requirementId.EscapeMarkup()}[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -1953,7 +2028,6 @@ partial class Program
 
     static void RenderUpdateOverview(UpdateReleasePlan plan, string installDir, string releaseRid, bool updateAvailable, bool checkOnly)
     {
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[cyan]Felix Update[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 

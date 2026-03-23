@@ -454,6 +454,7 @@ function Invoke-CompletionSignals {
         }
         
         Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $CurrentRequirement.id -NewStatus "complete"
+        Emit-TaskCompleted -Signal "ALL_COMPLETE" -Mode $Mode
         Emit-Log -Level "debug" -Message "Invoke-CompletionSignals returning: ShouldExit=true, ExitCode=0 (ALL_COMPLETE detected)" -Component "executor"
         return @{ ShouldExit = $true; ExitCode = 0 }
     }
