@@ -7,6 +7,8 @@ Handles loading of configuration from config.json and agents.json,
 resolving agent configuration, and validating project structure.
 #>
 
+. "$PSScriptRoot/emit-event.ps1"
+
 function Get-ProjectPaths {
     <#
     .SYNOPSIS

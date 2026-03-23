@@ -7,6 +7,8 @@ Provides functions for graceful agent termination with proper cleanup,
 and utility functions for data conversion.
 #>
 
+. "$PSScriptRoot/emit-event.ps1"
+
 function Exit-FelixAgent {
     <#
     .SYNOPSIS

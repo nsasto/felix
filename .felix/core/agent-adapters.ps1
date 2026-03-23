@@ -3,6 +3,8 @@
 
 $ErrorActionPreference = "Stop"
 
+. "$PSScriptRoot/emit-event.ps1"
+
 <#
 .SYNOPSIS
 Base adapter interface for LLM agents.

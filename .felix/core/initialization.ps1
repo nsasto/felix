@@ -7,6 +7,8 @@ Handles state loading, requirement selection, agent registration,
 and setup of the execution environment.
 #>
 
+. "$PSScriptRoot/emit-event.ps1"
+
 function Initialize-ExecutionState {
     <#
     .SYNOPSIS

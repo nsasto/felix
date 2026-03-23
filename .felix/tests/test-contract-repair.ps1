@@ -20,11 +20,10 @@ $($Tasks -join "`n")
 
 Describe "Invoke-ContractRepairFlow" {
 
-    It "should retry once when planning output is missing PLAN_COMPLETE" {
+    It "should not retry when planning output has no signal but plan file is valid" {
         $runDir = Join-Path $env:TEMP "repair-flow-$(Get-Random)"
         New-Item -ItemType Directory -Path $runDir -Force | Out-Null
         Set-Content (Join-Path $runDir "plan-S-0001.md") (New-RepairPlanContent -Tasks @('- [ ] Draft task')) -Encoding UTF8
-        $attempts = 0
 
         try {
             $result = Invoke-ContractRepairFlow `
@@ -35,20 +34,17 @@ Describe "Invoke-ContractRepairFlow" {
                 -InitialOutput "No completion marker" `
                 -RetryExecution {
                     param($RepairPrompt, $AttemptNumber)
-                    $script:attempts = $AttemptNumber
                     return @{
                         Succeeded = $true
-                        Output    = "<promise>PLAN_COMPLETE</promise>"
+                        Output    = '{"mode":"planning","completion":{"signal":"PLAN_COMPLETE"}}'
                     }
                 }
 
             Assert-True $result.IsValid
-            Assert-Equal 1 $result.RetryAttempts
-            Assert-Equal "<promise>PLAN_COMPLETE</promise>" $result.Output
+            Assert-Equal 0 $result.RetryAttempts
         }
         finally {
             Remove-Item $runDir -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item Variable:\script:attempts -ErrorAction SilentlyContinue
         }
     }
 
@@ -92,14 +88,14 @@ Describe "Invoke-ContractRepairFlow" {
                 -Mode "building" `
                 -RunDir $runDir `
                 -RequirementId "S-0001" `
-                -InitialOutput "<promise>TASK_COMPLETE</promise>" `
+                -InitialOutput '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}' `
                 -PreviousPlanContent $previousPlan `
                 -RetryExecution {
                     param($RepairPrompt, $AttemptNumber)
                     Set-Content (Join-Path $runDir "plan-S-0001.md") (New-RepairPlanContent -Tasks @('- [x] First task', '- [ ] Second task')) -Encoding UTF8
                     return @{
                         Succeeded = $true
-                        Output    = "<promise>TASK_COMPLETE</promise>"
+                        Output    = '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}'
                     }
                 }
 
@@ -119,21 +115,22 @@ Describe "Invoke-ContractRepairFlow" {
         try {
             $result = Invoke-ContractRepairFlow `
                 -BasePrompt "base prompt" `
-                -Mode "planning" `
+                -Mode "building" `
                 -RunDir $runDir `
                 -RequirementId "S-0001" `
-                -InitialOutput "No completion marker" `
+                -InitialOutput '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}' `
+                -PreviousPlanContent (New-RepairPlanContent -Tasks @('- [ ] Draft task')) `
                 -RetryExecution {
                     param($RepairPrompt, $AttemptNumber)
                     return @{
                         Succeeded = $true
-                        Output    = "Still no completion marker"
+                        Output    = '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}'
                     }
                 }
 
             Assert-False $result.IsValid
             Assert-Equal 1 $result.RetryAttempts
-            Assert-True ($result.Validation.Reason -match 'Missing exact standalone') "Expected failure reason to explain the missing contract marker"
+            Assert-True ($result.Validation.Reason -match 'without checking off any plan items') "Expected failure reason to explain the unchanged plan"
         }
         finally {
             Remove-Item $runDir -Recurse -Force -ErrorAction SilentlyContinue

@@ -7,6 +7,8 @@ Handles the main iteration loop including mode determination, agent invocation,
 backpressure validation, git operations, and plugin hooks.
 #>
 
+. "$PSScriptRoot/emit-event.ps1"
+
 # Import agent adapters and extracted modules
 . "$PSScriptRoot\agent-adapters.ps1"
 . "$PSScriptRoot\mode-selector.ps1"

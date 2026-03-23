@@ -1,6 +1,7 @@
 # Context Builder Module
 # Analyzes project structure and generates comprehensive CONTEXT.md
 
+. "$PSScriptRoot/emit-event.ps1"
 . "$PSScriptRoot\output-normalizer.ps1"
 . "$PSScriptRoot\copilot-bridge.ps1"
 

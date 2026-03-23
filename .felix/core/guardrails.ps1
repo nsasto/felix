@@ -7,6 +7,8 @@ Provides functions to enforce planning mode restrictions - preventing code commi
 and unauthorized file modifications during the planning phase.
 #>
 
+. "$PSScriptRoot/emit-event.ps1"
+
 function Test-PlanningModeGuardrails {
     <#
     .SYNOPSIS

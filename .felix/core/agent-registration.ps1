@@ -8,6 +8,8 @@ and manage background heartbeat jobs. All operations are best-effort and
 fail gracefully if backend is unavailable.
 #>
 
+. "$PSScriptRoot/emit-event.ps1"
+
 function Register-Agent {
     <#
     .SYNOPSIS

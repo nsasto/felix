@@ -1,3 +1,5 @@
+. "$PSScriptRoot/emit-event.ps1"
+
 function Resolve-FelixCliBridgeCommand {
     <#
     .SYNOPSIS
