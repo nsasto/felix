@@ -68,6 +68,12 @@
     └── test-*.ps1          # Individual test files
 ```
 
+## Test Boundaries
+
+- Most Copilot coverage is shimmed and safe for automation. [tests/test-agent-invocation-copilot.ps1](tests/test-agent-invocation-copilot.ps1) and [../tests/Felix.Cli.Tests/CopilotBridgeTests.cs](../tests/Felix.Cli.Tests/CopilotBridgeTests.cs) use local shim executables rather than a real Copilot install.
+- The real Copilot CLI smoke check is manual-only: [tests/manual-test-agent-copilot.ps1](tests/manual-test-agent-copilot.ps1).
+- [../run-git-test.ps1](../run-git-test.ps1) excludes manual agent smoke tests so CI does not depend on local agent installs, authentication, or folder trust flows.
+
 ## Global Install vs Project-Local
 
 Felix supports two modes of operation:
