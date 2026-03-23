@@ -33,12 +33,12 @@ Describe "Invoke-ContractRepairFlow" {
                 -RequirementId "S-0001" `
                 -InitialOutput "No completion marker" `
                 -RetryExecution {
-                    param($RepairPrompt, $AttemptNumber)
-                    return @{
-                        Succeeded = $true
-                        Output    = '{"mode":"planning","completion":{"signal":"PLAN_COMPLETE"}}'
-                    }
+                param($RepairPrompt, $AttemptNumber)
+                return @{
+                    Succeeded = $true
+                    Output    = '{"mode":"planning","completion":{"signal":"PLAN_COMPLETE"}}'
                 }
+            }
 
             Assert-True $result.IsValid
             Assert-Equal 0 $result.RetryAttempts
@@ -60,13 +60,13 @@ Describe "Invoke-ContractRepairFlow" {
                 -RequirementId "S-0001" `
                 -InitialOutput "<promise>PLAN_COMPLETE</promise>" `
                 -RetryExecution {
-                    param($RepairPrompt, $AttemptNumber)
-                    Set-Content (Join-Path $runDir "plan-S-0001.md") (New-RepairPlanContent -Tasks @('- [ ] Draft task')) -Encoding UTF8
-                    return @{
-                        Succeeded = $true
-                        Output    = "<promise>PLAN_COMPLETE</promise>"
-                    }
+                param($RepairPrompt, $AttemptNumber)
+                Set-Content (Join-Path $runDir "plan-S-0001.md") (New-RepairPlanContent -Tasks @('- [ ] Draft task')) -Encoding UTF8
+                return @{
+                    Succeeded = $true
+                    Output    = "<promise>PLAN_COMPLETE</promise>"
                 }
+            }
 
             Assert-True $result.IsValid
             Assert-Equal 1 $result.RetryAttempts
@@ -91,13 +91,13 @@ Describe "Invoke-ContractRepairFlow" {
                 -InitialOutput '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}' `
                 -PreviousPlanContent $previousPlan `
                 -RetryExecution {
-                    param($RepairPrompt, $AttemptNumber)
-                    Set-Content (Join-Path $runDir "plan-S-0001.md") (New-RepairPlanContent -Tasks @('- [x] First task', '- [ ] Second task')) -Encoding UTF8
-                    return @{
-                        Succeeded = $true
-                        Output    = '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}'
-                    }
+                param($RepairPrompt, $AttemptNumber)
+                Set-Content (Join-Path $runDir "plan-S-0001.md") (New-RepairPlanContent -Tasks @('- [x] First task', '- [ ] Second task')) -Encoding UTF8
+                return @{
+                    Succeeded = $true
+                    Output    = '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}'
                 }
+            }
 
             Assert-True $result.IsValid
             Assert-Equal 1 $result.RetryAttempts
@@ -121,12 +121,12 @@ Describe "Invoke-ContractRepairFlow" {
                 -InitialOutput '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}' `
                 -PreviousPlanContent (New-RepairPlanContent -Tasks @('- [ ] Draft task')) `
                 -RetryExecution {
-                    param($RepairPrompt, $AttemptNumber)
-                    return @{
-                        Succeeded = $true
-                        Output    = '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}'
-                    }
+                param($RepairPrompt, $AttemptNumber)
+                return @{
+                    Succeeded = $true
+                    Output    = '{"mode":"building","completion":{"signal":"TASK_COMPLETE"}}'
                 }
+            }
 
             Assert-False $result.IsValid
             Assert-Equal 1 $result.RetryAttempts
