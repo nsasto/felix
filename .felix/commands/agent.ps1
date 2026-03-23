@@ -77,6 +77,31 @@ function Resolve-FelixExecutablePath {
 function Invoke-Agent {
     param([string[]]$AgentArgs)
 
+    function Set-ObjectPropertyValue {
+        param(
+            [Parameter(Mandatory = $true)]
+            $Object,
+
+            [Parameter(Mandatory = $true)]
+            [string]$Name,
+
+            [AllowNull()]
+            $Value
+        )
+
+        if ($Object -is [System.Collections.IDictionary]) {
+            $Object[$Name] = $Value
+            return
+        }
+
+        if ($Object.PSObject.Properties[$Name]) {
+            $Object.$Name = $Value
+            return
+        }
+
+        $Object | Add-Member -MemberType NoteProperty -Name $Name -Value $Value -Force
+    }
+
     function Ensure-AgentConfigSection {
         param($Config)
 
@@ -85,10 +110,11 @@ function Invoke-Agent {
         }
 
         if (-not $Config.PSObject.Properties['agent'] -or $null -eq $Config.agent) {
-            $Config | Add-Member -MemberType NoteProperty -Name agent -Value ([pscustomobject]@{ agent_id = $null }) -Force
+            $Config | Add-Member -MemberType NoteProperty -Name agent -Value ([pscustomobject]@{}) -Force
+            Set-ObjectPropertyValue -Object $Config.agent -Name agent_id -Value $null
         }
-        elseif (-not $Config.agent.PSObject.Properties['agent_id']) {
-            $Config.agent | Add-Member -MemberType NoteProperty -Name agent_id -Value $null -Force
+        else {
+            Set-ObjectPropertyValue -Object $Config.agent -Name agent_id -Value $(if ($Config.agent.PSObject.Properties['agent_id']) { $Config.agent.agent_id } elseif ($Config.agent -is [System.Collections.IDictionary] -and $Config.agent.Contains('agent_id')) { $Config.agent['agent_id'] } else { $null })
         }
 
         return $Config.agent
@@ -371,7 +397,7 @@ function Invoke-Agent {
             }
             
             # Update config.json
-            $agentConfigSection.agent_id = $agent.key
+            Set-ObjectPropertyValue -Object $agentConfigSection -Name agent_id -Value $agent.key
             $configPath = Join-Path $RepoRoot ".felix\config.json"
             $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
             

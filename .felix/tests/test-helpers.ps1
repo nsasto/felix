@@ -23,6 +23,7 @@ function New-TestRepository {
     git init | Out-Null
     git config user.email "test@felix.dev" | Out-Null
     git config user.name "Felix Test" | Out-Null
+    git config commit.gpgsign false | Out-Null
     # Rename default branch to main for consistency
     git branch -M main 2>$null
 
@@ -49,9 +50,6 @@ function New-TestRepository {
     # Initial commit
     git add . | Out-Null
     git commit -m "Initial commit" | Out-Null
-
-    # Set this repo as its own origin so git remote commands don't hang
-    git remote add origin $repoPath 2>$null
 
     Pop-Location
 

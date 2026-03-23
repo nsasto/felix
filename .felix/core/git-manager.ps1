@@ -16,6 +16,8 @@ function Initialize-FeatureBranch {
     )
 
     $branchName = "feature/$RequirementId"
+    $remoteUrl = Get-GitRemoteUrl -Remote "origin"
+    $useRemoteSync = Test-ShouldUseGitRemoteSync -RemoteUrl $remoteUrl
 
     # Check if branch exists locally
     $existingBranch = git branch --list $branchName 2>&1
@@ -26,8 +28,11 @@ function Initialize-FeatureBranch {
     }
 
     # Check if branch exists remotely
-    $remoteBranch = git ls-remote --heads origin $branchName 2>&1
-    if ($LASTEXITCODE -eq 0 -and $remoteBranch) {
+    $remoteBranch = $null
+    if ($useRemoteSync) {
+        $remoteBranch = git ls-remote --heads origin $branchName 2>&1
+    }
+    if ($useRemoteSync -and $LASTEXITCODE -eq 0 -and $remoteBranch) {
         Write-Verbose "Checking out remote branch: $branchName"
         git fetch origin $branchName 2>&1 | Out-Null
         git checkout -b $branchName "origin/$branchName" 2>&1 | Out-Null
@@ -37,10 +42,49 @@ function Initialize-FeatureBranch {
     # Create new branch from base
     Write-Verbose "Creating new branch: $branchName from $BaseBranch"
     git checkout $BaseBranch 2>&1 | Out-Null
-    git pull origin $BaseBranch 2>&1 | Out-Null
+    if ($useRemoteSync) {
+        git pull origin $BaseBranch 2>&1 | Out-Null
+    }
     git checkout -b $branchName 2>&1 | Out-Null
 
     return $branchName
+}
+
+function Get-GitRemoteUrl {
+    <#
+    .SYNOPSIS
+    Gets the configured URL for a git remote, if present
+    #>
+    param([string]$Remote = "origin")
+
+    $url = git remote get-url $Remote 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($url)) {
+        return $null
+    }
+
+    return ([string]$url).Trim()
+}
+
+function Test-ShouldUseGitRemoteSync {
+    <#
+    .SYNOPSIS
+    Determines whether branch initialization should talk to origin
+    #>
+    param([string]$RemoteUrl)
+
+    if ([string]::IsNullOrWhiteSpace($RemoteUrl)) {
+        return $false
+    }
+
+    if ($RemoteUrl -match '^file://') {
+        return $false
+    }
+
+    if (Test-Path -LiteralPath $RemoteUrl -ErrorAction SilentlyContinue) {
+        return $false
+    }
+
+    return $true
 }
 
 function Test-GitRepository {
