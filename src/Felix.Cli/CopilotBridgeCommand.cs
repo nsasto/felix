@@ -246,16 +246,45 @@ internal static class CopilotBridgeCommand
             return null;
 
         if (File.Exists(executable))
-            return Path.GetFullPath(executable);
+            return NormalizeResolvedCopilotPath(Path.GetFullPath(executable));
 
         var fromPath = FindExecutableOnPath(executable);
         if (fromPath is not null)
-            return fromPath;
+            return NormalizeResolvedCopilotPath(fromPath);
 
         if (string.Equals(executable, "copilot", StringComparison.OrdinalIgnoreCase))
-            return Program.GetCopilotExecutableCandidates().FirstOrDefault(File.Exists);
+            return Program.GetCopilotExecutableCandidates().FirstOrDefault(File.Exists) is { } candidate
+                ? NormalizeResolvedCopilotPath(candidate)
+                : null;
 
         return null;
+    }
+
+    private static string NormalizeResolvedCopilotPath(string resolvedPath)
+    {
+        if (!OperatingSystem.IsWindows())
+            return resolvedPath;
+
+        var fileName = Path.GetFileNameWithoutExtension(resolvedPath);
+        var extension = Path.GetExtension(resolvedPath);
+        if (!string.Equals(fileName, "copilot", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(extension, ".ps1", StringComparison.OrdinalIgnoreCase))
+        {
+            return resolvedPath;
+        }
+
+        var directory = Path.GetDirectoryName(resolvedPath);
+        if (string.IsNullOrWhiteSpace(directory))
+            return resolvedPath;
+
+        foreach (var siblingName in new[] { "copilot.bat", "copilot.cmd", "copilot.exe" })
+        {
+            var siblingPath = Path.Combine(directory, siblingName);
+            if (File.Exists(siblingPath))
+                return siblingPath;
+        }
+
+        return resolvedPath;
     }
 
     private static string? FindExecutableOnPath(string executableName)

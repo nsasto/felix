@@ -102,6 +102,33 @@ function Invoke-Agent {
         $Object | Add-Member -MemberType NoteProperty -Name $Name -Value $Value -Force
     }
 
+    function Get-ObjectPropertyValue {
+        param(
+            $Object,
+
+            [Parameter(Mandatory = $true)]
+            [string]$Name
+        )
+
+        if ($null -eq $Object) {
+            return $null
+        }
+
+        if ($Object -is [System.Collections.IDictionary]) {
+            if ($Object.Contains($Name)) {
+                return $Object[$Name]
+            }
+
+            return $null
+        }
+
+        if ($Object.PSObject.Properties[$Name]) {
+            return $Object.$Name
+        }
+
+        return $null
+    }
+
     function Ensure-AgentConfigSection {
         param($Config)
 
@@ -109,15 +136,29 @@ function Invoke-Agent {
             return $null
         }
 
-        if (-not $Config.PSObject.Properties['agent'] -or $null -eq $Config.agent) {
-            $Config | Add-Member -MemberType NoteProperty -Name agent -Value ([pscustomobject]@{}) -Force
-            Set-ObjectPropertyValue -Object $Config.agent -Name agent_id -Value $null
+        if ($Config -is [System.Collections.IDictionary]) {
+            if (-not $Config.Contains('agent') -or $null -eq $Config['agent']) {
+                $Config['agent'] = [ordered]@{}
+            }
+
+            $agentSection = $Config['agent']
         }
         else {
-            Set-ObjectPropertyValue -Object $Config.agent -Name agent_id -Value $(if ($Config.agent.PSObject.Properties['agent_id']) { $Config.agent.agent_id } elseif ($Config.agent -is [System.Collections.IDictionary] -and $Config.agent.Contains('agent_id')) { $Config.agent['agent_id'] } else { $null })
+            if (-not $Config.PSObject.Properties['agent'] -or $null -eq $Config.agent) {
+                $Config | Add-Member -MemberType NoteProperty -Name agent -Value ([pscustomobject]@{}) -Force
+            }
+
+            $agentSection = $Config.agent
         }
 
-        return $Config.agent
+        if ($null -eq $agentSection) {
+            return $null
+        }
+
+        $currentAgentId = Get-ObjectPropertyValue -Object $agentSection -Name agent_id
+        Set-ObjectPropertyValue -Object $agentSection -Name agent_id -Value $currentAgentId
+
+        return $agentSection
     }
 
     if ($AgentArgs -is [string]) {
@@ -219,6 +260,10 @@ function Invoke-Agent {
     $configPath = Join-Path $RepoRoot ".felix\config.json"
     $config = Get-FelixConfig -ConfigFile $configPath
     $agentConfigSection = Ensure-AgentConfigSection -Config $config
+    if ($null -eq $agentConfigSection) {
+        Write-Error "Failed to initialize agent configuration from: $configPath"
+        exit 1
+    }
     $agentsFile = Join-Path $RepoRoot ".felix\agents.json"
     
     if (-not (Test-Path $agentsFile)) {

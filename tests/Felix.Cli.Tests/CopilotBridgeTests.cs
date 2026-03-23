@@ -123,6 +123,44 @@ public sealed class CopilotBridgeTests
         }
     }
 
+    [Fact]
+    public async Task RunAsync_PrefersBatchWrapperOverPowerShellShim()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var tempRoot = CreateTempDirectory();
+        try
+        {
+            var shimDir = Path.Combine(tempRoot, "copilotCli");
+            Directory.CreateDirectory(shimDir);
+
+            var ps1Path = Path.Combine(shimDir, "copilot.ps1");
+            var batPath = Path.Combine(shimDir, "copilot.bat");
+
+            File.WriteAllText(ps1Path, "Write-Output 'ps1 shim should not run'", new UTF8Encoding(false));
+            File.WriteAllText(batPath, "@echo off\r\necho batch wrapper ran\r\n", new UTF8Encoding(false));
+
+            var request = new CopilotBridgeCommand.CopilotBridgeRequest
+            {
+                Executable = ps1Path,
+                Prompt = "test prompt",
+                WorkingDirectory = tempRoot
+            };
+
+            var result = await CopilotBridgeCommand.RunAsync(request);
+
+            Assert.True(result.Succeeded);
+            Assert.EndsWith("copilot.bat", result.ResolvedExecutable, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("batch wrapper ran", result.Output);
+            Assert.DoesNotContain("ps1 shim should not run", result.Output);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"felix-copilot-bridge-{Guid.NewGuid():N}");
