@@ -30,15 +30,13 @@ Describe "Invoke-Agent target normalization" {
 
         Push-Location $repoRoot
         try {
-            $script:RepoRoot = $tempRoot
             . ".\.felix\commands\agent.ps1"
 
-            Invoke-Agent -AgentArgs @("use", "c", "o", "p", "i", "l", "o", "t")
+            Invoke-Agent -ProjectRoot $tempRoot -AgentArgs @("use", "c", "o", "p", "i", "l", "o", "t")
 
             Assert-True $true "Expected split-character agent key to resolve without 'Agent not found'"
         }
         finally {
-            Remove-Variable RepoRoot -Scope Script -ErrorAction SilentlyContinue
             Pop-Location
             Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
@@ -72,15 +70,13 @@ Describe "Invoke-Agent target normalization" {
 
         Push-Location $repoRoot
         try {
-            $script:RepoRoot = $tempRoot
             . ".\.felix\commands\agent.ps1"
 
-            Invoke-Agent -AgentArgs @("set-default", "c", "o", "p", "i", "l", "o", "t")
+            Invoke-Agent -ProjectRoot $tempRoot -AgentArgs @("set-default", "c", "o", "p", "i", "l", "o", "t")
 
             Assert-True $true "Expected split-character default agent key to resolve without 'Agent not found'"
         }
         finally {
-            Remove-Variable RepoRoot -Scope Script -ErrorAction SilentlyContinue
             Pop-Location
             Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
         }

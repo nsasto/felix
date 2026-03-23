@@ -38,16 +38,6 @@ function Resolve-AgentCommandRepoRoot {
     return $resolved
 }
 
-$script:InvokeAgentRepoRoot = if ($null -ne $RepoRoot -and -not [string]::IsNullOrWhiteSpace([string]$RepoRoot)) {
-    [string]$RepoRoot
-}
-elseif (-not [string]::IsNullOrWhiteSpace($env:FELIX_PROJECT_ROOT)) {
-    $env:FELIX_PROJECT_ROOT
-}
-else {
-    Resolve-AgentCommandRepoRoot -StartDir (Get-Location).Path
-}
-
 # Resolve-FelixExecutablePath is used only by Invoke-Agent — kept co-located here.
 function Resolve-FelixExecutablePath {
     param([Parameter(Mandatory = $true)][string]$Executable)
@@ -124,11 +114,23 @@ function Resolve-FelixExecutablePath {
 }
 
 function Invoke-Agent {
-    param([string[]]$AgentArgs)
+    param(
+        [string[]]$AgentArgs,
+        [string]$ProjectRoot = ""
+    )
 
-    $projectRoot = $script:InvokeAgentRepoRoot
-    if ([string]::IsNullOrWhiteSpace($projectRoot)) {
-        $projectRoot = Resolve-AgentCommandRepoRoot -StartDir (Get-Location).Path
+    # Resolve project root: explicit param > dynamic-scope $RepoRoot (felix.ps1 caller) > env var > CWD
+    $projectRoot = if (-not [string]::IsNullOrWhiteSpace($ProjectRoot)) {
+        $ProjectRoot
+    }
+    elseif ($null -ne $RepoRoot -and -not [string]::IsNullOrWhiteSpace([string]$RepoRoot)) {
+        [string]$RepoRoot
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($env:FELIX_PROJECT_ROOT)) {
+        $env:FELIX_PROJECT_ROOT
+    }
+    else {
+        Resolve-AgentCommandRepoRoot -StartDir (Get-Location).Path
     }
 
     function Set-ObjectPropertyValue {
