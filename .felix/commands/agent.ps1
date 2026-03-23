@@ -1,3 +1,52 @@
+function Resolve-AgentCommandRepoRoot {
+    param([string]$StartDir)
+
+    if ([string]::IsNullOrWhiteSpace($StartDir)) {
+        return $null
+    }
+
+    try {
+        $resolved = (Resolve-Path -LiteralPath $StartDir -ErrorAction Stop).Path
+    }
+    catch {
+        $resolved = $StartDir
+    }
+
+    $dir = $resolved
+    $gitRoot = $null
+    while ($dir -and (Test-Path -LiteralPath $dir)) {
+        if (Test-Path -LiteralPath (Join-Path $dir ".felix")) {
+            return $dir
+        }
+
+        if (-not $gitRoot -and (Test-Path -LiteralPath (Join-Path $dir ".git"))) {
+            $gitRoot = $dir
+        }
+
+        $parent = Split-Path -Parent $dir
+        if (-not $parent -or $parent -eq $dir) {
+            break
+        }
+
+        $dir = $parent
+    }
+
+    if ($gitRoot) {
+        return $gitRoot
+    }
+
+    return $resolved
+}
+
+$script:InvokeAgentRepoRoot = if ($null -ne $RepoRoot -and -not [string]::IsNullOrWhiteSpace([string]$RepoRoot)) {
+    [string]$RepoRoot
+}
+elseif (-not [string]::IsNullOrWhiteSpace($env:FELIX_PROJECT_ROOT)) {
+    $env:FELIX_PROJECT_ROOT
+}
+else {
+    Resolve-AgentCommandRepoRoot -StartDir (Get-Location).Path
+}
 
 # Resolve-FelixExecutablePath is used only by Invoke-Agent — kept co-located here.
 function Resolve-FelixExecutablePath {
@@ -76,6 +125,11 @@ function Resolve-FelixExecutablePath {
 
 function Invoke-Agent {
     param([string[]]$AgentArgs)
+
+    $projectRoot = $script:InvokeAgentRepoRoot
+    if ([string]::IsNullOrWhiteSpace($projectRoot)) {
+        $projectRoot = Resolve-AgentCommandRepoRoot -StartDir (Get-Location).Path
+    }
 
     function Set-ObjectPropertyValue {
         param(
@@ -201,7 +255,7 @@ function Invoke-Agent {
         . "$PSScriptRoot\..\core\agent-setup.ps1"
         $felixRoot = if ($env:FELIX_INSTALL_DIR) { $env:FELIX_INSTALL_DIR } else { Split-Path -Parent $PSScriptRoot }
         if ($subCmd -eq "setup") {
-            Invoke-AgentSetup -ProjectRoot $RepoRoot -FelixRoot $felixRoot | Out-Null
+            Invoke-AgentSetup -ProjectRoot $projectRoot -FelixRoot $felixRoot | Out-Null
             return
         }
 
@@ -257,14 +311,14 @@ function Invoke-Agent {
     if (-not (Get-Command Get-AgentDefaults -ErrorAction SilentlyContinue)) {
         . "$PSScriptRoot\..\core\agent-adapters.ps1"
     }
-    $configPath = Join-Path $RepoRoot ".felix\config.json"
+    $configPath = Join-Path $projectRoot ".felix\config.json"
     $config = Get-FelixConfig -ConfigFile $configPath
     $agentConfigSection = Ensure-AgentConfigSection -Config $config
     if ($null -eq $agentConfigSection) {
         Write-Error "Failed to initialize agent configuration from: $configPath"
         exit 1
     }
-    $agentsFile = Join-Path $RepoRoot ".felix\agents.json"
+    $agentsFile = Join-Path $projectRoot ".felix\agents.json"
     
     if (-not (Test-Path $agentsFile)) {
         Write-Error "agents.json not found at: $agentsFile"
@@ -416,7 +470,7 @@ function Invoke-Agent {
                     }
                 }
 
-                $newKey = New-AgentKey -Provider $provider -Model $requestedModel -AgentSettings $agentSettings -ProjectRoot $RepoRoot
+                $newKey = New-AgentKey -Provider $provider -Model $requestedModel -AgentSettings $agentSettings -ProjectRoot $projectRoot
                 $existingAgent = $agents | Where-Object { $_.key -eq $newKey } | Select-Object -First 1
                 if ($existingAgent) {
                     $agent = $existingAgent
@@ -443,7 +497,7 @@ function Invoke-Agent {
             
             # Update config.json
             Set-ObjectPropertyValue -Object $agentConfigSection -Name agent_id -Value $agent.key
-            $configPath = Join-Path $RepoRoot ".felix\config.json"
+            $configPath = Join-Path $projectRoot ".felix\config.json"
             $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
             
             Write-Host ""
@@ -521,7 +575,7 @@ function Invoke-Agent {
             . "$felixEngineRoot\core\sync-interface.ps1"
             . "$felixEngineRoot\core\setup-utils.ps1"
 
-            $felixDir = Join-Path $RepoRoot ".felix"
+            $felixDir = Join-Path $projectRoot ".felix"
             $reporter = Get-RunReporter -FelixDir $felixDir
             $syncActive = $reporter.GetType().Name -ne "NoOpReporter"
 
@@ -606,7 +660,7 @@ function Invoke-Agent {
 
             Write-Host "Registering agent '$($agentConfig.name)'..." -ForegroundColor Cyan
 
-            $syncAgentInfo = Build-AgentRegistrationPayload -AgentConfig $agentConfig -ProjectRoot $RepoRoot -Source "felix agent register"
+            $syncAgentInfo = Build-AgentRegistrationPayload -AgentConfig $agentConfig -ProjectRoot $projectRoot -Source "felix agent register"
 
             if (-not $syncAgentInfo.ContainsKey("git_url")) {
                 Write-Host "[WARN] No git remote 'origin' found - registration may fail with API key auth" -ForegroundColor Yellow
