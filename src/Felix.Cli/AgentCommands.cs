@@ -711,10 +711,13 @@ partial class Program
 
         foreach (var dir in candidateDirs.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            candidates.Add(Path.Combine(dir, "copilot.bat"));
-            candidates.Add(Path.Combine(dir, "copilot.cmd"));
-            candidates.Add(Path.Combine(dir, "copilot.exe"));
+            // Prefer .ps1 so we invoke via 'pwsh -File copilot.ps1' which correctly
+            // populates $MyInvocation.MyCommand.Path inside the Copilot shim.
+            // .bat/.cmd shims use 'powershell -Command' which leaves that variable empty.
             candidates.Add(Path.Combine(dir, "copilot.ps1"));
+            candidates.Add(Path.Combine(dir, "copilot.exe"));
+            candidates.Add(Path.Combine(dir, "copilot.cmd"));
+            candidates.Add(Path.Combine(dir, "copilot.bat"));
         }
 
         return candidates.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

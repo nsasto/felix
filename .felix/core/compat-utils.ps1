@@ -106,16 +106,9 @@ function Resolve-FelixExecutablePath {
     # PATH / registered command
     try {
         $source = (Get-Command $Executable -ErrorAction Stop).Source
-        if ($source -and $source.EndsWith(".ps1")) {
-            $cmdShim = [System.IO.Path]::ChangeExtension($source, "cmd")
-            if (Test-Path $cmdShim) {
-                return (Resolve-Path $cmdShim).Path
-            }
-            $exeShim = [System.IO.Path]::ChangeExtension($source, "exe")
-            if (Test-Path $exeShim) {
-                return (Resolve-Path $exeShim).Path
-            }
-        }
+        # Return the .ps1 directly — agent-runner.ps1 wraps it via 'powershell -File'.
+        # Swapping to a .cmd/.bat shim would invoke via 'powershell -Command' which
+        # leaves $MyInvocation.MyCommand.Path empty inside bootstrapper scripts.
         return $source
     }
     catch { }

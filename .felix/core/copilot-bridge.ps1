@@ -99,7 +99,9 @@ function Test-UseCopilotCliBridge {
     #>
     param()
 
-    if ($env:FELIX_COPILOT_BRIDGE -match '^(0|false|no)$') {
+    # Bridge is opt-in: set FELIX_COPILOT_BRIDGE=1 to enable.
+    # By default copilot runs directly like all other agents.
+    if ($env:FELIX_COPILOT_BRIDGE -notmatch '^(1|true|yes)$') {
         return $false
     }
 

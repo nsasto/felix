@@ -166,7 +166,6 @@ partial class Program
         requirement["status"] = normalizedStatus;
         SaveRequirementsDocument(document);
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[cyan]Specification Status Updated[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -208,7 +207,6 @@ partial class Program
             ? Path.Combine(_felixProjectRoot, "specs", requirementId + ".md")
             : Path.GetFullPath(Path.Combine(_felixProjectRoot, specPathValue.Replace('/', Path.DirectorySeparatorChar)));
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[yellow]Delete Specification[/]").RuleStyle(Style.Parse("yellow dim")));
         AnsiConsole.WriteLine();
 
@@ -386,7 +384,6 @@ partial class Program
         document["requirements"] = new JsonArray(sortedRequirements);
         SaveRequirementsDocument(document);
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[cyan]Specification Fix[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -469,7 +466,6 @@ partial class Program
             return;
         }
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[cyan]Spec Pull[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -588,7 +584,6 @@ partial class Program
             .Select(path => new SpecPushFile(GetSpecRelativePath(specsDir, path), Convert.ToBase64String(File.ReadAllBytes(path))))
             .ToList();
 
-        AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[cyan]Spec Push[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
