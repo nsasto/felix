@@ -41,9 +41,9 @@ function Resolve-FelixCliBridgeCommand {
     )
 
     foreach ($pattern in $candidatePatterns) {
-        $matches = Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
-        foreach ($match in $matches) {
-            $candidates += $match.FullName
+        $candidateFiles = Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+        foreach ($candidateFile in $candidateFiles) {
+            $candidates += $candidateFile.FullName
         }
     }
 
@@ -106,6 +106,63 @@ function Test-UseCopilotCliBridge {
     return ($null -ne (Resolve-FelixCliBridgeCommand))
 }
 
+function Publish-BridgeStderrUpdates {
+    <#
+    .SYNOPSIS
+    Reads newly appended bridge stderr text and emits it as Felix log lines
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Offset,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Remainder,
+
+        [switch]$FlushRemainder
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return @{ Offset = $Offset; Remainder = $Remainder }
+    }
+
+    $content = Get-Content -Raw -LiteralPath $Path -ErrorAction SilentlyContinue
+    if ($null -eq $content) {
+        $content = ""
+    }
+
+    if ($content.Length -lt $Offset) {
+        $Offset = 0
+        $Remainder = ""
+    }
+
+    $newText = if ($content.Length -gt $Offset) { $content.Substring($Offset) } else { "" }
+    $combined = $Remainder + $newText
+
+    $lines = [regex]::Split($combined, "`r`n|`n|`r")
+    $nextRemainder = ""
+    if ($combined.Length -gt 0 -and -not $FlushRemainder -and $combined -notmatch "(`r`n|`n|`r)$") {
+        $nextRemainder = $lines[-1]
+        if ($lines.Count -gt 1) {
+            $lines = $lines[0..($lines.Count - 2)]
+        }
+        else {
+            $lines = @()
+        }
+    }
+
+    foreach ($line in $lines) {
+        if (-not [string]::IsNullOrWhiteSpace($line)) {
+            Emit-Log -Level "info" -Message $line.TrimEnd() -Component "agent"
+        }
+    }
+
+    return @{ Offset = $content.Length; Remainder = $nextRemainder }
+}
+
 function Invoke-CopilotCliBridge {
     <#
     .SYNOPSIS
@@ -141,6 +198,7 @@ function Invoke-CopilotCliBridge {
             noAskUser             = if ($AgentConfig.PSObject.Properties['no_ask_user']) { [bool]$AgentConfig.no_ask_user } else { $true }
             maxAutopilotContinues = if ($AgentConfig.PSObject.Properties['max_autopilot_continues'] -and $null -ne $AgentConfig.max_autopilot_continues) { [int]$AgentConfig.max_autopilot_continues } else { $null }
             customAgent           = if ($AgentConfig.PSObject.Properties['custom_agent']) { [string]$AgentConfig.custom_agent } else { $null }
+            mirrorOutputToStdErr  = $true
             environment           = @{}
         }
 
@@ -162,7 +220,30 @@ function Invoke-CopilotCliBridge {
             -RedirectStandardOutput $stdoutPath `
             -RedirectStandardError $stderrPath
 
+        $stderrOffset = 0
+        $stderrRemainder = ""
+        $heartbeatIntervalSec = 20
+        $lastHeartbeat = Get-Date
+        while (-not $process.HasExited) {
+            Start-Sleep -Milliseconds 500
+
+            $stderrState = Publish-BridgeStderrUpdates -Path $stderrPath -Offset $stderrOffset -Remainder $stderrRemainder
+            $stderrOffset = [int]$stderrState.Offset
+            $stderrRemainder = [string]$stderrState.Remainder
+
+            $elapsed = ((Get-Date) - $lastHeartbeat).TotalSeconds
+            if ($elapsed -ge $heartbeatIntervalSec) {
+                Emit-Event -EventType "agent_heartbeat" -Data @{
+                    agent_running   = $true
+                    elapsed_seconds = $elapsed
+                    bridge          = $true
+                }
+                $lastHeartbeat = Get-Date
+            }
+        }
+
         $process.WaitForExit()
+        $stderrState = Publish-BridgeStderrUpdates -Path $stderrPath -Offset $stderrOffset -Remainder $stderrRemainder -FlushRemainder
         $stdout = if (Test-Path $stdoutPath) { Get-Content -Raw -LiteralPath $stdoutPath -ErrorAction SilentlyContinue } else { "" }
         $stderr = if (Test-Path $stderrPath) { Get-Content -Raw -LiteralPath $stderrPath -ErrorAction SilentlyContinue } else { "" }
 

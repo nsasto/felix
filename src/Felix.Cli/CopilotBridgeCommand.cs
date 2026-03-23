@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -27,6 +28,7 @@ internal static class CopilotBridgeCommand
         public bool NoAskUser { get; set; } = true;
         public int? MaxAutopilotContinues { get; set; }
         public string? CustomAgent { get; set; }
+        public bool MirrorOutputToStdErr { get; set; }
         public Dictionary<string, string?> Environment { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -125,7 +127,7 @@ internal static class CopilotBridgeCommand
             : request.WorkingDirectory;
 
         var attemptedArgs = BuildArguments(request, includeModel: true);
-        var firstRun = await RunProcessAsync(resolvedExecutable, workingDirectory, attemptedArgs, request.Environment);
+        var firstRun = await RunProcessAsync(resolvedExecutable, workingDirectory, attemptedArgs, request.Environment, request.MirrorOutputToStdErr);
 
         var finalRun = firstRun;
         var retriedWithoutModel = false;
@@ -135,7 +137,7 @@ internal static class CopilotBridgeCommand
         {
             retriedWithoutModel = true;
             finalArgs = BuildArguments(request, includeModel: false);
-            finalRun = await RunProcessAsync(resolvedExecutable, workingDirectory, finalArgs, request.Environment);
+            finalRun = await RunProcessAsync(resolvedExecutable, workingDirectory, finalArgs, request.Environment, request.MirrorOutputToStdErr);
         }
 
         var finalOutput = finalRun.CombinedOutput;
@@ -302,7 +304,7 @@ internal static class CopilotBridgeCommand
         return new LaunchSpec(resolvedExecutable, arguments.ToList());
     }
 
-    private static async Task<ProcessResult> RunProcessAsync(string resolvedExecutable, string workingDirectory, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string?> environment)
+    private static async Task<ProcessResult> RunProcessAsync(string resolvedExecutable, string workingDirectory, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string?> environment, bool mirrorOutputToStdErr)
     {
         var launchSpec = CreateLaunchSpec(resolvedExecutable, arguments);
         var startInfo = new ProcessStartInfo
@@ -324,12 +326,41 @@ internal static class CopilotBridgeCommand
         using var process = new Process { StartInfo = startInfo };
         process.Start();
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
+        var stdoutTask = PumpReaderAsync(process.StandardOutput, mirrorOutputToStdErr, mirrorErrors: false);
+        var stderrTask = PumpReaderAsync(process.StandardError, mirrorOutputToStdErr, mirrorErrors: true);
 
-        await process.WaitForExitAsync();
+        await Task.WhenAll(stdoutTask, stderrTask, process.WaitForExitAsync());
 
         return new ProcessResult(await stdoutTask, await stderrTask, process.ExitCode);
+    }
+
+    private static async Task<string> PumpReaderAsync(StreamReader reader, bool mirrorToStdErr, bool mirrorErrors)
+    {
+        var builder = new StringBuilder();
+        var firstLine = true;
+
+        while (true)
+        {
+            var line = await reader.ReadLineAsync();
+            if (line is null)
+                break;
+
+            if (!firstLine)
+                builder.AppendLine();
+
+            builder.Append(line);
+            firstLine = false;
+
+            if (mirrorToStdErr)
+            {
+                if (mirrorErrors)
+                    await Console.Error.WriteLineAsync(line);
+                else
+                    await Console.Error.WriteLineAsync(line);
+            }
+        }
+
+        return builder.ToString();
     }
 
     private static string? ResolveKnownError(string output)
