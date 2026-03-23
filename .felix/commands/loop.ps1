@@ -117,6 +117,7 @@ function Invoke-Loop {
                     Format        = $activeFormat
                     Sync          = [bool]$syncEnabled
                     NoCommit      = [bool]$noCommit
+                    DebugMode     = [bool]$DebugMode
                 }
                 & $felixCli @cliParams
                 $exitCode = $LASTEXITCODE

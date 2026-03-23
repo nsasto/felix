@@ -24,10 +24,10 @@ function Invoke-Run {
 
     # Execute felix-cli.ps1 which spawns agent internally
     if ($NoStats) {
-        & "$PSScriptRoot\..\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats -VerboseMode:$VerboseMode -Sync:$syncEnabled
+        & "$PSScriptRoot\..\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats -VerboseMode:$VerboseMode -DebugMode:$DebugMode -Sync:$syncEnabled
     }
     else {
-        & "$PSScriptRoot\..\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -VerboseMode:$VerboseMode -Sync:$syncEnabled
+        & "$PSScriptRoot\..\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -VerboseMode:$VerboseMode -DebugMode:$DebugMode -Sync:$syncEnabled
     }
 
     exit $LASTEXITCODE

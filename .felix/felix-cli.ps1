@@ -76,6 +76,9 @@ param(
     
     [Parameter(Mandatory = $false)]
     [switch]$VerboseMode,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$DebugMode,
     
     [Parameter(Mandatory = $false)]
     [switch]$Sync
@@ -116,6 +119,9 @@ if ($InitialPrompt) {
 }
 if ($VerboseMode) {
     $argParts += @("-VerboseMode")
+}
+if ($DebugMode) {
+    $argParts += @("-DebugMode")
 }
 
 if ($Format -ne "json") {

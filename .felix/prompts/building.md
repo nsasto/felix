@@ -83,6 +83,16 @@ You will also have:
 
 **Your response to Felix MUST be ONLY valid JSON**, no prose before or after:
 
+**Hard output rules (mandatory):**
+
+- The very first character of your response must be `{`
+- The very last character of your response must be `}`
+- Output exactly one JSON object and nothing else
+- Do NOT include markdown headings, bullets, explanations, or status notes
+- Do NOT include code fences like ```json
+- Do NOT include any text before or after the JSON object
+- If you are about to write a sentence like "I'll quickly verify...", stop and output JSON only
+
 ```json
 {
   "mode": "building",
@@ -107,6 +117,14 @@ You will also have:
 - `completion.signal`: Must be `"TASK_COMPLETE"` if tasks remain, or `"ALL_COMPLETE"` if no tasks remain
 - Response MUST be valid JSON (no code blocks, no prose)
 - Count checkboxes mechanically: `- [x]` count = completed, `- [ ]` count = remaining
+- If your output includes any non-JSON text, the run will be rejected and retried
+
+### Invalid Output Examples (Do NOT Do This)
+
+- `I will now verify files...` followed by JSON
+- `# Summary` followed by JSON
+- JSON wrapped in ```json fences
+- JSON object followed by `I have completed the task`
 
 ### JSON Field Requirements
 

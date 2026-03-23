@@ -96,6 +96,16 @@ One or two sentences describing what this requirement implements.
 
 **Your response to Felix MUST be ONLY valid JSON**, no prose before or after:
 
+**Hard output rules (mandatory):**
+
+- The very first character of your response must be `{`
+- The very last character of your response must be `}`
+- Output exactly one JSON object and nothing else
+- Do NOT include markdown headings, bullets, explanations, or status notes
+- Do NOT include code fences like ```json
+- Do NOT include any text before or after the JSON object
+- If you are about to write a sentence like "I'll quickly verify...", stop and output JSON only
+
 ```json
 {
   "mode": "planning",
@@ -122,6 +132,14 @@ One or two sentences describing what this requirement implements.
 - `completion.signal` MUST be `"PLAN_COMPLETE"`
 - Response MUST be valid JSON
 - No prose before or after JSON
+- If your output includes any non-JSON text, the run will be rejected and retried
+
+### Invalid Output Examples (Do NOT Do This)
+
+- `I will now check the spec...` followed by JSON
+- `# Plan Summary` followed by JSON
+- JSON wrapped in ```json fences
+- JSON object followed by `Plan saved successfully`
 
 ### What NOT to Do
 
@@ -157,8 +175,4 @@ Save plan to disk, then respond with ONLY this JSON:
     "signal": "PLAN_COMPLETE"
   }
 }
-```
-
-```
-
 ```

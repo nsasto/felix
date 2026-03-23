@@ -120,6 +120,7 @@ Load-DotEnv -EnvFile (Join-Path $RepoRoot ".felix\.env")
 # Parse global flags
 $Format = "rich"
 $VerboseMode = $false
+$DebugMode = $false
 $global:FelixOutputFormat = "rich"  # updated after flag parsing below
 $Quiet = $false
 $NoStats = $false
@@ -135,6 +136,10 @@ while ($i -lt $Arguments.Count) {
         "--verbose" {
             $VerboseMode = $true
         }
+        "--debug" {
+            $VerboseMode = $true
+            $DebugMode = $true
+        }
         "--quiet" {
             $Quiet = $true
         }
@@ -149,6 +154,10 @@ while ($i -lt $Arguments.Count) {
 }
 
 $global:FelixOutputFormat = $Format
+
+if ($DebugMode) {
+    $env:FELIX_DEBUG_PROMPTS = "1"
+}
 
 # -- Command routing -------------------------------------------------------
 # Each command file is dot-sourced on demand into this script's scope.

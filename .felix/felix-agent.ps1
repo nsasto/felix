@@ -29,6 +29,9 @@ param(
     [switch]$NoCommit,   # Use this flag for testing to prevent git commits
     
     [Parameter(Mandatory = $false)]
+    [switch]$DebugMode,
+
+    [Parameter(Mandatory = $false)]
     [switch]$VerboseMode
 )
 
@@ -622,6 +625,7 @@ try {
             -AgentState $agentState `
             -Paths $paths `
             -NoCommit:$NoCommit `
+            -DebugMode:$DebugMode `
             -VerboseMode:$VerboseMode
     
         if (-not $result.Continue) {

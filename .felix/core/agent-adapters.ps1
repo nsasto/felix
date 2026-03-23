@@ -92,6 +92,117 @@ function Get-CompletionSignalFromJsonText {
     return $null
 }
 
+function Get-FinalJsonResponseText {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return $null
+    }
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    $trimmed = $Output.Trim()
+    if ($trimmed.StartsWith("{") -and $trimmed.EndsWith("}")) {
+        $candidates.Add($trimmed)
+    }
+
+    # Collect fenced JSON payloads in order and prefer the last valid one.
+    $fencedMatches = [regex]::Matches($Output, '(?is)```json\s*(\{.*?\})\s*```')
+    foreach ($m in $fencedMatches) {
+        $candidates.Add([string]$m.Groups[1].Value)
+    }
+
+    # Collect balanced JSON objects from arbitrary text as fallback.
+    $start = -1
+    $depth = 0
+    $inString = $false
+    $escaping = $false
+
+    for ($i = 0; $i -lt $Output.Length; $i++) {
+        $ch = $Output[$i]
+
+        if ($escaping) {
+            $escaping = $false
+            continue
+        }
+
+        if ($ch -eq '\\') {
+            if ($inString) {
+                $escaping = $true
+            }
+            continue
+        }
+
+        if ($ch -eq '"') {
+            $inString = -not $inString
+            continue
+        }
+
+        if ($inString) {
+            continue
+        }
+
+        if ($ch -eq '{') {
+            if ($depth -eq 0) {
+                $start = $i
+            }
+            $depth++
+            continue
+        }
+
+        if ($ch -eq '}') {
+            if ($depth -gt 0) {
+                $depth--
+                if ($depth -eq 0 -and $start -ge 0) {
+                    $len = $i - $start + 1
+                    $candidates.Add($Output.Substring($start, $len))
+                    $start = -1
+                }
+            }
+            continue
+        }
+    }
+
+    $valid = New-Object System.Collections.Generic.List[object]
+    foreach ($candidate in $candidates) {
+        try {
+            $parsed = $candidate | ConvertFrom-Json -ErrorAction Stop
+            $hasSignal = $false
+            if ($parsed.completion -and $parsed.completion.signal) {
+                $hasSignal = [bool](Resolve-LegacyCompletionSignal -Signal ([string]$parsed.completion.signal))
+            }
+            elseif ($parsed.response_metadata -and $parsed.response_metadata.signal) {
+                $hasSignal = [bool](Resolve-LegacyCompletionSignal -Signal ([string]$parsed.response_metadata.signal))
+            }
+
+            $valid.Add([pscustomobject]@{
+                    Text      = $candidate.Trim()
+                    HasSignal = $hasSignal
+                })
+        }
+        catch {
+            # Ignore invalid JSON snippets.
+        }
+    }
+
+    if ($valid.Count -eq 0) {
+        return $null
+    }
+
+    # Prefer the last valid JSON that carries completion.signal.
+    for ($i = $valid.Count - 1; $i -ge 0; $i--) {
+        if ($valid[$i].HasSignal) {
+            return [string]$valid[$i].Text
+        }
+    }
+
+    # Else return the last valid JSON object.
+    return [string]$valid[$valid.Count - 1].Text
+}
+
 function Get-CompletionSignal {
     param(
         [Parameter(Mandatory = $true)]
@@ -521,7 +632,15 @@ class CopilotAdapter {
             return $result
         }
 
-        $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
+        $finalJson = Get-FinalJsonResponseText -Output $output
+        if ($finalJson) {
+            if ($finalJson -ne $output) {
+                Emit-Log -Level "info" -Message "Using extracted final JSON payload from mixed stream output" -Component "agent"
+            }
+            $result.Output = $finalJson
+        }
+
+        $signal = Get-CompletionSignal -Output $result.Output -AllowPlanningAlias
         if ($signal) {
             Set-CompletionResult -Result $result -Signal $signal
         }
@@ -697,12 +816,8 @@ function Get-AgentInvocation {
     $arguments = @($adapter.BuildArgs($Config, $VerboseMode))
     $promptMode = "stdin"
 
-    switch ($AdapterType.ToLower()) {
-        "copilot" {
-            $promptMode = "argument"
-            $arguments += @("-p", $formattedPrompt)
-        }
-    }
+    # Use stdin prompt transport for all adapters, including Copilot.
+    # This avoids Windows command-line length limits when prompts are large.
 
     return @{
         Adapter         = $adapter

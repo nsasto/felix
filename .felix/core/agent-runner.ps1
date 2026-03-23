@@ -40,6 +40,65 @@ function Test-CopilotModelUnavailableOutput {
     return $Output -match 'Model\s+"[^"]+"\s+from\s+--model\s+flag\s+is\s+not\s+available'
 }
 
+function Write-AgentPromptArtifacts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RunDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AdapterType,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PromptMode,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Prompt,
+
+        [Parameter(Mandatory = $false)]
+        [AllowNull()]
+        [string[]]$AgentArgs = @()
+    )
+
+    try {
+        $existing = @(Get-ChildItem -LiteralPath $RunDir -Filter "prompt-*.txt" -ErrorAction SilentlyContinue)
+        $index = $existing.Count + 1
+
+        $promptFileName = "prompt-{0:D2}.txt" -f $index
+        $metaFileName = "prompt-{0:D2}.meta.json" -f $index
+
+        $promptPath = Join-Path $RunDir $promptFileName
+        $metaPath = Join-Path $RunDir $metaFileName
+
+        Set-Content -LiteralPath $promptPath -Value $Prompt -Encoding UTF8
+
+        $meta = @{
+            timestamp_utc = (Get-Date).ToUniversalTime().ToString("o")
+            adapter       = $AdapterType
+            prompt_mode   = $PromptMode
+            prompt_length = $Prompt.Length
+            args_count    = if ($AgentArgs) { $AgentArgs.Count } else { 0 }
+            args_preview  = if ($AgentArgs) { @($AgentArgs | Select-Object -First 20) } else { @() }
+        }
+
+        $meta | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $metaPath -Encoding UTF8
+
+        $relPrompt = $promptPath.Replace($ProjectPath + "\", "")
+        Emit-Artifact -Path $relPrompt -Type "prompt" -SizeBytes (Get-Item $promptPath).Length
+
+        $relMeta = $metaPath.Replace($ProjectPath + "\", "")
+        Emit-Artifact -Path $relMeta -Type "metadata" -SizeBytes (Get-Item $metaPath).Length
+
+        Emit-Log -Level "debug" -Message "Prompt artifact logged: $promptFileName ($($Prompt.Length) chars, mode=$PromptMode)" -Component "agent"
+    }
+    catch {
+        Emit-Log -Level "warn" -Message "Failed to log prompt artifact: $($_.Exception.Message)" -Component "agent"
+    }
+}
+
 function Invoke-AgentSubprocess {
     param(
         [Parameter(Mandatory = $true)]
@@ -161,6 +220,9 @@ function Invoke-AgentExecution {
         
         [Parameter(Mandatory = $true)]
         [string]$RunDir,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$DebugMode,
         
         [Parameter(Mandatory = $false)]
         [switch]$VerboseMode
@@ -199,6 +261,15 @@ function Invoke-AgentExecution {
         $agentArgs = @($invocation.Arguments)
         $promptMode = $invocation.PromptMode
     }
+
+    Write-AgentPromptArtifacts `
+        -RunDir $RunDir `
+        -ProjectPath $ProjectPath `
+        -AdapterType $adapterType `
+        -PromptMode $promptMode `
+        -Prompt $formattedPrompt `
+        -AgentArgs $agentArgs
+
     $startTime = Get-Date
     
     # Hook: OnPreExecution

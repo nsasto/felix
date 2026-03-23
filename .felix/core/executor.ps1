@@ -77,6 +77,9 @@ function Invoke-FelixIteration {
         
         [Parameter(Mandatory = $false)]
         [switch]$NoCommit,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$DebugMode,
         
         [Parameter(Mandatory = $false)]
         [switch]$VerboseMode
@@ -199,6 +202,7 @@ function Invoke-FelixIteration {
         -ProjectPath $Paths.ProjectPath `
         -RunId $runId `
         -RunDir $runDir `
+        -DebugMode:$DebugMode `
         -VerboseMode:$VerboseMode
     
     $output = $executionResult.Output
@@ -257,6 +261,7 @@ function Invoke-FelixIteration {
             -ProjectPath $Paths.ProjectPath `
             -RunId $runId `
             -RunDir $runDir `
+            -DebugMode:$DebugMode `
             -VerboseMode:$VerboseMode
     }
 

@@ -122,10 +122,10 @@ function Invoke-RunNext {
     $felixCli = "$PSScriptRoot\..\felix-cli.ps1"
 
     if ($NoStats) {
-        & $felixCli -ProjectPath $RepoRoot -RequirementId $nextReq.id -Format $formatValue -NoStats -VerboseMode:$VerboseMode -Sync:$syncEnabled
+        & $felixCli -ProjectPath $RepoRoot -RequirementId $nextReq.id -Format $formatValue -NoStats -VerboseMode:$VerboseMode -DebugMode:$DebugMode -Sync:$syncEnabled
     }
     else {
-        & $felixCli -ProjectPath $RepoRoot -RequirementId $nextReq.id -Format $formatValue -VerboseMode:$VerboseMode -Sync:$syncEnabled
+        & $felixCli -ProjectPath $RepoRoot -RequirementId $nextReq.id -Format $formatValue -VerboseMode:$VerboseMode -DebugMode:$DebugMode -Sync:$syncEnabled
     }
     exit $LASTEXITCODE
 }

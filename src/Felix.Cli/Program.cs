@@ -50,6 +50,7 @@ partial class Program
         public bool ExitHandlerSeen { get; set; }
         public DateTimeOffset? ExitHandlerSeenAtUtc { get; set; }
         public bool IsVerbose { get; init; }
+        public bool IsDebug { get; init; }
         public bool IsSync { get; init; }
     }
 
@@ -147,6 +148,7 @@ partial class Program
         var reqIdArg = new Argument<string>("requirement-id", "Requirement ID (e.g., S-0001)");
         var verboseOpt = new Option<bool>("--verbose", "Enable verbose logging");
         verboseOpt.AddAlias("-Verbose");
+        var debugOpt = new Option<bool>("--debug", "Enable debug mode and log full prompt artifacts per attempt");
         var quietOpt = new Option<bool>("--quiet", "Suppress non-essential output");
         var syncOpt = new Option<bool>("--sync", "Temporarily enable sync (overrides config)");
 
@@ -154,15 +156,17 @@ partial class Program
         {
             reqIdArg,
             verboseOpt,
+            debugOpt,
             quietOpt,
             syncOpt
         };
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler(async (reqId, format, verbose, quiet, sync) =>
+        cmd.SetHandler(async (reqId, format, verbose, debug, quiet, sync) =>
         {
             var args = new List<string> { "run", reqId };
             if (verbose) args.Add("--verbose");
+            if (debug) args.Add("--debug");
             if (quiet) args.Add("--quiet");
             if (sync) args.Add("--sync");
 
@@ -173,7 +177,7 @@ partial class Program
                 args.AddRange(new[] { "--format", format });
                 await ExecutePowerShell(felixPs1, args.ToArray());
             }
-        }, reqIdArg, formatOpt, verboseOpt, quietOpt, syncOpt);
+        }, reqIdArg, formatOpt, verboseOpt, debugOpt, quietOpt, syncOpt);
 
         return cmd;
     }
@@ -210,19 +214,22 @@ partial class Program
         var syncOpt = new Option<bool>("--sync", "Temporarily enable sync (overrides config)");
         var verboseOpt = new Option<bool>("--verbose", "Enable verbose logging");
         verboseOpt.AddAlias("-Verbose");
+        var debugOpt = new Option<bool>("--debug", "Enable debug mode and log full prompt artifacts per attempt");
 
         var cmd = new Command("run-next", "Claim and run next available requirement (local or server-assigned)")
         {
             syncOpt,
             verboseOpt,
+            debugOpt,
         };
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler(async (sync, verbose, format) =>
+        cmd.SetHandler(async (sync, verbose, debug, format) =>
         {
             var args = new List<string> { "run-next" };
             if (sync) args.Add("--sync");
             if (verbose) args.Add("--verbose");
+            if (debug) args.Add("--debug");
 
             if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
                 await ExecuteFelixRichCommand(felixPs1, "Run Next Requirement", args.ToArray());
@@ -231,7 +238,7 @@ partial class Program
                 args.AddRange(new[] { "--format", format });
                 await ExecutePowerShell(felixPs1, args.ToArray());
             }
-        }, syncOpt, verboseOpt, formatOpt);
+        }, syncOpt, verboseOpt, debugOpt, formatOpt);
 
         return cmd;
     }
@@ -535,6 +542,7 @@ partial class Program
         {
             CommandLabel = commandLabel,
             IsVerbose = args.Contains("--verbose", StringComparer.OrdinalIgnoreCase),
+            IsDebug = args.Contains("--debug", StringComparer.OrdinalIgnoreCase),
             IsSync = args.Contains("--sync", StringComparer.OrdinalIgnoreCase),
         };
         bool wasCancelled = false;
@@ -782,6 +790,7 @@ partial class Program
                         $"[grey]Requirement[/] [white]{(state.RequirementId ?? "loop").EscapeMarkup()}[/]");
                     var flags = new List<string>();
                     if (state.IsVerbose) flags.Add("verbose");
+                    if (state.IsDebug) flags.Add("debug");
                     if (state.IsSync) flags.Add("sync");
                     var flagsLine = flags.Count > 0
                         ? $"[grey]Flags[/] [cyan]{string.Join(", ", flags).EscapeMarkup()}[/]"
