@@ -359,6 +359,14 @@ partial class Program
 
         cmd.SetHandler(async (subArgs, format) =>
         {
+            if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase)
+                && subArgs.Length > 0
+                && string.Equals(subArgs[0], "show", StringComparison.OrdinalIgnoreCase))
+            {
+                await ShowContextMarkdownUI();
+                return;
+            }
+
             var args = new List<string> { "context" };
             args.AddRange(subArgs);
             if (format != "rich") args.AddRange(new[] { "--format", format });

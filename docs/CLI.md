@@ -1111,13 +1111,13 @@ felix dashboard
 
 **Navigation:**
 
-| Key         | Action |
-| ----------- | ------ |
-| `/`         | Start a slash command and open command suggestions |
-| `Up`/`Down` | Move through suggestions |
+| Key         | Action                                                     |
+| ----------- | ---------------------------------------------------------- |
+| `/`         | Start a slash command and open command suggestions         |
+| `Up`/`Down` | Move through suggestions                                   |
 | `Enter`     | Accept the highlighted suggestion or run the current input |
-| `Esc`       | Cancel the current prompt or suggestion list |
-| `Backspace` | Delete input, or cancel when the prompt is empty |
+| `Esc`       | Cancel the current prompt or suggestion list               |
+| `Backspace` | Delete input, or cancel when the prompt is empty           |
 
 **Common commands:**
 

@@ -204,7 +204,7 @@ partial class Program
             .ThenBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        AnsiConsole.Clear();
+        ClearIfStandalone();
         var rule = new Rule("[cyan]Configure Agent Profiles[/]").RuleStyle(Style.Parse("cyan dim"));
         AnsiConsole.Write(rule);
         AnsiConsole.WriteLine();
@@ -268,7 +268,7 @@ partial class Program
         var updatedProfiles = UpsertAgentProfiles(existingProfiles.Agents, selectedProfiles);
         WriteAgentProfiles(updatedProfiles);
 
-        AnsiConsole.Clear();
+        ClearIfStandalone();
         AnsiConsole.Write(new Rule("[cyan]Agent Profiles Saved[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -292,7 +292,7 @@ partial class Program
 
     static async Task RunSetupInteractive(string felixPs1)
     {
-        AnsiConsole.Clear();
+        ClearIfStandalone();
         AnsiConsole.Write(new Rule("[cyan]Felix Setup[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
