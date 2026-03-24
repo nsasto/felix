@@ -228,10 +228,10 @@ See **[Writing Plugins](PLUGINS.md)** for the full authoring guide.
 
 **`felix tui`**
 
-- Interactive dashboard with visual requirement tracking
-- Navigation menu for quick actions
-- Real-time status visualization
-- Keyboard shortcuts (1-5 for actions, ? for help, q to quit)
+- Interactive slash-command shell with startup project/status card
+- Scrollback-preserving command output in the terminal
+- Bottom composer with command and argument suggestions
+- Longer-running commands can temporarily take over the terminal and return to the shell after completion
 - Built with .NET Spectre.Console
 - Rich formatting and colors
 

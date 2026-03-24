@@ -1104,9 +1104,9 @@ felix dashboard
 
 **What it does:** Launches an interactive terminal UI (built with .NET/Spectre.Console) that provides:
 
-- A bordered welcome and status card at startup
-- A Copilot-style slash-command shell at the bottom of the scrollback
-- Inline command execution so prior output remains visible
+- A bordered welcome and status card on initial load
+- A Copilot-style slash-command composer at the bottom while typing
+- Scrollback-first command output so prior content remains visible in the terminal
 - Slash suggestions for commands and common requirement arguments
 
 **Navigation:**
@@ -1114,7 +1114,7 @@ felix dashboard
 | Key         | Action                                                     |
 | ----------- | ---------------------------------------------------------- |
 | `/`         | Start a slash command and open command suggestions         |
-| `Up`/`Down` | Move through suggestions                                   |
+| `Up`/`Down` | Move through the visible suggestion window                 |
 | `Enter`     | Accept the highlighted suggestion or run the current input |
 | `Esc`       | Cancel the current prompt or suggestion list               |
 | `Backspace` | Delete input, or cancel when the prompt is empty           |
@@ -1134,7 +1134,10 @@ felix dashboard
 
 **Notes:**
 
-- Output is appended below each command instead of clearing the screen, so scrollback is preserved.
+- The welcome card is startup content, not a permanently fixed header.
+- Output is appended below each command instead of clearing the screen, so terminal scrollback is preserved.
+- The command composer stays at the bottom while entering input; long suggestion lists scroll around the selected item instead of rendering all matches at once.
+- Some commands intentionally take over the terminal directly, then return to the shell when they finish. This applies to longer-running or interactive flows such as `/run`, `/run-next`, `/loop`, `/setup`, and `/procs kill` without an explicit target.
 - `felix dashboard` remains an alias for `felix tui`.
 - .NET SDK (`dotnet` CLI) must be installed. The TUI is the C# `src/Felix.Cli` project and is separate from the PowerShell CLI.
 

@@ -20,6 +20,7 @@ partial class Program
 
     internal sealed record TuiCommandDefinition(string Name, string Description, string Usage, Func<string[], TuiCommandExecutionMode> ResolveExecutionMode, Func<string[], Task<TuiCommandResult>> ExecuteAsync);
     internal sealed record TuiSuggestion(string Value, string Description, bool IsCommand);
+    internal sealed record TuiSuggestionWindow(int StartIndex, int Count);
     internal sealed record TuiCommandResult(bool ContinueRunning, Func<Task>? StandaloneAction = null)
     {
         public static TuiCommandResult Continue() => new(true);
@@ -434,19 +435,22 @@ partial class Program
     {
         var width = Math.Max(40, Console.WindowWidth - 1);
         var innerWidth = Math.Max(10, width - 4);
-        var visibleBottom = GetVisibleBottom();
-        var visibleTop = GetVisibleTop();
-        var availableRows = Math.Max(1, visibleBottom - visibleTop + 1);
         var promptRows = 3;
-        var maxSuggestionRows = Math.Max(0, availableRows - promptRows);
-        var visibleSuggestions = suggestions.Take(maxSuggestionRows).ToList();
+
+        var initialVisibleBottom = GetVisibleBottom();
+        var initialVisibleTop = GetVisibleTop();
+        var initialAvailableRows = Math.Max(1, initialVisibleBottom - initialVisibleTop + 1);
+        var initialMaxSuggestionRows = Math.Max(0, initialAvailableRows - promptRows);
+        var suggestionWindow = GetSuggestionWindow(suggestions.Count, selectedIndex, initialMaxSuggestionRows);
+        var visibleSuggestions = suggestions.Skip(suggestionWindow.StartIndex).Take(suggestionWindow.Count).ToList();
+        var commandColumnWidth = GetSuggestionCommandColumnWidth(visibleSuggestions);
 
         var lines = new List<string>();
         foreach (var suggestion in visibleSuggestions.Select((item, index) => new { item, index }))
         {
-            var prefix = suggestion.index == selectedIndex ? ">" : " ";
-            var text = $"{prefix} {suggestion.item.Value}  {suggestion.item.Description}";
-            lines.Add(TruncatePad(text, width));
+            var absoluteIndex = suggestionWindow.StartIndex + suggestion.index;
+            var isSelected = absoluteIndex == selectedIndex;
+            lines.AddRange(FormatSuggestionLines(suggestion.item, isSelected, width, commandColumnWidth));
         }
 
         lines.Add("╭" + new string('─', innerWidth + 2) + "╮");
@@ -455,6 +459,11 @@ partial class Program
 
         while (lines.Count < previousLines)
             lines.Add(new string(' ', width));
+
+        EnsurePromptWindowVisible(contentTop, lines.Count);
+
+        var visibleBottom = GetVisibleBottom();
+        var visibleTop = GetVisibleTop();
 
         var pinnedOriginTop = GetPromptOriginTop(contentTop, promptRows, lines.Count - promptRows);
         if (previousLines > 0 && originTop != pinnedOriginTop)
@@ -468,7 +477,7 @@ partial class Program
         for (var index = 0; index < lines.Count; index++)
         {
             SafeSetCursorPosition(0, originTop + index);
-            var isSelectedSuggestion = index < visibleSuggestions.Count && index == selectedIndex;
+            var isSelectedSuggestion = index < visibleSuggestions.Count && (suggestionWindow.StartIndex + index) == selectedIndex;
             WritePromptLine(lines[index].PadRight(width), isSelectedSuggestion);
         }
 
@@ -476,6 +485,116 @@ partial class Program
         var caretTop = GetSafeBufferTop(originTop + lines.Count - 2);
         SafeSetCursorPosition(caretLeft, caretTop);
         return lines.Count;
+    }
+
+    internal static TuiSuggestionWindow GetSuggestionWindow(int suggestionCount, int selectedIndex, int maxVisibleRows)
+    {
+        if (suggestionCount <= 0 || maxVisibleRows <= 0)
+            return new TuiSuggestionWindow(0, 0);
+
+        if (suggestionCount <= maxVisibleRows)
+            return new TuiSuggestionWindow(0, suggestionCount);
+
+        var clampedSelectedIndex = Math.Clamp(selectedIndex, 0, suggestionCount - 1);
+        var startIndex = clampedSelectedIndex - (maxVisibleRows / 2);
+        startIndex = Math.Max(0, startIndex);
+        startIndex = Math.Min(startIndex, suggestionCount - maxVisibleRows);
+        return new TuiSuggestionWindow(startIndex, maxVisibleRows);
+    }
+
+    static int GetSuggestionCommandColumnWidth(IReadOnlyList<TuiSuggestion> suggestions)
+    {
+        if (suggestions.Count == 0)
+            return 16;
+
+        var maxCommandLength = suggestions.Max(suggestion => suggestion.Value.Length);
+        return Math.Clamp(maxCommandLength + 2, 14, 24);
+    }
+
+    static IEnumerable<string> FormatSuggestionLines(TuiSuggestion suggestion, bool isSelected, int width, int commandColumnWidth)
+    {
+        var indicator = isSelected ? ">" : " ";
+        var commandText = suggestion.Value.PadRight(commandColumnWidth);
+        var firstPrefix = $"{indicator} {commandText}";
+        var continuationPrefix = $"  {new string(' ', commandColumnWidth)}";
+        var descriptionWidth = Math.Max(10, width - firstPrefix.Length - 1);
+        var wrappedDescription = WrapText(suggestion.Description, descriptionWidth).Take(2).ToList();
+
+        if (wrappedDescription.Count == 0)
+        {
+            yield return TruncatePad(firstPrefix, width);
+            yield break;
+        }
+
+        yield return TruncatePad($"{firstPrefix} {wrappedDescription[0]}", width);
+        for (var index = 1; index < wrappedDescription.Count; index++)
+            yield return TruncatePad($"{continuationPrefix} {wrappedDescription[index]}", width);
+    }
+
+    static IEnumerable<string> WrapText(string value, int width)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            yield break;
+
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var currentLine = new StringBuilder();
+        foreach (var word in words)
+        {
+            if (currentLine.Length == 0)
+            {
+                currentLine.Append(word);
+                continue;
+            }
+
+            if (currentLine.Length + 1 + word.Length <= width)
+            {
+                currentLine.Append(' ');
+                currentLine.Append(word);
+                continue;
+            }
+
+            yield return currentLine.ToString();
+            currentLine.Clear();
+
+            if (word.Length <= width)
+            {
+                currentLine.Append(word);
+                continue;
+            }
+
+            var remaining = word;
+            while (remaining.Length > width)
+            {
+                yield return remaining[..width];
+                remaining = remaining[width..];
+            }
+
+            currentLine.Append(remaining);
+        }
+
+        if (currentLine.Length > 0)
+            yield return currentLine.ToString();
+    }
+
+    static void EnsurePromptWindowVisible(int contentTop, int requiredLines)
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        try
+        {
+            var visibleBottom = GetVisibleBottom();
+            var requiredBottom = contentTop + Math.Max(0, requiredLines - 1);
+            if (requiredBottom <= visibleBottom)
+                return;
+
+            var maxWindowTop = Math.Max(0, Console.BufferHeight - Console.WindowHeight);
+            var desiredWindowTop = Math.Max(0, requiredBottom - Console.WindowHeight + 1);
+            Console.WindowTop = Math.Min(maxWindowTop, desiredWindowTop);
+        }
+        catch
+        {
+        }
     }
 
     static void ClearPromptBlock(int originTop, int lineCount)

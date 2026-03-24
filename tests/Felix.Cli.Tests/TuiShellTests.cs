@@ -108,6 +108,15 @@ public class TuiShellTests
         Assert.Equal("alpha\n\n beta", normalized);
     }
 
+    [Fact]
+    public void GetSuggestionWindow_KeepsSelectedItemVisible()
+    {
+        var window = Program.GetSuggestionWindow(suggestionCount: 20, selectedIndex: 12, maxVisibleRows: 5);
+
+        Assert.Equal(10, window.StartIndex);
+        Assert.Equal(5, window.Count);
+    }
+
     private static List<Program.TuiCommandDefinition> BuildCommands()
     {
         return new List<Program.TuiCommandDefinition>
