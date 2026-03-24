@@ -100,7 +100,7 @@ felix run S-0001
 # Or run in continuous loop mode
 felix loop
 
-# Launch interactive TUI dashboard
+# Launch interactive TUI shell
 felix tui
 
 # View active agent sessions

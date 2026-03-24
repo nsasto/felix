@@ -1613,7 +1613,7 @@ partial class Program
 
     static void ShowAgentListUI()
     {
-        AnsiConsole.Clear();
+        ClearIfStandalone();
         AnsiConsole.Write(new Rule("[cyan]Configured Agents[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
@@ -1654,7 +1654,7 @@ partial class Program
 
     static void ShowCurrentAgentUI()
     {
-        AnsiConsole.Clear();
+        ClearIfStandalone();
         AnsiConsole.Write(new Rule("[cyan]Current Agent[/]").RuleStyle(Style.Parse("cyan dim")));
         AnsiConsole.WriteLine();
 
