@@ -27,6 +27,12 @@ partial class Program
         _felixProjectRoot = Directory.GetCurrentDirectory();
         var rootCommand = CreateRootCommand(felixPs1);
 
+        if (args.Length == 0)
+        {
+            await RunInteractiveDashboard(felixPs1);
+            return Environment.ExitCode;
+        }
+
         if (args.Length > 0 && !args[0].StartsWith("-"))
         {
             var knownVerbs = rootCommand.Subcommands

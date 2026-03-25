@@ -98,6 +98,7 @@ partial class Program
         public IReadOnlyDictionary<string, int> StatusCounts { get; init; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public string CurrentAgentLabel { get; init; } = "not set";
         public int ConfiguredAgents { get; init; }
+        public string VersionLabel { get; init; } = "unknown";
     }
 
     sealed class TuiShellState
@@ -234,8 +235,18 @@ partial class Program
 
         if (requiresFullLayoutRender)
         {
-            AnsiConsole.Clear();
-            state.NeedsFullClear = false;
+            if (state.NeedsFullClear)
+            {
+                AnsiConsole.Clear();
+                state.NeedsFullClear = false;
+            }
+            else
+            {
+                var footerTop = Math.Max(0, state.LastWindowSize.Height - footerHeight);
+                ClearTuiRegion(0, footerTop);
+                TryResetTuiCursorToOrigin();
+            }
+
             RefreshTuiLayout(layout, state);
             AnsiConsole.Write(layout);
             RenderTuiFooterOnly(state);
@@ -428,13 +439,17 @@ partial class Program
         var currentAgentLabel = currentAgent == null
             ? "not set"
             : $"{currentAgent.Name} ({currentAgent.ModelDisplay})";
+        var versionLabel = GetInstalledVersion(_felixInstallDir)
+            ?? typeof(Program).Assembly.GetName().Version?.ToString()
+            ?? "unknown";
 
         return new TuiHeaderSnapshot
         {
             TotalRequirements = requirements.Count,
             StatusCounts = statusCounts,
             CurrentAgentLabel = currentAgentLabel,
-            ConfiguredAgents = configuredAgents.Count
+            ConfiguredAgents = configuredAgents.Count,
+            VersionLabel = versionLabel
         };
     }
 
@@ -446,6 +461,7 @@ partial class Program
         {
             lines.Add($"[grey]project[/] [white]{_felixProjectRoot.EscapeMarkup()}[/]");
             lines.Add($"[grey]agent[/] [white]{header.CurrentAgentLabel.EscapeMarkup()}[/]");
+            lines.Add($"[grey]version[/] [white]{header.VersionLabel.EscapeMarkup()}[/]");
         }
         else
         {
@@ -454,6 +470,7 @@ partial class Program
             lines.Add($"[grey]project[/] [white]{_felixProjectRoot.EscapeMarkup()}[/]");
             lines.Add($"[grey]requirements[/] [white]{header.TotalRequirements}[/]  [grey]planned[/] [cyan]{header.StatusCounts.GetValueOrDefault("planned", 0)}[/]  [grey]in progress[/] [yellow]{header.StatusCounts.GetValueOrDefault("in_progress", 0)}[/]  [grey]done[/] [blue]{header.StatusCounts.GetValueOrDefault("done", 0)}[/]  [grey]complete[/] [green]{header.StatusCounts.GetValueOrDefault("complete", 0)}[/]  [grey]blocked[/] [red]{header.StatusCounts.GetValueOrDefault("blocked", 0)}[/]");
             lines.Add($"[grey]active agent[/] [white]{header.CurrentAgentLabel.EscapeMarkup()}[/]  [grey]configured agents[/] [white]{header.ConfiguredAgents}[/]");
+            lines.Add($"[grey]version[/] [white]{header.VersionLabel.EscapeMarkup()}[/]");
         }
 
         return new Panel(new Markup(string.Join(Environment.NewLine, lines)))
@@ -664,11 +681,14 @@ partial class Program
 
     static int GetTranscriptPageSize(TuiShellState state)
     {
+        var windowHeight = state.LastWindowSize.Height <= 0 ? 0 : state.LastWindowSize.Height;
+        var availableRows = Math.Max(4, windowHeight - GetTuiFooterHeight(state) - 1);
+
         return state.LayoutMode switch
         {
-            TuiLayoutMode.Minimal => 4,
-            TuiLayoutMode.Compact => 10,
-            _ => 16
+            TuiLayoutMode.Minimal => Math.Max(4, availableRows),
+            TuiLayoutMode.Compact => Math.Max(8, availableRows),
+            _ => Math.Max(12, availableRows)
         };
     }
 

@@ -54,6 +54,19 @@ public class TuiShellTests
     }
 
     [Fact]
+    public void LoadTuiHeaderSnapshot_IncludesVersionLabel()
+    {
+        var snapshot = typeof(Program)
+            .GetMethod("LoadTuiHeaderSnapshot", BindingFlags.NonPublic | BindingFlags.Static)!
+            .Invoke(null, Array.Empty<object>());
+
+        var versionLabel = (string) snapshot!.GetType().GetProperty("VersionLabel")!.GetValue(snapshot)!;
+
+        Assert.False(string.IsNullOrWhiteSpace(versionLabel));
+        Assert.NotEqual("unknown", versionLabel);
+    }
+
+    [Fact]
     public void GetTuiSuggestions_FiltersCommandsAfterSlash()
     {
         var catalog = Program.BuildTuiCommandCatalog(Program.CreateRootCommand("felix.ps1"));
@@ -269,8 +282,8 @@ public class TuiShellTests
         var state = CreateTranscriptState(count: 20, Program.TuiLayoutMode.Normal, scrollOffset: 0);
         var visible = InvokeVisibleTranscriptLines(state);
 
-        Assert.Equal(15, visible.Count);
-        Assert.Equal("> /cmd 16", GetTranscriptLineText(visible[0]));
+        Assert.Equal(18, visible.Count);
+        Assert.Equal("> /cmd 15", GetTranscriptLineText(visible[0]));
         Assert.Equal(string.Empty, GetTranscriptLineText(visible[^1]));
     }
 
@@ -280,8 +293,8 @@ public class TuiShellTests
         var state = CreateTranscriptState(count: 20, Program.TuiLayoutMode.Normal, scrollOffset: 4);
         var visible = InvokeVisibleTranscriptLines(state);
 
-        Assert.Equal(16, visible.Count);
-        Assert.Equal("out 14", GetTranscriptLineText(visible[0]));
+        Assert.Equal(19, visible.Count);
+        Assert.Equal("out 13", GetTranscriptLineText(visible[0]));
         Assert.Equal("out 19", GetTranscriptLineText(visible[^1]));
     }
 
@@ -291,8 +304,8 @@ public class TuiShellTests
         var state = CreateTranscriptState(count: 20, Program.TuiLayoutMode.Normal, scrollOffset: 1);
         var visible = InvokeVisibleTranscriptLines(state);
 
-        Assert.Equal(16, visible.Count);
-        Assert.Equal("out 15", GetTranscriptLineText(visible[0]));
+        Assert.Equal(19, visible.Count);
+        Assert.Equal("out 14", GetTranscriptLineText(visible[0]));
     }
 
     [Fact]
@@ -333,6 +346,7 @@ public class TuiShellTests
 
         stateType.GetProperty("LayoutMode")!.SetValue(state, layoutMode);
         stateType.GetProperty("TranscriptScrollOffset")!.SetValue(state, scrollOffset);
+        stateType.GetProperty("LastWindowSize")!.SetValue(state, (120, 24));
 
         var transcript = stateType.GetProperty("Transcript")!.GetValue(state);
         var addMethod = transcript!.GetType().GetMethod("Add")!;
