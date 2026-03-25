@@ -141,81 +141,59 @@ public class TuiShellTests
 
         var accepted = Program.AcceptSelectedSuggestionIntoInput(catalog, "/list", new List<Program.TuiSuggestion>
         {
-            new(string.Empty, "run as typed", false),
             new("--status", "option", false)
-        }, 0);
+        }, -1);
 
         Assert.Equal("/list", accepted);
     }
 
     [Fact]
-    public void EnterAcceptsHighlightedSuggestion_WhenSelectionIsNotBlank()
+    public void SelectSuggestionIntoInput_UsesHighlightedSuggestion()
     {
+        var catalog = Program.BuildTuiCommandCatalog(Program.CreateRootCommand("felix.ps1"));
         var stateType = typeof(Program).GetNestedType("TuiShellState", BindingFlags.NonPublic)!;
         var state = Activator.CreateInstance(stateType)!;
+        stateType.GetProperty("Input")!.SetValue(state, "/spec status S-0");
         stateType.GetProperty("Suggestions")!.SetValue(state, new List<Program.TuiSuggestion>
         {
-            new(string.Empty, "run as typed", false),
-            new("--status", "option", false)
+            new("S-0001", "requirement id", false)
         });
-        stateType.GetProperty("SelectedSuggestion")!.SetValue(state, 1);
-
-        var shouldAccept = typeof(Program)
-            .GetMethod("ShouldAcceptSelectedSuggestionOnEnter", BindingFlags.NonPublic | BindingFlags.Static)!
-            .Invoke(null, new[] { state });
-
-        Assert.Equal(true, shouldAccept);
-    }
-
-    [Fact]
-    public void EnterRunsTextbox_WhenBlankRunAsTypedRowIsSelected()
-    {
-        var stateType = typeof(Program).GetNestedType("TuiShellState", BindingFlags.NonPublic)!;
-        var state = Activator.CreateInstance(stateType)!;
-        stateType.GetProperty("Suggestions")!.SetValue(state, new List<Program.TuiSuggestion>
-        {
-            new(string.Empty, "run as typed", false),
-            new("--status", "option", false)
-        });
-        stateType.GetProperty("SelectedSuggestion")!.SetValue(state, 0);
-
-        var shouldAccept = typeof(Program)
-            .GetMethod("ShouldAcceptSelectedSuggestionOnEnter", BindingFlags.NonPublic | BindingFlags.Static)!
-            .Invoke(null, new[] { state });
-
-        Assert.Equal(false, shouldAccept);
-    }
-
-    [Fact]
-    public void MoveSelectionToRunAsTypedRow_SelectsBlankSuggestionWhenPresent()
-    {
-        var stateType = typeof(Program).GetNestedType("TuiShellState", BindingFlags.NonPublic)!;
-        var state = Activator.CreateInstance(stateType)!;
-        stateType.GetProperty("Suggestions")!.SetValue(state, new List<Program.TuiSuggestion>
-        {
-            new(string.Empty, "run as typed", false),
-            new("--status", "option", false),
-            new("--format", "option", false)
-        });
-        stateType.GetProperty("SelectedSuggestion")!.SetValue(state, 2);
+        stateType.GetProperty("SelectedSuggestion")!.SetValue(state, -1);
 
         typeof(Program)
-            .GetMethod("MoveSelectionToRunAsTypedRow", BindingFlags.NonPublic | BindingFlags.Static)!
-            .Invoke(null, new[] { state });
+            .GetMethod("SelectSuggestionIntoInput", BindingFlags.NonPublic | BindingFlags.Static)!
+            .Invoke(null, new object[] { catalog, state, 0 });
 
-        Assert.Equal(0, stateType.GetProperty("SelectedSuggestion")!.GetValue(state));
+        Assert.Equal("/spec status S-0001", stateType.GetProperty("Input")!.GetValue(state));
+        var suggestions = (List<Program.TuiSuggestion>)stateType.GetProperty("Suggestions")!.GetValue(state)!;
+        Assert.Single(suggestions);
+        Assert.Equal("S-0001", suggestions[0].Value);
     }
 
     [Fact]
-    public void ArgumentSuggestions_StartWithBlankRunAsTypedRow()
+    public void UpdateTuiSuggestions_StartsWithNoSelection()
+    {
+        var catalog = Program.BuildTuiCommandCatalog(Program.CreateRootCommand("felix.ps1"));
+        var stateType = typeof(Program).GetNestedType("TuiShellState", BindingFlags.NonPublic)!;
+        var state = Activator.CreateInstance(stateType)!;
+        stateType.GetProperty("Input")!.SetValue(state, "/list");
+
+        typeof(Program)
+            .GetMethod("UpdateTuiSuggestions", BindingFlags.NonPublic | BindingFlags.Static)!
+            .Invoke(null, new object[] { catalog, state });
+
+        Assert.Equal(-1, stateType.GetProperty("SelectedSuggestion")!.GetValue(state));
+    }
+
+    [Fact]
+    public void ArgumentSuggestions_DoNotIncludeBlankRunAsTypedRow()
     {
         var catalog = Program.BuildTuiCommandCatalog(Program.CreateRootCommand("felix.ps1"));
 
         var suggestions = Program.GetTuiSuggestions(catalog, "/list");
 
         Assert.NotEmpty(suggestions);
-        Assert.Equal(string.Empty, suggestions[0].Value);
-        Assert.Equal("run as typed", suggestions[0].Description);
+        Assert.DoesNotContain(suggestions, suggestion => string.IsNullOrWhiteSpace(suggestion.Value));
     }
 
     [Fact]

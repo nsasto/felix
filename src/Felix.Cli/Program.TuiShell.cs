@@ -96,7 +96,7 @@ partial class Program
     {
         public string Input { get; set; } = string.Empty;
         public List<TuiSuggestion> Suggestions { get; set; } = new();
-        public int SelectedSuggestion { get; set; }
+        public int SelectedSuggestion { get; set; } = -1;
         public List<TuiTranscriptEntry> Transcript { get; } = new();
         public int TranscriptScrollOffset { get; set; }
         public string FooterStatus { get; set; } = "Type / to browse commands. Tab accepts suggestions.";
@@ -159,19 +159,10 @@ partial class Program
                         continue;
                     }
 
-                    if (ShouldAcceptSelectedSuggestionOnEnter(state))
-                    {
-                        state.Input = AcceptSelectedSuggestionIntoInput(catalog, state.Input, state.Suggestions, state.SelectedSuggestion);
-                        UpdateTuiSuggestions(catalog, state);
-                        MoveSelectionToRunAsTypedRow(state);
-                        RenderTuiShell(layout, state);
-                        continue;
-                    }
-
                     var rawInput = state.Input;
                     var finalInput = NormalizeTuiInput(rawInput);
                     state.Input = string.Empty;
-                    state.SelectedSuggestion = 0;
+                    state.SelectedSuggestion = -1;
                     UpdateTuiSuggestions(catalog, state);
 
                     if (string.IsNullOrWhiteSpace(finalInput))
@@ -477,7 +468,6 @@ partial class Program
             {
                 state.Input = acceptedInput;
                 UpdateTuiSuggestions(catalog, state);
-                MoveSelectionToRunAsTypedRow(state);
             }
 
             return false;
@@ -487,7 +477,7 @@ partial class Program
         {
             state.Input = string.Empty;
             state.Suggestions = new List<TuiSuggestion>();
-            state.SelectedSuggestion = 0;
+            state.SelectedSuggestion = -1;
             state.FooterStatus = "Suggestions cleared";
             return false;
         }
@@ -523,14 +513,14 @@ partial class Program
         if (key.Key == ConsoleKey.UpArrow)
         {
             if (state.Suggestions.Count > 0)
-                state.SelectedSuggestion = (state.SelectedSuggestion - 1 + state.Suggestions.Count) % state.Suggestions.Count;
+                SelectSuggestionIntoInput(catalog, state, state.SelectedSuggestion < 0 ? state.Suggestions.Count - 1 : (state.SelectedSuggestion - 1 + state.Suggestions.Count) % state.Suggestions.Count);
             return false;
         }
 
         if (key.Key == ConsoleKey.DownArrow)
         {
             if (state.Suggestions.Count > 0)
-                state.SelectedSuggestion = (state.SelectedSuggestion + 1) % state.Suggestions.Count;
+                SelectSuggestionIntoInput(catalog, state, state.SelectedSuggestion < 0 ? 0 : (state.SelectedSuggestion + 1) % state.Suggestions.Count);
             return false;
         }
 
@@ -539,8 +529,8 @@ partial class Program
             if (state.Input.Length == 0)
             {
                 state.Suggestions = new List<TuiSuggestion>();
-                state.SelectedSuggestion = 0;
-                state.FooterStatus = "Type / to browse commands. Tab accepts suggestions.";
+                state.SelectedSuggestion = -1;
+                state.FooterStatus = "Type / to browse commands. Use arrows to populate suggestions.";
                 return false;
             }
 
@@ -559,32 +549,23 @@ partial class Program
         return false;
     }
 
-    static bool ShouldAcceptSelectedSuggestionOnEnter(TuiShellState state)
-    {
-        if (state.Suggestions.Count == 0)
-            return false;
-
-        var selectedIndex = Math.Clamp(state.SelectedSuggestion, 0, state.Suggestions.Count - 1);
-        var selected = state.Suggestions[selectedIndex];
-        return !string.IsNullOrWhiteSpace(selected.Value);
-    }
-
-    static void MoveSelectionToRunAsTypedRow(TuiShellState state)
+    static void SelectSuggestionIntoInput(IReadOnlyList<TuiCommandCatalogEntry> catalog, TuiShellState state, int selectedIndex)
     {
         if (state.Suggestions.Count == 0)
             return;
 
-        var blankIndex = state.Suggestions.FindIndex(suggestion => string.IsNullOrWhiteSpace(suggestion.Value));
-        if (blankIndex >= 0)
-            state.SelectedSuggestion = blankIndex;
+        state.SelectedSuggestion = Math.Clamp(selectedIndex, 0, state.Suggestions.Count - 1);
+        var acceptedInput = AcceptSelectedSuggestionIntoInput(catalog, state.Input, state.Suggestions, state.SelectedSuggestion);
+        if (!string.Equals(acceptedInput, state.Input, StringComparison.Ordinal))
+            state.Input = acceptedInput;
+
+        state.FooterStatus = GetFooterStatus(state.Input, state.Suggestions.Count > 0);
     }
 
     static void UpdateTuiSuggestions(IReadOnlyList<TuiCommandCatalogEntry> catalog, TuiShellState state)
     {
         state.Suggestions = GetTuiSuggestions(catalog, state.Input);
-        state.SelectedSuggestion = state.Suggestions.Count == 0
-            ? 0
-            : Math.Clamp(state.SelectedSuggestion, 0, state.Suggestions.Count - 1);
+        state.SelectedSuggestion = -1;
         state.FooterStatus = GetFooterStatus(state.Input, state.Suggestions.Count > 0);
     }
 
@@ -596,7 +577,7 @@ partial class Program
         {
             if (state.LayoutMode != TuiLayoutMode.Minimal)
                 rows.Add(CreateTuiWelcomePanel(state));
-            rows.Add(new Markup("[grey]Type [cyan]/[/] to browse the full CLI surface. Use [cyan]Tab[/] to accept a suggestion and [cyan]Esc[/] to clear suggestions.[/]"));
+            rows.Add(new Markup("[grey]Type [cyan]/[/] to browse the full CLI surface. Use the arrow keys to populate the textbox and [cyan]Esc[/] to clear suggestions.[/]"));
             rows.Add(new Markup("[grey]Captured commands stay in the shell. Interactive commands suspend the shell and resume when they finish.[/]"));
             return new Padder(new Rows(rows), new Padding(0, 1, 0, 0));
         }
@@ -615,6 +596,9 @@ partial class Program
     {
         var maxSuggestions = GetSuggestionLimit(state.LayoutMode);
         if (state.Suggestions.Count <= maxSuggestions)
+            return 0;
+
+        if (state.SelectedSuggestion < 0)
             return 0;
 
         return Math.Clamp(state.SelectedSuggestion - (maxSuggestions / 2), 0, Math.Max(0, state.Suggestions.Count - maxSuggestions));
@@ -730,10 +714,10 @@ partial class Program
     internal static string GetFooterStatus(string input, bool hasSuggestions)
     {
         if (hasSuggestions)
-            return "Use arrows to select, Tab to accept, Enter to run";
+            return "Use arrows to populate the textbox, Enter to run";
 
         if (string.IsNullOrWhiteSpace(input))
-            return "Type / or start typing a command. Tab accepts suggestions. PageUp/PageDown scroll history.";
+            return "Type / or start typing a command. Use arrows to populate suggestions. PageUp/PageDown scroll history.";
 
         return "Press Enter to run command";
     }
@@ -741,6 +725,9 @@ partial class Program
     internal static string AcceptSelectedSuggestionIntoInput(IReadOnlyList<TuiCommandCatalogEntry> catalog, string input, List<TuiSuggestion> suggestions, int selectedIndex)
     {
         if (suggestions.Count == 0)
+            return input;
+
+        if (selectedIndex < 0 || selectedIndex >= suggestions.Count)
             return input;
 
         var resolved = ResolveFinalInput(input, suggestions, selectedIndex);
@@ -978,9 +965,6 @@ partial class Program
             return input;
 
         var suggestion = suggestions[Math.Clamp(selectedIndex, 0, suggestions.Count - 1)];
-        if (string.IsNullOrWhiteSpace(suggestion.Value))
-            return input;
-
         if (suggestion.IsCommand)
             return "/" + suggestion.Value;
 
@@ -1238,10 +1222,6 @@ partial class Program
             .ThenBy(suggestion => suggestion.Value, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (orderedSuggestions.Count == 0)
-            return orderedSuggestions;
-
-        orderedSuggestions.Insert(0, new TuiSuggestion(string.Empty, "run as typed", false));
         return orderedSuggestions;
     }
 
