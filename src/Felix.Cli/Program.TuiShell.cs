@@ -109,6 +109,9 @@ partial class Program
         public string? PendingStandaloneInput { get; set; }
         public string[]? PendingStandaloneArgs { get; set; }
         public TuiHeaderSnapshot Header { get; set; } = LoadTuiHeaderSnapshot();
+        public bool IsBodyDirty { get; set; } = true;
+        public int LastRenderedFooterHeight { get; set; } = -1;
+        public int LastRenderedFooterTop { get; set; } = -1;
     }
 
     sealed record TuiTranscriptEntry(string Command, string Output, bool IsError = false);
@@ -133,6 +136,7 @@ partial class Program
                 var layout = CreateTuiLayout();
                 state.IsSuspended = false;
                 state.Header = LoadTuiHeaderSnapshot();
+                state.IsBodyDirty = true;
                 UpdateTuiSuggestions(catalog, state);
 
                 RenderTuiShell(layout, state);
@@ -151,6 +155,15 @@ partial class Program
                     var key = Console.ReadKey(intercept: true);
                     if (!TryApplyTuiKey(catalog, state, key))
                     {
+                        RenderTuiShell(layout, state);
+                        continue;
+                    }
+
+                    if (ShouldAcceptSelectedSuggestionOnEnter(state))
+                    {
+                        state.Input = AcceptSelectedSuggestionIntoInput(catalog, state.Input, state.Suggestions, state.SelectedSuggestion);
+                        UpdateTuiSuggestions(catalog, state);
+                        MoveSelectionToRunAsTypedRow(state);
                         RenderTuiShell(layout, state);
                         continue;
                     }
@@ -214,18 +227,26 @@ partial class Program
 
     static void RenderTuiShell(Layout layout, TuiShellState state)
     {
-        if (state.NeedsFullClear)
+        var footerHeight = GetTuiFooterHeight(state);
+        var requiresFullLayoutRender = state.NeedsFullClear
+            || state.IsBodyDirty
+            || state.LastRenderedFooterHeight != footerHeight;
+
+        if (requiresFullLayoutRender)
         {
             AnsiConsole.Clear();
             state.NeedsFullClear = false;
+            RefreshTuiLayout(layout, state);
+            AnsiConsole.Write(layout);
+            RenderTuiFooterOnly(state);
+            state.IsBodyDirty = false;
+            state.LastRenderedFooterHeight = footerHeight;
+            state.LastRenderedFooterTop = Math.Max(0, state.LastWindowSize.Height - footerHeight);
         }
         else
         {
-            TryResetTuiCursorToOrigin();
+            RenderTuiFooterOnly(state);
         }
-
-        RefreshTuiLayout(layout, state);
-        AnsiConsole.Write(layout);
     }
 
     static void TryResetTuiCursorToOrigin()
@@ -236,6 +257,116 @@ partial class Program
         }
         catch
         {
+        }
+    }
+
+    static void RenderTuiFooterOnly(TuiShellState state)
+    {
+        var footerHeight = GetTuiFooterHeight(state);
+        var footerTop = Math.Max(0, state.LastWindowSize.Height - footerHeight);
+        var clearStart = state.LastRenderedFooterTop >= 0
+            ? Math.Min(state.LastRenderedFooterTop, footerTop)
+            : footerTop;
+        ClearTuiRegion(clearStart, state.LastWindowSize.Height);
+
+        try
+        {
+            Console.SetCursorPosition(0, footerTop);
+        }
+        catch
+        {
+        }
+
+        WritePlainFooter(state, footerTop);
+        state.LastRenderedFooterHeight = footerHeight;
+        state.LastRenderedFooterTop = footerTop;
+    }
+
+    static void WritePlainFooter(TuiShellState state, int footerTop)
+    {
+        var width = Math.Max(20, state.LastWindowSize.Width);
+        var lines = BuildPlainFooterLines(state, width);
+        for (var index = 0; index < lines.Count; index++)
+        {
+            try
+            {
+                Console.SetCursorPosition(0, footerTop + index);
+                Console.Write(lines[index].PadRight(width));
+            }
+            catch
+            {
+                return;
+            }
+        }
+    }
+
+    static List<string> BuildPlainFooterLines(TuiShellState state, int width)
+    {
+        var visibleSuggestions = GetVisibleSuggestions(state).ToList();
+        var startIndex = GetVisibleSuggestionStartIndex(state);
+        var safeWidth = Math.Max(10, width);
+        var innerWidth = Math.Max(2, safeWidth - 2);
+        var title = state.IsExecuting ? "Command [running]" : "Command";
+        var topLine = BuildFooterBorderLine(title, safeWidth);
+        var contentLines = new List<string>
+        {
+            $"> {(string.IsNullOrWhiteSpace(state.Input) ? "type a slash command" : state.Input)}",
+            state.FooterStatus
+        };
+
+        foreach (var suggestion in visibleSuggestions.Select((item, index) => new { item, index }))
+        {
+            var description = state.LayoutMode == TuiLayoutMode.Minimal
+                ? suggestion.item.Value
+                : $"{suggestion.item.Value}  {TruncateText(suggestion.item.Description, 70)}";
+            var prefix = (startIndex + suggestion.index) == state.SelectedSuggestion ? "> " : "  ";
+            contentLines.Add(prefix + description);
+        }
+
+        while (contentLines.Count < TuiBaseFooterHeight + visibleSuggestions.Count - 2)
+            contentLines.Add(string.Empty);
+
+        var lines = new List<string> { topLine };
+        lines.AddRange(contentLines.Select(line => WrapFooterContentLine(line, innerWidth)));
+        lines.Add($"╰{new string('─', innerWidth)}╯");
+        return lines;
+    }
+
+    static string BuildFooterBorderLine(string title, int width)
+    {
+        var safeWidth = Math.Max(10, width);
+        var innerWidth = Math.Max(2, safeWidth - 2);
+        var titleText = $"─{title}";
+        if (titleText.Length > innerWidth)
+            titleText = TruncatePlainText(titleText, innerWidth);
+
+        return $"╭{titleText}{new string('─', Math.Max(0, innerWidth - titleText.Length))}╮";
+    }
+
+    static string WrapFooterContentLine(string content, int innerWidth)
+    {
+        var clipped = TruncatePlainText(content, innerWidth);
+        return $"│{clipped.PadRight(innerWidth)}│";
+    }
+
+    static void ClearTuiRegion(int startRow, int endExclusiveRow)
+    {
+        var width = Math.Max(0, GetTuiWindowSize().Width);
+        if (width == 0 || endExclusiveRow <= startRow)
+            return;
+
+        var blankLine = new string(' ', width);
+        for (var row = startRow; row < endExclusiveRow; row++)
+        {
+            try
+            {
+                Console.SetCursorPosition(0, row);
+                Console.Write(blankLine);
+            }
+            catch
+            {
+                return;
+            }
         }
     }
 
@@ -328,7 +459,7 @@ partial class Program
     {
         layout["Footer"].Size(GetTuiFooterHeight(state));
         layout["Body"].Update(CreateTuiContent(state));
-        layout["Footer"].Update(CreateTuiComposerPanel(state));
+        layout["Footer"].Update(Text.Empty);
     }
 
     static bool TryApplyTuiKey(IReadOnlyList<TuiCommandCatalogEntry> catalog, TuiShellState state, ConsoleKeyInfo key)
@@ -346,6 +477,7 @@ partial class Program
             {
                 state.Input = acceptedInput;
                 UpdateTuiSuggestions(catalog, state);
+                MoveSelectionToRunAsTypedRow(state);
             }
 
             return false;
@@ -363,24 +495,28 @@ partial class Program
         if (key.Key == ConsoleKey.PageUp)
         {
             ScrollTranscript(state, GetTranscriptPageSize(state));
+            state.IsBodyDirty = true;
             return false;
         }
 
         if (key.Key == ConsoleKey.PageDown)
         {
             ScrollTranscript(state, -GetTranscriptPageSize(state));
+            state.IsBodyDirty = true;
             return false;
         }
 
         if (key.Key == ConsoleKey.Home)
         {
             state.TranscriptScrollOffset = GetMaxTranscriptScrollOffset(state);
+            state.IsBodyDirty = true;
             return false;
         }
 
         if (key.Key == ConsoleKey.End)
         {
             state.TranscriptScrollOffset = 0;
+            state.IsBodyDirty = true;
             return false;
         }
 
@@ -423,6 +559,26 @@ partial class Program
         return false;
     }
 
+    static bool ShouldAcceptSelectedSuggestionOnEnter(TuiShellState state)
+    {
+        if (state.Suggestions.Count == 0)
+            return false;
+
+        var selectedIndex = Math.Clamp(state.SelectedSuggestion, 0, state.Suggestions.Count - 1);
+        var selected = state.Suggestions[selectedIndex];
+        return !string.IsNullOrWhiteSpace(selected.Value);
+    }
+
+    static void MoveSelectionToRunAsTypedRow(TuiShellState state)
+    {
+        if (state.Suggestions.Count == 0)
+            return;
+
+        var blankIndex = state.Suggestions.FindIndex(suggestion => string.IsNullOrWhiteSpace(suggestion.Value));
+        if (blankIndex >= 0)
+            state.SelectedSuggestion = blankIndex;
+    }
+
     static void UpdateTuiSuggestions(IReadOnlyList<TuiCommandCatalogEntry> catalog, TuiShellState state)
     {
         state.Suggestions = GetTuiSuggestions(catalog, state.Input);
@@ -448,37 +604,6 @@ partial class Program
         var visibleEntries = GetVisibleTranscriptEntries(state);
         rows.AddRange(visibleEntries.Select(CreateTuiTranscriptEntryRenderable));
         return new Padder(new Rows(rows), new Padding(0, 0, 0, 1));
-    }
-
-    static Panel CreateTuiComposerPanel(TuiShellState state)
-    {
-        var visibleSuggestions = GetVisibleSuggestions(state).ToList();
-        var startIndex = GetVisibleSuggestionStartIndex(state);
-        var lines = new List<string>
-        {
-            $"[cyan]>[/] {(string.IsNullOrWhiteSpace(state.Input) ? "[grey]type a slash command[/]" : state.Input.EscapeMarkup())}",
-            $"[grey]{state.FooterStatus.EscapeMarkup()}[/]"
-        };
-
-        foreach (var suggestion in visibleSuggestions.Select((item, index) => new { item, index }))
-        {
-            var description = state.LayoutMode == TuiLayoutMode.Minimal
-                ? suggestion.item.Value
-                : $"{suggestion.item.Value}  {TruncateText(suggestion.item.Description, 70)}";
-            var escaped = description.EscapeMarkup();
-            lines.Add((startIndex + suggestion.index) == state.SelectedSuggestion
-                ? $"[black on cyan] {escaped} [/]":
-                $"[grey]  {escaped}[/]");
-        }
-
-        return new Panel(new Markup(string.Join(Environment.NewLine, lines)))
-        {
-            Header = new PanelHeader(state.IsExecuting ? "[yellow]Running[/]" : "[grey]Command[/]", Justify.Left),
-            Border = BoxBorder.Rounded,
-            BorderStyle = Style.Parse(state.IsExecuting ? "yellow" : "grey"),
-            Expand = true,
-            Padding = new Padding(1, 0, 1, 0)
-        };
     }
 
     static int GetTuiFooterHeight(TuiShellState state)
@@ -565,6 +690,7 @@ partial class Program
         if (state.Transcript.Count > TuiMaxTranscriptEntries)
             state.Transcript.RemoveRange(0, state.Transcript.Count - TuiMaxTranscriptEntries);
         state.TranscriptScrollOffset = Math.Clamp(state.TranscriptScrollOffset, 0, GetMaxTranscriptScrollOffset(state));
+        state.IsBodyDirty = true;
     }
 
     internal static string NormalizeTuiOutput(string? output)
@@ -682,6 +808,7 @@ partial class Program
         state.LastWindowSize = windowSize;
         state.LayoutMode = GetTuiLayoutMode(windowSize.Width, windowSize.Height);
         state.NeedsFullClear = true;
+        state.IsBodyDirty = true;
         return true;
     }
 
@@ -729,6 +856,7 @@ partial class Program
         if (string.Equals(body, "clear", StringComparison.OrdinalIgnoreCase))
         {
             state.Transcript.Clear();
+            state.IsBodyDirty = true;
             state.ResumeMessage = "Cleared transcript.";
             return new TuiExecutionResult(true, input);
         }
@@ -939,6 +1067,9 @@ partial class Program
     {
         var normalized = NormalizeTuiInput(input);
         if (string.IsNullOrWhiteSpace(normalized) || !normalized.StartsWith("/", StringComparison.Ordinal))
+            return false;
+
+        if (input.EndsWith(" ", StringComparison.Ordinal))
             return false;
 
         var body = normalized[1..].Trim();
@@ -1300,6 +1431,20 @@ partial class Program
         if (value.Length <= maxLength)
             return value;
         return value[..Math.Max(0, maxLength - 3)] + "...";
+    }
+
+    static string TruncatePlainText(string value, int maxLength)
+    {
+        if (maxLength <= 0)
+            return string.Empty;
+
+        if (value.Length <= maxLength)
+            return value;
+
+        if (maxLength <= 3)
+            return value[..maxLength];
+
+        return value[..(maxLength - 3)] + "...";
     }
 
     static string GetFelixWordmark(TuiLayoutMode layoutMode)
