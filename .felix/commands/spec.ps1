@@ -20,6 +20,7 @@ function Invoke-SpecCreate {
     if ($Args.Count -eq 0) {
         Write-Host ""
         Write-Host "Available subcommands:"
+        Write-Host "  list                               List requirements and specs"
         Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
         Write-Host "  fix [--fix-duplicates]            Scan specs folder and fix requirements.json alignment"
         Write-Host "  delete <requirement-id>           Delete a specification and remove from requirements.json"
@@ -35,6 +36,7 @@ function Invoke-SpecCreate {
         Write-Host "  --force               Pull: overwrite local files; Push: request create-if-missing + re-upload"
         Write-Host ""
         Write-Host "Examples:"
+        Write-Host "  felix spec list"
         Write-Host "  felix spec create `"Add user authentication`""
         Write-Host "  felix spec fix"
         Write-Host "  felix spec fix --fix-duplicates"
@@ -50,6 +52,12 @@ function Invoke-SpecCreate {
     $subcommand = $Args[0]
 
     switch ($subcommand) {
+        "list" {
+            . "$PSScriptRoot\list.ps1"
+            Invoke-List -Args $Args[1..($Args.Count - 1)]
+            exit $LASTEXITCODE
+        }
+
         "create" {
             $quickMode = $false
             $argsWithoutFlags = @()
@@ -179,6 +187,7 @@ function Invoke-SpecCreate {
             Write-Error "Unknown spec subcommand: $subcommand"
             Write-Host ""
             Write-Host "Available subcommands:"
+            Write-Host "  list                               List requirements and specs"
             Write-Host "  create [--quick] <description>   Create a new specification with auto-generated ID"
             Write-Host "  fix [--fix-duplicates]            Scan specs folder and fix requirements.json alignment"
             Write-Host "  delete <requirement-id>           Delete a specification and remove from requirements.json"

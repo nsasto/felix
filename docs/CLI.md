@@ -1090,7 +1090,7 @@ felix procs kill all
 
 ## Utility Commands
 
-### `felix tui` - Interactive Terminal Dashboard
+### `felix tui` - Interactive Terminal Shell
 
 ```bash
 felix tui
@@ -1104,20 +1104,42 @@ felix dashboard
 
 **What it does:** Launches an interactive terminal UI (built with .NET/Spectre.Console) that provides:
 
-- Visual requirement status and progress tracking
-- Interactive command menu (run, loop, validate, etc.)
-- Real-time status visualization
+- A bordered welcome and status card on initial load
+- A Copilot-style slash-command composer at the bottom while typing
+- Scrollback-first command output so prior content remains visible in the terminal
+- Slash suggestions for commands and common requirement arguments
 
 **Navigation:**
 
-| Key   | Action            |
-| ----- | ----------------- |
-| `1-5` | Quick actions     |
-| `/`   | Show all commands |
-| `?`   | Help screen       |
-| `q`   | Quit dashboard    |
+| Key         | Action                                                     |
+| ----------- | ---------------------------------------------------------- |
+| `/`         | Start a slash command and open command suggestions         |
+| `Up`/`Down` | Move through the visible suggestion window                 |
+| `Enter`     | Accept the highlighted suggestion or run the current input |
+| `Esc`       | Cancel the current prompt or suggestion list               |
+| `Backspace` | Delete input, or cancel when the prompt is empty           |
 
-**Requirements:** .NET SDK (`dotnet` CLI) must be installed. The TUI is the C# `src/Felix.Cli` project and is separate from the PowerShell CLI.
+**Common commands:**
+
+- `/help`
+- `/version`
+- `/status`
+- `/list`
+- `/run <requirement-id>`
+- `/run-next`
+- `/validate <requirement-id>`
+- `/deps <requirement-id>`
+- `/setup`
+- `/quit`
+
+**Notes:**
+
+- The welcome card is startup content, not a permanently fixed header.
+- Output is appended below each command instead of clearing the screen, so terminal scrollback is preserved.
+- The command composer stays at the bottom while entering input; long suggestion lists scroll around the selected item instead of rendering all matches at once.
+- Some commands intentionally take over the terminal directly, then return to the shell when they finish. This applies to longer-running or interactive flows such as `/run`, `/run-next`, `/loop`, `/setup`, and `/procs kill` without an explicit target.
+- `felix dashboard` remains an alias for `felix tui`.
+- .NET SDK (`dotnet` CLI) must be installed. The TUI is the C# `src/Felix.Cli` project and is separate from the PowerShell CLI.
 
 ### `felix version` - Show Version Information
 

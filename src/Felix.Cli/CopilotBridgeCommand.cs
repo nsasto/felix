@@ -262,12 +262,21 @@ internal static class CopilotBridgeCommand
 
     private static string NormalizeResolvedCopilotPath(string resolvedPath)
     {
-        // Return the resolved path as-is. Invoking copilot.ps1 directly via
-        // 'pwsh -File copilot.ps1' (handled by CreateLaunchSpec) correctly
-        // populates $MyInvocation.MyCommand.Path inside the script.
-        // Preferring .bat/.cmd siblings is deliberately avoided because npm shims
-        // call copilot.ps1 via 'powershell -Command' which leaves
-        // $MyInvocation.MyCommand.Path empty, breaking copilot's own shim.
+        if (OperatingSystem.IsWindows() && string.Equals(Path.GetExtension(resolvedPath), ".ps1", StringComparison.OrdinalIgnoreCase))
+        {
+            var directory = Path.GetDirectoryName(resolvedPath);
+            var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(resolvedPath);
+            if (!string.IsNullOrWhiteSpace(directory) && !string.IsNullOrWhiteSpace(fileNameWithoutExtension))
+            {
+                foreach (var extension in new[] { ".bat", ".cmd" })
+                {
+                    var sibling = Path.Combine(directory, fileNameWithoutExtension + extension);
+                    if (File.Exists(sibling))
+                        return sibling;
+                }
+            }
+        }
+
         return resolvedPath;
     }
 

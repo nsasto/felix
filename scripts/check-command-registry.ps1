@@ -2,7 +2,7 @@
 .SYNOPSIS
 Validates that commands are consistently registered across all three sources:
   1. .felix/commands/*.ps1 files (the implementations)
-  2. src/Felix.Cli/Program.cs  (C# System.CommandLine registrations)
+    2. src/Felix.Cli/*.cs        (C# System.CommandLine registrations)
   3. .felix/commands/help.ps1  (help text summary + detail switch cases)
 
 Note: felix.ps1 no longer uses [ValidateSet] — unknown commands are discovered
@@ -17,7 +17,7 @@ param(
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $commandsDir = Join-Path $repoRoot ".felix\commands"
-$programCs = Join-Path $repoRoot "src\Felix.Cli\Program.cs"
+$cliSourceDir = Join-Path $repoRoot "src\Felix.Cli"
 $helpPs1 = Join-Path $repoRoot ".felix\commands\help.ps1"
 
 $ok = $true
@@ -38,8 +38,9 @@ Where-Object { $_ -notin $subcommandFiles } |
 Sort-Object
 
 # ── 2. C# registered commands ────────────────────────────────────────────────
-# Only look at rootCommand.AddCommand(CreateXxxCommand(...)) lines — not subcommands
-$csContent = Get-Content $programCs -Raw
+# Look across the CLI source tree because Program.cs is split into partials.
+$csFiles = Get-ChildItem $cliSourceDir -Filter "*.cs" -Recurse | Sort-Object FullName
+$csContent = ($csFiles | Get-Content -Raw) -join "`n"
 $csMatches = [regex]::Matches($csContent, 'rootCommand\.AddCommand\(Create(\w+)Command\(')
 $csCommands = $csMatches | ForEach-Object {
     # Convert PascalCase to kebab-case: RunNext → run-next
@@ -73,7 +74,7 @@ Write-Host "------------------------------------------" -ForegroundColor DarkGra
 Write-Host "File -> C# registration:" -ForegroundColor Gray
 foreach ($cmd in $fileCommands) {
     if ($cmd -notin $csCommands) {
-        Write-Issue "'.felix/commands/$cmd.ps1' has no C# command registration in Program.cs"
+        Write-Issue "'.felix/commands/$cmd.ps1' has no C# command registration in src/Felix.Cli"
     }
 }
 
