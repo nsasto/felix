@@ -28,6 +28,7 @@ partial class Program
         "run",
         "run-next",
         "loop",
+        "setup",
         "validate",
         "deps",
         "context",
