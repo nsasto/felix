@@ -556,6 +556,7 @@ partial class Program
 
         var output = await process.StandardOutput.ReadToEndAsync();
         await process.WaitForExitAsync();
+        Environment.ExitCode = process.ExitCode;
 
         return output;
     }

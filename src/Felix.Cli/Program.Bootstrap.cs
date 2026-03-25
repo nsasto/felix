@@ -9,32 +9,14 @@ partial class Program
         if (args.Length > 0 && string.Equals(args[0], "copilot-bridge", StringComparison.OrdinalIgnoreCase))
             return await CopilotBridgeCommand.ExecuteAsync(args.Skip(1).ToArray());
 
-        var rootCommand = new RootCommand("Felix - Autonomous agent executor");
-
-        rootCommand.AddCommand(CreateInstallCommand());
-
-        string? felixPs1 = null;
-
-        var searchDir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-        while (searchDir != null && !File.Exists(Path.Combine(searchDir.FullName, ".felix", "felix.ps1")))
-            searchDir = searchDir.Parent;
-
-        if (searchDir != null)
-            felixPs1 = Path.GetFullPath(Path.Combine(searchDir.FullName, ".felix", "felix.ps1"));
+        var felixPs1 = ResolveFelixScriptPath();
 
         if (felixPs1 == null || !File.Exists(felixPs1))
         {
-            var globalInstall = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Programs", "Felix", "felix.ps1");
-            if (File.Exists(globalInstall))
-                felixPs1 = globalInstall;
-        }
-
-        if (felixPs1 == null || !File.Exists(felixPs1))
-        {
+            var installOnlyRoot = new RootCommand("Felix - Autonomous agent executor");
+            installOnlyRoot.AddCommand(CreateInstallCommand());
             if (args.Length > 0 && args[0] == "install")
-                return await rootCommand.InvokeAsync(args);
+                return await installOnlyRoot.InvokeAsync(args);
 
             Console.Error.WriteLine("Error: felix.ps1 not found.");
             Console.Error.WriteLine("Run 'felix install' to install Felix, or run from inside a Felix repository.");
@@ -43,6 +25,29 @@ partial class Program
 
         _felixInstallDir = Path.GetDirectoryName(felixPs1)!;
         _felixProjectRoot = Directory.GetCurrentDirectory();
+        var rootCommand = CreateRootCommand(felixPs1);
+
+        if (args.Length > 0 && !args[0].StartsWith("-"))
+        {
+            var knownVerbs = rootCommand.Subcommands
+                .Select(c => c.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            knownVerbs.Add("--help");
+            knownVerbs.Add("--version");
+            if (!knownVerbs.Contains(args[0]))
+            {
+                await ExecutePowerShell(felixPs1, args);
+                return Environment.ExitCode;
+            }
+        }
+
+        return await rootCommand.InvokeAsync(args);
+    }
+
+    internal static RootCommand CreateRootCommand(string felixPs1)
+    {
+        var rootCommand = new RootCommand("Felix - Autonomous agent executor");
+        rootCommand.AddCommand(CreateInstallCommand());
 
         var formatOpt = new Option<string>("--format", () => "rich", "Output format");
         rootCommand.AddOption(formatOpt);
@@ -64,21 +69,29 @@ partial class Program
         rootCommand.AddCommand(CreateHelpCommand(felixPs1, rootCommand));
         rootCommand.AddCommand(CreateDashboardCommand(felixPs1));
         rootCommand.AddCommand(CreateTuiCommand(felixPs1));
+        return rootCommand;
+    }
 
-        if (args.Length > 0 && !args[0].StartsWith("-"))
+    static string? ResolveFelixScriptPath()
+    {
+        string? felixPs1 = null;
+
+        var searchDir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        while (searchDir != null && !File.Exists(Path.Combine(searchDir.FullName, ".felix", "felix.ps1")))
+            searchDir = searchDir.Parent;
+
+        if (searchDir != null)
+            felixPs1 = Path.GetFullPath(Path.Combine(searchDir.FullName, ".felix", "felix.ps1"));
+
+        if (felixPs1 == null || !File.Exists(felixPs1))
         {
-            var knownVerbs = rootCommand.Subcommands
-                .Select(c => c.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            knownVerbs.Add("--help");
-            knownVerbs.Add("--version");
-            if (!knownVerbs.Contains(args[0]))
-            {
-                await ExecutePowerShell(felixPs1, args);
-                return Environment.ExitCode;
-            }
+            var globalInstall = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs", "Felix", "felix.ps1");
+            if (File.Exists(globalInstall))
+                felixPs1 = globalInstall;
         }
 
-        return await rootCommand.InvokeAsync(args);
+        return felixPs1;
     }
 }
