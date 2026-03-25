@@ -23,6 +23,8 @@ public class TuiShellTests
         Assert.Contains(catalog, entry => entry.SlashPath == "run-next");
         Assert.Contains(catalog, entry => entry.SlashPath == "loop");
         Assert.Contains(catalog, entry => entry.SlashPath == "spec pull");
+        Assert.Contains(catalog, entry => entry.SlashPath == "context build");
+        Assert.Contains(catalog, entry => entry.SlashPath == "context show");
         Assert.Contains(catalog, entry => entry.SlashPath == "agent current");
         Assert.Contains(catalog, entry => entry.SlashPath == "procs list");
         Assert.DoesNotContain(catalog, entry => entry.SlashPath == "procs kill");
@@ -38,6 +40,17 @@ public class TuiShellTests
         Assert.Equal(Program.TuiCommandExecutionMode.Captured, Program.ResolveExecutionMode("agent current"));
         Assert.Equal(Program.TuiCommandExecutionMode.Standalone, Program.ResolveExecutionMode("run"));
         Assert.Equal(Program.TuiCommandExecutionMode.Standalone, Program.ResolveExecutionMode("procs kill"));
+    }
+
+    [Fact]
+    public void ResolveExecutionBackend_DefaultsKnownCatalogCommandsToCSharp()
+    {
+        var rootCommand = Program.CreateRootCommand("felix.ps1");
+        var catalog = Program.BuildTuiCommandCatalog(rootCommand);
+        var entry = Assert.Single(catalog, item => item.SlashPath == "spec list");
+
+        Assert.Equal(Program.TuiCommandExecutionBackend.Auto, entry.ExecutionBackend);
+        Assert.Equal(Program.TuiCommandExecutionBackend.CSharp, Program.ResolveExecutionBackend(rootCommand, entry));
     }
 
     [Fact]
@@ -84,6 +97,17 @@ public class TuiShellTests
 
         Assert.Contains(suggestions, suggestion => suggestion.Value == "planned");
         Assert.Contains(suggestions, suggestion => suggestion.Value == "done");
+    }
+
+    [Fact]
+    public void GetTuiSuggestions_SuggestsContextSubcommands()
+    {
+        var catalog = Program.BuildTuiCommandCatalog(Program.CreateRootCommand("felix.ps1"));
+
+        var suggestions = Program.GetTuiSuggestions(catalog, "/context ");
+
+        Assert.Contains(suggestions, suggestion => suggestion.Value == "build");
+        Assert.Contains(suggestions, suggestion => suggestion.Value == "show");
     }
 
     [Fact]
@@ -240,25 +264,35 @@ public class TuiShellTests
     }
 
     [Fact]
-    public void TranscriptWindow_DefaultsToLatestEntries()
+    public void TranscriptWindow_DefaultsToLatestLines()
     {
         var state = CreateTranscriptState(count: 20, Program.TuiLayoutMode.Normal, scrollOffset: 0);
-        var visible = InvokeVisibleTranscriptEntries(state);
+        var visible = InvokeVisibleTranscriptLines(state);
 
-        Assert.Equal(16, visible.Count);
-        Assert.Equal("/cmd 5", GetTranscriptCommand(visible[0]));
-        Assert.Equal("/cmd 20", GetTranscriptCommand(visible[^1]));
+        Assert.Equal(15, visible.Count);
+        Assert.Equal("> /cmd 16", GetTranscriptLineText(visible[0]));
+        Assert.Equal(string.Empty, GetTranscriptLineText(visible[^1]));
     }
 
     [Fact]
-    public void TranscriptWindow_PageUpShowsOlderEntries()
+    public void TranscriptWindow_PageUpShowsOlderLines()
     {
         var state = CreateTranscriptState(count: 20, Program.TuiLayoutMode.Normal, scrollOffset: 4);
-        var visible = InvokeVisibleTranscriptEntries(state);
+        var visible = InvokeVisibleTranscriptLines(state);
 
         Assert.Equal(16, visible.Count);
-        Assert.Equal("/cmd 1", GetTranscriptCommand(visible[0]));
-        Assert.Equal("/cmd 16", GetTranscriptCommand(visible[^1]));
+        Assert.Equal("out 14", GetTranscriptLineText(visible[0]));
+        Assert.Equal("out 19", GetTranscriptLineText(visible[^1]));
+    }
+
+    [Fact]
+    public void TranscriptWindow_SingleLineScrollMovesWindow()
+    {
+        var state = CreateTranscriptState(count: 20, Program.TuiLayoutMode.Normal, scrollOffset: 1);
+        var visible = InvokeVisibleTranscriptLines(state);
+
+        Assert.Equal(16, visible.Count);
+        Assert.Equal("out 15", GetTranscriptLineText(visible[0]));
     }
 
     [Fact]
@@ -311,15 +345,15 @@ public class TuiShellTests
         return state;
     }
 
-    private static IReadOnlyList<object> InvokeVisibleTranscriptEntries(object state)
+    private static IReadOnlyList<object> InvokeVisibleTranscriptLines(object state)
     {
-        var method = typeof(Program).GetMethod("GetVisibleTranscriptEntries", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var method = typeof(Program).GetMethod("GetVisibleTranscriptLines", BindingFlags.NonPublic | BindingFlags.Static)!;
         var result = (System.Collections.IEnumerable)method.Invoke(null, new[] { state })!;
         return result.Cast<object>().ToList();
     }
 
-    private static string GetTranscriptCommand(object transcriptEntry)
+    private static string GetTranscriptLineText(object transcriptLine)
     {
-        return (string)transcriptEntry.GetType().GetProperty("Command")!.GetValue(transcriptEntry)!;
+        return (string)transcriptLine.GetType().GetProperty("Text")!.GetValue(transcriptLine)!;
     }
 }

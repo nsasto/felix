@@ -1,4 +1,4 @@
-using System.CommandLine;
+﻿using System.CommandLine;
 using System.Text;
 using System.Text.RegularExpressions;
 using Spectre.Console;
@@ -30,7 +30,7 @@ partial class Program
         "loop",
         "validate",
         "deps",
-        "context show",
+        "context",
         "spec list",
         "spec fix",
         "spec status",
@@ -65,6 +65,13 @@ partial class Program
         Standalone
     }
 
+    internal enum TuiCommandExecutionBackend
+    {
+        Auto,
+        CSharp,
+        PowerShell
+    }
+
     internal enum TuiLayoutMode
     {
         Normal,
@@ -80,7 +87,8 @@ partial class Program
         string[] OptionAliases,
         string[] ArgumentNames,
         int MinimumPositionalArguments,
-        TuiCommandExecutionMode ExecutionMode);
+        TuiCommandExecutionMode ExecutionMode,
+        TuiCommandExecutionBackend ExecutionBackend);
 
     internal sealed record TuiSuggestion(string Value, string Description, bool IsCommand);
 
@@ -115,6 +123,7 @@ partial class Program
     }
 
     sealed record TuiTranscriptEntry(string Command, string Output, bool IsError = false);
+    sealed record TuiTranscriptRenderLine(string Text, bool IsCommand, bool IsError);
 
     internal sealed record TuiExecutionResult(bool ContinueRunning, string ResolvedInput, string[]? StandaloneArgs = null);
 
@@ -207,7 +216,7 @@ partial class Program
                 if (!running || state.PendingStandaloneArgs == null)
                     continue;
 
-                await ExecuteStandaloneTuiCommand(rootCommand, state);
+                await ExecuteStandaloneTuiCommand(felixPs1, rootCommand, catalog, state);
             }
         }
         finally
@@ -276,22 +285,36 @@ partial class Program
     static void WritePlainFooter(TuiShellState state, int footerTop)
     {
         var width = Math.Max(20, state.LastWindowSize.Width);
+        var originalForeground = Console.ForegroundColor;
+        var originalBackground = Console.BackgroundColor;
         var lines = BuildPlainFooterLines(state, width);
         for (var index = 0; index < lines.Count; index++)
         {
             try
             {
                 Console.SetCursorPosition(0, footerTop + index);
-                Console.Write(lines[index].PadRight(width));
+                Console.ForegroundColor = lines[index].Foreground;
+                Console.BackgroundColor = lines[index].Background;
+                Console.Write(lines[index].Text.PadRight(width));
             }
             catch
             {
+                Console.ForegroundColor = originalForeground;
+                Console.BackgroundColor = originalBackground;
                 return;
             }
         }
+
+        Console.ForegroundColor = originalForeground;
+        Console.BackgroundColor = originalBackground;
     }
 
-    static List<string> BuildPlainFooterLines(TuiShellState state, int width)
+    sealed record PlainFooterLine(string Text, ConsoleColor Foreground, ConsoleColor Background)
+    {
+        public static implicit operator PlainFooterLine(string text) => new(NormalizeFooterGlyphs(text), ConsoleColor.DarkGray, ConsoleColor.DarkBlue);
+    }
+
+    static List<PlainFooterLine> BuildPlainFooterLines(TuiShellState state, int width)
     {
         var visibleSuggestions = GetVisibleSuggestions(state).ToList();
         var startIndex = GetVisibleSuggestionStartIndex(state);
@@ -299,10 +322,10 @@ partial class Program
         var innerWidth = Math.Max(2, safeWidth - 2);
         var title = state.IsExecuting ? "Command [running]" : "Command";
         var topLine = BuildFooterBorderLine(title, safeWidth);
-        var contentLines = new List<string>
+        var contentLines = new List<PlainFooterLine>
         {
-            $"> {(string.IsNullOrWhiteSpace(state.Input) ? "type a slash command" : state.Input)}",
-            state.FooterStatus
+            CreateFooterContentLine($"> {(string.IsNullOrWhiteSpace(state.Input) ? "type a slash command" : state.Input)}", innerWidth, ConsoleColor.Gray, ConsoleColor.DarkBlue),
+            CreateFooterContentLine(state.FooterStatus, innerWidth, ConsoleColor.DarkGray, ConsoleColor.DarkBlue)
         };
 
         foreach (var suggestion in visibleSuggestions.Select((item, index) => new { item, index }))
@@ -310,15 +333,20 @@ partial class Program
             var description = state.LayoutMode == TuiLayoutMode.Minimal
                 ? suggestion.item.Value
                 : $"{suggestion.item.Value}  {TruncateText(suggestion.item.Description, 70)}";
-            var prefix = (startIndex + suggestion.index) == state.SelectedSuggestion ? "> " : "  ";
-            contentLines.Add(prefix + description);
+            var isSelected = (startIndex + suggestion.index) == state.SelectedSuggestion;
+            var prefix = isSelected ? "> " : "  ";
+            contentLines.Add(CreateFooterContentLine(
+                prefix + description,
+                innerWidth,
+                isSelected ? ConsoleColor.Black : ConsoleColor.Gray,
+                isSelected ? ConsoleColor.Cyan : ConsoleColor.DarkBlue));
         }
 
         while (contentLines.Count < TuiBaseFooterHeight + visibleSuggestions.Count - 2)
-            contentLines.Add(string.Empty);
+            contentLines.Add(CreateFooterContentLine(string.Empty, innerWidth, ConsoleColor.Gray, ConsoleColor.DarkBlue));
 
-        var lines = new List<string> { topLine };
-        lines.AddRange(contentLines.Select(line => WrapFooterContentLine(line, innerWidth)));
+        var lines = new List<PlainFooterLine> { new(topLine, ConsoleColor.DarkGray, ConsoleColor.DarkBlue) };
+        lines.AddRange(contentLines);
         lines.Add($"╰{new string('─', innerWidth)}╯");
         return lines;
     }
@@ -337,7 +365,7 @@ partial class Program
     static string WrapFooterContentLine(string content, int innerWidth)
     {
         var clipped = TruncatePlainText(content, innerWidth);
-        return $"│{clipped.PadRight(innerWidth)}│";
+        return $"{'\u2502'}{clipped.PadRight(innerWidth)}{'\u2502'}";
     }
 
     static void ClearTuiRegion(int startRow, int endExclusiveRow)
@@ -514,6 +542,11 @@ partial class Program
         {
             if (state.Suggestions.Count > 0)
                 SelectSuggestionIntoInput(catalog, state, state.SelectedSuggestion < 0 ? state.Suggestions.Count - 1 : (state.SelectedSuggestion - 1 + state.Suggestions.Count) % state.Suggestions.Count);
+            else
+            {
+                ScrollTranscript(state, 1);
+                state.IsBodyDirty = true;
+            }
             return false;
         }
 
@@ -521,6 +554,11 @@ partial class Program
         {
             if (state.Suggestions.Count > 0)
                 SelectSuggestionIntoInput(catalog, state, state.SelectedSuggestion < 0 ? 0 : (state.SelectedSuggestion + 1) % state.Suggestions.Count);
+            else
+            {
+                ScrollTranscript(state, -1);
+                state.IsBodyDirty = true;
+            }
             return false;
         }
 
@@ -582,8 +620,8 @@ partial class Program
             return new Padder(new Rows(rows), new Padding(0, 1, 0, 0));
         }
 
-        var visibleEntries = GetVisibleTranscriptEntries(state);
-        rows.AddRange(visibleEntries.Select(CreateTuiTranscriptEntryRenderable));
+        var visibleLines = GetVisibleTranscriptLines(state);
+        rows.AddRange(visibleLines.Select(CreateTuiTranscriptLineRenderable));
         return new Padder(new Rows(rows), new Padding(0, 0, 0, 1));
     }
 
@@ -636,7 +674,7 @@ partial class Program
 
     static int GetMaxTranscriptScrollOffset(TuiShellState state)
     {
-        return Math.Max(0, state.Transcript.Count - GetTranscriptPageSize(state));
+        return Math.Max(0, BuildTranscriptRenderLines(state.Transcript).Count - GetTranscriptPageSize(state));
     }
 
     static void ScrollTranscript(TuiShellState state, int delta)
@@ -645,27 +683,48 @@ partial class Program
         state.TranscriptScrollOffset = Math.Clamp(state.TranscriptScrollOffset + delta, 0, maxOffset);
     }
 
-    static IReadOnlyList<TuiTranscriptEntry> GetVisibleTranscriptEntries(TuiShellState state)
+    static IReadOnlyList<TuiTranscriptRenderLine> GetVisibleTranscriptLines(TuiShellState state)
     {
+        var allLines = BuildTranscriptRenderLines(state.Transcript);
         var maxEntries = GetTranscriptPageSize(state);
 
-        if (state.Transcript.Count <= maxEntries)
-            return state.Transcript;
+        if (allLines.Count <= maxEntries)
+            return allLines;
 
         state.TranscriptScrollOffset = Math.Clamp(state.TranscriptScrollOffset, 0, GetMaxTranscriptScrollOffset(state));
-        var endExclusive = Math.Max(maxEntries, state.Transcript.Count - state.TranscriptScrollOffset);
+        var endExclusive = Math.Max(maxEntries, allLines.Count - state.TranscriptScrollOffset);
         var startIndex = Math.Max(0, endExclusive - maxEntries);
-        return state.Transcript[startIndex..endExclusive];
+        while (startIndex < endExclusive && string.IsNullOrEmpty(allLines[startIndex].Text))
+            startIndex++;
+        return allLines[startIndex..endExclusive];
     }
 
-    static Spectre.Console.Rendering.IRenderable CreateTuiTranscriptEntryRenderable(TuiTranscriptEntry entry)
+    static List<TuiTranscriptRenderLine> BuildTranscriptRenderLines(IReadOnlyList<TuiTranscriptEntry> transcript)
     {
-        var output = string.IsNullOrWhiteSpace(entry.Output) ? "(no output)" : entry.Output.TrimEnd();
-        var commandColor = entry.IsError ? "red" : "cyan";
-        return new Rows(
-            new Markup($"[{commandColor}]>[/] {entry.Command.EscapeMarkup()}"),
-            new Text(output),
-            Text.Empty);
+        var lines = new List<TuiTranscriptRenderLine>();
+        foreach (var entry in transcript)
+        {
+            lines.Add(new TuiTranscriptRenderLine($"> {entry.Command}", true, entry.IsError));
+
+            var output = string.IsNullOrWhiteSpace(entry.Output) ? "(no output)" : entry.Output.TrimEnd();
+            foreach (var outputLine in output.Split('\n'))
+                lines.Add(new TuiTranscriptRenderLine(outputLine, false, entry.IsError));
+
+            lines.Add(new TuiTranscriptRenderLine(string.Empty, false, entry.IsError));
+        }
+
+        return lines;
+    }
+
+    static Spectre.Console.Rendering.IRenderable CreateTuiTranscriptLineRenderable(TuiTranscriptRenderLine line)
+    {
+        if (line.IsCommand)
+        {
+            var commandColor = line.IsError ? "red" : "cyan";
+            return new Markup($"[{commandColor}]{line.Text.EscapeMarkup()}[/]");
+        }
+
+        return new Text(line.Text);
     }
 
     static void AppendTuiTranscript(TuiShellState state, string command, string? output, bool isError = false)
@@ -874,7 +933,8 @@ partial class Program
 
     static async Task<(int ExitCode, string Output)> ExecuteCapturedTuiCommand(string felixPs1, RootCommand rootCommand, TuiCommandCatalogEntry entry, string[] invocationArgs)
     {
-        if (ShouldUsePlainPowerShellCapture(entry.SlashPath))
+        var backend = ResolveExecutionBackend(rootCommand, entry);
+        if (backend == TuiCommandExecutionBackend.PowerShell)
         {
             var args = BuildPlainCaptureArgs(entry.SlashPath, invocationArgs);
             var output = await ExecutePowerShellCapture(felixPs1, args);
@@ -891,14 +951,9 @@ partial class Program
         return (exitCode, captured);
     }
 
-    static bool ShouldUsePlainPowerShellCapture(string slashPath)
-    {
-        return slashPath is "help" or "status" or "list" or "spec list" or "validate" or "deps" or "context show";
-    }
-
     static string[] BuildPlainCaptureArgs(string slashPath, string[] invocationArgs)
     {
-        if (slashPath is "help" or "validate" or "deps")
+        if (!SupportsPlainFormatCapture(slashPath))
             return invocationArgs;
 
         if (invocationArgs.Contains("--format", StringComparer.OrdinalIgnoreCase))
@@ -907,7 +962,36 @@ partial class Program
         return invocationArgs.Concat(new[] { "--format", "plain" }).ToArray();
     }
 
-    static async Task ExecuteStandaloneTuiCommand(RootCommand rootCommand, TuiShellState state)
+    static bool SupportsPlainFormatCapture(string slashPath)
+    {
+        return slashPath is "help" or "status" or "list" or "spec list" or "context" or "procs list";
+    }
+
+    internal static TuiCommandExecutionBackend ResolveExecutionBackend(RootCommand rootCommand, TuiCommandCatalogEntry entry)
+    {
+        if (entry.ExecutionBackend != TuiCommandExecutionBackend.Auto)
+            return entry.ExecutionBackend;
+
+        return FindCommandByPath(rootCommand, entry.PathTokens) == null
+            ? TuiCommandExecutionBackend.PowerShell
+            : TuiCommandExecutionBackend.CSharp;
+    }
+
+    static Command? FindCommandByPath(Command rootCommand, IReadOnlyList<string> pathTokens)
+    {
+        Command current = rootCommand;
+        foreach (var token in pathTokens)
+        {
+            var next = current.Subcommands.FirstOrDefault(command => string.Equals(command.Name, token, StringComparison.OrdinalIgnoreCase));
+            if (next == null)
+                return null;
+            current = next;
+        }
+
+        return current;
+    }
+
+    static async Task ExecuteStandaloneTuiCommand(string felixPs1, RootCommand rootCommand, IReadOnlyList<TuiCommandCatalogEntry> catalog, TuiShellState state)
     {
         var input = state.PendingStandaloneInput ?? string.Empty;
         var invocationArgs = state.PendingStandaloneArgs;
@@ -919,7 +1003,23 @@ partial class Program
             return;
 
         AnsiConsole.Clear();
-        var exitCode = await rootCommand.InvokeAsync(invocationArgs);
+        var body = input.StartsWith("/", StringComparison.Ordinal) ? input[1..].Trim() : input.Trim();
+        var matchedCommand = FindMatchedCommand(catalog, body);
+        var backend = matchedCommand == null
+            ? TuiCommandExecutionBackend.PowerShell
+            : ResolveExecutionBackend(rootCommand, matchedCommand);
+
+        int exitCode;
+        if (backend == TuiCommandExecutionBackend.CSharp)
+        {
+            exitCode = await rootCommand.InvokeAsync(invocationArgs);
+        }
+        else
+        {
+            await ExecutePowerShell(felixPs1, invocationArgs);
+            exitCode = Environment.ExitCode;
+        }
+
         WaitForTuiResumeKey();
         state.Header = LoadTuiHeaderSnapshot();
         state.ResumeMessage = DescribeShellResume(exitCode);
@@ -1077,12 +1177,38 @@ partial class Program
         foreach (var subcommand in rootCommand.Subcommands)
             BuildTuiCommandCatalog(entries, rootCommand, subcommand, Array.Empty<string>());
 
-        entries.Add(new TuiCommandCatalogEntry("clear", "Clear the transcript", "/clear", new[] { "clear" }, Array.Empty<string>(), Array.Empty<string>(), 0, TuiCommandExecutionMode.Captured));
-        entries.Add(new TuiCommandCatalogEntry("quit", "Exit the TUI", "/quit", new[] { "quit" }, Array.Empty<string>(), Array.Empty<string>(), 0, TuiCommandExecutionMode.Captured));
+        AddVirtualTuiCommands(entries);
+        entries.Add(new TuiCommandCatalogEntry("clear", "Clear the transcript", "/clear", new[] { "clear" }, Array.Empty<string>(), Array.Empty<string>(), 0, TuiCommandExecutionMode.Captured, TuiCommandExecutionBackend.CSharp));
+        entries.Add(new TuiCommandCatalogEntry("quit", "Exit the TUI", "/quit", new[] { "quit" }, Array.Empty<string>(), Array.Empty<string>(), 0, TuiCommandExecutionMode.Captured, TuiCommandExecutionBackend.CSharp));
 
         return entries
             .OrderBy(entry => entry.SlashPath, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    static void AddVirtualTuiCommands(List<TuiCommandCatalogEntry> entries)
+    {
+        entries.Add(new TuiCommandCatalogEntry(
+            "context build",
+            "Generate project context documentation",
+            "/context build",
+            new[] { "context", "build" },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            0,
+            TuiCommandExecutionMode.Captured,
+            TuiCommandExecutionBackend.CSharp));
+
+        entries.Add(new TuiCommandCatalogEntry(
+            "context show",
+            "View generated project context documentation",
+            "/context show",
+            new[] { "context", "show" },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            0,
+            TuiCommandExecutionMode.Captured,
+            TuiCommandExecutionBackend.CSharp));
     }
 
     static void BuildTuiCommandCatalog(List<TuiCommandCatalogEntry> entries, RootCommand rootCommand, Command command, IReadOnlyList<string> parentPath)
@@ -1107,7 +1233,8 @@ partial class Program
                 optionAliases,
                 argumentNames,
                 GetMinimumPositionalArguments(slashPath, arguments),
-                ResolveExecutionMode(slashPath)));
+                ResolveExecutionMode(slashPath),
+                ResolveExecutionBackend(slashPath)));
         }
 
         foreach (var subcommand in command.Subcommands)
@@ -1149,7 +1276,7 @@ partial class Program
 
     internal static TuiCommandExecutionMode ResolveExecutionMode(string slashPath)
     {
-        if (slashPath is "help" or "version" or "status" or "list" or "validate" or "deps" or "context show"
+        if (slashPath is "help" or "version" or "status" or "list" or "validate" or "deps" or "context"
             or "agent list" or "agent current" or "agent install-help"
             or "procs list"
             or "spec list" or "spec fix" or "spec status" or "spec pull" or "spec push"
@@ -1159,6 +1286,15 @@ partial class Program
         }
 
         return TuiCommandExecutionMode.Standalone;
+    }
+
+    internal static TuiCommandExecutionBackend ResolveExecutionBackend(string slashPath)
+    {
+        return slashPath switch
+        {
+            "clear" or "quit" => TuiCommandExecutionBackend.CSharp,
+            _ => TuiCommandExecutionBackend.Auto
+        };
     }
 
     internal static List<TuiSuggestion> GetTuiSuggestions(IReadOnlyList<TuiCommandCatalogEntry> catalog, string input)
@@ -1285,6 +1421,13 @@ partial class Program
             return CreateValueSuggestions(GetRequirementSuggestions(null), partialToken, "requirement id")
                 .Concat(CreateValueSuggestions(new[] { "--incomplete", "--tree", "--check" }, partialToken, "option"))
                 .ToList();
+
+        if (string.Equals(entry.SlashPath, "context", StringComparison.OrdinalIgnoreCase))
+        {
+            var positional = GetPositionalValues(remainingTokens).ToList();
+            if (positional.Count == 0)
+                return CreateValueSuggestions(new[] { "build", "show" }, partialToken, "subcommand");
+        }
 
         if (string.Equals(entry.SlashPath, "agent use", StringComparison.OrdinalIgnoreCase)
             || string.Equals(entry.SlashPath, "agent set-default", StringComparison.OrdinalIgnoreCase)
@@ -1413,6 +1556,18 @@ partial class Program
         return value[..Math.Max(0, maxLength - 3)] + "...";
     }
 
+    static string NormalizeFooterGlyphs(string value)
+    {
+        return value;
+    }
+
+    static PlainFooterLine CreateFooterContentLine(string content, int innerWidth, ConsoleColor foreground, ConsoleColor background)
+    {
+        var clipped = TruncatePlainText(content, innerWidth);
+        return new PlainFooterLine($"│{clipped.PadRight(innerWidth)}│", foreground, background);
+    }
+
+
     static string TruncatePlainText(string value, int maxLength)
     {
         if (maxLength <= 0)
@@ -1444,12 +1599,12 @@ partial class Program
 
         return string.Join(Environment.NewLine, new[]
         {
-            "███████╗███████╗██╗     ██╗██╗  ██╗",
-            "██╔════╝██╔════╝██║     ██║╚██╗██╔╝",
-            "█████╗  █████╗  ██║     ██║ ╚███╔╝ ",
-            "██╔══╝  ██╔══╝  ██║     ██║ ██╔██╗ ",
-            "██║     ███████╗███████╗██║██╔╝ ██╗",
-            "╚═╝     ╚══════╝╚══════╝╚═╝╚═╝  ╚═╝"
+                "███████╗███████╗██╗     ██╗██╗  ██╗",
+                "██╔════╝██╔════╝██║     ██║╚██╗██╔╝",
+                "█████╗  █████╗  ██║     ██║ ╚███╔╝ ",
+                "██╔══╝  ██╔══╝  ██║     ██║ ██╔██╗ ",
+                "██║     ███████╗███████╗██║██╔╝ ██╗",
+                "╚═╝     ╚══════╝╚══════╝╚═╝╚═╝  ╚═╝"
         });
     }
 }

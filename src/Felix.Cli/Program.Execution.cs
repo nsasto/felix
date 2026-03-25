@@ -554,11 +554,20 @@ partial class Program
         var process = Process.Start(psi);
         if (process == null) return string.Empty;
 
-        var output = await process.StandardOutput.ReadToEndAsync();
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
         Environment.ExitCode = process.ExitCode;
 
-        return output;
+        if (string.IsNullOrWhiteSpace(stderr))
+            return stdout;
+
+        if (string.IsNullOrWhiteSpace(stdout))
+            return stderr;
+
+        return stdout.TrimEnd() + Environment.NewLine + stderr.TrimEnd();
     }
 
     static async Task<string?> CaptureGitOutputAsync(string gitArguments)
