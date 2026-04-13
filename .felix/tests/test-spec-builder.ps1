@@ -5,6 +5,7 @@ Tests for spec-builder.ps1 - Parse-SpecBuilderResponse and Get-SpecBuilderContex
 
 . "$PSScriptRoot/test-framework.ps1"
 . "$PSScriptRoot/../core/emit-event.ps1"
+. "$PSScriptRoot/../core/config-loader.ps1"
 . "$PSScriptRoot/../core/spec-builder.ps1"
 
 Describe "Parse-SpecBuilderResponse" {
@@ -86,7 +87,7 @@ Describe "Get-SpecBuilderContext" {
         Set-Content (Join-Path $tempDir "README.md") "# My Project" -Encoding UTF8
 
         try {
-            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir
+            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir -AgentsFile (Join-Path $tempDir "AGENTS.md")
             Assert-True ($context -match "README.md")
             Assert-True ($context -match "My Project")
         }
@@ -99,11 +100,13 @@ Describe "Get-SpecBuilderContext" {
         $tempDir = Join-Path $env:TEMP "test-specctx-$(Get-Random)"
         $specsDir = Join-Path $tempDir ".felix\specs"
         New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
-        Set-Content (Join-Path $tempDir "AGENTS.md") "# How to Run" -Encoding UTF8
+        $agentsPath = Join-Path $tempDir "docs\OPERATIONS.md"
+        New-Item -ItemType Directory -Path (Split-Path $agentsPath -Parent) -Force | Out-Null
+        Set-Content $agentsPath "# How to Run" -Encoding UTF8
 
         try {
-            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir
-            Assert-True ($context -match "AGENTS.md")
+            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir -AgentsFile $agentsPath
+            Assert-True ($context -match "OPERATIONS.md")
             Assert-True ($context -match "How to Run")
         }
         finally {
@@ -117,7 +120,7 @@ Describe "Get-SpecBuilderContext" {
         New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
 
         try {
-            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir
+            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir -AgentsFile (Join-Path $tempDir "AGENTS.md")
             Assert-True ($context -match "No existing specs")
         }
         finally {
@@ -132,7 +135,7 @@ Describe "Get-SpecBuilderContext" {
         Set-Content (Join-Path $specsDir "S-0001-example.md") "# S-0001: Example Spec" -Encoding UTF8
 
         try {
-            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir
+            $context = Get-SpecBuilderContext -ProjectPath $tempDir -SpecsDir $specsDir -AgentsFile (Join-Path $tempDir "AGENTS.md")
             Assert-True ($context -match "S-0001-example.md")
         }
         finally {

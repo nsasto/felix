@@ -18,10 +18,10 @@ function Invoke-Context {
         Write-Host "Usage: felix context <build|show|push|pull> [options]" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "Subcommands:" -ForegroundColor Yellow
-        Write-Host "  build [options]       Analyze project and generate CONTEXT.md"
-        Write-Host "  show                  Display current CONTEXT.md content"
-        Write-Host "  push [options]        Upload README.md, CONTEXT.md, AGENTS.md to server"
-        Write-Host "  pull [options]        Download README.md, CONTEXT.md, AGENTS.md from server"
+        Write-Host "  build [options]       Analyze project and generate the primary configured context file"
+        Write-Host "  show                  Display the primary configured context file"
+        Write-Host "  push [options]        Upload README.md and configured context files to server"
+        Write-Host "  pull [options]        Download README.md and configured context files from server"
         Write-Host ""
         Write-Host "Options for 'build':" -ForegroundColor Yellow
         Write-Host "  --include-hidden      Include hidden files/folders in analysis"
@@ -81,13 +81,7 @@ function Invoke-Context {
                 if ($firstAgent.key) { [string]$firstAgent.key } else { [string]$firstAgent.id }
             }
             $agentConfig = Get-AgentConfig -AgentsData $agentsData -AgentId $agentId -ConfigFile $configPath
-            $paths = @{
-                ProjectPath = $RepoRoot
-                FelixDir    = Join-Path $RepoRoot ".felix"
-                SpecsDir    = Join-Path $RepoRoot "specs"
-                PromptsDir  = Join-Path $PSScriptRoot "..\prompts"
-                AgentsFile  = Join-Path $RepoRoot "AGENTS.md"
-            }
+            $paths = Get-ProjectPaths -ProjectPath $RepoRoot
 
             if (-not $agentConfig) {
                 exit 1
@@ -107,10 +101,11 @@ function Invoke-Context {
         }
         
         "show" {
-            $contextPath = Join-Path $RepoRoot "CONTEXT.md"
+            $paths = Get-ProjectPaths -ProjectPath $RepoRoot
+            $contextPath = $paths.PrimaryContextFile
             if (-not (Test-Path $contextPath)) {
                 Write-Host ""
-                Write-Host "CONTEXT.md not found" -ForegroundColor Yellow
+                Write-Host "$($paths.ContextRelativePaths[0]) not found" -ForegroundColor Yellow
                 Write-Host "Run 'felix context build' to generate it" -ForegroundColor Gray
                 Write-Host ""
                 exit 1

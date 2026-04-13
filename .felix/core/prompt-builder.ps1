@@ -54,9 +54,16 @@ function New-IterationPrompt {
     # Gather context
     $contextParts = @()
     
-    # Reference AGENTS.md and CONTEXT.md instead of embedding full content
-    # This reduces token bloat and forces agents to actively read these files
-    $contextParts += "# File References - Read These from Disk`n`nThe system provides these reference files in the project root (read them yourself):`n`n- **AGENTS.md** - contains 'How to Run This Project' with commands for testing, building, and running the application`n- **CONTEXT.md** - contains project structure, technology stack, conventions, and patterns`n`nRead these files from the project root before starting work. Both are essential to understanding how to complete this requirement."
+    # Reference configured context files instead of embedding full content.
+    $referenceLines = [System.Collections.ArrayList]@()
+    if ($Paths.AgentsRelativePath) {
+        [void]$referenceLines.Add("- **$($Paths.AgentsRelativePath)** - operational guide with commands for testing, building, and running the application")
+    }
+    foreach ($contextPath in @($Paths.ContextRelativePaths)) {
+        [void]$referenceLines.Add("- **$contextPath** - project context, architecture, conventions, or supporting documentation")
+    }
+    $referenceText = if ($referenceLines.Count -gt 0) { ($referenceLines -join "`n") } else { "- No configured context files." }
+    $contextParts += "# File References - Read These from Disk`n`nThe system provides these configured reference files in the project root (read them yourself when present):`n`n$referenceText`n`nRead the configured files from disk before starting work. Missing files may be absent in this repository; continue with the available context."
     
     # Add Requirements context
     $requirements = Get-Content $Paths.RequirementsFile -Raw | ConvertFrom-Json
@@ -100,7 +107,7 @@ function New-IterationPrompt {
     $contextParts += "# Current Requirement Context`n`n``````json`n$reqSummary`n```````n`n*Note: Full requirements list available at ``.felix/requirements.json`` if you need to check other requirements.*"
     
     # Add reference to the requirement spec file
-    $specPath = if ($CurrentRequirement.spec_path) { $CurrentRequirement.spec_path } else { "specs/$($CurrentRequirement.id).md" }
+    $specPath = if ($CurrentRequirement.spec_path) { $CurrentRequirement.spec_path } else { "$($Paths.SpecsRelativePath)/$($CurrentRequirement.id).md" }
     $contextParts += "# Requirement Specification`n`nRead the full acceptance criteria and constraints in: **$specPath**`n`nYou MUST understand every line of the spec before planning or implementing."
     
     # Add current requirement header
@@ -133,7 +140,7 @@ function New-IterationPrompt {
     }
     
     # Target path for plan (relative to project root)
-    $planRelPath = "runs/$RunId/plan-$($CurrentRequirement.id).md"
+    $planRelPath = "$($Paths.RunsRelativePath)/$RunId/plan-$($CurrentRequirement.id).md"
     $planOutputPath = Join-Path $Paths.ProjectPath $planRelPath
     
     if ($Mode -eq "planning") {

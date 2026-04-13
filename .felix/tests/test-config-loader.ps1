@@ -24,6 +24,35 @@ Describe "Get-ProjectPaths" {
         # PromptsDir is relative to the core script location, not ProjectPath
         Assert-True (Test-Path $paths.PromptsDir -IsValid) "PromptsDir should be a valid path"
     }
+
+    It "should honor configured paths and prefix" {
+        $tempDir = Join-Path $env:TEMP "test-config-loader-$(Get-Random)"
+        New-Item -ItemType Directory -Path (Join-Path $tempDir ".felix") -Force | Out-Null
+        @'
+{
+  "requirements": { "prefix": "SPRINT" },
+  "paths": {
+    "specs": "requirements",
+    "runs": "work/runs",
+    "agents": "docs/OPERATIONS.md",
+    "context": ["docs/ARCHITECTURE.md", "docs/DOMAIN.md"]
+  }
+}
+'@ | Set-Content (Join-Path $tempDir ".felix\config.json") -Encoding UTF8
+
+        try {
+            $paths = Get-ProjectPaths -ProjectPath $tempDir
+            Assert-Equal (Join-Path $tempDir "requirements") $paths.SpecsDir
+            Assert-Equal (Join-Path $tempDir "work\runs") $paths.RunsDir
+            Assert-Equal (Join-Path $tempDir "docs\OPERATIONS.md") $paths.AgentsFile
+            Assert-Equal "SPRINT" $paths.RequirementsPrefix
+            Assert-Equal "requirements" $paths.SpecsRelativePath
+            Assert-Equal "docs/ARCHITECTURE.md" $paths.ContextRelativePaths[0]
+        }
+        finally {
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 Describe "Test-ProjectStructure" {

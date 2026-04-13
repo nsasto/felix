@@ -8,6 +8,7 @@
 . "$PSScriptRoot\spec-fix.ps1"
 . "$PSScriptRoot\spec-pull.ps1"
 . "$PSScriptRoot\spec-push.ps1"
+. "$PSScriptRoot\..\core\config-loader.ps1"
 
 #  Dispatcher 
 
@@ -91,8 +92,11 @@ function Invoke-SpecCreate {
                 Write-Host ""
             }
 
+            $configPath = Join-Path $RepoRoot ".felix\config.json"
+            $config = if (Test-Path $configPath) { Get-FelixConfig -ConfigFile $configPath } else { $null }
+            $prefix = Get-RequirementPrefix -Config $config
             $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
-            $nextId = "S-0001"
+            $nextId = "$prefix-0001"
 
             if (Test-Path $requirementsFile) {
                 try {
@@ -106,15 +110,15 @@ function Invoke-SpecCreate {
                     }
                     $maxNum = 0
                     foreach ($id in $existingIds) {
-                        if ($id -match '^S-(\d{4})$') {
+                        if ($id -match ("^" + [regex]::Escape($prefix) + '-(\d{4})$')) {
                             $num = [int]$matches[1]
                             if ($num -gt $maxNum) { $maxNum = $num }
                         }
                     }
-                    $nextId = "S-{0:D4}" -f ($maxNum + 1)
+                    $nextId = "$prefix-{0:D4}" -f ($maxNum + 1)
                 }
                 catch {
-                    Write-Warning "Could not read requirements.json, using S-0001"
+                    Write-Warning "Could not read requirements.json, using $nextId"
                 }
             }
 
@@ -211,8 +215,10 @@ function Invoke-SpecStatus {
         [string]$Status
     )
 
-    if ($RequirementId -notmatch '^S-\d{4}$') {
-        Write-Error 'Invalid requirement ID format. Expected S-NNNN (e.g., S-0001)'
+    $configPath = Join-Path $RepoRoot ".felix\config.json"
+    $config = if (Test-Path $configPath) { Get-FelixConfig -ConfigFile $configPath } else { $null }
+    if (-not (Test-RequirementId -RequirementId $RequirementId -Config $config)) {
+        Write-Error "Invalid requirement ID format. Expected $(Get-RequirementPrefix -Config $config)-NNNN (e.g., $(Get-RequirementIdExample -Config $config))"
         exit 1
     }
 
@@ -261,8 +267,10 @@ function Invoke-SpecStatus {
 function Invoke-SpecDelete {
     param([string]$RequirementId)
 
-    if ($RequirementId -notmatch '^S-\d{4}$') {
-        Write-Error 'Invalid requirement ID format. Expected S-NNNN (e.g., S-0001)'
+    $configPath = Join-Path $RepoRoot ".felix\config.json"
+    $config = if (Test-Path $configPath) { Get-FelixConfig -ConfigFile $configPath } else { $null }
+    if (-not (Test-RequirementId -RequirementId $RequirementId -Config $config)) {
+        Write-Error "Invalid requirement ID format. Expected $(Get-RequirementPrefix -Config $config)-NNNN (e.g., $(Get-RequirementIdExample -Config $config))"
         exit 1
     }
 

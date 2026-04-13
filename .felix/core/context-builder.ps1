@@ -61,24 +61,25 @@ function Invoke-ContextBuilder {
     
     Emit-Log -Level "info" -Message "Starting context builder" -Component "context-builder"
     
-    # Check if CONTEXT.md exists
-    $contextPath = Join-Path $ProjectPath "CONTEXT.md"
+    # Check if the primary configured context file exists
+    $contextPath = $Paths.PrimaryContextFile
+    $contextFileName = Split-Path $contextPath -Leaf
     $existingContext = $null
     
     if (Test-Path $contextPath) {
         $existingContext = Get-Content $contextPath -Raw -ErrorAction SilentlyContinue
         
         if ($existingContext) {
-            Emit-Log -Level "warn" -Message "CONTEXT.md already exists, will update with gap analysis" -Component "context-builder"
+            Emit-Log -Level "warn" -Message "$contextFileName already exists, will update with gap analysis" -Component "context-builder"
             
             # Create timestamped backup
             $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-            $backupPath = Join-Path $ProjectPath "CONTEXT.md.bak-$timestamp"
+            $backupPath = Join-Path (Split-Path $contextPath -Parent) ($contextFileName + ".bak-$timestamp")
             
             try {
                 Copy-Item $contextPath $backupPath -Force
                 $backupFilename = Split-Path $backupPath -Leaf
-                Emit-Log -Level "info" -Message "Backed up existing CONTEXT.md to $backupFilename" -Component "context-builder"
+                Emit-Log -Level "info" -Message "Backed up existing $contextFileName to $backupFilename" -Component "context-builder"
             }
             catch {
                 Emit-Log -Level "warn" -Message "Failed to create backup: $_" -Component "context-builder"
@@ -95,11 +96,11 @@ function Invoke-ContextBuilder {
     
     # Include existing CONTEXT.md if present
     if ($existingContext) {
-        $contextParts += "# Existing CONTEXT.md`n`n$existingContext`n`n---`n"
-        $contextParts += "**Your task**: Review the above CONTEXT.md and update it. Add missing sections, correct outdated info, expand on gaps.`n"
+        $contextParts += "# Existing $contextFileName`n`n$existingContext`n`n---`n"
+        $contextParts += "**Your task**: Review the above $contextFileName and update it. Add missing sections, correct outdated info, expand on gaps.`n"
     }
     else {
-        $contextParts += "**Your task**: Generate a comprehensive CONTEXT.md from scratch.`n"
+        $contextParts += "**Your task**: Generate a comprehensive $contextFileName from scratch.`n"
     }
     
     # Add project structure summary
@@ -121,14 +122,13 @@ function Invoke-ContextBuilder {
         }
     }
     
-    # AGENTS.md
     if (Test-Path $Paths.AgentsFile) {
         $agents = Get-Content $Paths.AgentsFile -Raw -ErrorAction SilentlyContinue
         if ($agents) {
             if ($agents.Length -gt 2000) {
                 $agents = $agents.Substring(0, 2000) + "`n`n[... truncated ...]"
             }
-            $contextParts += "`n## AGENTS.md`n`n$agents`n"
+            $contextParts += "`n## $(Split-Path $Paths.AgentsFile -Leaf)`n`n$agents`n"
         }
     }
     
@@ -171,11 +171,13 @@ function Invoke-ContextBuilder {
         return @{ ExitCode = 1 }
     }
     $systemPrompt = Get-Content $promptPath -Raw
+    $systemPrompt = $systemPrompt.Replace("CONTEXT.md", $contextFileName)
+    $systemPrompt = $systemPrompt.Replace("AGENTS.md", (Split-Path $Paths.AgentsFile -Leaf))
     
     # Combine prompt and context
     $fullPrompt = "$systemPrompt`n`n---`n`n# Project Analysis Input`n`n$($contextParts -join "`n")"
     
-    # Call agent to analyze and write CONTEXT.md
+    # Call agent to analyze and write the primary configured context file
     Emit-Log -Level "info" -Message "Calling agent for analysis..." -Component "context-builder"
     
     try {
@@ -196,18 +198,18 @@ function Invoke-ContextBuilder {
     
     # Verify the file was created/updated
     if (-not (Test-Path $contextPath)) {
-        Emit-Error -ErrorType "NoContextGenerated" -Message "Agent did not create CONTEXT.md" -Severity "fatal"
+        Emit-Error -ErrorType "NoContextGenerated" -Message "Agent did not create $contextFileName" -Severity "fatal"
         return @{ ExitCode = 1 }
     }
     
-    Emit-Log -Level "info" -Message "CONTEXT.md written to $contextPath" -Component "context-builder"
+    Emit-Log -Level "info" -Message "$contextFileName written to $contextPath" -Component "context-builder"
     
     # Success
     Write-Host ""
-    Write-Host "[OK] CONTEXT.md generated successfully." -ForegroundColor Green
+    Write-Host "[OK] $contextFileName generated successfully." -ForegroundColor Green
     Write-Host "   Location: $contextPath" -ForegroundColor Cyan
     if ($existingContext) {
-        Write-Host "   Backup:   CONTEXT.md.bak-$timestamp" -ForegroundColor Gray
+        Write-Host "   Backup:   $(Split-Path $backupPath -Leaf)" -ForegroundColor Gray
     }
     Write-Host ""
     

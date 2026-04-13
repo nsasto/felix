@@ -3,10 +3,12 @@
 # Helpers and Invoke-SpecFix for `felix spec fix`
 # Dot-sourced by spec.ps1
 
+. "$PSScriptRoot\..\core\config-loader.ps1"
+
 function Get-NextAvailableSpecId {
-    param([int]$StartFrom, [string]$SpecsDir)
+    param([int]$StartFrom, [string]$SpecsDir, [string]$Prefix = "S")
     $nextId = $StartFrom + 1
-    while (Test-Path (Join-Path $SpecsDir "S-$($nextId.ToString('0000'))*")) {
+    while (Test-Path (Join-Path $SpecsDir "$Prefix-$($nextId.ToString('0000'))*")) {
         $nextId++
     }
     return $nextId
@@ -69,7 +71,11 @@ function Invoke-SpecFix {
     Write-Host "Scanning specs folder and validating requirements.json..." -ForegroundColor Gray
     Write-Host ""
     
-    $specsDir = Join-Path $RepoRoot "specs"
+    $configPath = Join-Path $RepoRoot ".felix\config.json"
+    $config = if (Test-Path $configPath) { Get-FelixConfig -ConfigFile $configPath } else { $null }
+    $prefix = Get-RequirementPrefix -Config $config
+    $paths = Get-ProjectPaths -ProjectPath $RepoRoot
+    $specsDir = $paths.SpecsDir
     $requirementsFile = Join-Path $RepoRoot ".felix\requirements.json"
     
     if (-not (Test-Path $specsDir)) {
@@ -101,7 +107,7 @@ function Invoke-SpecFix {
     }
     
     # Get all spec files
-    $specFiles = Get-ChildItem -Path $specsDir -Filter "S-*.md" | Sort-Object Name
+    $specFiles = Get-ChildItem -Path $specsDir -Filter "$prefix-*.md" | Sort-Object Name
     Write-Host "Found $($specFiles.Count) spec files" -ForegroundColor Cyan
     Write-Host ""
     
@@ -116,9 +122,9 @@ function Invoke-SpecFix {
     
     # Find max spec ID for duplicate renaming
     $allSpecIds = @()
-    $tempFiles = Get-ChildItem -Path $specsDir -Filter "S-*.md"
+    $tempFiles = Get-ChildItem -Path $specsDir -Filter "$prefix-*.md"
     foreach ($f in $tempFiles) {
-        if ($f.Name -match '^S-(\d{4})') {
+        if ($f.Name -match ("^" + [regex]::Escape($prefix) + '-(\d{4})')) {
             $allSpecIds += [int]$Matches[1]
         }
     }
@@ -142,16 +148,16 @@ function Invoke-SpecFix {
     foreach ($specFile in $specFiles) {
         $fileName = $specFile.Name
         
-        if ($fileName -match '^(S-\d{4})') {
+        if ($fileName -match ("^(" + [regex]::Escape($prefix) + '-\d{4})')) {
             $reqId = $Matches[1]
             
             # Check for duplicate IDs
             if ($processedIds.ContainsKey($reqId)) {
                 if ($FixDuplicates) {
-                    $nextId = Get-NextAvailableSpecId -StartFrom $maxSpecId -SpecsDir $specsDir
+                    $nextId = Get-NextAvailableSpecId -StartFrom $maxSpecId -SpecsDir $specsDir -Prefix $prefix
                     $maxSpecId = $nextId
-                    $newReqId = "S-$($nextId.ToString('0000'))"
-                    $newFileName = $fileName -replace '^S-\d{4}', $newReqId
+                    $newReqId = "$prefix-$($nextId.ToString('0000'))"
+                    $newFileName = $fileName -replace ("^" + [regex]::Escape($prefix) + '-\d{4}'), $newReqId
                     $oldPath = Join-Path $specsDir $fileName
                     $newPath = Join-Path $specsDir $newFileName
                     
@@ -189,7 +195,7 @@ function Invoke-SpecFix {
             try {
                 if ($existingReqs.ContainsKey($reqId)) {
                     $existing = $existingReqs[$reqId]
-                    $relativePath = "specs/$fileName"
+                    $relativePath = "$($paths.SpecsRelativePath)/$fileName"
                     if ($existing.spec_path -ne $relativePath) {
                         $existing.spec_path = $relativePath
                         $updated += $reqId
@@ -202,7 +208,7 @@ function Invoke-SpecFix {
                 else {
                     $newReq = [ordered]@{
                         id        = $reqId
-                        spec_path = "specs/$fileName"
+                        spec_path = "$($paths.SpecsRelativePath)/$fileName"
                         status    = "draft"
                     }
                     $existingReqs[$reqId] = $newReq
@@ -218,7 +224,7 @@ function Invoke-SpecFix {
         }
         else {
             $errors += "Invalid filename format: $fileName"
-            Write-Host "  [WARN] Invalid $fileName - not in S-NNNN format" -ForegroundColor Magenta
+            Write-Host "  [WARN] Invalid $fileName - not in $prefix-NNNN format" -ForegroundColor Magenta
         }
     }
     
@@ -258,7 +264,7 @@ function Invoke-SpecFix {
     # Rebuild requirements array from spec files
     $allRequirements = @()
     foreach ($specFile in $specFiles) {
-        if ($specFile.Name -match '^(S-\d{4})') {
+        if ($specFile.Name -match ("^(" + [regex]::Escape($prefix) + '-\d{4})')) {
             $reqId = $Matches[1]
             $origReq = $requirementsData.requirements | Where-Object { $_.id -eq $reqId }
             
@@ -276,7 +282,7 @@ function Invoke-SpecFix {
                 }
                 $reqHash = [ordered]@{
                     id        = $origReq.id
-                    spec_path = "specs/$($specFile.Name)"
+                    spec_path = "$($paths.SpecsRelativePath)/$($specFile.Name)"
                     status    = $resolvedStatus
                 }
                 if (-not [string]::IsNullOrWhiteSpace($resolvedTitle)) {
@@ -301,7 +307,7 @@ function Invoke-SpecFix {
                 }
                 $reqHash = [ordered]@{
                     id        = $reqId
-                    spec_path = "specs/$($specFile.Name)"
+                    spec_path = "$($paths.SpecsRelativePath)/$($specFile.Name)"
                     status    = $resolvedStatus
                 }
                 if (-not [string]::IsNullOrWhiteSpace($resolvedTitle)) {

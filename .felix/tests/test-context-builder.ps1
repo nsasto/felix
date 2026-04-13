@@ -149,6 +149,7 @@ Describe "Invoke-ContextBuilder" {
                     SpecsDir    = Join-Path $tempDir "specs"
                     PromptsDir  = $promptsDir
                     AgentsFile  = $agentsPath
+                    PrimaryContextFile = Join-Path $tempDir "CONTEXT.md"
                 })
 
             Assert-Equal 0 $result.ExitCode
@@ -204,6 +205,7 @@ Describe "Invoke-ContextBuilder verbose propagation" {
                     SpecsDir    = Join-Path $tempDir "specs"
                     PromptsDir  = $promptsDir
                     AgentsFile  = Join-Path $tempDir "AGENTS.md"
+                    PrimaryContextFile = Join-Path $tempDir "CONTEXT.md"
                 })
 
             Assert-Equal 0 $result.ExitCode

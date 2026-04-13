@@ -3,6 +3,8 @@
 # Invoke-SpecPull for `felix spec pull`
 # Dot-sourced by spec.ps1
 
+. "$PSScriptRoot\..\core\config-loader.ps1"
+
 function Invoke-SpecPull {
     param(
         [switch]$DryRun,
@@ -82,7 +84,9 @@ function Invoke-SpecPull {
     Write-Host "  $($toDownload.Count) file(s) to download, $($toDelete.Count) file(s) to remove" -ForegroundColor Gray
     Write-Host ""
 
-    $specsDir = Join-Path $RepoRoot "specs"
+    $paths = Get-ProjectPaths -ProjectPath $RepoRoot
+    $specsDir = $paths.SpecsDir
+    $prefix = Get-RequirementPrefix -Config $config
     $newFileCount = 0
 
     # ── Download changed files ───────────────────────────────────────────────
@@ -130,7 +134,7 @@ function Invoke-SpecPull {
 
             # Create .meta.json sidecar for new .md spec files (fallback only;
             # the server also sends a separate .meta.json entry with full content including status)
-            if ($isNew -and $relPath -match 'specs/S-\d{4}[^/]*\.md$') {
+            if ($isNew -and $relPath -match ("^" + [regex]::Escape($paths.SpecsRelativePath) + '/' + [regex]::Escape($prefix) + '-\d{4}[^/]*\.md$')) {
                 $metaRelPath = $relPath -replace '\.md$', '.meta.json'
                 $metaPath = Join-Path $RepoRoot ($metaRelPath -replace '/', '\')
                 if (-not (Test-Path $metaPath)) {

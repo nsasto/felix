@@ -305,8 +305,9 @@ partial class Program
         var configPath = Path.Combine(selectedProjectRoot, ".felix", "config.json");
         var config = LoadSetupConfig(configPath);
         EnsureSetupConfigDefaults(config);
+        ConfigureProjectConventions(config);
 
-        await EnsureAgentsGuideAsync(selectedProjectRoot);
+        await EnsureAgentsGuideAsync(selectedProjectRoot, config);
 
         if (AnsiConsole.Confirm("Configure or update agent profiles in [cyan].felix/agents.json[/]?", true))
             await UseAgentSetupInteractive(felixPs1);
@@ -962,8 +963,13 @@ partial class Program
         CopyIfMissing(Path.Combine(installRoot, "policies", "allowlist.json"), Path.Combine(felixDir, "policies", "allowlist.json"), "policies/allowlist.json", created, skipped);
         CopyIfMissing(Path.Combine(installRoot, "policies", "denylist.json"), Path.Combine(felixDir, "policies", "denylist.json"), "policies/denylist.json", created, skipped);
 
-        EnsureDirectory(Path.Combine(projectRoot, "specs"), "specs/", created, skipped);
-        EnsureDirectory(Path.Combine(projectRoot, "runs"), "runs/", created, skipped);
+        var config = LoadSetupConfig(configPath);
+        EnsureSetupConfigDefaults(config);
+        var specsRelativePath = GetSpecsDirectoryRelativePath(config);
+        var runsRelativePath = GetRunsDirectoryRelativePath(config);
+
+        EnsureDirectory(Path.Combine(projectRoot, specsRelativePath.Replace('/', Path.DirectorySeparatorChar)), specsRelativePath + "/", created, skipped);
+        EnsureDirectory(Path.Combine(projectRoot, runsRelativePath.Replace('/', Path.DirectorySeparatorChar)), runsRelativePath + "/", created, skipped);
         EnsureGitIgnore(projectRoot, created, skipped);
 
         return new ScaffoldResult(isNewProject, created, skipped, installRoot);
@@ -1003,11 +1009,46 @@ partial class Program
         }
     }
 
-    static string BuildDefaultSetupConfigJson()
+    internal static string BuildDefaultSetupConfigJson()
     {
         var config = new JsonObject
         {
+            ["version"] = "0.1.0",
+            ["requirements"] = new JsonObject
+            {
+                ["prefix"] = "S"
+            },
+            ["paths"] = new JsonObject
+            {
+                ["specs"] = "specs",
+                ["runs"] = "runs",
+                ["agents"] = "AGENTS.md",
+                ["context"] = new JsonArray("CONTEXT.md")
+            },
             ["agent"] = new JsonObject { ["agent_id"] = null },
+            ["executor"] = new JsonObject
+            {
+                ["mode"] = "local",
+                ["max_iterations"] = 20,
+                ["default_mode"] = "planning",
+                ["commit_on_complete"] = true
+            },
+            ["backpressure"] = new JsonObject
+            {
+                ["enabled"] = false,
+                ["commands"] = new JsonArray(),
+                ["max_retries"] = 3
+            },
+            ["plugins"] = new JsonObject
+            {
+                ["enabled"] = true,
+                ["discovery_path"] = ".felix/plugins",
+                ["api_version"] = "v1",
+                ["disabled"] = new JsonArray("prompt-enhancer", "metrics-collector", "slack-notifier"),
+                ["state_retention_days"] = 7,
+                ["circuit_breaker_max_failures"] = 3,
+                ["commands"] = new JsonArray()
+            },
             ["sync"] = new JsonObject
             {
                 ["enabled"] = false,
@@ -1021,6 +1062,34 @@ partial class Program
 
     internal static void EnsureSetupConfigDefaults(JsonObject config)
     {
+        if (!config.ContainsKey("version"))
+            config["version"] = "0.1.0";
+
+        var requirements = EnsureObject(config, "requirements");
+        if (!requirements.ContainsKey("prefix") || string.IsNullOrWhiteSpace(requirements["prefix"]?.GetValue<string>()))
+            requirements["prefix"] = "S";
+
+        var paths = EnsureObject(config, "paths");
+        if (!paths.ContainsKey("specs") || string.IsNullOrWhiteSpace(paths["specs"]?.GetValue<string>()))
+            paths["specs"] = "specs";
+        if (!paths.ContainsKey("runs") || string.IsNullOrWhiteSpace(paths["runs"]?.GetValue<string>()))
+            paths["runs"] = "runs";
+        if (!paths.ContainsKey("agents") || string.IsNullOrWhiteSpace(paths["agents"]?.GetValue<string>()))
+            paths["agents"] = "AGENTS.md";
+        if (paths["context"] is not JsonArray contextArray)
+        {
+            var existingContext = paths["context"] is JsonValue contextValue && contextValue.TryGetValue<string>(out var contextString) && !string.IsNullOrWhiteSpace(contextString)
+                ? contextString
+                : "CONTEXT.md";
+            paths["context"] = new JsonArray(existingContext);
+            contextArray = (JsonArray)paths["context"]!;
+        }
+
+        if (contextArray.Count == 0)
+            contextArray.Add("CONTEXT.md");
+
+        paths.Remove("additional_context");
+
         var agent = EnsureObject(config, "agent");
         if (!agent.ContainsKey("agent_id"))
             agent["agent_id"] = null;
@@ -1037,37 +1106,53 @@ partial class Program
         if (!backpressure.ContainsKey("max_retries")) backpressure["max_retries"] = 3;
 
         var executor = EnsureObject(config, "executor");
+        if (!executor.ContainsKey("mode")) executor["mode"] = "local";
         if (!executor.ContainsKey("max_iterations")) executor["max_iterations"] = 20;
         if (!executor.ContainsKey("default_mode")) executor["default_mode"] = "planning";
         if (!executor.ContainsKey("commit_on_complete")) executor["commit_on_complete"] = true;
+
+        var plugins = EnsureObject(config, "plugins");
+        if (!plugins.ContainsKey("enabled")) plugins["enabled"] = true;
+        if (!plugins.ContainsKey("discovery_path")) plugins["discovery_path"] = ".felix/plugins";
+        if (!plugins.ContainsKey("api_version")) plugins["api_version"] = "v1";
+        if (plugins["disabled"] is not JsonArray)
+            plugins["disabled"] = new JsonArray("prompt-enhancer", "metrics-collector", "slack-notifier");
+        if (!plugins.ContainsKey("state_retention_days")) plugins["state_retention_days"] = 7;
+        if (!plugins.ContainsKey("circuit_breaker_max_failures")) plugins["circuit_breaker_max_failures"] = 3;
+        if (plugins["commands"] is not JsonArray)
+            plugins["commands"] = new JsonArray();
     }
 
-    static async Task EnsureAgentsGuideAsync(string projectRoot)
+    static async Task EnsureAgentsGuideAsync(string projectRoot, JsonObject? config = null)
     {
-        var agentsPath = Path.Combine(projectRoot, "AGENTS.md");
+        config ??= LoadSetupConfig(Path.Combine(projectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+        var agentsRelativePath = GetAgentsRelativePath(config);
+        var agentsPath = Path.Combine(projectRoot, agentsRelativePath.Replace('/', Path.DirectorySeparatorChar));
         if (File.Exists(agentsPath))
         {
-            AnsiConsole.MarkupLine("[green]AGENTS.md found.[/] Project guidance is already present.");
+            AnsiConsole.MarkupLine($"[green]{agentsRelativePath.EscapeMarkup()} found.[/] Project guidance is already present.");
             AnsiConsole.WriteLine();
             return;
         }
 
-        var panel = new Panel("Felix works better when AGENTS.md explains how to install dependencies, run tests, build, and start the project.")
+        var panel = new Panel($"Felix works better when {agentsRelativePath} explains how to install dependencies, run tests, build, and start the project.")
         {
-            Header = new PanelHeader("[yellow]AGENTS.md missing[/]"),
+            Header = new PanelHeader($"[yellow]{agentsRelativePath.EscapeMarkup()} missing[/]"),
             Border = BoxBorder.Rounded
         };
         AnsiConsole.Write(panel);
 
-        if (AnsiConsole.Confirm("Create a starter AGENTS.md now?", true))
+        if (AnsiConsole.Confirm($"Create a starter {agentsRelativePath} now?", true))
         {
             var content = "# Agents - How to Operate This Repository\n\n## Install Dependencies\n\n<!-- Describe how to install project dependencies -->\n\n## Run Tests\n\n<!-- Describe how to run the test suite -->\n\n## Build the Project\n\n<!-- Describe how to build the project -->\n\n## Start the Application\n\n<!-- Describe how to start the application -->\n";
+            Directory.CreateDirectory(Path.GetDirectoryName(agentsPath)!);
             File.WriteAllText(agentsPath, content);
-            AnsiConsole.MarkupLine("[green]Created AGENTS.md[/]");
+            AnsiConsole.MarkupLine($"[green]Created {agentsRelativePath.EscapeMarkup()}[/]");
         }
         else
         {
-            AnsiConsole.MarkupLine("[yellow]Skipped AGENTS.md creation.[/] Agents will have less project context until you add it.");
+            AnsiConsole.MarkupLine($"[yellow]Skipped {agentsRelativePath.EscapeMarkup()} creation.[/] Agents will have less project context until you add it.");
         }
 
         AnsiConsole.WriteLine();
@@ -1159,6 +1244,51 @@ partial class Program
             backpressure["commands"] = new JsonArray(value.Trim());
         }
 
+        AnsiConsole.WriteLine();
+    }
+
+    static void ConfigureProjectConventions(JsonObject config)
+    {
+        var requirements = EnsureObject(config, "requirements");
+        var paths = EnsureObject(config, "paths");
+
+        var currentPrefix = GetRequirementPrefix(config);
+        var currentSpecs = GetSpecsDirectoryRelativePath(config);
+        var currentAgents = GetAgentsRelativePath(config);
+        var currentContexts = GetContextRelativePaths(config);
+        var currentContextValue = string.Join(", ", currentContexts);
+
+        var prefixValue = AnsiConsole.Prompt(
+            new TextPrompt<string>($"[cyan]Requirement prefix[/] [grey](Enter keeps {currentPrefix.EscapeMarkup()})[/]")
+                .AllowEmpty());
+        if (!string.IsNullOrWhiteSpace(prefixValue))
+            requirements["prefix"] = prefixValue.Trim();
+
+        var specsValue = AnsiConsole.Prompt(
+            new TextPrompt<string>($"[cyan]Specs directory[/] [grey](Enter keeps {currentSpecs.EscapeMarkup()})[/]")
+                .AllowEmpty());
+        if (!string.IsNullOrWhiteSpace(specsValue))
+            paths["specs"] = NormalizeRelativeProjectPath(specsValue, currentSpecs);
+
+        var agentsValue = AnsiConsole.Prompt(
+            new TextPrompt<string>($"[cyan]Agents guide path[/] [grey](Enter keeps {currentAgents.EscapeMarkup()})[/]")
+                .AllowEmpty());
+        if (!string.IsNullOrWhiteSpace(agentsValue))
+            paths["agents"] = NormalizeRelativeProjectPath(agentsValue, currentAgents);
+
+        var contextValue = AnsiConsole.Prompt(
+            new TextPrompt<string>($"[cyan]Context files[/] [grey](comma-separated, Enter keeps {currentContextValue.EscapeMarkup()})[/]")
+                .AllowEmpty());
+        if (!string.IsNullOrWhiteSpace(contextValue))
+        {
+            var parsed = contextValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => NormalizeRelativeProjectPath(value, "CONTEXT.md"))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            paths["context"] = new JsonArray(parsed.Select(value => JsonValue.Create(value)).ToArray<JsonNode?>());
+        }
+
+        EnsureSetupConfigDefaults(config);
         AnsiConsole.WriteLine();
     }
 

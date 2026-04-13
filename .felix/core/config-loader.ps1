@@ -9,6 +9,86 @@ resolving agent configuration, and validating project structure.
 
 . "$PSScriptRoot/emit-event.ps1"
 
+function Get-NormalizedRelativeProjectPath {
+    param(
+        [string]$PathValue,
+        [string]$Fallback
+    )
+
+    $candidate = if ([string]::IsNullOrWhiteSpace($PathValue)) { $Fallback } else { $PathValue.Trim() }
+    $candidate = $candidate -replace '\\', '/'
+    $candidate = $candidate.Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        $candidate = $Fallback
+    }
+
+    if ([System.IO.Path]::IsPathRooted($candidate)) {
+        return $Fallback
+    }
+
+    $segments = @($candidate.Split('/', [System.StringSplitOptions]::RemoveEmptyEntries))
+    if ($segments -contains '..') {
+        return $Fallback
+    }
+
+    return ($segments -join '/')
+}
+
+function Get-NormalizedRelativeProjectPathList {
+    param(
+        $Value,
+        [string]$Fallback
+    )
+
+    $items = [System.Collections.ArrayList]@()
+    if ($Value -is [System.Array]) {
+        foreach ($entry in $Value) {
+            if ([string]::IsNullOrWhiteSpace([string]$entry)) { continue }
+            $normalized = Get-NormalizedRelativeProjectPath -PathValue ([string]$entry) -Fallback $Fallback
+            if (-not ($items -contains $normalized)) { [void]$items.Add($normalized) }
+        }
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace([string]$Value)) {
+        [void]$items.Add((Get-NormalizedRelativeProjectPath -PathValue ([string]$Value) -Fallback $Fallback))
+    }
+
+    if ($items.Count -eq 0) {
+        [void]$items.Add($Fallback)
+    }
+
+    return @($items)
+}
+
+function Get-RequirementPrefix {
+    param($Config)
+
+    $prefix = if ($Config -and $Config.requirements -and $Config.requirements.prefix) { [string]$Config.requirements.prefix } else { "S" }
+    if ([string]::IsNullOrWhiteSpace($prefix)) { return "S" }
+    return $prefix.Trim()
+}
+
+function Get-RequirementIdPattern {
+    param($Config)
+
+    $prefix = [regex]::Escape((Get-RequirementPrefix -Config $Config))
+    return "^${prefix}-\d{4}$"
+}
+
+function Test-RequirementId {
+    param(
+        [string]$RequirementId,
+        $Config
+    )
+
+    return $RequirementId -match (Get-RequirementIdPattern -Config $Config)
+}
+
+function Get-RequirementIdExample {
+    param($Config)
+
+    return "$(Get-RequirementPrefix -Config $Config)-0001"
+}
+
 function Get-ProjectPaths {
     <#
     .SYNOPSIS
@@ -25,12 +105,31 @@ function Get-ProjectPaths {
         [string]$ProjectPath
     )
     
+    $configFile = Join-Path (Join-Path $ProjectPath ".felix") "config.json"
+    $config = $null
+    if (Test-Path $configFile) {
+        try { $config = Get-Content $configFile -Raw | ConvertFrom-Json } catch { $config = $null }
+    }
+
+    $specsRelative = Get-NormalizedRelativeProjectPath -PathValue $(if ($config -and $config.paths) { [string]$config.paths.specs } else { $null }) -Fallback "specs"
+    $runsRelative = Get-NormalizedRelativeProjectPath -PathValue $(if ($config -and $config.paths) { [string]$config.paths.runs } else { $null }) -Fallback "runs"
+    $agentsRelative = Get-NormalizedRelativeProjectPath -PathValue $(if ($config -and $config.paths) { [string]$config.paths.agents } else { $null }) -Fallback "AGENTS.md"
+    $contextRelative = @(Get-NormalizedRelativeProjectPathList -Value $(if ($config -and $config.paths) { $config.paths.context } else { $null }) -Fallback "CONTEXT.md")
+
     return @{
         ProjectPath      = $ProjectPath
-        SpecsDir         = Join-Path $ProjectPath "specs"
+        SpecsDir         = Join-Path $ProjectPath ($specsRelative -replace '/', [IO.Path]::DirectorySeparatorChar)
         FelixDir         = Join-Path $ProjectPath ".felix"
-        RunsDir          = Join-Path $ProjectPath "runs"
-        AgentsFile       = Join-Path $ProjectPath "AGENTS.md"
+        RunsDir          = Join-Path $ProjectPath ($runsRelative -replace '/', [IO.Path]::DirectorySeparatorChar)
+        AgentsFile       = Join-Path $ProjectPath ($agentsRelative -replace '/', [IO.Path]::DirectorySeparatorChar)
+        ContextFiles     = @($contextRelative | ForEach-Object { Join-Path $ProjectPath ($_ -replace '/', [IO.Path]::DirectorySeparatorChar) })
+        PrimaryContextFile = Join-Path $ProjectPath (($contextRelative[0]) -replace '/', [IO.Path]::DirectorySeparatorChar)
+        SpecsRelativePath = $specsRelative
+        RunsRelativePath = $runsRelative
+        AgentsRelativePath = $agentsRelative
+        ContextRelativePaths = @($contextRelative)
+        RequirementsPrefix = Get-RequirementPrefix -Config $config
+        RequirementIdPattern = Get-RequirementIdPattern -Config $config
         AgentsJsonFile   = Join-Path (Join-Path $ProjectPath ".felix") "agents.json"
         ConfigFile       = Join-Path (Join-Path $ProjectPath ".felix") "config.json"
         StateFile        = Join-Path (Join-Path $ProjectPath ".felix") "state.json"

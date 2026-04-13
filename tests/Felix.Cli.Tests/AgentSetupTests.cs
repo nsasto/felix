@@ -56,6 +56,48 @@ public sealed class AgentSetupTests
         Assert.NotNull(config["backpressure"]);
         Assert.NotNull(config["executor"]);
         Assert.NotNull(config["agent"]);
+        Assert.Equal("S", config["requirements"]!["prefix"]!.GetValue<string>());
+        Assert.Equal("specs", config["paths"]!["specs"]!.GetValue<string>());
+        Assert.Equal("CONTEXT.md", config["paths"]!["context"]![0]!.GetValue<string>());
+        Assert.NotNull(config["plugins"]);
+    }
+
+    [Fact]
+    public void BuildDefaultSetupConfigJson_IncludesCustomizableRequirementAndContextPaths()
+    {
+        var config = JsonNode.Parse(Program.BuildDefaultSetupConfigJson())!.AsObject();
+
+        Assert.Equal("S", config["requirements"]!["prefix"]!.GetValue<string>());
+        Assert.Equal("specs", config["paths"]!["specs"]!.GetValue<string>());
+        Assert.Equal("runs", config["paths"]!["runs"]!.GetValue<string>());
+        Assert.Equal("AGENTS.md", config["paths"]!["agents"]!.GetValue<string>());
+        Assert.Equal("CONTEXT.md", config["paths"]!["context"]![0]!.GetValue<string>());
+        Assert.Single(config["paths"]!["context"]!.AsArray());
+    }
+
+    [Fact]
+    public void ConfigHelpers_UseConfiguredPrefixAndPaths()
+    {
+        var config = JsonNode.Parse("""
+            {
+              "requirements": { "prefix": "SPRINT" },
+              "paths": {
+                "specs": "requirements",
+                "runs": "work/runs",
+                "agents": "docs/OPERATIONS.md",
+                "context": ["docs/ARCHITECTURE.md", "docs/DOMAIN.md"]
+              }
+            }
+            """)!.AsObject();
+
+        Program.EnsureSetupConfigDefaults(config);
+
+        Assert.Equal("SPRINT", Program.GetRequirementPrefix(config));
+        Assert.True(Program.GetRequirementIdRegex(config).IsMatch("SPRINT-0001"));
+        Assert.Equal("requirements", Program.GetSpecsDirectoryRelativePath(config));
+        Assert.Equal("work/runs", Program.GetRunsDirectoryRelativePath(config));
+        Assert.Equal("docs/OPERATIONS.md", Program.GetAgentsRelativePath(config));
+        Assert.Equal(new[] { "docs/ARCHITECTURE.md", "docs/DOMAIN.md" }, Program.GetContextRelativePaths(config));
     }
 
     [Fact]

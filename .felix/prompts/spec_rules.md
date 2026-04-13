@@ -1,7 +1,7 @@
 # Spec Creation Rules
 
 1. **Header Metadata**
-   - Start each spec with `# S-NNNN: <Title>` where `S-NNNN` is incremented sequentially.
+   - Start each spec with `# PREFIX-NNNN: <Title>` where the configured prefix is incremented sequentially.
    - Follow immediately with `## Description` describing stakeholder goals or motivations.
 
 2. **Acceptance & Validation Criteria**

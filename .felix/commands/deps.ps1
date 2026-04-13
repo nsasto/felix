@@ -1,16 +1,20 @@
-
 function Invoke-Deps {
     param(
         [Parameter(ValueFromRemainingArguments = $true)]
         [string[]]$Args
     )
 
+    . "$PSScriptRoot\..\core\config-loader.ps1"
+    $configPath = Join-Path $RepoRoot ".felix\config.json"
+    $config = if (Test-Path $configPath) { Get-FelixConfig -ConfigFile $configPath } else { $null }
+    $exampleId = Get-RequirementIdExample -Config $config
+
     if ($Args.Count -eq 0) {
         Write-Error "Usage: felix deps <requirement-id> [--check|--tree|--incomplete]"
         Write-Host "Examples:"
-        Write-Host "  felix deps S-0018              Show dependencies of S-0018"
-        Write-Host "  felix deps S-0018 --check      Check if dependencies are complete"
-        Write-Host "  felix deps S-0018 --tree       Show full dependency tree"
+        Write-Host "  felix deps $exampleId              Show dependencies of $exampleId"
+        Write-Host "  felix deps $exampleId --check      Check if dependencies are complete"
+        Write-Host "  felix deps $exampleId --tree       Show full dependency tree"
         Write-Host "  felix deps --incomplete        List all requirements with incomplete dependencies"
         exit 1
     }
@@ -94,8 +98,8 @@ function Invoke-Deps {
     }
 
     # Validate requirement ID
-    if ($requirementId -notmatch '^S-\d{4}$') {
-        Write-Error "Invalid requirement ID format. Expected S-NNNN (e.g., S-0001)"
+    if (-not (Test-RequirementId -RequirementId $requirementId -Config $config)) {
+        Write-Error "Invalid requirement ID format. Expected $(Get-RequirementPrefix -Config $config)-NNNN (e.g., $exampleId)"
         exit 1
     }
 

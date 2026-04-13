@@ -10,6 +10,101 @@ namespace Felix.Cli;
 
 partial class Program
 {
+    internal static string NormalizeRelativeProjectPath(string? rawPath, string fallback)
+    {
+        var candidate = string.IsNullOrWhiteSpace(rawPath) ? fallback : rawPath.Trim();
+        candidate = candidate.Replace('\\', '/').Trim();
+        if (string.IsNullOrWhiteSpace(candidate))
+            candidate = fallback;
+
+        if (Path.IsPathRooted(candidate))
+            return fallback;
+
+        var segments = candidate.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Any(segment => segment == ".."))
+            return fallback;
+
+        return string.Join('/', segments);
+    }
+
+    internal static List<string> NormalizeRelativeProjectPathList(JsonNode? node, string fallback)
+    {
+        var results = new List<string>();
+        if (node is JsonArray array)
+        {
+            foreach (var item in array)
+            {
+                var value = item is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var stringValue)
+                    ? stringValue
+                    : null;
+                if (string.IsNullOrWhiteSpace(value))
+                    continue;
+
+                var normalized = NormalizeRelativeProjectPath(value, fallback);
+                if (!results.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                    results.Add(normalized);
+            }
+        }
+        else if (node is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var stringValue) && !string.IsNullOrWhiteSpace(stringValue))
+        {
+            results.Add(NormalizeRelativeProjectPath(stringValue, fallback));
+        }
+
+        if (results.Count == 0)
+            results.Add(fallback);
+
+        return results;
+    }
+
+    internal static string GetRequirementPrefix(JsonObject? config = null)
+    {
+        config ??= LoadSetupConfig(Path.Combine(_felixProjectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+        var requirements = EnsureObject(config, "requirements");
+        var prefix = GetOptionalJsonString(requirements, "prefix");
+        return string.IsNullOrWhiteSpace(prefix) ? "S" : prefix!.Trim();
+    }
+
+    internal static string GetExampleRequirementId(JsonObject? config = null)
+        => $"{GetRequirementPrefix(config)}-0001";
+
+    internal static Regex GetRequirementIdRegex(JsonObject? config = null)
+        => new($"^{Regex.Escape(GetRequirementPrefix(config))}-\\d{{4}}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    internal static string GetSpecsDirectoryRelativePath(JsonObject? config = null)
+    {
+        config ??= LoadSetupConfig(Path.Combine(_felixProjectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+        return NormalizeRelativeProjectPath(GetOptionalJsonString(EnsureObject(config, "paths"), "specs"), "specs");
+    }
+
+    internal static string GetRunsDirectoryRelativePath(JsonObject? config = null)
+    {
+        config ??= LoadSetupConfig(Path.Combine(_felixProjectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+        return NormalizeRelativeProjectPath(GetOptionalJsonString(EnsureObject(config, "paths"), "runs"), "runs");
+    }
+
+    internal static string GetAgentsRelativePath(JsonObject? config = null)
+    {
+        config ??= LoadSetupConfig(Path.Combine(_felixProjectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+        return NormalizeRelativeProjectPath(GetOptionalJsonString(EnsureObject(config, "paths"), "agents"), "AGENTS.md");
+    }
+
+    internal static List<string> GetContextRelativePaths(JsonObject? config = null)
+    {
+        config ??= LoadSetupConfig(Path.Combine(_felixProjectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+        return NormalizeRelativeProjectPathList(EnsureObject(config, "paths")["context"], "CONTEXT.md");
+    }
+
+    internal static string GetPrimaryContextRelativePath(JsonObject? config = null)
+        => GetContextRelativePaths(config).FirstOrDefault() ?? "CONTEXT.md";
+
+    internal static string GetProjectAbsolutePath(string relativePath)
+        => Path.GetFullPath(Path.Combine(_felixProjectRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
     static string? GetJsonString(JsonElement element, string propertyName)
     {
         if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)

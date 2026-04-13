@@ -6,7 +6,7 @@ partial class Program
 {
     static Command CreateRunCommand(string felixPs1, Option<string> formatOpt)
     {
-        var reqIdArg = new Argument<string>("requirement-id", "Requirement ID (e.g., S-0001)");
+        var reqIdArg = new Argument<string>("requirement-id", "Requirement ID (for example PREFIX-0001)");
         var verboseOpt = new Option<bool>("--verbose", "Enable verbose logging");
         verboseOpt.AddAlias("-Verbose");
         var debugOpt = new Option<bool>("--debug", "Enable debug mode and log full prompt artifacts per attempt");
