@@ -183,7 +183,7 @@ function Write-CategoryLine {
 #
 function Render-Json {
     param([string]$Line)
-    Write-Output $Line
+    [Console]::Out.WriteLine($Line)
 }
 
 #

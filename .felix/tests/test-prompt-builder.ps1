@@ -47,7 +47,8 @@ Describe "New-IterationPrompt exact file references" {
             Assert-True ($prompt -match [regex]::Escape("docs/OPERATIONS.md")) "Prompt should include configured agents path"
             Assert-True ($prompt -match [regex]::Escape("requirements/SPRINT-0003-sample.md")) "Prompt should include exact spec path"
             Assert-True ($prompt -match [regex]::Escape("docs/ARCHITECTURE.md")) "Prompt should include existing optional context path"
-            Assert-True ($prompt -match "Missing Optional Context Files") "Prompt should call out missing optional context"
+            Assert-True ($prompt -match "3\.\s+\*\*docs/ARCHITECTURE\.md\*\*") "Prompt should list existing context as required input"
+            Assert-True ($prompt -match "Missing Required Context Files") "Prompt should call out missing required context"
             Assert-True ($prompt -match [regex]::Escape($planPath)) "Prompt should include exact plan output path"
         }
         finally {

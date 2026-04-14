@@ -56,8 +56,7 @@ function New-IterationPrompt {
     
     # Inject an explicit, ordered file-reading contract with exact paths.
     $requiredFileLines = [System.Collections.ArrayList]@()
-    $optionalFileLines = [System.Collections.ArrayList]@()
-    $missingOptionalFileLines = [System.Collections.ArrayList]@()
+    $missingRequiredFileLines = [System.Collections.ArrayList]@()
 
     if ($Paths.AgentsRelativePath) {
         $agentsExists = Test-Path $Paths.AgentsFile
@@ -72,10 +71,11 @@ function New-IterationPrompt {
     foreach ($contextPath in @($Paths.ContextRelativePaths)) {
         $absolutePath = Join-Path $Paths.ProjectPath ($contextPath -replace '/', '\')
         if (Test-Path $absolutePath) {
-            [void]$optionalFileLines.Add("- **$contextPath**")
+            $nextIndex = $requiredFileLines.Count + 1
+            [void]$requiredFileLines.Add("$nextIndex. **$contextPath** - configured project context and architecture")
         }
         else {
-            [void]$missingOptionalFileLines.Add("- **$contextPath**")
+            [void]$missingRequiredFileLines.Add("- **$contextPath**")
         }
     }
 
@@ -83,14 +83,10 @@ function New-IterationPrompt {
     $readBlock += "Before planning or coding, open these exact filesystem paths in order:`n`n"
     $readBlock += ($requiredFileLines -join "`n")
     $readBlock += "`n`nDo not continue until you have opened the required files above."
-    if ($optionalFileLines.Count -gt 0) {
-        $readBlock += "`n`n## Optional Context Files To Read Next`n`n"
-        $readBlock += ($optionalFileLines -join "`n")
-    }
-    if ($missingOptionalFileLines.Count -gt 0) {
-        $readBlock += "`n`n## Missing Optional Context Files`n`n"
-        $readBlock += ($missingOptionalFileLines -join "`n")
-        $readBlock += "`n`nThese were configured but are not present. Continue with the files that do exist."
+    if ($missingRequiredFileLines.Count -gt 0) {
+        $readBlock += "`n`n## Missing Required Context Files`n`n"
+        $readBlock += ($missingRequiredFileLines -join "`n")
+        $readBlock += "`n`nThese files are part of the configured project context but are not present. Continue with the required files that do exist, and treat the missing files as a context gap."
     }
     $contextParts += $readBlock
     

@@ -407,17 +407,8 @@ function Invoke-AgentExecution {
                 $processArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $resolvedExecutable) + $agentArgs
             }
             elseif ($resolvedExecutable -and ($resolvedExecutable.EndsWith(".cmd") -or $resolvedExecutable.EndsWith(".bat"))) {
-                $quotedCommand = '"' + $resolvedExecutable + '"'
-                if ($agentArgs.Count -gt 0) {
-                    $quotedArgs = @($agentArgs) | ForEach-Object {
-                        $arg = [string]$_
-                        if ($arg -match '[\s"]') { '"' + ($arg -replace '"', '\"') + '"' } else { $arg }
-                    }
-                    $quotedCommand += " " + ($quotedArgs -join " ")
-                }
-
-                $processFilePath = "cmd.exe"
-                $processArgs = @("/d", "/s", "/c", $quotedCommand)
+                $processFilePath = $resolvedExecutable
+                $processArgs = @($agentArgs)
             }
 
             if ($AgentConfig.environment) {
