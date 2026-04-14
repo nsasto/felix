@@ -216,6 +216,10 @@ switch ($Command) {
         . "$FelixRoot\commands\setup.ps1"
         Invoke-Setup -Args $remainingArgs
     }
+    "init" {
+        . "$FelixRoot\commands\setup.ps1"
+        Invoke-Setup -Args $remainingArgs
+    }
     "version" {
         . "$FelixRoot\commands\version.ps1"
         Show-Version

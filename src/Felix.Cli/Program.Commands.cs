@@ -247,6 +247,7 @@ partial class Program
     static Command CreateSetupCommand(string felixPs1)
     {
         var cmd = new Command("setup", "Initialize or re-configure a Felix project in the current directory");
+        cmd.AddAlias("init");
 
         cmd.SetHandler(async () =>
         {

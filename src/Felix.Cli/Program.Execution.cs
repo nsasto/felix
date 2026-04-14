@@ -409,6 +409,19 @@ partial class Program
                     }
                     break;
                 }
+            case "agent_stream":
+                {
+                    var stream = GetJsonString(data, "stream") ?? "stdout";
+                    var content = GetJsonString(data, "content") ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(content))
+                        break;
+
+                    var category = string.Equals(stream, "stderr", StringComparison.OrdinalIgnoreCase) ? "STDERR" : "AGENT";
+                    var color = string.Equals(stream, "stderr", StringComparison.OrdinalIgnoreCase) ? "red" : "grey";
+                    lock (_renderSync)
+                        RenderFelixDetailLine(category, color, content.Trim().EscapeMarkup());
+                    break;
+                }
             case "validation_started":
                 {
                     var validationType = GetJsonString(data, "validation_type") ?? "validation";

@@ -306,6 +306,9 @@ partial class Program
         var config = LoadSetupConfig(configPath);
         EnsureSetupConfigDefaults(config);
         ConfigureProjectConventions(config);
+        EnsureDirectory(Path.Combine(selectedProjectRoot, GetSpecsDirectoryRelativePath(config).Replace('/', Path.DirectorySeparatorChar)), GetSpecsDirectoryRelativePath(config) + "/", new List<string>(), new List<string>());
+        EnsureDirectory(Path.Combine(selectedProjectRoot, GetRunsDirectoryRelativePath(config).Replace('/', Path.DirectorySeparatorChar)), GetRunsDirectoryRelativePath(config) + "/", new List<string>(), new List<string>());
+        EnsureGitIgnore(selectedProjectRoot, config, new List<string>(), new List<string>());
 
         await EnsureAgentsGuideAsync(selectedProjectRoot, config);
 
@@ -970,7 +973,7 @@ partial class Program
 
         EnsureDirectory(Path.Combine(projectRoot, specsRelativePath.Replace('/', Path.DirectorySeparatorChar)), specsRelativePath + "/", created, skipped);
         EnsureDirectory(Path.Combine(projectRoot, runsRelativePath.Replace('/', Path.DirectorySeparatorChar)), runsRelativePath + "/", created, skipped);
-        EnsureGitIgnore(projectRoot, created, skipped);
+        EnsureGitIgnore(projectRoot, config, created, skipped);
 
         return new ScaffoldResult(isNewProject, created, skipped, installRoot);
     }
@@ -1458,27 +1461,50 @@ partial class Program
         created.Add(label);
     }
 
-    static void EnsureGitIgnore(string projectRoot, List<string> created, List<string> skipped)
+    static List<string> BuildFelixGitIgnoreLines(JsonObject? config = null)
+    {
+        config ??= LoadSetupConfig(Path.Combine(_felixProjectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+
+        var lines = new List<string>
+        {
+            "# ── Felix local files ─────────────────────────────────────────────────────────",
+            GetRunsDirectoryRelativePath(config).TrimEnd('/') + "/",
+            ".felix/",
+            "# Felix .meta.json sidecars (server-generated cache, gitignored)"
+        };
+
+        var specMetaGlobs = new List<string>
+        {
+            "specs/*.meta.json",
+            "requirements/*.meta.json",
+            GetSpecsDirectoryRelativePath(config).TrimEnd('/') + "/*.meta.json"
+        };
+
+        foreach (var glob in specMetaGlobs
+                     .Select(value => value.Replace('\\', '/'))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            lines.Add(glob);
+        }
+
+        return lines;
+    }
+
+    static void EnsureGitIgnore(string projectRoot, JsonObject config, List<string> created, List<string> skipped)
     {
         var gitignorePath = Path.Combine(projectRoot, ".gitignore");
-        var felixIgnoreLines = new[]
-        {
-            string.Empty,
-            "# Felix local files (machine-specific, may contain API keys)",
-            ".felix/config.json",
-            ".felix/state.json",
-            ".felix/outbox/",
-            ".felix/sync.log",
-            ".felix/spec-manifest.json",
-            "# Felix .meta.json sidecars (server-generated cache, gitignored)",
-            "specs/*.meta.json"
-        };
-        var block = string.Join(Environment.NewLine, felixIgnoreLines) + Environment.NewLine;
+        var felixIgnoreLines = BuildFelixGitIgnoreLines(config);
+        var block = Environment.NewLine + string.Join(Environment.NewLine, felixIgnoreLines) + Environment.NewLine;
 
         if (File.Exists(gitignorePath))
         {
             var existing = File.ReadAllText(gitignorePath);
-            if (existing.Contains(".felix/config.json", StringComparison.Ordinal))
+            var missingLines = felixIgnoreLines
+                .Where(line => !existing.Contains(line, StringComparison.Ordinal))
+                .ToList();
+
+            if (missingLines.Count == 0)
             {
                 skipped.Add(".gitignore");
                 return;
@@ -1489,7 +1515,7 @@ partial class Program
             return;
         }
 
-        File.WriteAllText(gitignorePath, string.Join(Environment.NewLine, felixIgnoreLines.Skip(1)) + Environment.NewLine);
+        File.WriteAllText(gitignorePath, string.Join(Environment.NewLine, felixIgnoreLines) + Environment.NewLine);
         created.Add(".gitignore (created)");
     }
 

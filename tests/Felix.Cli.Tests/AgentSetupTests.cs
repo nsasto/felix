@@ -36,6 +36,12 @@ public sealed class AgentSetupTests
             Assert.Contains("requirements.json", second.Skipped);
             Assert.True(File.Exists(Path.Combine(projectRoot, ".felix", "config.json")));
             Assert.True(File.Exists(Path.Combine(projectRoot, ".gitignore")));
+            var gitignore = File.ReadAllText(Path.Combine(projectRoot, ".gitignore"));
+            Assert.Contains("# ── Felix local files ─────────────────────────────────────────────────────────", gitignore);
+            Assert.Contains("runs/", gitignore);
+            Assert.Contains(".felix/", gitignore);
+            Assert.Contains("specs/*.meta.json", gitignore);
+            Assert.Contains("requirements/*.meta.json", gitignore);
         }
         finally
         {
@@ -98,6 +104,55 @@ public sealed class AgentSetupTests
         Assert.Equal("work/runs", Program.GetRunsDirectoryRelativePath(config));
         Assert.Equal("docs/OPERATIONS.md", Program.GetAgentsRelativePath(config));
         Assert.Equal(new[] { "docs/ARCHITECTURE.md", "docs/DOMAIN.md" }, Program.GetContextRelativePaths(config));
+    }
+
+    [Fact]
+    public void EnsureFelixProjectScaffold_UsesConfiguredPathsInGitIgnore()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempRoot);
+
+        var installRoot = Path.Combine(tempRoot, "install");
+        Directory.CreateDirectory(installRoot);
+        Directory.CreateDirectory(Path.Combine(installRoot, "policies"));
+        File.WriteAllText(Path.Combine(installRoot, "config.json.example"), """
+            {
+              "paths": {
+                "specs": "requirements",
+                "runs": "work/runs"
+              }
+            }
+            """);
+        File.WriteAllText(Path.Combine(installRoot, "policies", "allowlist.json"), "[]\n");
+        File.WriteAllText(Path.Combine(installRoot, "policies", "denylist.json"), "[]\n");
+
+        var projectRoot = Path.Combine(tempRoot, "project");
+        Directory.CreateDirectory(projectRoot);
+
+        try
+        {
+            Program.EnsureFelixProjectScaffold(projectRoot, installRoot);
+
+            var gitignore = File.ReadAllText(Path.Combine(projectRoot, ".gitignore"));
+            Assert.Contains("work/runs/", gitignore);
+            Assert.Contains(".felix/", gitignore);
+            Assert.Contains("requirements/*.meta.json", gitignore);
+            Assert.Contains("specs/*.meta.json", gitignore);
+            Assert.True(Directory.Exists(Path.Combine(projectRoot, "requirements")));
+            Assert.True(Directory.Exists(Path.Combine(projectRoot, "work", "runs")));
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Fact]
+    public void RootCommand_ExposesInitAliasForSetup()
+    {
+        var root = Program.CreateRootCommand(@"C:\temp\felix.ps1");
+        var setup = Assert.Single(root.Subcommands, command => command.Name == "setup");
+        Assert.Contains("init", setup.Aliases);
     }
 
     [Fact]

@@ -118,7 +118,10 @@ function Invoke-AgentSubprocess {
         [string]$Prompt,
 
         [Parameter(Mandatory = $true)]
-        [datetime]$StartTime
+        [datetime]$StartTime,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$VerboseMode
     )
 
     $inputPath = $null
@@ -161,6 +164,8 @@ function Invoke-AgentSubprocess {
 
         $heartbeatIntervalSec = 20
         $lastHeartbeat = Get-Date
+        $stdoutLineCount = 0
+        $stderrLineCount = 0
         while (-not $process.HasExited) {
             Start-Sleep -Milliseconds 500
             $elapsed = ((Get-Date) - $lastHeartbeat).TotalSeconds
@@ -171,6 +176,32 @@ function Invoke-AgentSubprocess {
                 }
                 $lastHeartbeat = Get-Date
             }
+
+            if ($VerboseMode) {
+                if (Test-Path $stdoutPath) {
+                    $stdoutLines = @(Get-Content -LiteralPath $stdoutPath -ErrorAction SilentlyContinue)
+                    if ($stdoutLines.Count -gt $stdoutLineCount) {
+                        foreach ($line in $stdoutLines[$stdoutLineCount..($stdoutLines.Count - 1)]) {
+                            if (-not [string]::IsNullOrWhiteSpace($line)) {
+                                Emit-AgentStreamChunk -Stream "stdout" -Content $line
+                            }
+                        }
+                        $stdoutLineCount = $stdoutLines.Count
+                    }
+                }
+
+                if (Test-Path $stderrPath) {
+                    $stderrLines = @(Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue)
+                    if ($stderrLines.Count -gt $stderrLineCount) {
+                        foreach ($line in $stderrLines[$stderrLineCount..($stderrLines.Count - 1)]) {
+                            if (-not [string]::IsNullOrWhiteSpace($line)) {
+                                Emit-AgentStreamChunk -Stream "stderr" -Content $line
+                            }
+                        }
+                        $stderrLineCount = $stderrLines.Count
+                    }
+                }
+            }
         }
 
         $process.WaitForExit()
@@ -180,6 +211,26 @@ function Invoke-AgentSubprocess {
         $stderr = ""
         if (Test-Path $stdoutPath) { $stdout = Get-Content -Raw -LiteralPath $stdoutPath -ErrorAction SilentlyContinue }
         if (Test-Path $stderrPath) { $stderr = Get-Content -Raw -LiteralPath $stderrPath -ErrorAction SilentlyContinue }
+
+        if ($VerboseMode) {
+            $stdoutLines = @($stdout -split "`r`n|`n|`r")
+            if ($stdoutLines.Count -gt $stdoutLineCount) {
+                foreach ($line in $stdoutLines[$stdoutLineCount..($stdoutLines.Count - 1)]) {
+                    if (-not [string]::IsNullOrWhiteSpace($line)) {
+                        Emit-AgentStreamChunk -Stream "stdout" -Content $line
+                    }
+                }
+            }
+
+            $stderrLines = @($stderr -split "`r`n|`n|`r")
+            if ($stderrLines.Count -gt $stderrLineCount) {
+                foreach ($line in $stderrLines[$stderrLineCount..($stderrLines.Count - 1)]) {
+                    if (-not [string]::IsNullOrWhiteSpace($line)) {
+                        Emit-AgentStreamChunk -Stream "stderr" -Content $line
+                    }
+                }
+            }
+        }
 
         $output = $stdout
         if (-not [string]::IsNullOrWhiteSpace($stderr)) {
@@ -355,6 +406,19 @@ function Invoke-AgentExecution {
                 $processFilePath = "powershell.exe"
                 $processArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $resolvedExecutable) + $agentArgs
             }
+            elseif ($resolvedExecutable -and ($resolvedExecutable.EndsWith(".cmd") -or $resolvedExecutable.EndsWith(".bat"))) {
+                $quotedCommand = '"' + $resolvedExecutable + '"'
+                if ($agentArgs.Count -gt 0) {
+                    $quotedArgs = @($agentArgs) | ForEach-Object {
+                        $arg = [string]$_
+                        if ($arg -match '[\s"]') { '"' + ($arg -replace '"', '\"') + '"' } else { $arg }
+                    }
+                    $quotedCommand += " " + ($quotedArgs -join " ")
+                }
+
+                $processFilePath = "cmd.exe"
+                $processArgs = @("/d", "/s", "/c", $quotedCommand)
+            }
 
             if ($AgentConfig.environment) {
                 foreach ($prop in $AgentConfig.environment.PSObject.Properties) {
@@ -371,7 +435,8 @@ function Invoke-AgentExecution {
                 -WorkingDirectory $agentCwd `
                 -PromptMode $promptMode `
                 -Prompt $formattedPrompt `
-                -StartTime $startTime
+                -StartTime $startTime `
+                -VerboseMode:$VerboseMode
 
             $output = $processResult.Output
             $exitCode = $processResult.ExitCode
@@ -387,7 +452,8 @@ function Invoke-AgentExecution {
                     -WorkingDirectory $agentCwd `
                     -PromptMode $promptMode `
                     -Prompt $formattedPrompt `
-                    -StartTime $startTime
+                    -StartTime $startTime `
+                    -VerboseMode:$VerboseMode
 
                 $output = $retryResult.Output
                 $exitCode = $retryResult.ExitCode
