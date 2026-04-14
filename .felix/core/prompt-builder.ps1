@@ -54,16 +54,45 @@ function New-IterationPrompt {
     # Gather context
     $contextParts = @()
     
-    # Reference configured context files instead of embedding full content.
-    $referenceLines = [System.Collections.ArrayList]@()
+    # Inject an explicit, ordered file-reading contract with exact paths.
+    $requiredFileLines = [System.Collections.ArrayList]@()
+    $optionalFileLines = [System.Collections.ArrayList]@()
+    $missingOptionalFileLines = [System.Collections.ArrayList]@()
+
     if ($Paths.AgentsRelativePath) {
-        [void]$referenceLines.Add("- **$($Paths.AgentsRelativePath)** - operational guide with commands for testing, building, and running the application")
+        $agentsExists = Test-Path $Paths.AgentsFile
+        $agentsLabel = if ($agentsExists) { "required" } else { "required but currently missing" }
+        [void]$requiredFileLines.Add("1. **$($Paths.AgentsRelativePath)** - configured agents guide ($agentsLabel)")
     }
+
+    $nextIndex = $requiredFileLines.Count + 1
+    $specPath = if ($CurrentRequirement.spec_path) { $CurrentRequirement.spec_path } else { "$($Paths.SpecsRelativePath)/$($CurrentRequirement.id).md" }
+    [void]$requiredFileLines.Add("$nextIndex. **$specPath** - exact requirement spec file")
+
     foreach ($contextPath in @($Paths.ContextRelativePaths)) {
-        [void]$referenceLines.Add("- **$contextPath** - project context, architecture, conventions, or supporting documentation")
+        $absolutePath = Join-Path $Paths.ProjectPath ($contextPath -replace '/', '\')
+        if (Test-Path $absolutePath) {
+            [void]$optionalFileLines.Add("- **$contextPath**")
+        }
+        else {
+            [void]$missingOptionalFileLines.Add("- **$contextPath**")
+        }
     }
-    $referenceText = if ($referenceLines.Count -gt 0) { ($referenceLines -join "`n") } else { "- No configured context files." }
-    $contextParts += "# File References - Read These from Disk`n`nThe system provides these configured reference files in the project root (read them yourself when present):`n`n$referenceText`n`nRead the configured files from disk before starting work. Missing files may be absent in this repository; continue with the available context."
+
+    $readBlock = "# Read These Exact Files First`n`n"
+    $readBlock += "Before planning or coding, open these exact filesystem paths in order:`n`n"
+    $readBlock += ($requiredFileLines -join "`n")
+    $readBlock += "`n`nDo not continue until you have opened the required files above."
+    if ($optionalFileLines.Count -gt 0) {
+        $readBlock += "`n`n## Optional Context Files To Read Next`n`n"
+        $readBlock += ($optionalFileLines -join "`n")
+    }
+    if ($missingOptionalFileLines.Count -gt 0) {
+        $readBlock += "`n`n## Missing Optional Context Files`n`n"
+        $readBlock += ($missingOptionalFileLines -join "`n")
+        $readBlock += "`n`nThese were configured but are not present. Continue with the files that do exist."
+    }
+    $contextParts += $readBlock
     
     # Add Requirements context
     $requirements = Get-Content $Paths.RequirementsFile -Raw | ConvertFrom-Json
@@ -107,7 +136,6 @@ function New-IterationPrompt {
     $contextParts += "# Current Requirement Context`n`n``````json`n$reqSummary`n```````n`n*Note: Full requirements list available at ``.felix/requirements.json`` if you need to check other requirements.*"
     
     # Add reference to the requirement spec file
-    $specPath = if ($CurrentRequirement.spec_path) { $CurrentRequirement.spec_path } else { "$($Paths.SpecsRelativePath)/$($CurrentRequirement.id).md" }
     $contextParts += "# Requirement Specification`n`nRead the full acceptance criteria and constraints in: **$specPath**`n`nYou MUST understand every line of the spec before planning or implementing."
     
     # Add current requirement header

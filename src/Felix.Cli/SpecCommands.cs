@@ -380,12 +380,7 @@ partial class Program
             }
         }
 
-        var sortedRequirements = rebuiltRequirements
-            .OfType<JsonObject>()
-            .OrderBy(node => GetJsonString(node, "id"), StringComparer.OrdinalIgnoreCase)
-            .Cast<JsonNode>()
-            .ToArray();
-        document["requirements"] = new JsonArray(sortedRequirements);
+        document["requirements"] = BuildSortedRequirementsArray(rebuiltRequirements);
         SaveRequirementsDocument(document);
 
         AnsiConsole.Write(new Rule("[cyan]Specification Fix[/]").RuleStyle(Style.Parse("cyan dim")));
@@ -965,6 +960,16 @@ partial class Program
         var created = new JsonArray();
         document["requirements"] = created;
         return created;
+    }
+
+    internal static JsonArray BuildSortedRequirementsArray(JsonArray requirements)
+    {
+        var sortedRequirements = requirements
+            .OfType<JsonObject>()
+            .OrderBy(node => GetJsonString(node, "id"), StringComparer.OrdinalIgnoreCase)
+            .Select(node => node.DeepClone())
+            .ToArray();
+        return new JsonArray(sortedRequirements);
     }
 
     static JsonObject? FindRequirementNode(JsonArray requirements, string requirementId)
