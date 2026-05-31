@@ -8,6 +8,8 @@ Each phase freezes interfaces here when it ships. Later phases may **extend** (a
 
 Through v2.3 this registry is **reviewer-enforced** (PR checklist). Automated enforcement via `felix contracts check` is deferred until the first phase actually breaks a contract — see [PHASE_A5_DISTRIBUTION.md § AS3](PHASE_A5_DISTRIBUTION.md).
 
+**A.5's frozen schemas (events, hooks, plugin manifest) are candidate v1:** B/C/D/E may amend additively without `BREAKING:` through v2.3, since those phases are the first real consumers.
+
 ---
 
 ## Phase A (v2.0) — Context Foundation
@@ -21,22 +23,22 @@ Through v2.3 this registry is **reviewer-enforced** (PR checklist). Automated en
 ### `.felixignore`
 
 - Gitignore-compatible subset
-- Layered lookup: per-directory walk-up → repo-root `.felixignore` → `.felixignore.local` (gitignored) → `%USERPROFILE%/.felix/ignore`
-- Deepest pattern wins within each layer; layers merged in lookup order
+- Layered lookup (two layers, deepest-pattern-wins within each):
+  1. Repo-root `.felixignore` (committed)
+  2. `%USERPROFILE%/.felix/ignore` (user scope, cross-repo)
+- Per-directory walk-up and `.felixignore.local` deferred until a bench fixture demonstrates they pay
 
 ### `context` config block
 
 ```json
 {
   "context": {
-    "budget_tokens": 32000,
-    "weights": { "...": 0.0 },
-    "eviction_order": ["..."]
+    "budget_tokens": 32000
   }
 }
 ```
 
-Required: `budget_tokens`. Optional: rest (defaults applied).
+Required: `budget_tokens`. `weights` and `eviction_order` are code constants in v2.0; promoted to config when a bench-backed user request demands tuning.
 
 ### `felix context inspect --json`
 
@@ -64,16 +66,16 @@ Required: `budget_tokens`. Optional: rest (defaults applied).
 - Later phases register transforms via this interface (B: spec fix, prompts→skills; F: tools.allow seed)
 - Idempotent on second invocation
 
-### `felix replay <run-id>`
+### `felix run replay <run-id>` _(deferred)_
 
-- Reads `runs/<run-id>/replay.json` snapshot manifest
-- Required snapshot fields: layered-context-blob hash, prompt-template hashes, agent profile, config snapshot, ignore-policy snapshot
-- Does not re-execute the agent; produces the exact context that fed the run
+- Verb registered in A; snapshot manifest (`runs/<run-id>/replay.json`) deferred until one debugging session needs it
+- Until then, `runs/<id>/iteration-N/prompt.txt` (already written) is the canonical "what fed the model" artifact
+- When shipped: required snapshot fields are layered-context-blob hash, prompt-template hashes, agent profile, config snapshot, ignore-policy snapshot; does not re-execute the agent
+- Alias: `felix replay` (back-compat)
 
-### `felix config explain <path>`
+### `felix config explain` _(cut)_
 
-- Output: current value, source (`default | config | env | flag`), inheritance chain
-- `--json` form: `{"_v":1,"path":"...","value":...,"source":"...","chain":[...]}`
+Deferred. Reopen when a user files a config-opacity issue.
 
 ### Run-ID grammar
 
@@ -133,7 +135,7 @@ Fields as documented in [docs/PLUGINS.md](../../docs/PLUGINS.md); A.5 pins the s
 - `felix plugin info <id>`
 - `felix event tail [--kind ...] [--run-id ...] [--since <dur>] [--follow]` (alias: `events`)
 - `felix event query <expr> [--json]` (alias: `events`)
-- `felix doctor [--fix]` — extensible; phase-specific checks register here
+- `felix doctor [--fix]` — extensible; phases register checks. v2.0 ships with checks for: stale leases (H), orphaned worktrees (H), corrupt event log, plugin manifest hash mismatches, repo-map staleness (A), spec frontmatter (B), stale prompt-review (E), `.felixignore` debug (`--explain <path>`)
 
 ---
 
@@ -153,7 +155,10 @@ Lifecycle states: `draft | planned | in-progress | complete | blocked`. (`review
 ### CLI
 
 - `felix skill list|show|enable|disable`
-- `felix spec lint|fix|review|approve`
+- `felix spec fix|create`
+- Spec frontmatter validation folded into `felix doctor` (no separate `spec lint` verb)
+- `felix spec create` always emits frontmatter for new specs (closes the migration loop)
+- `felix spec review` / `felix spec approve` **cut**; promotion = human edit
 
 ---
 
@@ -169,7 +174,7 @@ Required sections (markdown headings):
 - `## Related tests`
 - `## Prior runs`
 
-Rank format: ` — rank: 0.NN` suffix on each list item (optional but consumers respect it when present).
+Natural ordering within each section is the ranking signal in v2.2. Numeric rank suffixes deferred until a bench fixture demonstrates rank-driven eviction is net-positive.
 
 ### `explore` config block
 
@@ -224,9 +229,9 @@ felix search "<pattern>" [--scope file|symbol] [--in code|specs|runs|all]
 
 Per-run; format owned by Felix; consumers read but do not write.
 
-### `pre-bash` hook (D6)
+### `pre-bash` hook (D6) _(cut)_
 
-Signature additions in `hook-contracts.ps1`; payload includes `Command`, `Cwd`; return `Success`, `RewrittenCommand`.
+Raw-grep guard rail cut from v2.3. `felix search` exposed as a registered tool via D5/MCP is the primary path; the guard is a belt-on-suspenders we don't ship until bench shows agents continue to raw-grep at scale after MCP exposure.
 
 ### `{{SEARCH_HINTS}}` placeholder
 
@@ -255,6 +260,7 @@ felix navigate implementations <symbol> [--json]
 
 - Primary: `felix mcp serve` exposes `search`, `navigate`, `query` as MCP tools
 - Fallback: per-adapter shim with the same logical contract
+- **Selection rule:** MCP wins when `felix mcp serve` is running; shim is strict fallback for adapters without MCP support
 - Input: `{"tool":"<name>","args":{...},"caller":"<adapter|mcp-client>"}`
 - Output: `{"ok":bool,"data":{...},"error":{"code":"...","message":"..."} | null}`
 - Errors include `denied_by_allowlist`, `tool_not_found`, `arg_invalid`, `lsp_unavailable` (with `fallback: true` data if D fallback fired)
@@ -291,6 +297,8 @@ Required sections:
 
 - `felix memory view|add|edit|prune`
 - `felix review [--learnings|--prompts|--all|--acknowledge]` (unified surface; replaces separate `learnings review` and `prompts review` verbs)
+- Stale-review reminder folded into `felix doctor` (no `OnLoopStart` banner hook)
+- `learning-capture` plugin **enabled by default** on `felix setup`; writes proposals only to `runs/<id>/agents-md-suggestions.md`. Disable via `learnings.auto_propose: false`.
 - Auto-prune scope: `runs/.../agents-md-suggestions.md` only; `.felix/memory/` is never auto-modified by the loop
 
 ---
@@ -318,7 +326,7 @@ Output schema versioned per-kind (`"_v": 1`).
 ```
 
 - v1→v2 migrated repos and new `felix setup` repos start `default: "allow"` with full audit logging
-- `felix tools harden` is the one-time opt-in that flips `default` to `"deny"` after proposing an allowlist derived from recent audit logs
+- `felix tool harden` is the one-time opt-in that flips `default` to `"deny"` after proposing an allowlist derived from recent audit logs (alias: `felix tools harden`)
 
 ### `kind=tool.call` event payload
 
@@ -350,11 +358,18 @@ Added fields: `worker_id`, `parallel_group`, `worktree_path` (nullable when `--w
 
 ### `block_reason` metadata
 
-Free-form string on a requirement with `status: blocked`. First documented values: `merge-conflict` (H4), `budget` (cost guardrails). No new lifecycle enum entries added per failure mode.
+Free-form string on a requirement with `status: blocked`. Canonical values documented here so downstream tooling (TUI, sync) can render icons/colors:
 
-### `felix recover`
+- `merge-conflict` (H4)
+- `budget` (cost guardrails)
+- `validation-retries-exhausted` (loop)
+- `backpressure-retries-exhausted` (loop)
 
-- `felix recover --run <id> | --all [--yes]`
+New values may be added by phases without `BREAKING:`; document them here.
+
+### `felix run recover`
+
+- `felix run recover --run <id> | --all [--yes]` (alias: `felix recover`)
 - Surfaces a structured plan before mutating lease files, worktrees, or partial commits
 
 ---
@@ -363,7 +378,7 @@ Free-form string on a requirement with `status: blocked`. First documented value
 
 ### `plugins.json` index schema
 
-Versioned (`"schema": "https://felix.dev/plugins-index/v1.json"`). See [PHASE_G_MARKETPLACE.md](PHASE_G_MARKETPLACE.md) for full shape.
+Versioned (`"schema": "https://felix.dev/plugins-index/v1.json"`). Single index URL only (`distribution.index_url`). Multi-index support deferred until one corporate user asks. See [PHASE_G_MARKETPLACE.md](PHASE_G_MARKETPLACE.md) for full shape.
 
 ### CLI
 
@@ -376,16 +391,26 @@ _Packs (`pack.json`), `felix plugin certify`, and the certification GitHub Actio
 
 ## Change log
 
-| Date       | Phase | Change                                                                                                  | By          |
-| ---------- | ----- | ------------------------------------------------------------------------------------------------------- | ----------- |
-| 2026-05-29 | —     | Registry created                                                                                        | v2 planning |
-| 2026-05-29 | A     | A6 run-ID change cut; A7 `migrate` registry, A8 `config explain`, `replay` added                        | review pass |
-| 2026-05-29 | A.5   | AS3 enforcement deferred; `doctor` ownership assigned here; `event` (singular) preferred verb           | review pass |
-| 2026-05-29 | B     | Spec lifecycle collapsed (no `reviewed`/`approved` states); lint enforcement opt-in until repo clean    | review pass |
-| 2026-05-29 | C     | `explore` default OFF; auto-enable on repo-size signal                                                  | review pass |
-| 2026-05-29 | D     | D7 prompt-augmentation fallback cut (context-map covers it)                                             | review pass |
-| 2026-05-29 | D′    | Tool exposure unified: MCP-first, per-adapter shim as fallback; D5 a–d collapsed                        | review pass |
-| 2026-05-29 | E     | E2/E3/E4 merged into `felix review` unified surface; E7 auto-prune scoped to proposals only             | review pass |
-| 2026-05-29 | F     | F7 sandbox cut; `query` kinds trimmed to 3; default-allow + `tools harden`; `gc` owned here             | review pass |
-| 2026-05-29 | H     | Worktrees opt-in; `block_reason` metadata replaces `blocked-merge-conflict` state; `recover` owned here | review pass |
-| 2026-05-29 | G     | Packs + certification cut; minimum-viable marketplace only                                              | review pass |
+| Date       | Phase | Change                                                                                                                                                                                                | By            |
+| ---------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| 2026-05-29 | —     | Registry created                                                                                                                                                                                      | v2 planning   |
+| 2026-05-29 | A     | A6 run-ID change cut; A7 `migrate` registry, A8 `config explain`, `replay` added                                                                                                                      | review pass   |
+| 2026-05-29 | A.5   | AS3 enforcement deferred; `doctor` ownership assigned here; `event` (singular) preferred verb                                                                                                         | review pass   |
+| 2026-05-29 | B     | Spec lifecycle collapsed (no `reviewed`/`approved` states); lint enforcement opt-in until repo clean                                                                                                  | review pass   |
+| 2026-05-29 | C     | `explore` default OFF; auto-enable on repo-size signal                                                                                                                                                | review pass   |
+| 2026-05-29 | D     | D7 prompt-augmentation fallback cut (context-map covers it)                                                                                                                                           | review pass   |
+| 2026-05-29 | D′    | Tool exposure unified: MCP-first, per-adapter shim as fallback; D5 a–d collapsed                                                                                                                      | review pass   |
+| 2026-05-29 | E     | E2/E3/E4 merged into `felix review` unified surface; E7 auto-prune scoped to proposals only                                                                                                           | review pass   |
+| 2026-05-29 | F     | F7 sandbox cut; `query` kinds trimmed to 3; default-allow + `tools harden`; `gc` owned here                                                                                                           | review pass   |
+| 2026-05-29 | H     | Worktrees opt-in; `block_reason` metadata replaces `blocked-merge-conflict` state; `recover` owned here                                                                                               | review pass   |
+| 2026-05-29 | G     | Packs + certification cut; minimum-viable marketplace only                                                                                                                                            | review pass   |
+| 2026-05-29 | —     | Verb-naming convention switched to `<noun> <verb>` for resource commands; renames: `repo-map`→`repo map`, `replay`→`run replay`, `recover`→`run recover`, `tools harden`→`tool harden` (aliases kept) | review pass 2 |
+| 2026-05-29 | A     | A2 `repo-map build` folded into `doctor --fix`; A3 simplified to 2 layers; A5 weights/eviction dropped from config; A7 snapshot manifest deferred; A8 `config explain` cut                            | review pass 2 |
+| 2026-05-29 | A.5   | `doctor` extended to absorb repo-map staleness, spec frontmatter lint, stale-review reminder, ignore debug; A.5 freezes treated as candidate v1 through v2.3                                          | review pass 2 |
+| 2026-05-29 | B     | B7 `spec lint` folded into `doctor`; B8 `spec review`/`spec approve` + `spec-critic` skill cut; `spec create` always emits frontmatter                                                                | review pass 2 |
+| 2026-05-29 | C     | C5 ranks dropped from contract; natural ordering only                                                                                                                                                 | review pass 2 |
+| 2026-05-29 | D     | D6 raw-grep guard cut                                                                                                                                                                                 | review pass 2 |
+| 2026-05-29 | E     | E3 reminder hook cut (folded into `doctor`); `learning-capture` confirmed default-on                                                                                                                  | review pass 2 |
+| 2026-05-29 | F     | Cost guardrails simplified to static $5/$20 defaults; profile-aware quotas deferred                                                                                                                   | review pass 2 |
+| 2026-05-29 | H     | H4 pre-merge "non-FF triggers re-plan" cut; block + `block_reason` is the path                                                                                                                        | review pass 2 |
+| 2026-05-29 | G     | Multi-index support cut; single `index_url`                                                                                                                                                           | review pass 2 |

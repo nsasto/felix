@@ -43,13 +43,13 @@ Today the loop has two phases (`plan`, `build`) and one agent does both. The age
 
   ## Files likely to change
 
-  - src/Felix.Cli/Program.Commands.cs (cmd registration) — rank: 0.92
-  - src/Felix.Cli/SpecCommands.cs (spec subcommand) — rank: 0.78
+  - src/Felix.Cli/Program.Commands.cs (cmd registration)
+  - src/Felix.Cli/SpecCommands.cs (spec subcommand)
 
   ## Files to read for context
 
-  - .felix/config.json — rank: 0.60
-  - docs/CLI.md — rank: 0.55
+  - .felix/config.json
+  - docs/CLI.md
 
   ## Symbols of interest
 
@@ -65,6 +65,7 @@ Today the loop has two phases (`plan`, `build`) and one agent does both. The age
   - runs/S-0042-...-it2 (failed: backpressure on pwsh.lint)
   ```
 
+- Natural ordering within each section is the ranking signal; subagent emits most-relevant first
 - Strictly markdown; schema enforced by post-LLM hook
 
 ### C3 — Building prompt consumes context-map
@@ -78,11 +79,9 @@ Today the loop has two phases (`plan`, `build`) and one agent does both. The age
 - `OnPreExplore(run_id, requirement)` — plugins can pre-warm
 - `OnPostExplore(run_id, context_map_path)` — plugins can amend (e.g., E's learning-capture appends prior-failure notes)
 
-### C5 — Ranking
+### C5 — Ranking _(cut)_
 
-- Files carry a 0–1 rank derived from: cited in spec, mentioned in prior runs, touched in last N commits via git
-- Budgeter (A5) uses rank when evicting context-map entries under pressure
-- Search (D) uses rank to bias result ordering
+**Cut.** Natural ordering within each `context-map.md` section is the ranking signal in v2.2. Numeric rank suffixes deferred until a bench fixture demonstrates rank-driven eviction is net-positive over presentation order.
 
 ## Non-goals
 
@@ -92,7 +91,7 @@ Today the loop has two phases (`plan`, `build`) and one agent does both. The age
 
 ## Phase Contracts frozen here
 
-- `context-map.md` markdown schema (section headers, rank format)
+- `context-map.md` markdown schema (section headers, natural ordering = rank)
 - `explore` config block schema
 - `OnPreExplore` / `OnPostExplore` hook signatures
 - Phase ordering: `explore → plan → build → validate`
@@ -110,7 +109,6 @@ Today the loop has two phases (`plan`, `build`) and one agent does both. The age
 - `specs/S-2C02-read-only-subagent.md`
 - `specs/S-2C03-context-map-schema.md`
 - `specs/S-2C04-explore-hooks.md`
-- `specs/S-2C05-ranking.md`
 
 ## Anchor files
 

@@ -44,18 +44,23 @@ Foundational. Every later phase distributes its reference plugin through A.5, em
 
 - Lives at `[v2/CONTRACTS.md](CONTRACTS.md)` — markdown table per phase listing frozen file layouts, JSON schemas, hook signatures, CLI flags
 - **A.5 ships the document only.** `felix contracts check` enforcement is deferred until the first phase actually breaks a contract; until then CONTRACTS.md is reviewer-enforced (PR checklist). Avoids paying for a gate that has no consumer.
+- **A.5's frozen schemas are candidate v1**: B/C/D/E may amend additively (new optional fields, new event kinds, new hook params) through v2.3 without `BREAKING:`. Real consumers don't exist yet; pretending the contract is final encourages a misclassified breaking change later.
 - Adding to a contract: free
-- Changing/removing from a contract: requires explicit `BREAKING:` annotation + bumped major (i.e., v3)
+- Changing/removing from a contract (post-v2.3): requires explicit `BREAKING:` annotation + bumped major (i.e., v3)
 
 ### AS4 — `felix doctor` (owner: A.5; promoted from cross-cutting)
 
-- Single diagnostic command surfacing the most common operational failures:
+- Single diagnostic command surfacing the most common operational failures and absorbing checks other phases would otherwise own as separate verbs:
   - Stale lease files (`.felix/.locks/*.lock` past `lease_until`) — see H2
   - Orphaned worktrees (`.felix/worktrees/*` not in any active session) — see H1
   - Corrupt event log (truncated last line, bad JSON)
   - Plugin manifest hash mismatches
   - Memory entries failing heuristic checks (length, no frontmatter)
-- `--fix` flag attempts non-destructive repairs (delete stale leases/worktrees); destructive repairs prompt
+  - **Repo-map staleness** — new top-level folder without entry in `AGENTS.md ## Map` (absorbs A2's `repo-map check` verb; `--fix` regenerates the block)
+  - **Spec frontmatter** — required fields, gate name resolution, skill name resolution, `applyTo` not empty on non-trivial specs (absorbs B7's `spec lint` verb)
+  - **Stale prompt-review** — `.felix/state.json#last_review` > 90 days (absorbs E3's reminder hook)
+  - **`.felixignore` debug** — `felix doctor --explain <path>` reports which pattern in which layer matched
+- `--fix` flag attempts non-destructive repairs (delete stale leases/worktrees, regenerate `## Map` block); destructive repairs prompt
 - Phase-specific checks register into `doctor` here; later phases extend without owning the verb
 
 ## Non-goals

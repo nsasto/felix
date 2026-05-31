@@ -56,13 +56,14 @@ Felix's `felix loop` is serial. Two loops on the same repo today fight over `req
 
 - After two parallel worktrees merge back, cross-cutting gates (`always_run` from F1) re-run on the merged state
 - If post-merge gate fails: last-merged worker reopens the requirement as `status: blocked` with `block_reason: "merge-conflict"` metadata in `requirements.json`. **No new lifecycle state value.** `block_reason` is a free-form string so future failure modes don't keep adding enum entries.
-- Optional: pre-merge fast-forward check; non-FF triggers re-plan
+- **Pre-merge fast-forward check / non-FF re-plan cut.** Block + `block_reason` is the path; a planning round-trip on contention is more complexity than it earns. Reopen if bench shows merge churn dominates wall-time.
 
-### H5 — `felix recover` (owner: H; promoted from cross-cutting)
+### H5 — `felix run recover` (owner: H; promoted from cross-cutting)
 
 - Single command to recover from worker crashes / interrupted iterations:
-  - `felix recover --run <run-id>` — inspect the last known state, offer to resume, abort, or mark blocked
-  - `felix recover --all` — enumerate all incomplete runs, prompt per-run
+  - `felix run recover --run <run-id>` — inspect the last known state, offer to resume, abort, or mark blocked
+  - `felix run recover --all` — enumerate all incomplete runs, prompt per-run
+  - Alias: `felix recover` (back-compat)
 - Operates on lease files (H2), worktrees (H1), and partial commits
 - Surfaces a structured plan before mutating anything; `--yes` to apply non-interactively
 - Sits in H because the only meaningful recovery scenarios involve worktree / lease state introduced here

@@ -27,8 +27,10 @@ The substrate for every later phase. Until A lands, the layered context, ignore 
 ### A2 — Repo Map convention
 
 - Root `AGENTS.md` gains a `## Map` section (one line per top-level folder, plain text)
-- `felix repo-map build` scans top-level + key second-level dirs, infers descriptions from existing READMEs / first heading of `AGENTS.md`, writes/refreshes the `## Map` block (idempotent, marker-delimited)
-- Staleness detection (new top-level folder without map entry) is **folded into the cross-cutting `docs-up-to-date` backpressure gate** — no separate `felix repo-map check` verb
+- **No separate `felix repo-map build` verb.** `felix doctor --fix` regenerates/refreshes the `## Map` block (idempotent, marker-delimited), inferring descriptions from existing READMEs / first heading of `AGENTS.md`
+- `felix repo map` kept as an alias for discoverability
+- Staleness detection (new top-level folder without map entry) is **folded into the cross-cutting `docs-up-to-date` backpressure gate** and surfaces as a `felix doctor` check
+- Per the article, the map is a fallback for unconventional layouts — it's seeded by `felix migrate` once; the doctor gate keeps it from drifting
 
 ### A3 — `.felixignore` (layered)
 
@@ -45,12 +47,12 @@ The substrate for every later phase. Until A lands, the layered context, ignore 
   *.map
   ```
 - Per-language addendum chosen from project signals (`.csproj` → `bin/`, `obj/`; `package.json` → `dist/`, `coverage/`)
-- **Lookup order (deepest-pattern-wins within each layer, layers merged):**
-  1. Per-directory `.felixignore` walked up to repo root
-  2. Repo-root `.felixignore` (committed)
-  3. `.felixignore.local` (gitignored; per-developer override of project-level exclusions)
-  4. `%USERPROFILE%/.felix/ignore` (user scope, cross-repo)
-- All Felix-owned search/read helpers honor it; raw-grep guard (D6) enforces later
+- **Lookup order (two layers, deepest-pattern-wins within each):**
+  1. Repo-root `.felixignore` (committed)
+  2. `%USERPROFILE%/.felix/ignore` (user scope, cross-repo)
+- Per-directory walk-up and `.felixignore.local` deferred until a bench fixture demonstrates they pay off
+- All Felix-owned search/read helpers honor it
+- Debugging: `felix doctor --explain <path>` reports which pattern in which layer matched
 
 ### A4 — Prompt injection refactor
 
@@ -64,22 +66,14 @@ The substrate for every later phase. Until A lands, the layered context, ignore 
 - Config in `.felix/config.json`:
   ```json
   "context": {
-    "budget_tokens": 32000,
-    "weights": {
-      "layered_agents": 0.15,
-      "repo_map": 0.05,
-      "spec": 0.20,
-      "plan": 0.15,
-      "context_map": 0.20,
-      "skills": 0.10,
-      "memory": 0.10,
-      "extras": 0.05
-    },
-    "eviction_order": ["extras", "memory", "context_map", "skills", "layered_agents", "repo_map", "plan", "spec"]
+    "budget_tokens": 32000
   }
   ```
+- `weights` and `eviction_order` are **code constants** in v2.0 (not user-tunable). Promoted to config when a bench-backed user request demands tuning. Defaults shipped in code:
+  - weights: `layered_agents: 0.15`, `repo_map: 0.05`, `spec: 0.20`, `plan: 0.15`, `context_map: 0.20`, `skills: 0.10`, `memory: 0.10`, `extras: 0.05`
+  - eviction order: `extras → memory → context_map → skills → layered_agents → repo_map → plan → spec`
 - `felix context inspect [--requirement S-NNNN]` prints token table + what would be evicted
-- Loop emits a `budget` event on the Event Bus (AS2) per iteration
+- Loop emits a `budget` event on the Event Bus (AS2) per iteration; one-line summary printed on every iteration (`tokens: 8420/32000`)
 
 ### A6 — `felix migrate` registry (formerly: run-ID format change)
 
@@ -92,17 +86,16 @@ The substrate for every later phase. Until A lands, the layered context, ignore 
 - Migration is idempotent; re-running on a v2 repo is a no-op
 - Recognition of v1 layouts is permanent — `felix migrate` never sunset
 
-### A7 — `felix replay` (owner: A; promoted from cross-cutting)
+### A7 — `felix run replay` _(verb registered; snapshot deferred)_
 
-- Per-run snapshot manifest written under `runs/<run-id>/replay.json` capturing: layered context blob hash, prompt template hashes, agent profile, config snapshot
-- `felix replay <run-id>` re-injects the exact context for debugging; does not re-execute the agent
+- Verb `felix run replay <run-id>` (alias: `felix replay`) registered in A's command surface
+- **Snapshot manifest (`runs/<run-id>/replay.json`) deferred** until one debugging session needs it. Until then, `runs/<id>/iteration-N/prompt.txt` (already written) is the canonical "what fed the model" artifact — `felix run replay` opens it.
+- When the snapshot ships: captures layered context blob hash, prompt template hashes, agent profile, config snapshot; re-injects the exact context for debugging; does not re-execute the agent
 - Lives in A because the snapshot fields are A's contracts (layered context blob + config block)
 
-### A8 — `felix config explain <path>`
+### A8 — `felix config explain` _(cut)_
 
-- New config blocks land in A and grow through F. Without provenance, deeply-nested values become opaque.
-- `felix config explain context.budget_tokens` prints: current value, source (default | `.felix/config.json` line N | env `FELIX_*` | CLI flag), and the inheritance chain
-- Small surface, large usability payoff; gates every later phase that adds a config block
+**Cut.** Hypothetical opacity problem with no user reports. Reopen when a real config-opacity issue is filed.
 
 ## Non-goals
 
@@ -116,40 +109,39 @@ The substrate for every later phase. Until A lands, the layered context, ignore 
 See [CONTRACTS.md](CONTRACTS.md) for the registry. A freezes:
 
 - Layered context blob format (header structure, hash field, level markers)
-- `.felixignore` syntax (gitignore-compatible subset) + layered lookup order
-- `context` config block schema
+- `.felixignore` syntax (gitignore-compatible subset) + two-layer lookup order
+- `context` config block schema (only `budget_tokens` user-tunable in v2.0)
 - `context inspect --json` output schema
 - `felix migrate` transform-registry interface (other phases register transforms via it)
-- `runs/<run-id>/replay.json` snapshot manifest schema
-- `felix config explain --json` output schema
+- `felix run replay` CLI surface (snapshot manifest schema deferred)
 
 ## Verification
 
 - Test repo with nested `AGENTS.md` files at root + `src/Felix.Cli/` + `tests/` → assert concatenated layered context appears in the iteration prompt in the expected order
-- `.felixignore` honored: `felix search` (D) returns no hits under `publish-out/`; `.felixignore.local` override of `publish-out/` re-includes it for the local developer only
-- Token budget enforced: oversized memory tree (E preview) is evicted per `eviction_order`
-- `felix context inspect` JSON matches schema
-- `docs-up-to-date` gate fails when a new top-level folder is added without map update
+- Root `AGENTS.md` post-migration fits within per-level budget (warn-not-fail if not)
+- `.felixignore` honored: `felix search` (D) returns no hits under `publish-out/`; user-scope ignore at `%USERPROFILE%/.felix/ignore` is merged correctly
+- Token budget enforced: oversized memory tree (E preview) is evicted per the code-constant eviction order
+- `felix context inspect` JSON matches schema; one-line `tokens: N/M` summary printed on every iteration
+- `docs-up-to-date` gate (and `felix doctor`) fails when a new top-level folder is added without map update
 - `felix migrate --dry-run` on a v1 fixture lists every transform that would run; `--apply` is idempotent on second invocation
-- `felix replay <run-id>` rehydrates the prompt context that produced a given run
-- `felix config explain context.budget_tokens` reports `default | config | env | flag` provenance correctly
+- **End-to-end "first run" gate:** fresh v1 fixture → `felix migrate --apply` → `felix run S-XXXX` succeeds with **no manual steps**
+- `felix run replay <run-id>` opens the iteration prompt artifact
 
 ## Dogfood specs
 
 - `specs/S-2A01-hierarchical-agents-loader.md`
-- `specs/S-2A02-repo-map-command.md`
+- `specs/S-2A02-repo-map-doctor.md`
 - `specs/S-2A03-felixignore-layered.md`
 - `specs/S-2A04-prompt-placeholders.md`
 - `specs/S-2A05-context-budgeter.md`
 - `specs/S-2A06-migrate-registry.md`
-- `specs/S-2A07-replay.md`
-- `specs/S-2A08-config-explain.md`
+- `specs/S-2A07-run-replay.md`
 
 ## Anchor files
 
 - [felix/felix-agent.ps1](../../felix/felix-agent.ps1) — context assembly
 - [.felix/prompts/planning.md](../../.felix/prompts/planning.md), [.felix/prompts/building.md](../../.felix/prompts/building.md)
 - [.felix/config.json](../../.felix/config.json)
-- [src/Felix.Cli/Program.Commands.cs](../../src/Felix.Cli/Program.Commands.cs) — add `repo-map`, `context`, `migrate`, `replay`, `config explain`
+- [src/Felix.Cli/Program.Commands.cs](../../src/Felix.Cli/Program.Commands.cs) — add `context inspect`, `migrate`, `run replay`; `repo map` alias
 - [scripts/install.ps1](../../scripts/install.ps1), [scripts/setup-dev-environment.ps1](../../scripts/setup-dev-environment.ps1) — wire `.felixignore` generation
-- [AGENTS.md](../../AGENTS.md) — gains `## Map` section
+- [AGENTS.md](../../AGENTS.md) — gains `## Map` section (seeded by `migrate`, refreshed by `doctor --fix`)

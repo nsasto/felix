@@ -19,8 +19,9 @@ The article calls "stop hooks that reflect on the session and propose CLAUDE.md 
 ### E1 — `learning-capture` reference plugin
 
 - Hooks: `OnPostIteration`
-- Reads from Event Bus (AS2), not log scraping (E8)
-- Drafts proposals to `runs/<run-id>/agents-md-suggestions.md`:
+- **Enabled by default** on `felix setup`. Writes only to `runs/<id>/agents-md-suggestions.md` (proposals) — never to committed memory. Disable via `learnings.auto_propose: false`.
+- Reads from Event Bus (AS2), not log scraping (E7)
+- Drafts proposals:
 
   ```markdown
   # Suggestions from S-0042 it3
@@ -50,13 +51,13 @@ The article calls "stop hooks that reflect on the session and propose CLAUDE.md 
 - Accepted edits land via `git apply`-style patch with `[felix-learning]` or `[felix-prompt]` commit markers
 - Recommended cadence: every 3 months or after a major model release
 
-### E3 — Periodic review reminder hook (formerly E4)
+### E3 — Periodic review reminder _(folded into `felix doctor`)_
 
-- `OnLoopStart` plugin checks `.felix/state.json#last_review`
-- > 90 days → emits Event Bus warning + console banner pointing at `felix review --all`
+- **No standalone `OnLoopStart` banner hook.** Single-user Felix has no DRI to escalate to; banner noise on every loop start has no actionable home.
+- Staleness check (`.felix/state.json#last_review` > 90 days) registers as a `felix doctor` check (AS4)
 - Suppressible via `felix review --acknowledge`
 
-### E4 — `.felix/memory/` tree (formerly E5)
+### E4 — `.felix/memory/` tree
 
 - Three scopes (mirrors `/memories/` pattern):
   - `.felix/memory/global/*.md` — user-level (cross-repo); lives at `%USERPROFILE%/.felix/memory/global/` actually; repo can override per-file

@@ -18,6 +18,7 @@ A sibling repo (`felix-bench` or `bench/` checked out alongside `felix`) contain
 ## Location
 
 **Sibling `bench/` repo, not inside [tests/](../../tests/)**. Reasons:
+
 - Bench fixtures grow over time and would bloat the main repo
 - Bench has its own commit cadence (changes when fixtures need updating, not when Felix changes)
 - Separable means it can be public/private independently
@@ -26,14 +27,16 @@ The runner inside the Felix repo (`src/Felix.Cli/...`) shells out to the bench c
 
 ## Fixtures (initial set)
 
-| Fixture | Stack | Why it's in the set |
-|---|---|---|
-| `bench/fixtures/py-flask` | Python + Flask + pytest | Small Python web app; tests fast |
-| `bench/fixtures/cs-classlib` | C# class library + xUnit | Hits Roslyn LSP path; tests `Program.*.cs` partial-discovery |
-| `bench/fixtures/ts-frontend` | TypeScript + Vite + Vitest | tsserver LSP path; modern JS toolchain |
-| `bench/fixtures/polyglot` | C# API + TS frontend + Python tooling | Cross-language; stresses per-path backpressure (F1) |
-| `bench/fixtures/legacy-mono` | C# console + small Python helpers, no AGENTS.md at start | Tests A1 walk-up against a "naked" repo |
-| `bench/fixtures/de-locale` | Same as `py-flask` but runner forces `LANG=de_DE.UTF-8` | i18n guard (cross-cutting) |
+Start with three; add others when the phase that needs them ships.
+
+| Fixture                      | Stack                                                    | Why it's in the set                                          | Ship                      |
+| ---------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------- |
+| `bench/fixtures/py-flask`    | Python + Flask + pytest                                  | Small Python web app; tests fast                             | v2.0                      |
+| `bench/fixtures/cs-classlib` | C# class library + xUnit                                 | Hits Roslyn LSP path; tests `Program.*.cs` partial-discovery | v2.0                      |
+| `bench/fixtures/polyglot`    | C# API + TS frontend + Python tooling                    | Cross-language; stresses per-path backpressure (F1)          | v2.0                      |
+| `bench/fixtures/ts-frontend` | TypeScript + Vite + Vitest                               | tsserver LSP path; modern JS toolchain                       | add with D′               |
+| `bench/fixtures/legacy-mono` | C# console + small Python helpers, no AGENTS.md at start | Tests A1 walk-up against a "naked" repo                      | add with A                |
+| `bench/fixtures/de-locale`   | Same as `py-flask` but runner forces `LANG=de_DE.UTF-8`  | i18n guard (cross-cutting)                                   | add when i18n guard ships |
 
 Each fixture ships with a small set of requirement specs (`bench/fixtures/<id>/specs/`) Felix is asked to implement.
 
@@ -41,18 +44,18 @@ Each fixture ships with a small set of requirement specs (`bench/fixtures/<id>/s
 
 Captured per run, written to `bench/results/<utc-iso>-<candidate>/results.jsonl` and emitted as Event Bus entries (`kind=bench.iteration`, `kind=bench.summary`):
 
-| Metric | Why |
-|---|---|
-| Iterations to green | Headline quality signal |
-| Tokens consumed (input + output) per iteration | Cost & context efficiency |
-| Wall time per iteration | UX |
-| Backpressure retries | Did the agent know how to fix its own failures? |
-| Context-map quality (C) — % of "files likely to change" actually changed | Subagent calibration |
-| Skill activations (B) — which fired, which didn't | Trigger correctness |
-| Memory entries surfaced (E) — which loaded, which influenced output | Memory utility |
-| Tool calls (D′ F4) — count by tool, denial rate | Tool-shim health |
-| Final diff size (lines added/removed) | Solution shape |
-| `bench.summary.outcome` ∈ {`green`, `red`, `flaky`, `budget-stop`, `timeout`} | Final state |
+| Metric                                                                        | Why                                             |
+| ----------------------------------------------------------------------------- | ----------------------------------------------- |
+| Iterations to green                                                           | Headline quality signal                         |
+| Tokens consumed (input + output) per iteration                                | Cost & context efficiency                       |
+| Wall time per iteration                                                       | UX                                              |
+| Backpressure retries                                                          | Did the agent know how to fix its own failures? |
+| Context-map quality (C) — % of "files likely to change" actually changed      | Subagent calibration                            |
+| Skill activations (B) — which fired, which didn't                             | Trigger correctness                             |
+| Memory entries surfaced (E) — which loaded, which influenced output           | Memory utility                                  |
+| Tool calls (D′ F4) — count by tool, denial rate                               | Tool-shim health                                |
+| Final diff size (lines added/removed)                                         | Solution shape                                  |
+| `bench.summary.outcome` ∈ {`green`, `red`, `flaky`, `budget-stop`, `timeout`} | Final state                                     |
 
 ## Runner
 
@@ -66,6 +69,7 @@ felix bench run --baseline <ref> --candidate <ref> [--fixtures <list>] [--repeat
 - `--seed`: passed to agent params where supported, for repeatability
 
 Each run:
+
 1. Checks out the baseline ref into a temp dir
 2. Runs Felix against each fixture (with deterministic config)
 3. Captures metrics
@@ -74,12 +78,17 @@ Each run:
 
 ## Gate
 
-Phase merges to `main` blocked by CI if:
+**Advisory until v2.1** (after A ships a baseline). From v2.1 onward, phase merges to `main` blocked by CI if:
+
 - **Iterations-to-green regresses > 10%** vs. baseline on any fixture
 - **Total tokens regresses > 20%** vs. baseline on any fixture
 - **Outcome regresses** (e.g., `green → red` on any fixture)
 
 CI publishes the report as a PR comment so authors can decide to override (override requires explicit approval).
+
+## UX
+
+`felix bench run` with unset `bench.path` prints actionable clone instructions (e.g., `clone https://github.com/nsasto/felix-bench to ./bench, then set bench.path in .felix/config.json`), not a stack trace.
 
 ## What it isn't
 

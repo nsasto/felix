@@ -11,8 +11,8 @@ Today every prompt in [.felix/prompts/](../../.felix/prompts/) is always-on. As 
 ## Goals
 
 1. Move non-mode prompts into a skill format with explicit triggers.
-2. Give specs structured frontmatter that the loop, the linter, and per-path backpressure (F) can consume.
-3. Add a spec critique loop so requirements get reviewed before they go `planned`.
+2. Give specs structured frontmatter that the loop, the doctor checks, and per-path backpressure (F) can consume.
+3. Ensure new specs are created with frontmatter so the migration loop closes.
 
 ## Deliverables
 
@@ -91,17 +91,19 @@ Move from `[.felix/prompts/](../../.felix/prompts/)` to skills:
 - `--dry-run` prints proposed frontmatter blocks
 - `--apply` writes them
 
-### B7 — `felix spec lint`
+### B7 — Spec frontmatter validation _(folded into `felix doctor`)_
 
-- Checks: required fields present; `gates` references existing backpressure entries; `skills` references existing skills; `applyTo` not empty for non-trivial requirements
-- CI gate — **opt-in via `spec.lint.enforce: true`** until the repo is clean. `felix spec fix --apply` flips the flag automatically once zero unfront-mattered specs remain. Prevents B7 from being a footgun on v1→v2 upgrade.
+- **No separate `felix spec lint` verb.** Validation checks live as a registered `doctor` check (A.5 AS4):
+  - Required fields present
+  - `gates` references existing backpressure entries
+  - `skills` references existing skills
+  - `applyTo` not empty for non-trivial requirements
+- Enforcement is controlled by `doctor.gates.spec_frontmatter` (default `warn`). `felix migrate` flips to `error` automatically once zero unfront-mattered specs remain. Prevents the check from being a footgun on v1→v2 upgrade.
 
-### B8 — `felix spec review`
+### B8 — `felix spec create` (frontmatter-emitting) _(replaces `spec review`/`spec approve`)_
 
-- Runs a `spec-critic` skill against `S-NNNN`
-- Outputs `specs/_reviews/S-NNNN-review-<utc>.md` with: missing acceptance criteria, ambiguous scope, suggested `applyTo`/`gates`
-- **No lifecycle change.** A spec stays `draft` until a human edits it after the review exists (mtime check) or explicitly runs `felix spec approve`, at which point it moves to `planned`. We do **not** introduce `reviewed` or `approved` as separate states — they're transient steps in a single-user workflow.
-- `felix spec approve S-NNNN` is a one-shot convenience for the "I've read the review, ship it" path
+- `felix spec create` always emits a populated frontmatter block. Closes the migration loop: after `felix migrate`, every hand-edited or freshly-created spec is well-formed.
+- **`felix spec review` + `spec-critic` skill + `felix spec approve` cut.** Promotion from `draft` → `planned` happens by a human edit (mtime check on the spec itself). If a user wants a critique, they can run any skill against any file manually — no dedicated subsystem needed.
 
 ## Non-goals
 
@@ -113,17 +115,17 @@ Move from `[.felix/prompts/](../../.felix/prompts/)` to skills:
 - `skill.json` v1 schema
 - Spec frontmatter v1 schema (required + optional fields)
 - `felix skill list|show|enable|disable` CLI surface
-- `felix spec lint|fix|review|approve` CLI surface
-- Spec lifecycle states: `draft | planned | in-progress | complete | blocked` (no `reviewed`/`approved` — those are transient steps, not states)
+- `felix spec fix|create` CLI surface (lint folded into `doctor`; `review`/`approve` cut)
+- Spec lifecycle states: `draft | planned | in-progress | complete | blocked`
 
 ## Verification
 
 - A requirement with `applyTo: ["src/Felix.Cli/**"]` loads the C#-relevant skill but not the Python one
 - Removing a skill mid-run leaves the iteration prompt intact (skill registry resolved at iteration start)
-- `felix spec lint` catches a spec missing a `gates` entry while touching `src/**` once `spec.lint.enforce` is on
-- `felix spec review S-0001` produces a critique file; spec stays `draft` until human edits it or runs `spec approve`
+- `felix doctor` flags a spec missing a `gates` entry while touching `src/**` once `doctor.gates.spec_frontmatter` is on
+- `felix spec create S-NNNN` produces a spec with valid frontmatter on first invocation
 - Repo skill with same id as user skill is the one loaded
-- `felix migrate` (A6) runs `spec fix --apply` end-to-end on a v1 fixture and the repo lands with `spec.lint.enforce: true` automatically
+- `felix migrate` runs `spec fix --apply` end-to-end on a v1 fixture and the repo lands with `doctor.gates.spec_frontmatter: error` automatically
 
 ## Dogfood specs
 
@@ -133,13 +135,13 @@ Move from `[.felix/prompts/](../../.felix/prompts/)` to skills:
 - `specs/S-2B04-skill-cli.md`
 - `specs/S-2B05-spec-frontmatter.md`
 - `specs/S-2B06-spec-fix.md`
-- `specs/S-2B07-spec-lint.md`
-- `specs/S-2B08-spec-review.md`
+- `specs/S-2B07-doctor-spec-frontmatter-check.md`
+- `specs/S-2B08-spec-create.md`
 
 ## Anchor files
 
-- [.felix/prompts/](../../.felix/prompts/) — most files migrate out
+- [.felix/prompts/](../../.felix/prompts/) — most files migrate out and the originals are deleted by `felix migrate` (git history preserved)
 - New: `.felix/skills/`
-- [src/Felix.Cli/SpecCommands.cs](../../src/Felix.Cli/SpecCommands.cs) — `spec lint|fix|review|approve`
+- [src/Felix.Cli/SpecCommands.cs](../../src/Felix.Cli/SpecCommands.cs) — `spec fix|create` (no `lint`/`review`/`approve`)
 - [src/Felix.Cli/Program.Commands.cs](../../src/Felix.Cli/Program.Commands.cs) — `skill list|show|enable|disable`
 - [.felix/requirements.json](../../.felix/requirements.json) — mirror frontmatter

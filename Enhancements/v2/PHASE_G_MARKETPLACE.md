@@ -39,7 +39,7 @@ This phase has been deliberately shrunk from the original plan. Packs, certifica
   }
   ```
 - Index URL configurable in `.felix/config.json#distribution.index_url`
-- Multiple indexes supported (corporate internal + public) — same schema, list of URLs
+- **Single index only.** Multi-index support (corporate internal + public) deferred until one corporate user asks.
 
 ### G3 — Remote update/list
 

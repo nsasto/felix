@@ -55,12 +55,9 @@ Search quality is currently a property of whichever CLI agent is configured. Dif
 - Deleted with the run (no cross-iteration staleness)
 - This is the one real cache in v2 (per [V2_MIGRATION.md](../V2_MIGRATION.md) decisions)
 
-### D6 — Raw-grep guard rail
+### D6 — Raw-grep guard rail _(cut)_
 
-- `pre-bash` hook intercepts raw `grep`/`rg`/`Select-String` invocations from the agent
-- Rewrites to honor `.felixignore`
-- Truncates at `search.max_raw_matches` (default 50) with a hint: "Too many matches — use `felix search '<query>'` for ranked results"
-- Configurable bypass: raw passthrough when the command is in the agent tool allowlist (F5)
+**Cut.** Once `felix search` is registered as a tool via D5/MCP, agents use it natively. A `pre-bash` interceptor that rewrites `grep`/`rg`/`Select-String` is belt-on-suspenders complexity that complicates the hook surface. Reopen if bench shows agents continue to raw-grep at scale after MCP exposure.
 
 > **D7 (prompt-augmentation fallback) cut.** For adapters without tool calling, Phase C's `context-map.md` (produced eagerly every iteration) already gives the building prompt a curated file list. A second eager search would duplicate that work and double the token cost. Universal coverage = the context map.
 
@@ -74,25 +71,21 @@ Search quality is currently a property of whichever CLI agent is configured. Dif
 
 - `felix search` CLI flags + `--json` output schema
 - `runs/<run-id>/search-cache.json` schema (consumers can read; format owned by Felix)
-- `pre-bash` hook signature for D6
 
 ## Verification
 
 - `felix search --related-to S-0001 --json` returns files referenced in S-0001's plans/diffs
 - Wide grep for "Program" excludes `publish-out/` due to `.felixignore`
 - Same query within one iteration hits the memoization cache (logged on Event Bus)
-- Raw `grep -r foo .` from the agent gets truncated to 50 results with hint
 
 ## Dogfood specs
 
 - `specs/S-2D01-felix-search.md`
 - `specs/S-2D02-spec-run-aware-search.md`
 - `specs/S-2D03-search-memoization.md`
-- `specs/S-2D06-raw-grep-guard.md`
 
 ## Anchor files
 
 - [src/Felix.Cli/Program.Commands.cs](../../src/Felix.Cli/Program.Commands.cs) — `search` command
-- [.felix/plugins/](../../.felix/plugins/) — new `raw-grep-guard` reference plugin (D6)
-- [.felix/config.json](../../.felix/config.json) — `search` block (`max_raw_matches`, `default_in`)
+- [.felix/config.json](../../.felix/config.json) — `search` block (`default_in`)
 - New: `runs/<run-id>/search-cache.json`

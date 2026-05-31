@@ -65,19 +65,19 @@ Documented in detail elsewhere; summary here:
 
 - **[Bench harness](v2/BENCH.md)** _(non-negotiable)_ — frozen reference repos; gates phase merges (>10% iteration regression or >20% token regression blocks)
 - **[Phase Contracts](v2/CONTRACTS.md)** — registry that freezes interfaces per phase; reviewer-enforced through v2.3, automated `felix contracts check` deferred until first break
-- **Cost guardrails** — `budget.daily_tokens` / `budget.daily_usd` with two-tier `warn_at` + `hard_stop_at`. Defaults: warn at 70% of agent profile's documented daily quota, hard-stop at 100%; if profile has no quota, warn at $5/day, stop at $20/day. Override via config.
+- **Cost guardrails** — `budget.daily_tokens` / `budget.daily_usd` with two-tier `warn_at` + `hard_stop_at`. Static defaults: warn at $5/day, hard-stop at $20/day. Override via config. Profile-aware quotas deferred until at least one agent profile actually documents one. **Recovery UX:** on hard-stop, current requirement marked `status: blocked, block_reason: "budget"`; `felix doctor` surfaces it; user runs `felix run --override-budget` (one-shot) or edits config.
 - **Secrets redaction** — regex + entropy heuristics on every artifact write; `.felix/redaction.json`; `felix scan-secrets`
 - **Failure-mode commands have owning phases** (no floating cross-cutting promises):
-  - `felix replay` — owned by Phase A (snapshot manifest is A's contract)
-  - `felix doctor` — owned by Phase A.5 (extensible; phases register checks)
+  - `felix run replay` — owned by Phase A (deferred snapshot manifest; see A7)
+  - `felix doctor` — owned by Phase A.5 (extensible; phases register checks — absorbs `repo map` staleness, `spec` frontmatter lint, stale-review reminder, ignore-file debugger)
   - `felix gc` — owned by Phase F (disk pressure surfaces after runs/events/worktrees grow)
-  - `felix recover` — owned by Phase H (lease + worktree state is H's contract)
+  - `felix run recover` — owned by Phase H (lease + worktree state is H's contract)
 - **i18n guard** — English-locked agent contract strings; post-LLM hook assertion; non-English-locale bench run
 - **Docs lifecycle** — `docs/CLI.md` and `docs/PLUGINS.md` generated from registries; `docs-up-to-date` backpressure gate for `src/Felix.Cli/` changes; **AGENTS.md `## Map` staleness folded into this gate** (no separate `repo-map check`)
 - **Plugin testing & CI** — required `tests/` in manifest; `felix plugin test`. (Certification pipeline cut from v2; reopen when ≥3 external plugins exist.)
 - **Migration tooling** _(permanent, owned by Phase A as A6)_ — `felix migrate` recognizes v1 forever; `--dry-run`, `--only`, `--revert`. Later phases register transforms with A's registry (B: spec frontmatter + prompts→skills; F: tools.allow seed).
 - **TUI command registry** — TUI shells out to `felix <cmd> --json` for any registered command; new commands auto-surface
-- **CLI verb naming convention** — nouns are singular when naming a kind (`skill`, `plugin`, `memory`, `event`, `prompt`, `learning`), plural only in collective queries. Aliases kept for back-compat on any rename.
+- **CLI verb naming convention** — `<noun> <verb>` for resource-scoped commands (`plugin install`, `skill list`, `event tail`, `memory view`, `run replay`, `run recover`, `repo map`, `tool harden`). Top-level verbs only for cross-cutting admin/UX (`search`, `navigate`, `query`, `review`, `doctor`, `bench`, `mcp`, `gc`, `migrate`, `setup`). Nouns are singular when naming a kind. Aliases kept for back-compat on any rename.
 
 ## Scope boundaries
 
@@ -109,8 +109,8 @@ Documented in detail elsewhere; summary here:
 - v2.0 = Phase A; phases ship as minor bumps under v2 line through v2.7
 - **A.5 ships with A**: install mechanics + event bus + budgeter are foundational
 - **`felix migrate` is permanent and owned by Phase A** (A6): later phases register transforms with A's registry
-- **Phase Contracts** registry freezes interfaces per phase; reviewer-enforced through v2.3
-- **Bench harness gates phase merges**: >10% iteration regression or >20% token regression blocks
+- **Phase Contracts** registry freezes interfaces per phase; reviewer-enforced through v2.3. A.5's frozen schemas (events, hooks, plugin manifest) are **candidate v1**: B/C/D may amend additively without `BREAKING:` through v2.3, since those phases are the first real consumers.
+- **Bench harness gates phase merges**: >10% iteration regression or >20% token regression blocks. Gate is **advisory until v2.1** (after A ships a baseline).
 - PowerShell remains the plugin runtime
 - LSP servers are external dependencies; installer prompts but doesn't require
 - No cloud-protocol break; new artifacts sync as opaque files
@@ -119,16 +119,53 @@ Documented in detail elsewhere; summary here:
 - **Repo overrides user scope** for skills and memory
 - **Exploration phase default-off** with auto-enable based on `auto_enable_when` repo signal (e.g., ≥500 tracked files post-`.felixignore`); per-invocation override via `--explore`/`--no-explore`
 - **LSP transport**: stdio per-language under supervised `lsp-bridge` daemon
-- **Tool exposure is MCP-first** (`felix mcp serve` in D′); per-adapter shim only as fallback for non-MCP clients
-- **Tool allowlist defaults to `allow`** on v1→v2 migrated and new `felix setup` repos, with full audit logging; `felix tools harden` is the one-time opt-in that flips to default-deny
+- **Tool exposure is MCP-first** (`felix mcp serve` in D′); per-adapter shim only as fallback for non-MCP clients. **MCP wins when `felix mcp serve` is running**; shim is strict fallback.
+- **Tool allowlist defaults to `allow`** on v1→v2 migrated and new `felix setup` repos, with full audit logging; `felix tool harden` is the one-time opt-in that flips to default-deny
 - **No new lifecycle states for failure modes**; `status: blocked` + `block_reason` (free-form string) absorbs `merge-conflict`, `budget`, future cases
 - **Agent output language locked to English** for contract strings; user-facing strings localizable
+- **`learning-capture` (E1) is enabled by default** on `felix setup`; it only writes to `runs/<id>/agents-md-suggestions.md` (proposals), never to committed memory. Disable via `learnings.auto_propose: false`.
+- **`felix migrate` deletes migrated v1 prompt files** after moving them to skills (no symlinks; git history preserves them).
 
 ## Resolved defaults
 
-- **Bench harness location**: sibling `bench/` repo (won't bloat main repo); minimal in-tree smoke fixtures live in `tests/bench-smoke/` for PR signal without the sibling checkout
+- **Bench harness location**: sibling `bench/` repo (won't bloat main repo); minimal in-tree smoke fixtures live in `tests/bench-smoke/` for PR signal without the sibling checkout. `felix bench run` with unset `bench.path` prints actionable clone instructions, not a stack trace.
 - **Event Bus retention**: 30 days, configurable via `events.retention_days`
-- **Cost guardrails**: enabled by default with two-tier `warn_at` + `hard_stop_at`; warn at 70% of agent profile's documented daily quota, hard-stop at 100%; if profile has no quota, warn at $5/day, stop at $20/day
+- **Cost guardrails**: enabled by default with two-tier `warn_at` + `hard_stop_at`; static defaults $5/day warn, $20/day hard-stop
+
+## CLI surface (final v2.7)
+
+Grouped by audience. Aliases for back-compat on any rename per the naming convention above.
+
+**Everyday (most users see these):**
+
+- `felix setup`, `felix run`, `felix loop`, `felix tui`, `felix validate`
+- `felix search`, `felix navigate`, `felix query`
+- `felix review [--learnings|--prompts|--all|--acknowledge]`
+- `felix memory view|add|edit|prune`
+- `felix migrate [--dry-run|--only|--revert]`
+
+**Debugging / introspection:**
+
+- `felix doctor [--fix]` (absorbs: repo-map staleness, spec frontmatter lint, stale-review reminder, ignore-file debugger)
+- `felix context inspect [--requirement] [--json]`
+- `felix event tail|query`
+- `felix run replay <id>` _(deferred; ships once a debugging session needs the snapshot)_
+- `felix run recover [--run|--all] [--yes]`
+
+**Resource management:**
+
+- `felix plugin install|list|remove|info|update`
+- `felix skill list|show|enable|disable|install`
+- `felix spec fix|create` _(spec lint folded into `doctor`; `spec review`/`spec approve` cut)_
+- `felix repo map` _(folded into `doctor --fix`; verb retained as alias)_
+
+**Power-user / admin:**
+
+- `felix tool harden`
+- `felix gc [--dry-run|--yes|--older-than]`
+- `felix mcp serve [--port|--socket|--tools|--allow-from]`
+- `felix loop --parallel N [--worktrees]`
+- `felix bench run|report`
 
 ## Anchor files (high-touch areas)
 
