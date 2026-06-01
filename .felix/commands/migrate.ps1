@@ -154,6 +154,47 @@ $transforms["spec-frontmatter"] = @{
     }
 }
 
+# C: explore-enable — auto-enable explore in config if tracked files >= 500
+$transforms["explore-enable"] = @{
+    Id          = "explore-enable"
+    Description = "Auto-enable explore in .felix/config.json when tracked file count >= 500"
+    Phase       = "C"
+    Check       = {
+        param($ProjectPath)
+        $configPath = Join-Path $ProjectPath ".felix\config.json"
+        if (-not (Test-Path $configPath)) { return $false }
+        $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+        # Already enabled? No need to run
+        if ($cfg.explore -and $cfg.explore.enabled -eq $true) { return $false }
+        # Count tracked files
+        $tracked = 0
+        try {
+            $gitOutput = & git -C $ProjectPath ls-files 2>$null
+            $tracked = @($gitOutput).Count
+        } catch { }
+        return $tracked -ge 500
+    }
+    Apply       = {
+        param($ProjectPath)
+        $configPath = Join-Path $ProjectPath ".felix\config.json"
+        $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+        if (-not $cfg.explore) {
+            $cfg | Add-Member -MemberType NoteProperty -Name "explore" -Value ([PSCustomObject]@{
+                enabled              = $true
+                auto_enable_when     = [PSCustomObject]@{ min_tracked_files = 500 }
+                skip_on_iteration_gt = 1
+                agent_override       = $null
+                max_tokens           = 8000
+            }) -Force
+        } else {
+            $cfg.explore | Add-Member -MemberType NoteProperty -Name "enabled" -Value $true -Force
+        }
+        $cfg | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        $tracked = @(& git -C $ProjectPath ls-files 2>$null).Count
+        return @{ Changed = $true; Detail = "Enabled explore (tracked files: $tracked)" }
+    }
+}
+
 if (-not $DryRun -and -not $Apply) {
     $DryRun = $true
 }

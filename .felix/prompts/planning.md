@@ -8,6 +8,8 @@ You are an autonomous coding agent operating in **planning mode**. Your job is t
 
 {{SKILLS}}
 
+{{CONTEXT_MAP}}
+
 {{MEMORY}}
 
 ## Before You Begin

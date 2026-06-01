@@ -271,13 +271,23 @@ function New-IterationPrompt {
     # Plan content
     $planContentForBudget = if ($PlanContent) { $PlanContent } else { "" }
 
+    # C3: Context Map - load from runs/<run-id>/context-map.md if present
+    $contextMapContent = ""
+    $contextMapPath = Join-Path $RunDir "context-map.md"
+    if (Test-Path $contextMapPath) {
+        $contextMapContent = Get-Content $contextMapPath -Raw -ErrorAction SilentlyContinue
+        if ($contextMapContent) {
+            Emit-Log -Level "debug" -Message "context-map.md loaded ($([int]($contextMapContent.Length/4)) tokens est.)" -Component "prompt-builder"
+        }
+    }
+
     # Build sources hashtable for budgeter
     $budgetSources = @{
         layered_agents = $layeredAgentsContent
         repo_map       = $repoMapContent
         spec           = $specContent
         plan           = $planContentForBudget
-        context_map    = ""   # filled by Phase C (explore)
+        context_map    = $contextMapContent
         skills         = $skillsContent
         memory         = ""   # filled by Phase E
         extras         = ($contextParts -join "`n`n---`n`n")

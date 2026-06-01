@@ -81,7 +81,13 @@ param(
     [switch]$DebugMode,
     
     [Parameter(Mandatory = $false)]
-    [switch]$Sync
+    [switch]$Sync,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Explore,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoExplore
 )
 
 $ErrorActionPreference = "Continue"
@@ -122,6 +128,12 @@ if ($VerboseMode) {
 }
 if ($DebugMode) {
     $argParts += @("-DebugMode")
+}
+if ($Explore) {
+    $argParts += @("-Explore")
+}
+if ($NoExplore) {
+    $argParts += @("-NoExplore")
 }
 
 if ($Format -ne "json") {

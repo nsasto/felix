@@ -12,6 +12,8 @@ partial class Program
         var debugOpt = new Option<bool>("--debug", "Enable debug mode and log full prompt artifacts per attempt");
         var quietOpt = new Option<bool>("--quiet", "Suppress non-essential output");
         var syncOpt = new Option<bool>("--sync", "Temporarily enable sync (overrides config)");
+        var exploreOpt = new Option<bool>("--explore", "Force exploration subagent before plan/build");
+        var noExploreOpt = new Option<bool>("--no-explore", "Disable exploration subagent for this run");
 
         var cmd = new Command("run", "Execute a single requirement")
         {
@@ -19,17 +21,21 @@ partial class Program
             verboseOpt,
             debugOpt,
             quietOpt,
-            syncOpt
+            syncOpt,
+            exploreOpt,
+            noExploreOpt
         };
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler(async (reqId, format, verbose, debug, quiet, sync) =>
+        cmd.SetHandler(async (reqId, format, verbose, debug, quiet, sync, explore, noExplore) =>
         {
             var args = new List<string> { "run", reqId };
             if (verbose) args.Add("--verbose");
             if (debug) args.Add("--debug");
             if (quiet) args.Add("--quiet");
             if (sync) args.Add("--sync");
+            if (explore) args.Add("--explore");
+            if (noExplore) args.Add("--no-explore");
 
             if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
                 await ExecuteFelixRichCommand(felixPs1, "Run Requirement", args.ToArray());
@@ -38,7 +44,7 @@ partial class Program
                 args.AddRange(new[] { "--format", format });
                 await ExecutePowerShell(felixPs1, args.ToArray());
             }
-        }, reqIdArg, formatOpt, verboseOpt, debugOpt, quietOpt, syncOpt);
+        }, reqIdArg, formatOpt, verboseOpt, debugOpt, quietOpt, syncOpt, exploreOpt, noExploreOpt);
 
         // v2 A7: felix run replay <run-id>
         cmd.AddCommand(CreateRunReplaySubcommand(felixPs1));

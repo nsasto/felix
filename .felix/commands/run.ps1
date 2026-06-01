@@ -10,25 +10,40 @@ function Invoke-Run {
     $requirementId = $Args[0]
     $formatValue = $Format  # Use script-level default
     $syncEnabled = $false
+    $exploreEnabled = $false
+    $noExploreEnabled = $false
     
     # Parse optional flags
     for ($i = 1; $i -lt $Args.Count; $i++) {
         if ($Args[$i] -eq "--format" -and ($i + 1) -lt $Args.Count) {
             $formatValue = $Args[$i + 1]
-            $i++  # Skip the format value
+            $i++
         }
         elseif ($Args[$i] -eq "--sync") {
             $syncEnabled = $true
         }
+        elseif ($Args[$i] -eq "--explore") {
+            $exploreEnabled = $true
+        }
+        elseif ($Args[$i] -eq "--no-explore") {
+            $noExploreEnabled = $true
+        }
     }
 
     # Execute felix-cli.ps1 which spawns agent internally
-    if ($NoStats) {
-        & "$PSScriptRoot\..\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -NoStats -VerboseMode:$VerboseMode -DebugMode:$DebugMode -Sync:$syncEnabled
-    }
-    else {
-        & "$PSScriptRoot\..\felix-cli.ps1" -ProjectPath $RepoRoot -RequirementId $requirementId -Format $formatValue -VerboseMode:$VerboseMode -DebugMode:$DebugMode -Sync:$syncEnabled
-    }
+    $cliArgs = @(
+        "-ProjectPath", $RepoRoot,
+        "-RequirementId", $requirementId,
+        "-Format", $formatValue
+    )
+    if ($VerboseMode)     { $cliArgs += @("-VerboseMode") }
+    if ($DebugMode)       { $cliArgs += @("-DebugMode") }
+    if ($syncEnabled)     { $cliArgs += @("-Sync") }
+    if ($exploreEnabled)  { $cliArgs += @("-Explore") }
+    if ($noExploreEnabled){ $cliArgs += @("-NoExplore") }
+    if ($NoStats)         { $cliArgs += @("-NoStats") }
+
+    & "$PSScriptRoot\..\felix-cli.ps1" @cliArgs
 
     exit $LASTEXITCODE
 }

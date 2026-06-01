@@ -145,7 +145,31 @@ felix skill disable <id>           # disable without deleting
 
 # Replay a previous run's prompt artifacts
 felix run replay S-0001-20260101-120000
+
+# Exploration subagent (reads repo before plan/build phase)
+felix run S-0001 --explore          # force explore on this run
+felix run S-0001 --no-explore       # disable explore for this run
 ```
+
+**Explore subagent** (`--explore`/`--no-explore`)
+
+The explore phase runs a read-only subagent pass before plan/build to produce a `context-map.md` artifact. This lets the main agent focus on implementation rather than discovery. It is:
+- Off by default; auto-enables when `git ls-files` count >= 500 (configurable)
+- Skipped on iteration > 1 by default (only the first pass needs discovery)
+- Controllable per-run with `--explore` (force on) or `--no-explore` (force off)
+- Configured in `.felix/config.json` under `"explore"`
+
+```json
+"explore": {
+  "enabled": false,
+  "auto_enable_when": { "min_tracked_files": 500 },
+  "skip_on_iteration_gt": 1,
+  "agent_override": null,
+  "max_tokens": 8000
+}
+```
+
+Run `felix migrate --apply` on a large repo to auto-enable explore if the file count threshold is met.
 
 **Optional: Enable cloud sync for run artifacts (free)**
 

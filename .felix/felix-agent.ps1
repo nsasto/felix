@@ -32,7 +32,13 @@ param(
     [switch]$DebugMode,
 
     [Parameter(Mandatory = $false)]
-    [switch]$VerboseMode
+    [switch]$VerboseMode,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Explore,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoExplore
 )
 
 $ErrorActionPreference = "Stop"
@@ -631,7 +637,9 @@ try {
             -Paths $paths `
             -NoCommit:$NoCommit `
             -DebugMode:$DebugMode `
-            -VerboseMode:$VerboseMode
+            -VerboseMode:$VerboseMode `
+            -ExplicitExplore:$Explore `
+            -ExplicitNoExplore:$NoExplore
     
         if (-not $result.Continue) {
             # Build run context for OnRunComplete hook

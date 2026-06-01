@@ -55,6 +55,9 @@ dotnet test tests\Felix.Cli.Tests\
 # Run Phase B PowerShell unit tests (skill-loader, frontmatter-parser)
 .\tests\Test-PhaseB.ps1
 
+# Run Phase C PowerShell unit tests (explore subagent: Get-ExploreConfig, Test-ExploreEnabled, Assert-ContextMapSchema)
+.\tests\Test-PhaseC.ps1
+
 # Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
@@ -136,6 +139,32 @@ $env:FELIX_SYNC_KEY = "fsk_your_api_key_here"  # Required when sync enabled
 Or use the `--sync` CLI flag for a single run: `felix run S-0001 --sync`
 
 See **docs/SYNC_OPERATIONS.md** for full configuration, troubleshooting, and architecture details.
+
+## Explore Subagent (Phase C)
+
+The explore phase is a read-only pass that runs before plan/build and writes `runs/<run-id>/context-map.md`. It lets the agent discover relevant files and patterns without burning plan/build tokens.
+
+**CLI flags:** `felix run S-0001 --explore` (force on) / `--no-explore` (force off)
+
+**Config block** (`.felix/config.json`):
+
+```json
+"explore": {
+  "enabled": false,
+  "auto_enable_when": { "min_tracked_files": 500 },
+  "skip_on_iteration_gt": 1,
+  "agent_override": null,
+  "max_tokens": 8000
+}
+```
+
+**Auto-enable:** `felix migrate --apply` sets `enabled: true` automatically when `git ls-files` >= 500.
+
+**Plugin hooks fired:** `OnPreExplore` (before), `OnPostExplore` (after). `OnPostExplore` receives `ContextMapPath` and `ContextMapContent`.
+
+**Required context-map sections:** `## Files likely to change`, `## Files to read for context`, `## Symbols of interest`, `## Related tests`, `## Prior runs`. Missing sections are injected with `_(no data)_` placeholders.
+
+**Core script:** `.felix/core/explore.ps1` — functions: `Get-ExploreConfig`, `Test-ExploreEnabled`, `Assert-ContextMapSchema`, `New-ExplorePrompt`, `Invoke-ExplorePhase`, `Test-AgentReadOnly`
 
 ## Sync Troubleshooting
 

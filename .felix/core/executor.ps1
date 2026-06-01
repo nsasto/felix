@@ -17,6 +17,10 @@ backpressure validation, git operations, and plugin hooks.
 . "$PSScriptRoot\artifact-validator.ps1"
 . "$PSScriptRoot\task-handler.ps1"
 
+# C: Load explore phase (graceful — v1 envs won't have it)
+$exploreScriptPath = Join-Path $PSScriptRoot "explore.ps1"
+if (Test-Path $exploreScriptPath) { . $exploreScriptPath }
+
 function Invoke-FelixIteration {
     <#
     .SYNOPSIS
@@ -84,7 +88,13 @@ function Invoke-FelixIteration {
         [switch]$DebugMode,
         
         [Parameter(Mandatory = $false)]
-        [switch]$VerboseMode
+        [switch]$VerboseMode,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$ExplicitExplore,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$ExplicitNoExplore
     )
     
     # Workflow Stage: start_iteration
@@ -156,7 +166,61 @@ function Invoke-FelixIteration {
         Emit-Log -Level "info" -Message "Iteration skipped: $($hookResult.Reason)" -Component "plugins" | Out-Null
         return @{ Continue = $false; ExitCode = 0 }
     }
-    
+
+    # ── C: Explore phase (explore -> plan -> build -> validate) ──────────
+    if (Get-Command Test-ExploreEnabled -ErrorAction SilentlyContinue) {
+        $exploreConfig = Get-ExploreConfig -Config $Config
+        $shouldExplore = Test-ExploreEnabled `
+            -ExploreConfig      $exploreConfig `
+            -ProjectPath        $Paths.ProjectPath `
+            -Iteration          $Iteration `
+            -ExplicitExplore    $ExplicitExplore.IsPresent `
+            -ExplicitNoExplore  $ExplicitNoExplore.IsPresent
+
+        if ($shouldExplore) {
+            # Hook: OnPreExplore
+            try {
+                Invoke-PluginHook -HookName "OnPreExplore" -RunId $runId -HookData @{
+                    RunId       = $runId
+                    Requirement = $CurrentRequirement
+                    Paths       = $Paths
+                    Config      = $Config
+                } | Out-Null
+            } catch {
+                Emit-Log -Level "warn" -Message "OnPreExplore hook failed: $_" -Component "plugins"
+            }
+
+            $exploreResult = Invoke-ExplorePhase `
+                -ProjectPath        $Paths.ProjectPath `
+                -Paths              $Paths `
+                -CurrentRequirement $CurrentRequirement `
+                -RunId              $runId `
+                -RunDir             $runDir `
+                -Iteration          $Iteration `
+                -Config             $Config `
+                -AgentConfig        $AgentConfig `
+                -ExplicitExplore    $ExplicitExplore.IsPresent
+
+            if ($exploreResult.Succeeded -eq $false -and -not $exploreResult.Skipped -and $ExplicitExplore) {
+                # Hard error only on explicit --explore with non-skipped failure
+                return @{ Continue = $false; ExitCode = 1 }
+            }
+
+            # Hook: OnPostExplore
+            try {
+                Invoke-PluginHook -HookName "OnPostExplore" -RunId $runId -HookData @{
+                    RunId           = $runId
+                    ContextMapPath  = $exploreResult.ContextMapPath
+                    ContextMapContent = $exploreResult.ContextMapContent
+                    Requirement     = $CurrentRequirement
+                    Paths           = $Paths
+                } | Out-Null
+            } catch {
+                Emit-Log -Level "warn" -Message "OnPostExplore hook failed: $_" -Component "plugins"
+            }
+        }
+    }
+
     # Build prompt
     $fullPrompt = New-IterationPrompt `
         -Mode $mode `

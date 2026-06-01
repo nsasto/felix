@@ -192,4 +192,39 @@ public sealed class V2CommandsTests
         var argNames = show.Arguments.Select(a => a.Name).ToHashSet();
         Assert.Contains("id", argNames);
     }
+
+    // ── run --explore / --no-explore (Phase C) ────────────────────────────
+
+    [Fact]
+    public void RunCommand_HasExploreOption()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var run  = root.Subcommands.Single(c => c.Name == "run");
+
+        var optNames = run.Options.Select(o => o.Name).ToHashSet();
+        Assert.Contains("explore", optNames);
+    }
+
+    [Fact]
+    public void RunCommand_HasNoExploreOption()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var run  = root.Subcommands.Single(c => c.Name == "run");
+
+        var optNames = run.Options.Select(o => o.Name).ToHashSet();
+        Assert.Contains("no-explore", optNames);
+    }
+
+    [Fact]
+    public void RunCommand_ExploreAndNoExploreAreBoolOptions()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var run  = root.Subcommands.Single(c => c.Name == "run");
+
+        var explore   = run.Options.Single(o => o.Name == "explore");
+        var noExplore = run.Options.Single(o => o.Name == "no-explore");
+
+        Assert.Equal(typeof(bool), explore.ValueType);
+        Assert.Equal(typeof(bool), noExplore.ValueType);
+    }
 }
