@@ -35,6 +35,7 @@ Today the loop has two phases (`plan`, `build`) and one agent does both. The age
 ### C2 — Read-only subagent
 
 - Spawns the configured CLI agent with a `--read-only` flag (or wrapper that refuses writes)
+- If the adapter cannot guarantee read-only execution (no native flag and no enforcing wrapper), Felix skips `explore` and continues with `plan → build` by default; an explicit `felix run --explore` turns that into a clean actionable error instead of silently downgrading
 - Loaded context: layered AGENTS.md (A1) + repo map (A2) + spec + relevant skills (B) — **no** plan, **no** prior diffs
 - Output contract: writes `runs/<run-id>/context-map.md`:
 

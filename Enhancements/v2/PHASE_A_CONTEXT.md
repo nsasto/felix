@@ -82,7 +82,8 @@ The substrate for every later phase. Until A lands, the layered context, ignore 
   - A: `.felixignore` seed, AGENTS.md `## Map` block initialization
   - B: `spec fix --apply` (frontmatter), prompts→skills move
   - F: `tools.allow` seed from current agent's de-facto tool set
-- Flags: `--dry-run`, `--only <transform-id>`
+- Flags: `--dry-run`, `--apply`, `--only <transform-id>`
+- **Write mode is explicit.** `felix migrate` previews planned transforms by default; `--apply` is required to modify the repo.
 - **Recovery:** `git revert` the migration commit. Felix migrations are forward-only; there is no `--revert` flag (the test surface for reversing every transform from every phase outweighed the rare demand).
 - Migration is idempotent; re-running on a v2 repo is a no-op
 - Recognition of v1 layouts is permanent — `felix migrate` never sunset

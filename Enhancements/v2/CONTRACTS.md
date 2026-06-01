@@ -62,7 +62,8 @@ Required: `budget_tokens`. `weights` and `eviction_order` are code constants in 
 ### `felix migrate` registry
 
 - Permanent v1→v2 transform tool; recognition of v1 layouts never sunset
-- Flags: `--dry-run`, `--only <transform-id>` (no `--revert`; recovery is `git revert` the migration commit — Felix migrations are forward-only)
+- Flags: `--dry-run`, `--apply`, `--only <transform-id>` (no `--revert`; recovery is `git revert` the migration commit — Felix migrations are forward-only)
+- `--apply` is required for writes; without it, `felix migrate` previews planned transforms and exits without modifying the repo
 - Later phases register transforms via this interface (B: spec fix, prompts→skills; F: tools.allow seed)
 - Idempotent on second invocation
 

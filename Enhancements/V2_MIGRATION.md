@@ -69,13 +69,13 @@ Documented in detail elsewhere; summary here:
 - **Secrets redaction** — regex + entropy heuristics on every artifact write; `.felix/redaction.json`; `felix scan-secrets`
 - **Failure-mode commands have owning phases** (no floating cross-cutting promises):
   - `felix run replay` — owned by Phase A (deferred snapshot manifest; see A7)
-  - `felix doctor` — owned by Phase A.5 (extensible; phases register checks — absorbs `repo map` staleness, `spec` frontmatter lint, stale-review reminder, ignore-file debugger)
+  - `felix doctor` — owned by Phase A.5 (extensible; A/A.5 ship core checks, later phases register their own checks as they land — e.g. `repo map` staleness in A, `spec` frontmatter lint in B, stale-review reminder in E)
   - `felix gc` — owned by Phase F (disk pressure surfaces after runs/events/worktrees grow)
   - `felix run recover` — owned by Phase H (lease + worktree state is H's contract)
 - **i18n guard** — English-locked agent contract strings; post-LLM hook assertion; non-English-locale bench run
 - **Docs lifecycle** — `docs/CLI.md` and `docs/PLUGINS.md` generated from registries; `docs-up-to-date` backpressure gate for `src/Felix.Cli/` changes; **AGENTS.md `## Map` staleness folded into this gate** (no separate `repo-map check`)
 - **Plugin testing & CI** — required `tests/` in manifest; `felix plugin test`. (Certification pipeline cut from v2; reopen when ≥3 external plugins exist.)
-- **Migration tooling** _(permanent, owned by Phase A as A6)_ — `felix migrate` recognizes v1 forever; `--dry-run`, `--only`. (No `--revert`; recovery = `git revert` the migration commit.) Later phases register transforms with A's registry (B: spec frontmatter + prompts→skills; F: tools.allow seed).
+- **Migration tooling** _(permanent, owned by Phase A as A6)_ — `felix migrate` recognizes v1 forever; `--dry-run`, `--apply`, `--only`. `--apply` is required for writes; without it, migrate is preview-only. (No `--revert`; recovery = `git revert` the migration commit.) Later phases register transforms with A's registry (B: spec frontmatter + prompts→skills; F: tools.allow seed).
 - **TUI command registry** — TUI shells out to `felix <cmd> --json` for any registered command; new commands auto-surface
 - **CLI verb naming convention** — `<noun> <verb>` for resource-scoped commands (`plugin install`, `skill list`, `event tail`, `memory view`, `run replay`, `run recover`, `repo map`, `tool harden`). Top-level verbs only for cross-cutting admin/UX (`search`, `navigate`, `query`, `review`, `doctor`, `bench`, `mcp`, `gc`, `migrate`, `setup`). Nouns are singular when naming a kind. Aliases kept for back-compat on any rename.
 
@@ -142,7 +142,7 @@ Grouped by audience. Aliases for back-compat on any rename per the naming conven
 - `felix search`, `felix navigate`, `felix query`
 - `felix review [--learnings|--prompts|--all|--acknowledge]`
 - `felix memory view|add|edit|prune`
-- `felix migrate [--dry-run|--only]`
+- `felix migrate [--dry-run|--apply|--only]`
 
 **Debugging / introspection:**
 
