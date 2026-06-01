@@ -566,6 +566,11 @@ try {
     # Initialize plugin state
     Initialize-PluginState
 
+    # AS2: Initialize Event Bus (append events to .felix/events.jsonl)
+    if (Get-Command Initialize-EventBus -ErrorAction SilentlyContinue) {
+        Initialize-EventBus -FelixDir $FelixDir
+    }
+
     # Load requirements and select current requirement
     $currentReq = Get-CurrentRequirement -RequirementsFile $RequirementsFile -RequirementId $RequirementId -StateFile $StateFile -TrustServerStatus:$isSyncEnabled
     if (-not $currentReq -or -not $currentReq.id) {

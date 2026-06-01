@@ -75,6 +75,11 @@ partial class Program
         rootCommand.AddCommand(CreateHelpCommand(felixPs1, rootCommand));
         rootCommand.AddCommand(CreateDashboardCommand(felixPs1));
         rootCommand.AddCommand(CreateTuiCommand(felixPs1));
+        // v2 commands
+        rootCommand.AddCommand(CreateMigrateCommand(felixPs1));
+        rootCommand.AddCommand(CreateDoctorCommand(felixPs1));
+        rootCommand.AddCommand(CreatePluginCommand(felixPs1));
+        rootCommand.AddCommand(CreateEventCommand(felixPs1));
         return rootCommand;
     }
 

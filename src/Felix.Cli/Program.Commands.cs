@@ -40,6 +40,9 @@ partial class Program
             }
         }, reqIdArg, formatOpt, verboseOpt, debugOpt, quietOpt, syncOpt);
 
+        // v2 A7: felix run replay <run-id>
+        cmd.AddCommand(CreateRunReplaySubcommand(felixPs1));
+
         return cmd;
     }
 
@@ -347,19 +350,31 @@ partial class Program
 
     static Command CreateContextCommand(string felixPs1, Option<string> formatOpt)
     {
-        var subCmdArg = new Argument<string[]>("subcommand", "build, show")
+        var subCmdArg = new Argument<string[]>("subcommand", "build, show, inspect")
         {
             Arity = ArgumentArity.ZeroOrMore
         };
+        var reqOpt = new Option<string?>("--requirement", "Requirement ID for context inspection");
 
         var cmd = new Command("context", "Generate or view project context documentation")
         {
-            subCmdArg
+            subCmdArg,
+            reqOpt
         };
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler(async (subArgs, format) =>
+        cmd.SetHandler(async (subArgs, format, req) =>
         {
+            // v2: context inspect (A5)
+            if (subArgs.Length > 0 && string.Equals(subArgs[0], "inspect", StringComparison.OrdinalIgnoreCase))
+            {
+                var args = new List<string> { "context", "inspect" };
+                if (!string.IsNullOrEmpty(req)) args.AddRange(new[] { "--requirement", req });
+                if (format != "rich") args.AddRange(new[] { "--format", format });
+                await ExecutePowerShell(felixPs1, args.ToArray());
+                return;
+            }
+
             if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase)
                 && subArgs.Length > 0
                 && string.Equals(subArgs[0], "show", StringComparison.OrdinalIgnoreCase))
@@ -368,11 +383,169 @@ partial class Program
                 return;
             }
 
-            var args = new List<string> { "context" };
-            args.AddRange(subArgs);
-            if (format != "rich") args.AddRange(new[] { "--format", format });
+            var cmdArgs = new List<string> { "context" };
+            cmdArgs.AddRange(subArgs);
+            if (format != "rich") cmdArgs.AddRange(new[] { "--format", format });
+            await ExecutePowerShell(felixPs1, cmdArgs.ToArray());
+        }, subCmdArg, formatOpt, reqOpt);
+
+        return cmd;
+    }
+
+    // ── v2: felix migrate (A6) ─────────────────────────────────────────────
+
+    static Command CreateMigrateCommand(string felixPs1)
+    {
+        var dryRunOpt = new Option<bool>("--dry-run", "Preview transforms without writing (default if --apply omitted)");
+        var applyOpt  = new Option<bool>("--apply", "Write changes to disk (required to execute transforms)");
+        var onlyOpt   = new Option<string?>("--only", "Run only the specified transform ID");
+
+        var cmd = new Command("migrate", "Transform v1 Felix repository layout to v2")
+        {
+            dryRunOpt,
+            applyOpt,
+            onlyOpt
+        };
+
+        cmd.SetHandler(async (dryRun, apply, only) =>
+        {
+            var args = new List<string> { "migrate" };
+            if (dryRun) args.Add("--dry-run");
+            if (apply)  args.Add("--apply");
+            if (!string.IsNullOrEmpty(only)) args.AddRange(new[] { "--only", only });
             await ExecutePowerShell(felixPs1, args.ToArray());
-        }, subCmdArg, formatOpt);
+        }, dryRunOpt, applyOpt, onlyOpt);
+
+        return cmd;
+    }
+
+    // ── v2: felix doctor (AS4) ────────────────────────────────────────────
+
+    static Command CreateDoctorCommand(string felixPs1)
+    {
+        var fixOpt     = new Option<bool>("--fix", "Attempt non-destructive repairs");
+        var explainOpt = new Option<string?>("--explain", "Report which .felixignore pattern matches a path");
+        var jsonOpt    = new Option<bool>("--json", "Machine-readable output");
+
+        var cmd = new Command("doctor", "Diagnose common Felix operational issues")
+        {
+            fixOpt,
+            explainOpt,
+            jsonOpt
+        };
+
+        cmd.SetHandler(async (fix, explain, json) =>
+        {
+            var args = new List<string> { "doctor" };
+            if (fix) args.Add("--fix");
+            if (!string.IsNullOrEmpty(explain)) args.AddRange(new[] { "--explain", explain });
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, fixOpt, explainOpt, jsonOpt);
+
+        return cmd;
+    }
+
+    // ── v2: felix plugin (AS1) ────────────────────────────────────────────
+
+    static Command CreatePluginCommand(string felixPs1)
+    {
+        var cmd = new Command("plugin", "Manage Felix plugins");
+
+        // plugin install <source>
+        var installSourceArg = new Argument<string>("source", "Plugin source: ./path, https://url, git+https://..., or <name>");
+        var installCmd = new Command("install", "Install a plugin") { installSourceArg };
+        installCmd.SetHandler(async (source) =>
+        {
+            await ExecutePowerShell(felixPs1, "plugin", "install", source);
+        }, installSourceArg);
+
+        // plugin list [--remote]
+        var remoteOpt  = new Option<bool>("--remote", "List plugins from remote index (requires Phase G)");
+        var jsonOpt    = new Option<bool>("--json", "Machine-readable output");
+        var listCmd    = new Command("list", "List installed plugins") { remoteOpt, jsonOpt };
+        listCmd.SetHandler(async (remote, json) =>
+        {
+            var args = new List<string> { "plugin", "list" };
+            if (remote) args.Add("--remote");
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, remoteOpt, jsonOpt);
+
+        // plugin remove <id>
+        var removeIdArg = new Argument<string>("id", "Plugin ID to remove");
+        var removeCmd   = new Command("remove", "Remove an installed plugin") { removeIdArg };
+        removeCmd.SetHandler(async (id) =>
+        {
+            await ExecutePowerShell(felixPs1, "plugin", "remove", id);
+        }, removeIdArg);
+
+        // plugin info <id>
+        var infoIdArg = new Argument<string>("id", "Plugin ID to inspect");
+        var infoCmd   = new Command("info", "Show details for an installed plugin") { infoIdArg };
+        infoCmd.SetHandler(async (id) =>
+        {
+            await ExecutePowerShell(felixPs1, "plugin", "info", id);
+        }, infoIdArg);
+
+        cmd.AddCommand(installCmd);
+        cmd.AddCommand(listCmd);
+        cmd.AddCommand(removeCmd);
+        cmd.AddCommand(infoCmd);
+        return cmd;
+    }
+
+    // ── v2: felix event (AS2) ─────────────────────────────────────────────
+
+    static Command CreateEventCommand(string felixPs1)
+    {
+        var cmd = new Command("event", "Query the Felix Event Bus (.felix/events.jsonl)");
+        cmd.AddAlias("events");
+
+        // event tail [--kind K] [--run-id ID] [--since 1h]
+        var kindOpt  = new Option<string?>("--kind", "Filter by event kind");
+        var runIdOpt = new Option<string?>("--run-id", "Filter by run ID");
+        var sinceOpt = new Option<string?>("--since", "Time window (e.g. 1h, 30m, 2d)");
+        var tailCmd  = new Command("tail", "Stream recent events") { kindOpt, runIdOpt, sinceOpt };
+        tailCmd.SetHandler(async (kind, runId, since) =>
+        {
+            var args = new List<string> { "event", "tail" };
+            if (!string.IsNullOrEmpty(kind))  args.AddRange(new[] { "--kind", kind });
+            if (!string.IsNullOrEmpty(runId)) args.AddRange(new[] { "--run-id", runId });
+            if (!string.IsNullOrEmpty(since)) args.AddRange(new[] { "--since", since });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, kindOpt, runIdOpt, sinceOpt);
+
+        // event query <expression>
+        var exprArg  = new Argument<string>("expression", "jq-like filter expression");
+        var queryCmd = new Command("query", "Query events with a filter expression") { exprArg };
+        queryCmd.SetHandler(async (expr) =>
+        {
+            await ExecutePowerShell(felixPs1, "event", "query", expr);
+        }, exprArg);
+
+        cmd.AddCommand(tailCmd);
+        cmd.AddCommand(queryCmd);
+        return cmd;
+    }
+
+    // ── v2: felix run replay (A7) — extends the existing run command ──────
+    // (registered as a subcommand on the run command via CreateRunReplaySubcommand)
+
+    static Command CreateRunReplaySubcommand(string felixPs1)
+    {
+        var runIdArg = new Argument<string>("run-id", "Run ID to replay (format: S-NNNN-YYYYMMDD-HHMMSS)");
+        var iterOpt  = new Option<int?>("--iteration", "Open a specific iteration (default: latest)");
+
+        var cmd = new Command("replay", "Open the prompt artifact from a previous run") { runIdArg, iterOpt };
+        cmd.AddAlias("replay");
+
+        cmd.SetHandler(async (runId, iter) =>
+        {
+            var args = new List<string> { "run", "replay", runId };
+            if (iter.HasValue) args.AddRange(new[] { "--iteration", iter.Value.ToString() });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, runIdArg, iterOpt);
 
         return cmd;
     }

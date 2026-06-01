@@ -39,7 +39,13 @@ function New-IterationPrompt {
         [Parameter(Mandatory = $false)]
         [switch]$NoCommit
     )
-    
+
+    # Load v2 modules if present (graceful fallback for v1 environments)
+    $agentsLoaderPath  = Join-Path $PSScriptRoot "agents-loader.ps1"
+    $budgeterPath      = Join-Path $PSScriptRoot "context-budgeter.ps1"
+    if (Test-Path $agentsLoaderPath)  { . $agentsLoaderPath }
+    if (Test-Path $budgeterPath)      { . $budgeterPath }
+
     # Load prompt template
     $promptFile = Join-Path $Paths.PromptsDir "$Mode.md"
     if (-not (Test-Path $promptFile)) {
@@ -193,9 +199,84 @@ function New-IterationPrompt {
     # Workflow Stage: build_prompt
     Set-WorkflowStage -Stage "build_prompt" -ProjectPath $Paths.ProjectPath
     
-    # Construct full prompt
-    $context = $contextParts -join "`n`n---`n`n"
-    $fullPrompt = "$promptTemplate`n`n---`n`n# Project Context`n`n$context"
+    # ── v2: Assemble placeholder sources and apply context budget ──────────
+    $repoRoot = if (Get-Command Resolve-RepoRoot -ErrorAction SilentlyContinue) {
+        Resolve-RepoRoot -Path $Paths.ProjectPath
+    } else { $Paths.ProjectPath }
+
+    # A1: Layered AGENTS.md context
+    $layeredAgentsContent = ""
+    if (Get-Command Get-LayeredAgentsContext -ErrorAction SilentlyContinue) {
+        try {
+            $layeredResult = Get-LayeredAgentsContext -StartPath $Paths.ProjectPath -RepoRoot $repoRoot
+            $layeredAgentsContent = $layeredResult.Blob
+        } catch { $layeredAgentsContent = "" }
+    } else {
+        # v1 fallback: single AGENTS.md
+        if ($Paths.AgentsFile -and (Test-Path $Paths.AgentsFile)) {
+            $layeredAgentsContent = Get-Content $Paths.AgentsFile -Raw -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Repo map: extract ## Map section from root AGENTS.md if present
+    $repoMapContent = ""
+    $rootAgentsPath = Join-Path $repoRoot "AGENTS.md"
+    if (Test-Path $rootAgentsPath) {
+        $rootAgents = Get-Content $rootAgentsPath -Raw -ErrorAction SilentlyContinue
+        if ($rootAgents -match "(?s)## Map\s*\n(.*?)(\n##|\z)") {
+            $repoMapContent = $Matches[1].Trim()
+        }
+    }
+
+    # Spec content
+    $specContent = ""
+    $specFilePath = Join-Path $Paths.ProjectPath $specPath
+    if (Test-Path $specFilePath) {
+        $specContent = Get-Content $specFilePath -Raw -ErrorAction SilentlyContinue
+    }
+
+    # Plan content
+    $planContentForBudget = if ($PlanContent) { $PlanContent } else { "" }
+
+    # Build sources hashtable for budgeter
+    $budgetSources = @{
+        layered_agents = $layeredAgentsContent
+        repo_map       = $repoMapContent
+        spec           = $specContent
+        plan           = $planContentForBudget
+        context_map    = ""   # filled by Phase C (explore)
+        skills         = ""   # filled by Phase B
+        memory         = ""   # filled by Phase E
+        extras         = ($contextParts -join "`n`n---`n`n")
+    }
+
+    # Apply budget (A5)
+    $budgetTokens = if (Get-Command Get-BudgetTokens -ErrorAction SilentlyContinue) {
+        Get-BudgetTokens -Config $Config
+    } else { 32000 }
+
+    $budgetResult = if (Get-Command Invoke-ContextBudget -ErrorAction SilentlyContinue) {
+        Invoke-ContextBudget -Sources $budgetSources -BudgetTokens $budgetTokens
+    } else {
+        @{ Sources = $budgetSources; Summary = "tokens: ?/?"; Evicted = @() }
+    }
+
+    # Print budget summary per iteration
+    Emit-Log -Level "info" -Message $budgetResult.Summary -Component "context-budgeter"
+
+    # Fill placeholders in template (unresolved placeholders → empty string)
+    $fullPrompt = $promptTemplate `
+        -replace '\{\{LAYERED_AGENTS\}\}', $budgetResult.Sources.layered_agents `
+        -replace '\{\{REPO_MAP\}\}',       $budgetResult.Sources.repo_map `
+        -replace '\{\{SPEC\}\}',           $budgetResult.Sources.spec `
+        -replace '\{\{PLAN\}\}',           $budgetResult.Sources.plan `
+        -replace '\{\{CONTEXT_MAP\}\}',    $budgetResult.Sources.context_map `
+        -replace '\{\{SKILLS\}\}',         $budgetResult.Sources.skills `
+        -replace '\{\{MEMORY\}\}',         $budgetResult.Sources.memory
+
+    # Append legacy-style context block for templates that don't use placeholders
+    $context = $budgetResult.Sources.extras
+    $fullPrompt = "$fullPrompt`n`n---`n`n# Project Context`n`n$context"
     
     # Hook: OnContextGathering
     $gitDiff = ""

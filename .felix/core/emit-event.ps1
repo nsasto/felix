@@ -10,20 +10,91 @@ and enabling multiple consumers (CLI, TUI, Tray).
 Events are emitted as newline-delimited JSON (NDJSON) - one complete JSON object per line.
 Consumers read stdout line-by-line and parse each event.
 
+AS2 (v2): Events are also appended to .felix/events.jsonl for the persistent Event Bus.
+
 .NOTES
 - Use Write-Output (not Write-Host) to emit to stdout
 - All events include timestamp and type
 - Errors are structured events, not stderr (except PowerShell crashes)
 #>
 
+# AS2: Event Bus state
+$script:SuppressEventEmission  = $false
+$script:EventBusPath            = $null
+$script:EventBusMaxBytes        = 5MB
+$script:EventBusRetentionDays   = 30
+
+function Initialize-EventBus {
+    <#
+    .SYNOPSIS
+    Initializes the Event Bus for the current Felix instance (AS2).
+    Call once at agent startup with the .felix directory path.
+    #>
+    param([string]$FelixDir)
+
+    $script:EventBusPath = Join-Path $FelixDir "events.jsonl"
+    Invoke-EventBusRotation -FelixDir $FelixDir
+}
+
+function Invoke-EventBusRotation {
+    <#
+    .SYNOPSIS
+    Rotates events.jsonl when it exceeds 5 MB and prunes old rotations past retention window.
+    #>
+    param([string]$FelixDir)
+
+    if (-not $script:EventBusPath) { return }
+    if (-not (Test-Path $script:EventBusPath)) { return }
+
+    $size = (Get-Item $script:EventBusPath -ErrorAction SilentlyContinue).Length
+    if ($size -and $size -gt $script:EventBusMaxBytes) {
+        $stamp   = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmss")
+        $archive = Join-Path $FelixDir "events-$stamp.jsonl"
+        Rename-Item -Path $script:EventBusPath -NewName $archive -Force -ErrorAction SilentlyContinue
+    }
+
+    # Prune rotations older than retention window
+    $cutoff = (Get-Date).AddDays(-$script:EventBusRetentionDays)
+    Get-ChildItem -Path $FelixDir -Filter "events-*.jsonl" -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt $cutoff } |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+function Write-EventBus {
+    <#
+    .SYNOPSIS
+    Appends a structured event line to the Event Bus JSONL file (AS2).
+    Silent failure — the bus must never break agent execution.
+    #>
+    param([string]$JsonLine)
+
+    if (-not $script:EventBusPath) { return }
+
+    try {
+        $stream = [System.IO.File]::Open(
+            $script:EventBusPath,
+            [System.IO.FileMode]::Append,
+            [System.IO.FileAccess]::Write,
+            [System.IO.FileShare]::ReadWrite
+        )
+        $writer = [System.IO.StreamWriter]::new($stream, [System.Text.Encoding]::UTF8)
+        $writer.WriteLine($JsonLine)
+        $writer.Flush()
+        $writer.Close()
+        $stream.Close()
+    } catch { }
+}
+
+
 function Emit-Event {
     <#
     .SYNOPSIS
-    Emits a structured event to stdout as NDJSON
+    Emits a structured event to stdout as NDJSON and appends to the Event Bus (AS2).
     
     .DESCRIPTION
     Core event emission function. All events flow through here.
     Outputs newline-delimited JSON to stdout for consumption by host/UI.
+    Also appends to .felix/events.jsonl (Event Bus) when initialized.
     
     .PARAMETER EventType
     Type of event (e.g., 'log', 'progress', 'run_started')
@@ -59,18 +130,28 @@ function Emit-Event {
         return
     }
     
-    # Build event object
+    # Build event object with AS2 schema fields
+    $runId   = if ($script:RunId) { $script:RunId } else { $null }
+    $plugin  = if ($Data.plugin)  { $Data.plugin }  else { $null }
     $event = @{
-        timestamp = (Get-Date).ToUniversalTime().ToString("o")  # ISO 8601 format
-        type      = $EventType
-        data      = $Data
+        ts      = (Get-Date).ToUniversalTime().ToString("o")  # AS2 frozen schema field
+        type    = $EventType
+        data    = $Data
     }
+    if ($runId) { $event.run_id = $runId }
+    if ($plugin) { $event.plugin = $plugin }
+
+    # Legacy field retained for backward-compat consumers
+    $event.timestamp = $event.ts
     
     # Convert to JSON and write to stdout
     $json = $event | ConvertTo-Json -Compress -Depth 10
     
     # Use [Console]::WriteLine for speed + subprocess compatibility
     [Console]::WriteLine($json)
+
+    # AS2: Append to Event Bus JSONL file
+    Write-EventBus -JsonLine $json
     
     # Trigger OnEvent plugin hook (sync, logging, etc.)
     if ($script:PluginCache -and $script:RunId) {

@@ -32,3 +32,54 @@ function Invoke-Run {
 
     exit $LASTEXITCODE
 }
+
+function Invoke-RunReplay {
+    <#
+    .SYNOPSIS
+    Opens the prompt artifact from a previous run (A7).
+    Finds runs/<run-id>/iteration-N/prompt.txt and opens it.
+    #>
+    param(
+        [string]$RunId,
+        [string]$RepoRoot = (Get-Location).Path,
+        [string]$Iteration = ""
+    )
+
+    $runsDir = Join-Path $RepoRoot "runs"
+    $runDir  = Join-Path $runsDir $RunId
+
+    if (-not (Test-Path $runDir)) {
+        Write-Host "Run not found: $runDir" -ForegroundColor Red
+        exit 1
+    }
+
+    # Find iteration directory
+    $promptPath = $null
+    if ($Iteration) {
+        $iterDir = Join-Path $runDir "iteration-$Iteration"
+        $promptPath = Join-Path $iterDir "prompt.txt"
+    } else {
+        # Latest iteration
+        $iterDirs = Get-ChildItem -Path $runDir -Directory -Filter "iteration-*" |
+            Sort-Object { [int]($_.Name -replace "iteration-", "") } -Descending
+        if ($iterDirs) {
+            $promptPath = Join-Path $iterDirs[0].FullName "prompt.txt"
+        }
+    }
+
+    if (-not $promptPath -or -not (Test-Path $promptPath)) {
+        Write-Host "No prompt artifact found for run '$RunId'." -ForegroundColor Red
+        Write-Host "Expected: $promptPath" -ForegroundColor Gray
+        exit 1
+    }
+
+    Write-Host "Opening prompt artifact: $promptPath" -ForegroundColor Cyan
+    # Open in default editor or print to stdout
+    if ($env:EDITOR) {
+        & $env:EDITOR $promptPath
+    } elseif (Get-Command code -ErrorAction SilentlyContinue) {
+        code $promptPath
+    } else {
+        Get-Content $promptPath
+    }
+}

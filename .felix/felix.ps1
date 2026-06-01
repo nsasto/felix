@@ -165,8 +165,20 @@ if ($DebugMode) {
 
 switch ($Command) {
     "run" {
-        . "$FelixRoot\commands\run.ps1"
-        Invoke-Run -Args $remainingArgs
+        # v2 A7: felix run replay <run-id>
+        if ($remainingArgs.Count -gt 0 -and $remainingArgs[0] -eq "replay") {
+            . "$FelixRoot\commands\run.ps1"
+            $runId = if ($remainingArgs.Count -gt 1) { $remainingArgs[1] } else { $null }
+            $iterArg = $remainingArgs | Where-Object { $_ -match "^\d+$" } | Select-Object -Skip 1 -First 1
+            if (-not $runId) {
+                Write-Host "Usage: felix run replay <run-id> [--iteration N]" -ForegroundColor Red
+                exit 1
+            }
+            Invoke-RunReplay -RunId $runId -RepoRoot $RepoRoot -Iteration $iterArg
+        } else {
+            . "$FelixRoot\commands\run.ps1"
+            Invoke-Run -Args $remainingArgs
+        }
     }
     "run-next" {
         . "$FelixRoot\commands\run-next.ps1"
@@ -199,6 +211,25 @@ switch ($Command) {
     "context" {
         . "$FelixRoot\commands\context.ps1"
         Invoke-Context -Args $remainingArgs
+    }
+    # ── v2 commands ────────────────────────────────────────────────────
+    "migrate" {
+        . "$FelixRoot\commands\migrate.ps1"
+    }
+    "doctor" {
+        . "$FelixRoot\commands\doctor.ps1"
+    }
+    "plugin" {
+        . "$FelixRoot\commands\plugin.ps1"
+        Invoke-Plugin -Args $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
+    }
+    "event" {
+        . "$FelixRoot\commands\event.ps1"
+        Invoke-Event -Args $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
+    }
+    "events" {
+        . "$FelixRoot\commands\event.ps1"
+        Invoke-Event -Args $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
     }
     "tui" {
         . "$FelixRoot\commands\tui.ps1"

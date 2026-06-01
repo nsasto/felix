@@ -127,9 +127,20 @@ function Invoke-Context {
             Invoke-ContextPull -DryRun:$dryRun -Force:$force
         }
 
+        "inspect" {
+            # A5: context budget inspection report
+            . "$PSScriptRoot\..\core\context-budgeter.ps1"
+            . "$PSScriptRoot\..\core\config-loader.ps1"
+            $configPath  = Join-Path $RepoRoot ".felix\config.json"
+            $cfg         = Get-FelixConfig -ConfigFile $configPath
+            $budgetTokens = if ($cfg.context -and $cfg.context.budget_tokens) { [int]$cfg.context.budget_tokens } else { 32000 }
+            $report = Get-ContextInspectReport -RepoRoot $RepoRoot -BudgetTokens $budgetTokens
+            Write-Host $report
+        }
+
         default {
             Write-Error "Unknown context subcommand: $subCmd"
-            Write-Host "Usage: felix context <build|show|push|pull> [options]"
+            Write-Host "Usage: felix context <build|show|push|pull|inspect> [options]"
             Write-Host ""
             Write-Host "Options for 'build':"
             Write-Host "  --include-hidden    Include hidden files/folders in analysis"
