@@ -36,7 +36,7 @@ partial class Program
         if (args.Length > 0 && !args[0].StartsWith("-"))
         {
             var knownVerbs = rootCommand.Subcommands
-                .Select(c => c.Name)
+                .SelectMany(c => new[] { c.Name }.Concat(c.Aliases))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             knownVerbs.Add("--help");
             knownVerbs.Add("--version");

@@ -28,8 +28,8 @@ function Invoke-SpecBuilder {
     Emit-Log -Level "info" -Message "Starting spec builder for $RequirementId" -Component "spec-builder"
     
     # Validate requirement ID format
-    if ($RequirementId -notmatch '^S-\d{4}$') {
-        Emit-Error -ErrorType "InvalidRequirementId" -Message "Requirement ID must be in format S-NNNN (e.g., S-0010)" -Severity "fatal"
+    if (-not (Test-RequirementId -RequirementId $RequirementId -Config $Config)) {
+        Emit-Error -ErrorType "InvalidRequirementId" -Message "Requirement ID must be in format $(Get-RequirementPrefix -Config $Config)-NNNN (e.g., $(Get-RequirementIdExample -Config $Config))" -Severity "fatal"
         return @{ ExitCode = 1 }
     }
     
@@ -47,6 +47,9 @@ function Invoke-SpecBuilder {
         return @{ ExitCode = 1 }
     }
     $systemPrompt = Get-Content $systemPromptPath -Raw
+    $systemPrompt = $systemPrompt.Replace("S-NNNN", "$(Get-RequirementPrefix -Config $Config)-NNNN")
+    $systemPrompt = $systemPrompt.Replace("specs/", "$($Paths.SpecsRelativePath)/")
+    $systemPrompt = $systemPrompt.Replace("AGENTS.md", (Split-Path $Paths.AgentsFile -Leaf))
     
     # Add quick mode instructions if enabled
     if ($QuickMode) {
@@ -59,7 +62,7 @@ function Invoke-SpecBuilder {
     }
     
     # Gather context documents
-    $context = Get-SpecBuilderContext -ProjectPath $Paths.ProjectPath -SpecsDir $Paths.SpecsDir
+    $context = Get-SpecBuilderContext -ProjectPath $Paths.ProjectPath -SpecsDir $Paths.SpecsDir -AgentsFile $Paths.AgentsFile
     
     # Initialize conversation
     $messages = @(
@@ -245,7 +248,8 @@ I need help creating a specification for requirement ID: $RequirementId
                     else {
                         # Fallback: extract title and generate slug
                         $title = "untitled"
-                        if ($event.content -match '#\s+S-\d{4}:\s+(.+)') {
+                        $idPattern = [regex]::Escape($RequirementId)
+                        if ($event.content -match "#\s+${idPattern}:\s+(.+)") {
                             $title = $Matches[1].Trim()
                         }
                         elseif ($event.content -match '#\s+(.+)') {
@@ -306,7 +310,8 @@ I need help creating a specification for requirement ID: $RequirementId
 function Get-SpecBuilderContext {
     param(
         [string]$ProjectPath,
-        [string]$SpecsDir
+        [string]$SpecsDir,
+        [string]$AgentsFile
     )
     
     $contextParts = @()
@@ -319,10 +324,11 @@ function Get-SpecBuilderContext {
     }
     
     # AGENTS.md
-    $agentsPath = Join-Path $ProjectPath "AGENTS.md"
+    $agentsPath = $AgentsFile
     if (Test-Path $agentsPath) {
         $agents = Get-Content $agentsPath -Raw
-        $contextParts += "## AGENTS.md (How to Run Commands)`n`n$agents`n"
+        $agentsLabel = Split-Path $agentsPath -Leaf
+        $contextParts += "## $agentsLabel (How to Run Commands)`n`n$agents`n"
     }
     
     # spec_rules.md

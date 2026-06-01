@@ -1,6 +1,7 @@
 ﻿# spec-push.ps1
 # Invoke-SpecPush for `felix spec push`
 # Dot-sourced by spec.ps1
+. "$PSScriptRoot\..\core\config-loader.ps1"
 
 function Invoke-SpecPush {
     param(
@@ -32,16 +33,17 @@ function Invoke-SpecPush {
     $headers = @{ Authorization = "Bearer $apiKey" }
 
     # Discover local spec files
-    $specsDir = Join-Path $RepoRoot "specs"
+    $paths = Get-ProjectPaths -ProjectPath $RepoRoot
+    $specsDir = $paths.SpecsDir
     if (-not (Test-Path $specsDir)) {
-        Write-Error "No specs/ directory found at: $specsDir"
+        Write-Error "No specs directory found at: $specsDir"
         exit 1
     }
 
     $specFiles = Get-ChildItem -Path $specsDir -Filter "*.md" -Recurse | Sort-Object FullName
     if ($specFiles.Count -eq 0) {
         Write-Host ""
-        Write-Host "No spec files found in specs/" -ForegroundColor Yellow
+        Write-Host "No spec files found in $($paths.SpecsRelativePath)/" -ForegroundColor Yellow
         Write-Host ""
         return
     }
@@ -71,7 +73,7 @@ function Invoke-SpecPush {
             Write-Progress -Activity "Preparing spec upload" -Status "$preparedCount/$totalFiles $($file.Name)" -PercentComplete $percent
         }
 
-        $relPath = "specs/" + ($file.FullName.Substring($specsDir.Length).TrimStart('\', '/').Replace('\', '/'))
+        $relPath = "$($paths.SpecsRelativePath)/" + ($file.FullName.Substring($specsDir.Length).TrimStart('\', '/').Replace('\', '/'))
         $b64 = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($file.FullName))
         $files += @{ path = $relPath; content = $b64 }
     }

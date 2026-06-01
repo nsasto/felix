@@ -22,6 +22,7 @@ public class TuiShellTests
         Assert.Contains(catalog, entry => entry.SlashPath == "run");
         Assert.Contains(catalog, entry => entry.SlashPath == "run-next");
         Assert.Contains(catalog, entry => entry.SlashPath == "loop");
+        Assert.Contains(catalog, entry => entry.SlashPath == "setup");
         Assert.Contains(catalog, entry => entry.SlashPath == "spec pull");
         Assert.Contains(catalog, entry => entry.SlashPath == "context build");
         Assert.Contains(catalog, entry => entry.SlashPath == "context show");
@@ -39,6 +40,7 @@ public class TuiShellTests
         Assert.Equal(Program.TuiCommandExecutionMode.Captured, Program.ResolveExecutionMode("spec pull"));
         Assert.Equal(Program.TuiCommandExecutionMode.Captured, Program.ResolveExecutionMode("agent current"));
         Assert.Equal(Program.TuiCommandExecutionMode.Standalone, Program.ResolveExecutionMode("run"));
+        Assert.Equal(Program.TuiCommandExecutionMode.Standalone, Program.ResolveExecutionMode("setup"));
         Assert.Equal(Program.TuiCommandExecutionMode.Standalone, Program.ResolveExecutionMode("procs kill"));
     }
 

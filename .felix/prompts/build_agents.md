@@ -2,15 +2,15 @@
 
 You are a **Senior Developer Experience Engineer** onboarding a new team to this codebase.
 
-Your mission: Generate or update the file **`AGENTS.md`** to document **how to run, test, and operate** this project.
+Your mission: Generate or update the configured agents guide file to document **how to run, test, and operate** this project.
 
-**CRITICAL: Write your output directly to the file `AGENTS.md`. Do not output to console.**
+**CRITICAL: Write your output directly to the configured agents guide file. Do not output to console.**
 
 ---
 
 ## Your Objective
 
-Produce a clear, concise `AGENTS.md` that tells an agent or developer exactly how to:
+Produce a clear, concise agents guide that tells an agent or developer exactly how to:
 
 - Install dependencies (or explain how they are managed)
 - Run tests (backend, frontend, or other suites)
@@ -30,7 +30,7 @@ Look for the operational truth in:
 - `README.md`, `HOW_TO_USE.md`, `CONTRIBUTING.md`
 - `package.json`, `pyproject.toml`, `requirements.txt`
 - `Makefile`, `scripts/`, `bin/`, `.github/` workflows
-- Existing `AGENTS.md` (if present)
+- Existing agents guide file (if present)
 - `docker-compose.yml`, `Dockerfile`, `devcontainer.json`
 
 If multiple workflows exist, document the primary one and note alternatives.

@@ -197,6 +197,23 @@ Describe "ClaudeAdapter.DetectCompletion" {
     }
 }
 
+Describe "ClaudeAdapter.BuildArgs" {
+
+    It "should add --verbose when verbose mode is enabled" {
+        $adapter = [ClaudeAdapter]::new()
+        $config = [pscustomobject]@{ model = "sonnet" }
+        $args = $adapter.BuildArgs($config, $true)
+        Assert-Contains $args "--verbose" "Claude verbose mode should forward the CLI verbose flag"
+    }
+
+    It "should not add --verbose when verbose mode is disabled" {
+        $adapter = [ClaudeAdapter]::new()
+        $config = [pscustomobject]@{ model = "sonnet" }
+        $args = $adapter.BuildArgs($config, $false)
+        Assert-False ($args -contains "--verbose") "Claude non-verbose mode should keep the quiet default"
+    }
+}
+
 Describe "Completion signal helpers" {
 
     It "should prefer ALL_COMPLETE over TASK_COMPLETE" {

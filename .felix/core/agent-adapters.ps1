@@ -504,6 +504,10 @@ class ClaudeAdapter {
         }
         
         $args += @("--output-format", "text")
+
+        if ($verbose) {
+            $args += "--verbose"
+        }
         
         return $args
     }

@@ -17,6 +17,8 @@ function Invoke-ContextPush {
     }
 
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    . "$PSScriptRoot\..\core\config-loader.ps1"
+    $paths = Get-ProjectPaths -ProjectPath $RepoRoot
 
     $baseUrl = if ($env:FELIX_SYNC_URL) { $env:FELIX_SYNC_URL } else { $config.sync.base_url }
     $apiKey = if ($env:FELIX_SYNC_KEY) { $env:FELIX_SYNC_KEY } else { $config.sync.api_key }
@@ -68,9 +70,12 @@ function Invoke-ContextPush {
 
     # ── File → column map ─────────────────────────────────────────────────────
     $fileMap = [ordered]@{
-        "README.md"  = "readme"
-        "CONTEXT.md" = "context"
-        "AGENTS.md"  = "agents"
+        "README.md" = "readme"
+        $paths.AgentsRelativePath = "agents"
+    }
+    for ($i = 0; $i -lt $paths.ContextRelativePaths.Count; $i++) {
+        $column = if ($i -eq 0) { "context" } else { "context_$i" }
+        $fileMap[$paths.ContextRelativePaths[$i]] = $column
     }
 
     # ── Collect changed files ─────────────────────────────────────────────────
@@ -83,7 +88,7 @@ function Invoke-ContextPush {
 
     foreach ($fileName in $fileMap.Keys) {
         $column = $fileMap[$fileName]
-        $filePath = Join-Path $RepoRoot $fileName
+        $filePath = Join-Path $RepoRoot ($fileName -replace '/', '\')
 
         if (-not (Test-Path $filePath)) {
             Write-Host "  [SKIP] $fileName (file not found)" -ForegroundColor DarkYellow

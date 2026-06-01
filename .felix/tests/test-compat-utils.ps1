@@ -91,5 +91,22 @@ Describe "Invoke-SafeCommand Function" {
     }
 }
 
+Describe "Resolve-FelixExecutablePath Function" {
+
+    It "should prefer cmd shim over ps1 shim when given the ps1 shim path directly" {
+        $tempDir = New-Item -ItemType Directory -Path "$env:TEMP/test-felix-exe-$(Get-Random)" -Force
+        try {
+            Set-Content (Join-Path $tempDir.FullName "codex.ps1") "Write-Output 'ps1'" -Encoding UTF8
+            Set-Content (Join-Path $tempDir.FullName "codex.cmd") "@echo off" -Encoding ASCII
+
+            $resolved = Resolve-FelixExecutablePath (Join-Path $tempDir.FullName "codex.ps1")
+            Assert-True ($resolved -like "*.cmd") "Expected Resolve-FelixExecutablePath to prefer the .cmd shim"
+        }
+        finally {
+            Remove-Item $tempDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Get-TestResults
 

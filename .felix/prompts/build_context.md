@@ -71,7 +71,7 @@ Identify coding conventions and patterns:
 
 Look for documented standards:
 
-- **AGENTS.md** → Operational procedures (how to run, test, build)
+- **Configured agents guide** → Operational procedures (how to run, test, build)
 - **LEARNINGS.md** → Anti-patterns and gotchas to avoid
 - **Test files** → Testing conventions (`.test.ts`, `test_*.py`, `*_spec.rb`)
 - **Config files** → Linters, formatters, type checkers

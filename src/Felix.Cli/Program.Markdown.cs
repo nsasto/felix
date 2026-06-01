@@ -15,11 +15,11 @@ partial class Program
 
     static Task ShowContextMarkdownUI()
     {
-        var contextPath = Path.Combine(_felixProjectRoot, "CONTEXT.md");
+        var contextPath = GetProjectAbsolutePath(GetPrimaryContextRelativePath());
         if (!File.Exists(contextPath))
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[yellow]CONTEXT.md not found[/]");
+            AnsiConsole.MarkupLine($"[yellow]{GetPrimaryContextRelativePath().EscapeMarkup()} not found[/]");
             AnsiConsole.MarkupLine("[grey]Run 'felix context build' to generate it[/]");
             AnsiConsole.WriteLine();
             Environment.ExitCode = 1;

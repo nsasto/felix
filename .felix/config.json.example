@@ -10,10 +10,14 @@
   "agent": {
     "agent_id": "your-agent-id"
   },
+  "requirements": {
+    "prefix": "S"
+  },
   "paths": {
     "specs": "specs",
+    "runs": "runs",
     "agents": "AGENTS.md",
-    "runs": "runs"
+    "context": ["CONTEXT.md"]
   },
   "backpressure": {
     "enabled": true,

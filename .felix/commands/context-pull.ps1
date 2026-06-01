@@ -17,6 +17,8 @@ function Invoke-ContextPull {
     }
 
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    . "$PSScriptRoot\..\core\config-loader.ps1"
+    $paths = Get-ProjectPaths -ProjectPath $RepoRoot
 
     $baseUrl = if ($env:FELIX_SYNC_URL) { $env:FELIX_SYNC_URL } else { $config.sync.base_url }
     $apiKey = if ($env:FELIX_SYNC_KEY) { $env:FELIX_SYNC_KEY } else { $config.sync.api_key }
@@ -89,9 +91,12 @@ function Invoke-ContextPull {
 
     # ── Column → file map ─────────────────────────────────────────────────────
     $columnMap = [ordered]@{
-        "readme"  = "README.md"
-        "context" = "CONTEXT.md"
-        "agents"  = "AGENTS.md"
+        "readme" = "README.md"
+        "agents" = $paths.AgentsRelativePath
+    }
+    for ($i = 0; $i -lt $paths.ContextRelativePaths.Count; $i++) {
+        $column = if ($i -eq 0) { "context" } else { "context_$i" }
+        $columnMap[$column] = $paths.ContextRelativePaths[$i]
     }
 
     $updatedCount = 0
@@ -106,7 +111,7 @@ function Invoke-ContextPull {
             continue
         }
 
-        $destPath = Join-Path $RepoRoot $fileName
+        $destPath = Join-Path $RepoRoot ($fileName -replace '/', '\')
 
         # Guard: existing local file not in our hash cache — skip unless --force
         if ((Test-Path $destPath) -and -not $hashes.ContainsKey($fileName) -and -not $Force) {
@@ -136,6 +141,8 @@ function Invoke-ContextPull {
         }
 
         # Write raw bytes — no BOM, no newline conversion, no encoding surprise
+        $destDir = Split-Path $destPath -Parent
+        if ($destDir -and -not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
         [System.IO.File]::WriteAllBytes($destPath, $fileBytes)
         $hashes[$fileName] = $serverHash
         $updatedCount++

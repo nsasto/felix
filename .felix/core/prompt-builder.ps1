@@ -54,9 +54,41 @@ function New-IterationPrompt {
     # Gather context
     $contextParts = @()
     
-    # Reference AGENTS.md and CONTEXT.md instead of embedding full content
-    # This reduces token bloat and forces agents to actively read these files
-    $contextParts += "# File References - Read These from Disk`n`nThe system provides these reference files in the project root (read them yourself):`n`n- **AGENTS.md** - contains 'How to Run This Project' with commands for testing, building, and running the application`n- **CONTEXT.md** - contains project structure, technology stack, conventions, and patterns`n`nRead these files from the project root before starting work. Both are essential to understanding how to complete this requirement."
+    # Inject an explicit, ordered file-reading contract with exact paths.
+    $requiredFileLines = [System.Collections.ArrayList]@()
+    $missingRequiredFileLines = [System.Collections.ArrayList]@()
+
+    if ($Paths.AgentsRelativePath) {
+        $agentsExists = Test-Path $Paths.AgentsFile
+        $agentsLabel = if ($agentsExists) { "required" } else { "required but currently missing" }
+        [void]$requiredFileLines.Add("1. **$($Paths.AgentsRelativePath)** - configured agents guide ($agentsLabel)")
+    }
+
+    $nextIndex = $requiredFileLines.Count + 1
+    $specPath = if ($CurrentRequirement.spec_path) { $CurrentRequirement.spec_path } else { "$($Paths.SpecsRelativePath)/$($CurrentRequirement.id).md" }
+    [void]$requiredFileLines.Add("$nextIndex. **$specPath** - exact requirement spec file")
+
+    foreach ($contextPath in @($Paths.ContextRelativePaths)) {
+        $absolutePath = Join-Path $Paths.ProjectPath ($contextPath -replace '/', '\')
+        if (Test-Path $absolutePath) {
+            $nextIndex = $requiredFileLines.Count + 1
+            [void]$requiredFileLines.Add("$nextIndex. **$contextPath** - configured project context and architecture")
+        }
+        else {
+            [void]$missingRequiredFileLines.Add("- **$contextPath**")
+        }
+    }
+
+    $readBlock = "# Read These Exact Files First`n`n"
+    $readBlock += "Before planning or coding, open these exact filesystem paths in order:`n`n"
+    $readBlock += ($requiredFileLines -join "`n")
+    $readBlock += "`n`nDo not continue until you have opened the required files above."
+    if ($missingRequiredFileLines.Count -gt 0) {
+        $readBlock += "`n`n## Missing Required Context Files`n`n"
+        $readBlock += ($missingRequiredFileLines -join "`n")
+        $readBlock += "`n`nThese files are part of the configured project context but are not present. Continue with the required files that do exist, and treat the missing files as a context gap."
+    }
+    $contextParts += $readBlock
     
     # Add Requirements context
     $requirements = Get-Content $Paths.RequirementsFile -Raw | ConvertFrom-Json
@@ -100,7 +132,6 @@ function New-IterationPrompt {
     $contextParts += "# Current Requirement Context`n`n``````json`n$reqSummary`n```````n`n*Note: Full requirements list available at ``.felix/requirements.json`` if you need to check other requirements.*"
     
     # Add reference to the requirement spec file
-    $specPath = if ($CurrentRequirement.spec_path) { $CurrentRequirement.spec_path } else { "specs/$($CurrentRequirement.id).md" }
     $contextParts += "# Requirement Specification`n`nRead the full acceptance criteria and constraints in: **$specPath**`n`nYou MUST understand every line of the spec before planning or implementing."
     
     # Add current requirement header
@@ -133,7 +164,7 @@ function New-IterationPrompt {
     }
     
     # Target path for plan (relative to project root)
-    $planRelPath = "runs/$RunId/plan-$($CurrentRequirement.id).md"
+    $planRelPath = "$($Paths.RunsRelativePath)/$RunId/plan-$($CurrentRequirement.id).md"
     $planOutputPath = Join-Path $Paths.ProjectPath $planRelPath
     
     if ($Mode -eq "planning") {

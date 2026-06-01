@@ -91,6 +91,33 @@ function Resolve-FelixExecutablePath {
     #>
     param([Parameter(Mandatory = $true)][string]$Executable)
 
+    function Get-PreferredShimPath {
+        param([string]$ResolvedPath)
+
+        if ([string]::IsNullOrWhiteSpace($ResolvedPath)) {
+            return $ResolvedPath
+        }
+
+        $ext = [System.IO.Path]::GetExtension($ResolvedPath)
+        if (-not [string]::Equals($ext, ".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $ResolvedPath
+        }
+
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($ResolvedPath)
+        $baseDir = Split-Path $ResolvedPath -Parent
+        $basePath = Join-Path $baseDir $baseName
+        foreach ($candidate in @("$basePath.cmd", "$basePath.exe", "$basePath.bat")) {
+            try {
+                if (Test-Path $candidate) {
+                    return (Resolve-Path $candidate).Path
+                }
+            }
+            catch { }
+        }
+
+        return $ResolvedPath
+    }
+
     if ([string]::IsNullOrWhiteSpace($Executable)) {
         return $null
     }
@@ -98,7 +125,7 @@ function Resolve-FelixExecutablePath {
     # Direct path (relative or absolute)
     try {
         if (Test-Path $Executable) {
-            return (Resolve-Path $Executable).Path
+            return Get-PreferredShimPath -ResolvedPath ((Resolve-Path $Executable).Path)
         }
     }
     catch { }
@@ -106,10 +133,7 @@ function Resolve-FelixExecutablePath {
     # PATH / registered command
     try {
         $source = (Get-Command $Executable -ErrorAction Stop).Source
-        # Return the .ps1 directly — agent-runner.ps1 wraps it via 'powershell -File'.
-        # Swapping to a .cmd/.bat shim would invoke via 'powershell -Command' which
-        # leaves $MyInvocation.MyCommand.Path empty inside bootstrapper scripts.
-        return $source
+        return Get-PreferredShimPath -ResolvedPath $source
     }
     catch { }
 
@@ -145,7 +169,7 @@ function Resolve-FelixExecutablePath {
             try {
                 $candidate = Join-Path $root $name
                 if (Test-Path $candidate) {
-                    return (Resolve-Path $candidate).Path
+                    return Get-PreferredShimPath -ResolvedPath ((Resolve-Path $candidate).Path)
                 }
             }
             catch { }

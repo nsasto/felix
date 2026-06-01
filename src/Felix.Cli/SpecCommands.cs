@@ -136,7 +136,7 @@ partial class Program
     {
         if (!IsValidRequirementId(requirementId))
         {
-            AnsiConsole.MarkupLine("[red]Invalid requirement ID format. Expected S-NNNN (for example S-0001).[/]");
+            AnsiConsole.MarkupLine($"[red]Invalid requirement ID format. Expected {GetRequirementPrefix()}-NNNN (for example {GetExampleRequirementId()}).[/]");
             Environment.ExitCode = 1;
             return;
         }
@@ -187,7 +187,7 @@ partial class Program
     {
         if (!IsValidRequirementId(requirementId))
         {
-            AnsiConsole.MarkupLine("[red]Invalid requirement ID format. Expected S-NNNN (for example S-0001).[/]");
+            AnsiConsole.MarkupLine($"[red]Invalid requirement ID format. Expected {GetRequirementPrefix()}-NNNN (for example {GetExampleRequirementId()}).[/]");
             Environment.ExitCode = 1;
             return;
         }
@@ -204,7 +204,7 @@ partial class Program
 
         var specPathValue = GetJsonString(requirement.AsObject(), "spec_path") ?? string.Empty;
         var specPath = string.IsNullOrWhiteSpace(specPathValue)
-            ? Path.Combine(_felixProjectRoot, "specs", requirementId + ".md")
+            ? Path.Combine(_felixProjectRoot, GetSpecsDirectoryRelativePath().Replace('/', Path.DirectorySeparatorChar), requirementId + ".md")
             : Path.GetFullPath(Path.Combine(_felixProjectRoot, specPathValue.Replace('/', Path.DirectorySeparatorChar)));
 
         AnsiConsole.Write(new Rule("[yellow]Delete Specification[/]").RuleStyle(Style.Parse("yellow dim")));
@@ -248,7 +248,10 @@ partial class Program
 
     static void RunSpecFixUI(bool fixDuplicates)
     {
-        var specsDir = Path.Combine(_felixProjectRoot, "specs");
+        var config = LoadSetupConfig(Path.Combine(_felixProjectRoot, ".felix", "config.json"));
+        EnsureSetupConfigDefaults(config);
+        var specsRelativePath = GetSpecsDirectoryRelativePath(config);
+        var specsDir = Path.Combine(_felixProjectRoot, specsRelativePath.Replace('/', Path.DirectorySeparatorChar));
         if (!Directory.Exists(specsDir))
         {
             AnsiConsole.MarkupLine($"[red]Specs directory not found: {specsDir.EscapeMarkup()}[/]");
@@ -258,7 +261,8 @@ partial class Program
 
         var document = LoadRequirementsDocument();
         var requirements = GetRequirementsArray(document);
-        var specFiles = Directory.GetFiles(specsDir, "S-*.md", SearchOption.TopDirectoryOnly)
+        var prefix = GetRequirementPrefix(config);
+        var specFiles = Directory.GetFiles(specsDir, $"{prefix}-*.md", SearchOption.TopDirectoryOnly)
             .Select(path => new FileInfo(path))
             .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -270,9 +274,9 @@ partial class Program
         var errors = new List<string>();
         var processedIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var allSpecIds = specFiles
-            .Select(file => TryParseRequirementId(file.Name))
+            .Select(file => TryParseRequirementId(file.Name, config))
             .Where(id => id != null)
-            .Select(id => int.Parse(id!.AsSpan(2)))
+            .Select(id => int.Parse(id![(prefix.Length + 1)..], System.Globalization.CultureInfo.InvariantCulture))
             .ToList();
         var maxSpecId = allSpecIds.Count > 0 ? allSpecIds.Max() : 0;
 
@@ -286,7 +290,7 @@ partial class Program
         foreach (var originalFile in specFiles)
         {
             var specFile = originalFile;
-            var reqId = TryParseRequirementId(specFile.Name);
+            var reqId = TryParseRequirementId(specFile.Name, config);
             if (reqId == null)
             {
                 errors.Add($"Invalid filename format: {specFile.Name}");
@@ -301,8 +305,8 @@ partial class Program
                     continue;
                 }
 
-                maxSpecId = GetNextAvailableSpecNumber(maxSpecId + 1, specsDir);
-                var newReqId = $"S-{maxSpecId:D4}";
+                maxSpecId = GetNextAvailableSpecNumber(maxSpecId + 1, specsDir, config);
+                var newReqId = $"{prefix}-{maxSpecId:D4}";
                 var newFileName = reqId + specFile.Name.Substring(reqId.Length);
                 newFileName = newFileName.Replace(reqId, newReqId, StringComparison.OrdinalIgnoreCase);
                 var newPath = Path.Combine(specsDir, newFileName);
@@ -316,7 +320,7 @@ partial class Program
 
             if (existingById.TryGetValue(reqId, out var existing))
             {
-                var relativePath = ToRequirementRelativeSpecPath(specFile.Name);
+                var relativePath = ToRequirementRelativeSpecPath(specFile.Name, config);
                 if (!string.Equals(GetJsonString(existing, "spec_path"), relativePath, StringComparison.OrdinalIgnoreCase))
                     updated.Add(reqId);
                 existingById.Remove(reqId);
@@ -335,7 +339,7 @@ partial class Program
 
         foreach (var specFile in currentSpecFiles.OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var reqId = TryParseRequirementId(specFile.Name)!;
+            var reqId = TryParseRequirementId(specFile.Name, config)!;
             var original = requirements
                 .OfType<JsonObject>()
                 .FirstOrDefault(node => string.Equals(GetJsonString(node, "id"), reqId, StringComparison.OrdinalIgnoreCase));
@@ -351,7 +355,7 @@ partial class Program
             var reqNode = new JsonObject
             {
                 ["id"] = reqId,
-                ["spec_path"] = ToRequirementRelativeSpecPath(specFile.Name),
+                ["spec_path"] = ToRequirementRelativeSpecPath(specFile.Name, config),
                 ["status"] = resolvedStatus
             };
 
@@ -376,12 +380,7 @@ partial class Program
             }
         }
 
-        var sortedRequirements = rebuiltRequirements
-            .OfType<JsonObject>()
-            .OrderBy(node => GetJsonString(node, "id"), StringComparer.OrdinalIgnoreCase)
-            .Cast<JsonNode>()
-            .ToArray();
-        document["requirements"] = new JsonArray(sortedRequirements);
+        document["requirements"] = BuildSortedRequirementsArray(rebuiltRequirements);
         SaveRequirementsDocument(document);
 
         AnsiConsole.Write(new Rule("[cyan]Specification Fix[/]").RuleStyle(Style.Parse("cyan dim")));
@@ -571,7 +570,7 @@ partial class Program
         if (!TryResolveSpecSyncSettings(out var baseUrl, out var apiKey))
             return;
 
-        var specsDir = Path.Combine(_felixProjectRoot, "specs");
+        var specsDir = Path.Combine(_felixProjectRoot, GetSpecsDirectoryRelativePath().Replace('/', Path.DirectorySeparatorChar));
         if (!Directory.Exists(specsDir))
         {
             AnsiConsole.MarkupLine($"[red]No specs directory found at:[/] {specsDir.EscapeMarkup()}");
@@ -589,7 +588,7 @@ partial class Program
 
         if (specFiles.Count == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]No spec files found in specs/.[/]");
+            AnsiConsole.MarkupLine($"[yellow]No spec files found in {GetSpecsDirectoryRelativePath().EscapeMarkup()}/.[/]");
             Environment.ExitCode = 0;
             return;
         }
@@ -886,7 +885,8 @@ partial class Program
 
     static void TryCreateSpecMetaSidecar(string relativePath)
     {
-        if (!relativePath.StartsWith("specs/", StringComparison.OrdinalIgnoreCase) || !relativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        var specsPrefix = GetSpecsDirectoryRelativePath() + "/";
+        if (!relativePath.StartsWith(specsPrefix, StringComparison.OrdinalIgnoreCase) || !relativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
             return;
 
         var fileName = Path.GetFileName(relativePath);
@@ -914,7 +914,7 @@ partial class Program
     static string GetSpecRelativePath(string specsDir, string fullPath)
     {
         var relative = Path.GetRelativePath(specsDir, fullPath).Replace('\\', '/');
-        return "specs/" + relative.TrimStart('/');
+        return GetSpecsDirectoryRelativePath() + "/" + relative.TrimStart('/');
     }
 
     static int GetIntEnvironmentVariable(string variableName, int fallback)
@@ -962,6 +962,16 @@ partial class Program
         return created;
     }
 
+    internal static JsonArray BuildSortedRequirementsArray(JsonArray requirements)
+    {
+        var sortedRequirements = requirements
+            .OfType<JsonObject>()
+            .OrderBy(node => GetJsonString(node, "id"), StringComparer.OrdinalIgnoreCase)
+            .Select(node => node.DeepClone())
+            .ToArray();
+        return new JsonArray(sortedRequirements);
+    }
+
     static JsonObject? FindRequirementNode(JsonArray requirements, string requirementId)
         => requirements
             .OfType<JsonObject>()
@@ -974,30 +984,32 @@ partial class Program
         File.WriteAllText(path, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine, Encoding.UTF8);
     }
 
-    static bool IsValidRequirementId(string requirementId)
-        => System.Text.RegularExpressions.Regex.IsMatch(requirementId, "^S-\\d{4}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    static bool IsValidRequirementId(string requirementId, JsonObject? config = null)
+        => GetRequirementIdRegex(config).IsMatch(requirementId);
 
     static string NormalizeRequirementStatus(string status)
         => string.Equals(status, "in-progress", StringComparison.OrdinalIgnoreCase) ? "in_progress" : status.ToLowerInvariant();
 
-    static string? TryParseRequirementId(string fileName)
+    static string? TryParseRequirementId(string fileName, JsonObject? config = null)
     {
-        var match = System.Text.RegularExpressions.Regex.Match(fileName, "^(S-\\d{4})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var prefix = System.Text.RegularExpressions.Regex.Escape(GetRequirementPrefix(config));
+        var match = System.Text.RegularExpressions.Regex.Match(fileName, $"^({prefix}-\\d{{4}})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return match.Success ? match.Groups[1].Value.ToUpperInvariant() : null;
     }
 
-    static int GetNextAvailableSpecNumber(int startFrom, string specsDir)
+    static int GetNextAvailableSpecNumber(int startFrom, string specsDir, JsonObject? config = null)
     {
+        var prefix = GetRequirementPrefix(config);
         var nextId = startFrom;
-        while (File.Exists(Path.Combine(specsDir, $"S-{nextId:D4}.md")) || Directory.GetFiles(specsDir, $"S-{nextId:D4}-*.md").Length > 0)
+        while (File.Exists(Path.Combine(specsDir, $"{prefix}-{nextId:D4}.md")) || Directory.GetFiles(specsDir, $"{prefix}-{nextId:D4}-*.md").Length > 0)
         {
             nextId++;
         }
         return nextId;
     }
 
-    static string ToRequirementRelativeSpecPath(string fileName)
-        => $"specs/{fileName}";
+    static string ToRequirementRelativeSpecPath(string fileName, JsonObject? config = null)
+        => $"{GetSpecsDirectoryRelativePath(config)}/{fileName}";
 
     static string PromptForDefaultSpecStatus()
     {

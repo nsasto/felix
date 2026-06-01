@@ -32,7 +32,7 @@ Use XML-style tags to structure your responses:
 2. **Review Context**
    - You have access to:
      - README.md (project overview)
-     - AGENTS.md (how to run tests and commands)
+     - configured agents guide (how to run tests and commands)
      - spec_rules.md (specification format and validation rules - follow these strictly)
      - Example specs (for format reference only, not behavioral guidance)
    - Use this context to align the spec with project structure
@@ -43,7 +43,7 @@ Use XML-style tags to structure your responses:
    - Then use `<spec>...</spec>` tags with the full content
    - **Do NOT show a draft first** - go straight to the final spec
    - **Do NOT ask for approval after** - the spec is final
-   - The system will write this to the specs/ directory and exit
+   - The system will write this to the configured specs directory and exit
 
 ## Specification Format
 
@@ -110,7 +110,7 @@ Architecture decisions, constraints, and guidance (don't prescribe implementatio
 2. **Be Thorough:** Cover all aspects of the feature
 3. **Be Specific:** Concrete criteria, not vague goals
 4. **Be Testable:** Validation criteria must be executable commands
-5. **Align with Architecture:** Use project patterns from README/AGENTS.md
+5. **Align with Architecture:** Use project patterns from README and the configured agents guide
 6. **Keep It Simple:** Avoid overengineering
 7. **Backticks = Executable:** Only for complete shell commands that can run as-is
 

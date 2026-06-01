@@ -1,5 +1,26 @@
 # Load shared setup utilities
 . (Join-Path (Split-Path $PSScriptRoot -Parent) "core\setup-utils.ps1")
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "core\config-loader.ps1")
+
+function Get-FelixGitIgnoreLines {
+    param($Config)
+
+    $specsRelative = Get-NormalizedRelativeProjectPath -PathValue $(if ($Config -and $Config.paths) { [string]$Config.paths.specs } else { $null }) -Fallback "specs"
+    $runsRelative = Get-NormalizedRelativeProjectPath -PathValue $(if ($Config -and $Config.paths) { [string]$Config.paths.runs } else { $null }) -Fallback "runs"
+
+    $metaGlobs = @(
+        "specs/*.meta.json",
+        "requirements/*.meta.json",
+        "$specsRelative/*.meta.json"
+    ) | Select-Object -Unique
+
+    return @(
+        "# Felix local files",
+        "$runsRelative/",
+        ".felix/",
+        "# Felix .meta.json sidecars (server-generated cache, gitignored)"
+    ) + $metaGlobs
+}
 
 function Invoke-Setup {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
@@ -103,46 +124,48 @@ function Invoke-Setup {
         else { $skipped += $policyFile.Replace('\', '/') }
     }
 
-    # specs/ — where requirement spec files live
-    $specsDir = Join-Path $RepoRoot "specs"
+    $setupConfig = $null
+    try {
+        $setupConfig = Get-Content $configStubPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        $setupConfig = $null
+    }
+
+    $specsRelative = Get-NormalizedRelativeProjectPath -PathValue $(if ($setupConfig -and $setupConfig.paths) { [string]$setupConfig.paths.specs } else { $null }) -Fallback "specs"
+    $runsRelative = Get-NormalizedRelativeProjectPath -PathValue $(if ($setupConfig -and $setupConfig.paths) { [string]$setupConfig.paths.runs } else { $null }) -Fallback "runs"
+
+    # specs dir — where requirement spec files live
+    $specsDir = Join-Path $RepoRoot ($specsRelative -replace '/', [IO.Path]::DirectorySeparatorChar)
     if (-not (Test-Path $specsDir)) {
         New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
-        $scaffolded += "specs/"
+        $scaffolded += "$specsRelative/"
     }
-    else { $skipped += "specs/" }
+    else { $skipped += "$specsRelative/" }
 
-    # runs/ — where run artifacts are stored
-    $runsDir = Join-Path $RepoRoot "runs"
+    # runs dir — where run artifacts are stored
+    $runsDir = Join-Path $RepoRoot ($runsRelative -replace '/', [IO.Path]::DirectorySeparatorChar)
     if (-not (Test-Path $runsDir)) {
         New-Item -ItemType Directory -Path $runsDir -Force | Out-Null
-        $scaffolded += "runs/"
+        $scaffolded += "$runsRelative/"
     }
-    else { $skipped += "runs/" }
+    else { $skipped += "$runsRelative/" }
 
     # .gitignore — add Felix entries if not already present
     $gitignorePath = Join-Path $RepoRoot ".gitignore"
-    $felixIgnoreLines = @(
-        "",
-        "# Felix local files (machine-specific, may contain API keys)",
-        ".felix/config.json",
-        ".felix/state.json",
-        ".felix/outbox/",
-        ".felix/sync.log",
-        ".felix/spec-manifest.json",
-        "# Felix .meta.json sidecars (server-generated cache, gitignored)",
-        "specs/*.meta.json"
-    )
-    $felixIgnoreBlock = $felixIgnoreLines -join "`n"
+    $felixIgnoreLines = @(Get-FelixGitIgnoreLines -Config $setupConfig)
+    $felixIgnoreBlock = "`n" + ($felixIgnoreLines -join "`n") + "`n"
     if (Test-Path $gitignorePath) {
         $existing = Get-Content $gitignorePath -Raw
-        if ($existing -notmatch '\.felix/config\.json') {
+        $missingLines = @($felixIgnoreLines | Where-Object { $existing -notmatch [regex]::Escape($_) })
+        if ($missingLines.Count -gt 0) {
             Add-Content $gitignorePath $felixIgnoreBlock -Encoding UTF8
             $scaffolded += ".gitignore (updated)"
         }
         else { $skipped += ".gitignore" }
     }
     else {
-        ($felixIgnoreLines | Select-Object -Skip 1) -join "`n" | Set-Content $gitignorePath -Encoding UTF8
+        ($felixIgnoreLines -join "`n") | Set-Content $gitignorePath -Encoding UTF8
         $scaffolded += ".gitignore (created)"
     }
 

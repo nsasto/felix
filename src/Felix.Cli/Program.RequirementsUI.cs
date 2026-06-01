@@ -625,6 +625,15 @@ partial class Program
         return $"[white]{disabled.Count} disabled[/]";
     }
 
+    static string FormatArraySummary(JsonObject obj, string propertyName)
+    {
+        var items = obj[propertyName] as JsonArray;
+        if (items == null || items.Count == 0)
+            return "[grey]0 entries[/]";
+
+        return $"[white]{items.Count} entr{(items.Count == 1 ? "y" : "ies")}[/]";
+    }
+
     static Task ShowStatusUI(string felixPs1)
     {
         ClearIfStandalone();
@@ -726,9 +735,11 @@ partial class Program
         AddSettingsRow(settingsTable, "Plugins", FormatBoolSetting(GetJsonBool(plugins, "enabled", false)));
         AddSettingsRow(settingsTable, "Disabled Plugins", FormatDisabledPluginsSummary(plugins));
         AddSettingsRow(settingsTable, "Plugin Discovery", $"[grey]{GetJsonString(plugins, "discovery_path", ".felix/plugins").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Requirement Prefix", $"[grey]{GetJsonString(EnsureObject(config, "requirements"), "prefix", "S").EscapeMarkup()}[/]");
         AddSettingsRow(settingsTable, "Specs Path", $"[grey]{GetJsonString(paths, "specs", "specs").EscapeMarkup()}[/]");
         AddSettingsRow(settingsTable, "Runs Path", $"[grey]{GetJsonString(paths, "runs", "runs").EscapeMarkup()}[/]");
         AddSettingsRow(settingsTable, "Agents Guide", $"[grey]{GetJsonString(paths, "agents", "AGENTS.md").EscapeMarkup()}[/]");
+        AddSettingsRow(settingsTable, "Context Files", FormatArraySummary(paths, "context"));
 
         var requirementsConfigured = statusCounts.Keys.Count(status => statusCounts.GetValueOrDefault(status, 0) > 0);
         var activeAgentSummary = currentAgent == null

@@ -645,6 +645,33 @@ function Emit-AgentExecutionCompleted {
     }
 }
 
+function Emit-AgentStreamChunk {
+    <#
+    .SYNOPSIS
+    Emits a live chunk of raw agent stdout/stderr for verbose mode.
+
+    .PARAMETER Stream
+    Source stream: stdout or stderr
+
+    .PARAMETER Content
+    Raw line content captured from the agent subprocess
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("stdout", "stderr")]
+        [string]$Stream,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Content
+    )
+
+    Emit-Event -EventType "agent_stream" -Data @{
+        stream  = $Stream
+        content = $Content
+    }
+}
+
 function Emit-CommitStarted {
     <#
     .SYNOPSIS

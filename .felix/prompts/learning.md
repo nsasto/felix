@@ -18,7 +18,7 @@ Read **learnings/README.md** first to see existing topic files.
 
 - Run reports and plans in `runs/<run-id>/`
 - Git history and commit patterns
-- AGENTS.md, specs, `.felix/requirements.json`
+- configured agents guide, configured specs directory, `.felix/requirements.json`
 
 ---
 
