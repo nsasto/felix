@@ -75,7 +75,7 @@ Documented in detail elsewhere; summary here:
 - **i18n guard** — English-locked agent contract strings; post-LLM hook assertion; non-English-locale bench run
 - **Docs lifecycle** — `docs/CLI.md` and `docs/PLUGINS.md` generated from registries; `docs-up-to-date` backpressure gate for `src/Felix.Cli/` changes; **AGENTS.md `## Map` staleness folded into this gate** (no separate `repo-map check`)
 - **Plugin testing & CI** — required `tests/` in manifest; `felix plugin test`. (Certification pipeline cut from v2; reopen when ≥3 external plugins exist.)
-- **Migration tooling** _(permanent, owned by Phase A as A6)_ — `felix migrate` recognizes v1 forever; `--dry-run`, `--only`, `--revert`. Later phases register transforms with A's registry (B: spec frontmatter + prompts→skills; F: tools.allow seed).
+- **Migration tooling** _(permanent, owned by Phase A as A6)_ — `felix migrate` recognizes v1 forever; `--dry-run`, `--only`. (No `--revert`; recovery = `git revert` the migration commit.) Later phases register transforms with A's registry (B: spec frontmatter + prompts→skills; F: tools.allow seed).
 - **TUI command registry** — TUI shells out to `felix <cmd> --json` for any registered command; new commands auto-surface
 - **CLI verb naming convention** — `<noun> <verb>` for resource-scoped commands (`plugin install`, `skill list`, `event tail`, `memory view`, `run replay`, `run recover`, `repo map`, `tool harden`). Top-level verbs only for cross-cutting admin/UX (`search`, `navigate`, `query`, `review`, `doctor`, `bench`, `mcp`, `gc`, `migrate`, `setup`). Nouns are singular when naming a kind. Aliases kept for back-compat on any rename.
 
@@ -123,7 +123,7 @@ Documented in detail elsewhere; summary here:
 - **Tool allowlist defaults to `allow`** on v1→v2 migrated and new `felix setup` repos, with full audit logging; `felix tool harden` is the one-time opt-in that flips to default-deny
 - **No new lifecycle states for failure modes**; `status: blocked` + `block_reason` (free-form string) absorbs `merge-conflict`, `budget`, future cases
 - **Agent output language locked to English** for contract strings; user-facing strings localizable
-- **`learning-capture` (E1) is enabled by default** on `felix setup`; it only writes to `runs/<id>/agents-md-suggestions.md` (proposals), never to committed memory. Disable via `learnings.auto_propose: false`.
+- **`learning-capture` (E1) is enabled by default** on `felix setup`; it only writes to `runs/<id>/agents-md-suggestions.md` (proposals), never to committed memory. Disable via `learning.auto_propose: false`.
 - **`felix migrate` deletes migrated v1 prompt files** after moving them to skills (no symlinks; git history preserves them).
 
 ## Resolved defaults
@@ -142,15 +142,17 @@ Grouped by audience. Aliases for back-compat on any rename per the naming conven
 - `felix search`, `felix navigate`, `felix query`
 - `felix review [--learnings|--prompts|--all|--acknowledge]`
 - `felix memory view|add|edit|prune`
-- `felix migrate [--dry-run|--only|--revert]`
+- `felix migrate [--dry-run|--only]`
 
 **Debugging / introspection:**
 
-- `felix doctor [--fix]` (absorbs: repo-map staleness, spec frontmatter lint, stale-review reminder, ignore-file debugger)
+- `felix doctor [--fix] [--explain <path>]` (absorbs: repo-map staleness, spec frontmatter lint, stale-review reminder, ignore-file debugger)
 - `felix context inspect [--requirement] [--json]`
 - `felix event tail|query`
 - `felix run replay <id>` _(deferred; ships once a debugging session needs the snapshot)_
 - `felix run recover [--run|--all] [--yes]`
+- `felix procs`
+- `felix scan-secrets`
 
 **Resource management:**
 
@@ -167,6 +169,19 @@ Grouped by audience. Aliases for back-compat on any rename per the naming conven
 - `felix loop --parallel N [--worktrees]`
 - `felix bench run|report`
 
+### Renamed in v2 (one-minor alias period)
+
+| Old (v1 / pre-v2 plans) | New (v2)            |
+| ----------------------- | ------------------- |
+| `felix tools harden`    | `felix tool harden` |
+| `felix events tail`     | `felix event tail`  |
+| `felix events query`    | `felix event query` |
+| `felix replay`          | `felix run replay`  |
+| `felix recover`         | `felix run recover` |
+| config `learnings.*`    | config `learning.*` |
+
+Old names retained as aliases through the first v2 minor; removed at v3.
+
 ## Anchor files (high-touch areas)
 
 - [felix/felix-agent.ps1](../felix/felix-agent.ps1), [felix/felix-loop.ps1](../felix/felix-loop.ps1) — explore phase, layered-context loader, parallel worker support
@@ -176,5 +191,5 @@ Grouped by audience. Aliases for back-compat on any rename per the naming conven
 - [.felix/config.json](../.felix/config.json) — new sections: `context`, `skills`, `explore`, `budget`, `tools`, `backpressure.commands[].appliesTo`
 - [src/Felix.Cli/](../src/Felix.Cli/) — new commands enumerated per phase
 - [AGENTS.md](../AGENTS.md) — gains "## Map" section
-- **New trees**: `bench/`, `.felix/memory/`, `.felix/events.jsonl`, `.felix/migrations/`
+- **New trees**: `bench/`, `.felix/memory/`, `.felix/events.jsonl` (migration ledger lives at `.felix/state.json#last_migration`; no separate `.felix/migrations/` tree)
 - **Release notes**: `release_notes/RELEASE_NOTES_v2.{0..7}.md`

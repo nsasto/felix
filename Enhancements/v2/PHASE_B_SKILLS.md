@@ -36,6 +36,7 @@ Today every prompt in [.felix/prompts/](../../.felix/prompts/) is always-on. As 
 - `prompt.md` next to manifest; treated as a fragment injected via the `{{SKILLS}}` placeholder
 - Repo scope: `.felix/skills/<id>/`; user scope: `%USERPROFILE%/.felix/skills/<id>/`
 - **Repo overrides user** on id collision
+- **Skill ids are kebab-case and must match the directory name** (e.g. `spec-builder`, `build-context`)
 
 ### B2 — Migrate existing prompts
 
@@ -78,7 +79,7 @@ Move from `[.felix/prompts/](../../.felix/prompts/)` to skills:
     - "felix/felix-agent.ps1"
     - ".felix/prompts/**"
   tags: [context, prompt]
-  skills: [build_context]
+  skills: [build-context]
   gates: ["pwsh.unit", "pwsh.lint"]
   depends_on: [S-0040]
   ---

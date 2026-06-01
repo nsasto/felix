@@ -86,7 +86,7 @@ Today the loop has two phases (`plan`, `build`) and one agent does both. The age
 ## Non-goals
 
 - Parallel exploration of multiple requirements (H)
-- LSP-aware exploration (D′ enhances rank quality once available)
+- LSP-aware exploration (D′ enhances symbol-of-interest accuracy once available)
 - Cross-iteration context-map caching (intentional: fresh map per iteration mirrors live state)
 
 ## Phase Contracts frozen here

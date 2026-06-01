@@ -62,9 +62,27 @@ Required: `budget_tokens`. `weights` and `eviction_order` are code constants in 
 ### `felix migrate` registry
 
 - Permanent v1→v2 transform tool; recognition of v1 layouts never sunset
-- Flags: `--dry-run`, `--only <transform-id>`, `--revert`
+- Flags: `--dry-run`, `--only <transform-id>` (no `--revert`; recovery is `git revert` the migration commit — Felix migrations are forward-only)
 - Later phases register transforms via this interface (B: spec fix, prompts→skills; F: tools.allow seed)
 - Idempotent on second invocation
+
+### `migrate-transform` registration shape
+
+Phases register transforms with the registry above. Frozen shape:
+
+```ts
+{
+  id: string,           // stable, kebab-case (e.g. "spec-frontmatter")
+  name: string,         // human-readable
+  applies(repo): bool,  // cheap precondition check; false = skip silently
+  dryRun(repo): Diff,   // returns proposed file changes; no side effects
+  apply(repo): void     // writes changes; idempotent
+}
+```
+
+- **Idempotency contract:** a second `apply()` against an already-migrated repo is a no-op (no error, no diff). Tested by running `felix migrate --apply` twice in CI on each transform's fixture.
+- `felix migrate --dry-run` renders by calling each registered transform's `dryRun()` and concatenating diffs in registration order.
+- New transforms registered by later phases are additive; new ids do not bump the registry's `_v`.
 
 ### `felix run replay <run-id>` _(deferred)_
 
@@ -137,6 +155,38 @@ Fields as documented in [docs/PLUGINS.md](../../docs/PLUGINS.md); A.5 pins the s
 - `felix event query <expr> [--json]` (alias: `events`)
 - `felix doctor [--fix]` — extensible; phases register checks. v2.0 ships with checks for: stale leases (H), orphaned worktrees (H), corrupt event log, plugin manifest hash mismatches, repo-map staleness (A), spec frontmatter (B), stale prompt-review (E), `.felixignore` debug (`--explain <path>`)
 
+### `doctor-check` registration interface
+
+Frozen shape for any phase that wants to extend `felix doctor`:
+
+```ts
+{
+  id: string,                          // stable, kebab-case (e.g. "stale-lease")
+  severity: "warn" | "error",          // "warn" is informational; "error" fails the command
+  message: string,                     // human-readable; may include path or count
+  fix?: () => void                     // optional non-destructive repair; absent = report only
+}
+```
+
+`felix doctor --json` output schema:
+
+```json
+{
+  "_v": 1,
+  "checks": [
+    {
+      "id": "stale-lease",
+      "severity": "warn",
+      "status": "pass|fail",
+      "message": "..."
+    }
+  ]
+}
+```
+
+- **Late-registration model:** A.5 ships only the checks for already-shipped phases. B/E/H register their checks on their own release. Adding a new check id is additive and does **not** bump `_v`; consumers iterate over `checks[]` and ignore unknown ids.
+- A check whose owning phase has not shipped is simply absent from the `checks[]` array (not a stub with `status: "skipped"`).
+
 ---
 
 ## Phase B (v2.1) — Skills & Spec Frontmatter
@@ -150,7 +200,7 @@ Optional: `triggers.{commands,applyTo,tags,keywords,always}`.
 
 Required: `id`, `title`, `status`.
 Optional: `applyTo`, `tags`, `skills`, `gates`, `depends_on`, `priority`, `block_reason` (free-form string, populated when `status: blocked`).
-Lifecycle states: `draft | planned | in-progress | complete | blocked`. (`reviewed` and `approved` are NOT states — the review artifact's existence + a human edit or `spec approve` flips `draft` to `planned`.)
+Lifecycle states: `draft | planned | in-progress | complete | blocked`. (No `reviewed`/`approved` states — promotion = human edit.)
 
 ### CLI
 
@@ -298,7 +348,7 @@ Required sections:
 - `felix memory view|add|edit|prune`
 - `felix review [--learnings|--prompts|--all|--acknowledge]` (unified surface; replaces separate `learnings review` and `prompts review` verbs)
 - Stale-review reminder folded into `felix doctor` (no `OnLoopStart` banner hook)
-- `learning-capture` plugin **enabled by default** on `felix setup`; writes proposals only to `runs/<id>/agents-md-suggestions.md`. Disable via `learnings.auto_propose: false`.
+- `learning-capture` plugin **enabled by default** on `felix setup`; writes proposals only to `runs/<id>/agents-md-suggestions.md`. Disable via `learning.auto_propose: false`.
 - Auto-prune scope: `runs/.../agents-md-suggestions.md` only; `.felix/memory/` is never auto-modified by the loop
 
 ---
@@ -408,6 +458,10 @@ _Packs (`pack.json`), `felix plugin certify`, and the certification GitHub Actio
 | 2026-05-29 | A     | A2 `repo-map build` folded into `doctor --fix`; A3 simplified to 2 layers; A5 weights/eviction dropped from config; A7 snapshot manifest deferred; A8 `config explain` cut                            | review pass 2 |
 | 2026-05-29 | A.5   | `doctor` extended to absorb repo-map staleness, spec frontmatter lint, stale-review reminder, ignore debug; A.5 freezes treated as candidate v1 through v2.3                                          | review pass 2 |
 | 2026-05-29 | B     | B7 `spec lint` folded into `doctor`; B8 `spec review`/`spec approve` + `spec-critic` skill cut; `spec create` always emits frontmatter                                                                | review pass 2 |
+| 2026-05-31 | A     | `felix migrate --revert` cut (recovery = `git revert`); `migrate-transform` registration shape frozen with idempotency contract                                                                       | review pass 3 |
+| 2026-05-31 | A.5   | `doctor-check` registration interface + `--json` schema frozen; late-registration model documented                                                                                                    | review pass 3 |
+| 2026-05-31 | B     | Spec lifecycle parenthetical reworded (cut `spec approve` reference)                                                                                                                                  | review pass 3 |
+| 2026-05-31 | E     | Config key renamed `learnings.auto_propose` → `learning.auto_propose` (singular noun convention)                                                                                                      | review pass 3 |
 | 2026-05-29 | C     | C5 ranks dropped from contract; natural ordering only                                                                                                                                                 | review pass 2 |
 | 2026-05-29 | D     | D6 raw-grep guard cut                                                                                                                                                                                 | review pass 2 |
 | 2026-05-29 | E     | E3 reminder hook cut (folded into `doctor`); `learning-capture` confirmed default-on                                                                                                                  | review pass 2 |

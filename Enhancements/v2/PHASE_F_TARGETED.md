@@ -12,7 +12,7 @@ Today's backpressure runs every command on every iteration. Editing a single C# 
 
 1. Run only the gates that matter for the changes made.
 2. Expose Felix state to agents via a stable JSON contract (not raw schema reads).
-3. Define what the agent is allowed to call, audit what it does call, sandbox arbitrary shellouts.
+3. Define what the agent is allowed to call, audit what it does call.
 
 ## Deliverables
 
@@ -81,7 +81,7 @@ Today's backpressure runs every command on every iteration. Editing a single C# 
   }
   ```
 - **Default-allow on v1→v2 upgrade.** `felix migrate` seeds `tools.allow` with the current agent's de-facto tool set so existing users aren't broken on first run. New repos created by `felix setup` also start `default: "allow"` with an audit-only log of every tool call.
-- `felix tools harden` is the one-time opt-in that flips `default` to `"deny"`, prints the inferred allowlist from recent audit logs, and asks for confirmation. Power users / regulated repos opt in; everyone else gets the safe default and the audit trail.
+- `felix tool harden` is the one-time opt-in that flips `default` to `"deny"`, prints the inferred allowlist from recent audit logs, and asks for confirmation. Power users / regulated repos opt in; everyone else gets the safe default and the audit trail. (Alias `felix tools harden` retained for one minor.)
 - Glob matching on tool names
 - D5 (MCP/shim) enforces at call time; denial returns structured error to agent
 
@@ -93,7 +93,7 @@ Today's backpressure runs every command on every iteration. Editing a single C# 
   ```
 - Denials also audited (`allowed: false`)
 - `felix event tail --kind tool.call` shows the live tool stream
-- Doubles as input to `felix tools harden` for inferring the allowlist
+- Doubles as input to `felix tool harden` for inferring the allowlist
 
 > **F7 (`felix exec` sandbox) cut.** The original motivation — protect against destructive shellouts — is already covered by the agent tool allowlist (F5) + the audit trail (F6). Write-protection for paths like `.git/` is a single hook-layer deny-list, not a new CLI verb with timeout/network/cwd flags. If a future threat model demands capability-based sandboxing, revisit in v3.
 
@@ -115,7 +115,7 @@ Today's backpressure runs every command on every iteration. Editing a single C# 
 
 - `backpressure.commands[].appliesTo` glob semantics
 - `felix query` CLI + per-kind `--json` schema with `_v` field (kinds: `requirements | runs | state`)
-- `tools` config block schema (default-allow on upgrade; `felix tools harden` for opt-in deny)
+- `tools` config block schema (default-allow on upgrade; `felix tool harden` for opt-in deny)
 - `kind=tool.call` event payload schema
 - `felix gc` CLI surface
 
@@ -125,7 +125,7 @@ Today's backpressure runs every command on every iteration. Editing a single C# 
 - `felix query requirements --status planned --json` schema matches contract; `_v` present
 - `felix query` with kind `events` returns an actionable error pointing at `felix event query`
 - v1→v2 migrated repo runs with `tools.default = "allow"`; no tool calls broken; audit log populated
-- `felix tools harden` proposes an allowlist from recent audit; user confirms; subsequent unknown tool is denied with structured error
+- `felix tool harden` proposes an allowlist from recent audit; user confirms; subsequent unknown tool is denied with structured error
 - Backwards compat: a v1 config with no `appliesTo` runs all commands as before
 - `felix gc --dry-run` reports what would be pruned without modifying disk
 
@@ -142,6 +142,6 @@ Today's backpressure runs every command on every iteration. Editing a single C# 
 ## Anchor files
 
 - [felix/felix-agent.ps1](../../felix/felix-agent.ps1), [felix/felix-loop.ps1](../../felix/felix-loop.ps1) — backpressure dispatcher
-- [src/Felix.Cli/Program.Commands.cs](../../src/Felix.Cli/Program.Commands.cs) — `query`, `tools harden`, `gc`, `validate`
+- [src/Felix.Cli/Program.Commands.cs](../../src/Felix.Cli/Program.Commands.cs) — `query`, `tool harden`, `gc`, `validate`
 - [.felix/config.json](../../.felix/config.json) — `tools`, `backpressure.commands[].appliesTo`, `gc.retention_days`
 - [scripts/validate-requirement.py](../../scripts/validate-requirement.py), [scripts/validate-requirement.ps1](../../scripts/validate-requirement.ps1) — path-scoped filtering

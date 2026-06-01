@@ -38,7 +38,7 @@ Foundational. Every later phase distributes its reference plugin through A.5, em
 - Rotation: 5 MB → `.felix/events-YYYYMMDDTHHMMSS.jsonl`; total retention `events.retention_days` (default 30)
 - Emitted from: loop phase transitions, every plugin hook entry/exit, every CLI command with `--audit`, backpressure pass/fail, budget warn/halt
 - Consumers: E (learning-capture reads from bus, not log scraping), F (tool audit), Bench (results)
-- CLI: `felix events tail [--kind ...] [--run-id ...] [--since 1h]`, `felix events query <jq-like>`
+- CLI: `felix event tail [--kind ...] [--run-id ...] [--since 1h]`, `felix event query <jq-like>` (alias `events` retained one minor)
 
 ### AS3 — Phase Contracts registry
 

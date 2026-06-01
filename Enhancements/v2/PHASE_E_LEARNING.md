@@ -19,7 +19,7 @@ The article calls "stop hooks that reflect on the session and propose CLAUDE.md 
 ### E1 — `learning-capture` reference plugin
 
 - Hooks: `OnPostIteration`
-- **Enabled by default** on `felix setup`. Writes only to `runs/<id>/agents-md-suggestions.md` (proposals) — never to committed memory. Disable via `learnings.auto_propose: false`.
+- **Enabled by default** on `felix setup`. Writes only to `runs/<id>/agents-md-suggestions.md` (proposals) — never to committed memory. Disable via `learning.auto_propose: false`.
 - Reads from Event Bus (AS2), not log scraping (E7)
 - Drafts proposals:
 
@@ -82,7 +82,7 @@ The article calls "stop hooks that reflect on the session and propose CLAUDE.md 
 
 ### E7 — Event Bus consumer (formerly E8)
 
-- `learning-capture` reads events via `felix events query`, not by scraping `runs/.../output.log`
+- `learning-capture` reads events via `felix event query`, not by scraping `runs/.../output.log`
 - Failure events (`backpressure.fail`, `validation.fail`, `iteration.error`) are the primary input
 - Win events (`requirement.complete`) trigger "what worked" memory proposals
 
@@ -113,7 +113,7 @@ The article calls "stop hooks that reflect on the session and propose CLAUDE.md 
 
 - `specs/S-2E01-learning-capture-plugin.md`
 - `specs/S-2E02-review-cli.md` (unified `felix review`)
-- `specs/S-2E03-review-reminder-hook.md`
+- `specs/S-2E03-doctor-stale-review-check.md`
 - `specs/S-2E04-memory-tree.md`
 - `specs/S-2E05-memory-cli.md`
 - `specs/S-2E06-auto-memory-proposals.md`
@@ -124,4 +124,4 @@ The article calls "stop hooks that reflect on the session and propose CLAUDE.md 
 - New: `.felix/plugins/learning-capture/`, `.felix/memory/`
 - [src/Felix.Cli/Program.Commands.cs](../../src/Felix.Cli/Program.Commands.cs) — `review`, `memory`
 - [.felix/state.json](../../.felix/state.json) — `last_review` field
-- [.felix/config.json](../../.felix/config.json) — `memory.retention_days`, `learnings.auto_propose`
+- [.felix/config.json](../../.felix/config.json) — `memory.retention_days`, `learning.auto_propose`
