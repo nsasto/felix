@@ -556,6 +556,37 @@ partial class Program
         return cmd;
     }
 
+    // ── v2: felix search (D1) ────────────────────────────────────────────
+
+    static Command CreateSearchCommand(string felixPs1)
+    {
+        var patternArg = new Argument<string?>("pattern", "Search pattern (omit with --related-to)") { Arity = ArgumentArity.ZeroOrOne };
+        var scopeOpt   = new Option<string>("--scope",      () => "file",  "Search scope: file or symbol");
+        var inOpt      = new Option<string>("--in",         () => "code",  "Search target: code, specs, runs, all");
+        var maxOpt     = new Option<int>("--max",            () => 50,      "Maximum results");
+        var jsonOpt    = new Option<bool>("--json",                         "Output JSON");
+        var relatedOpt = new Option<string?>("--related-to",               "Assemble files related to a requirement ID");
+
+        var cmd = new Command("search", "Search the codebase (felix-aware, .felixignore-scoped)")
+        {
+            patternArg, scopeOpt, inOpt, maxOpt, jsonOpt, relatedOpt
+        };
+
+        cmd.SetHandler(async (pattern, scope, inTarget, max, json, relatedTo) =>
+        {
+            var args = new List<string> { "search" };
+            if (!string.IsNullOrEmpty(pattern)) args.Add(pattern);
+            if (scope != "file")            args.AddRange(new[] { "--scope", scope });
+            if (inTarget != "code")         args.AddRange(new[] { "--in", inTarget });
+            if (max != 50)                  args.AddRange(new[] { "--max", max.ToString() });
+            if (json)                       args.Add("--json");
+            if (!string.IsNullOrEmpty(relatedTo)) args.AddRange(new[] { "--related-to", relatedTo });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, patternArg, scopeOpt, inOpt, maxOpt, jsonOpt, relatedOpt);
+
+        return cmd;
+    }
+
     // ── v2: felix skill (B4) ──────────────────────────────────────────────
 
     static Command CreateSkillCommand(string felixPs1)

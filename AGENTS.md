@@ -58,6 +58,9 @@ dotnet test tests\Felix.Cli.Tests\
 # Run Phase C PowerShell unit tests (explore subagent: Get-ExploreConfig, Test-ExploreEnabled, Assert-ContextMapSchema)
 .\tests\Test-PhaseC.ps1
 
+# Run Phase D PowerShell unit tests (search: Get-SearchCacheKey, SearchCache, Get-RelatedFiles, JSON schema)
+.\tests\Test-PhaseD.ps1
+
 # Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
@@ -165,6 +168,20 @@ The explore phase is a read-only pass that runs before plan/build and writes `ru
 **Required context-map sections:** `## Files likely to change`, `## Files to read for context`, `## Symbols of interest`, `## Related tests`, `## Prior runs`. Missing sections are injected with `_(no data)_` placeholders.
 
 **Core script:** `.felix/core/explore.ps1` — functions: `Get-ExploreConfig`, `Test-ExploreEnabled`, `Assert-ContextMapSchema`, `New-ExplorePrompt`, `Invoke-ExplorePhase`, `Test-AgentReadOnly`
+
+## Search (Phase D)
+
+Felix-aware, `.felixignore`-scoped search command backed by ripgrep (falls back to `Select-String`).
+
+**CLI:** `felix search "<pattern>" [--scope file|symbol] [--in code|specs|runs|all] [--max N] [--json] [--related-to <req-id>]`
+
+**Memoisation:** per-run cache at `runs/<run-id>/search-cache.json`, keyed by `SHA1(query|flags)`. Set `FELIX_RUN_DIR` env var to activate caching within an agent run. Cache deleted with the run (no cross-run staleness).
+
+**`--related-to <req-id>`:** assembles files referenced in that requirement's `context-map.md` and iteration plan files across all matching runs. Returns `{ "files": [...], "total": N, "source": "<req-id>" }`.
+
+**Core scripts:**
+- `.felix/commands/search.ps1` — `Invoke-Search`, `Get-RelatedFiles`
+- `.felix/core/search-cache.ps1` — `Get-SearchCacheKey`, `Get-SearchCache`, `Set-SearchCache`, `Clear-SearchCache`
 
 ## Sync Troubleshooting
 

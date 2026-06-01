@@ -146,6 +146,13 @@ felix skill disable <id>           # disable without deleting
 # Replay a previous run's prompt artifacts
 felix run replay S-0001-20260101-120000
 
+# Search codebase (felix-aware, .felixignore-scoped)
+felix search "CreateRunCommand"                        # text search in code
+felix search "TODO" --in specs --json                  # search specs, JSON output
+felix search "error" --in runs --max 20                # search recent run artifacts
+felix search "pattern" --scope symbol --json           # symbol-scoped search
+felix search --related-to S-0001 --json                # files referenced in S-0001's runs
+
 # Exploration subagent (reads repo before plan/build phase)
 felix run S-0001 --explore          # force explore on this run
 felix run S-0001 --no-explore       # disable explore for this run
@@ -170,6 +177,33 @@ The explore phase runs a read-only subagent pass before plan/build to produce a 
 ```
 
 Run `felix migrate --apply` on a large repo to auto-enable explore if the file count threshold is met.
+
+**`felix search`** (Phase D)
+
+Felix-aware, `.felixignore`-scoped search backed by ripgrep (falls back to `Select-String`):
+
+```powershell
+# Basic usage
+felix search "CreateRunCommand"                    # search code (default)
+felix search "TODO" --in specs --json             # search specs/, JSON output
+felix search "error" --in runs --max 20           # search recent runs/
+felix search "pattern" --in all --json            # search everything
+
+# Spec/run-aware
+felix search --related-to S-0001 --json           # files referenced in S-0001's plans/context-maps
+```
+
+JSON output schema (frozen contract):
+```json
+{
+  "matches": [{ "path": "...", "line": 42, "col": 18, "text": "...", "rank": 0.74, "context": [] }],
+  "truncated": false,
+  "total": 12,
+  "ignored_globs": ["runs/", "obj/", "bin/"]
+}
+```
+
+Per-run search results are memoised in `runs/<run-id>/search-cache.json` (keyed by SHA1 of query+flags; TTL = run lifetime).
 
 **Optional: Enable cloud sync for run artifacts (free)**
 

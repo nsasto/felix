@@ -43,7 +43,8 @@ partial class Program
         "procs list",
         "skill list",
         "skill show",
-        "event list"
+        "event list",
+        "search"
     };
 
     static readonly HashSet<string> TuiCommandsThatStageBeforeExecution = new(StringComparer.OrdinalIgnoreCase)
@@ -60,7 +61,8 @@ partial class Program
         ["loop"] = new[] { "--max-iterations", "--format" },
         ["spec pull"] = new[] { "--dry-run", "--delete", "--force" },
         ["spec push"] = new[] { "--dry-run", "--force" },
-        ["update"] = new[] { "--check", "--yes", "-y" }
+        ["update"] = new[] { "--check", "--yes", "-y" },
+        ["search"] = new[] { "--scope", "--in", "--max", "--json", "--related-to" }
     };
 
     internal enum TuiCommandExecutionMode
@@ -1246,6 +1248,19 @@ partial class Program
             1,
             TuiCommandExecutionMode.Standalone,
             TuiCommandExecutionBackend.Auto));
+
+        // D1: search has a ZeroOrOne pattern arg; virtual entry ensures the TUI catalog
+        // surfaces it with the correct MinimumPositionalArguments and execution mode.
+        entries.Add(new TuiCommandCatalogEntry(
+            "search",
+            "Search the codebase (felix-aware, .felixignore-scoped)",
+            "/search [pattern]",
+            new[] { "search" },
+            new[] { "--scope", "--in", "--max", "--json", "--related-to" },
+            new[] { "pattern" },
+            0,
+            TuiCommandExecutionMode.Captured,
+            TuiCommandExecutionBackend.Auto));
     }
 
     static void BuildTuiCommandCatalog(List<TuiCommandCatalogEntry> entries, RootCommand rootCommand, Command command, IReadOnlyList<string> parentPath)
@@ -1317,6 +1332,8 @@ partial class Program
             or "agent list" or "agent current" or "agent install-help"
             or "procs list"
             or "spec list" or "spec fix" or "spec status" or "spec pull" or "spec push"
+            or "skill list" or "skill show" or "event list"
+            or "search"
             or "clear" or "quit")
         {
             return TuiCommandExecutionMode.Captured;

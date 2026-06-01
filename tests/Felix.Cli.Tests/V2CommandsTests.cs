@@ -227,4 +227,71 @@ public sealed class V2CommandsTests
         Assert.Equal(typeof(bool), explore.ValueType);
         Assert.Equal(typeof(bool), noExplore.ValueType);
     }
+
+    // ── search (Phase D) ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void SearchCommand_IsRegistered()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("search", names);
+    }
+
+    [Fact]
+    public void SearchCommand_HasExpectedOptions()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var search = root.Subcommands.Single(c => c.Name == "search");
+
+        var optNames = search.Options.Select(o => o.Name).ToHashSet();
+        Assert.Contains("scope",      optNames);
+        Assert.Contains("in",         optNames);
+        Assert.Contains("max",        optNames);
+        Assert.Contains("json",       optNames);
+        Assert.Contains("related-to", optNames);
+    }
+
+    [Fact]
+    public void SearchCommand_HasOptionalPatternArgument()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var search = root.Subcommands.Single(c => c.Name == "search");
+
+        var argNames = search.Arguments.Select(a => a.Name).ToHashSet();
+        Assert.Contains("pattern", argNames);
+
+        var pattern = search.Arguments.Single(a => a.Name == "pattern");
+        Assert.Equal(0, pattern.Arity.MinimumNumberOfValues); // optional
+    }
+
+    [Fact]
+    public void SearchCommand_ScopeDefaultIsFile()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var search = root.Subcommands.Single(c => c.Name == "search");
+
+        var scopeOpt = search.Options.Single(o => o.Name == "scope");
+        Assert.Equal(typeof(string), scopeOpt.ValueType);
+    }
+
+    [Fact]
+    public void SearchCommand_MaxOptionIsInt()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var search = root.Subcommands.Single(c => c.Name == "search");
+
+        var maxOpt = search.Options.Single(o => o.Name == "max");
+        Assert.Equal(typeof(int), maxOpt.ValueType);
+    }
+
+    [Fact]
+    public void SearchCommand_JsonOptionIsBool()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var search = root.Subcommands.Single(c => c.Name == "search");
+
+        var jsonOpt = search.Options.Single(o => o.Name == "json");
+        Assert.Equal(typeof(bool), jsonOpt.ValueType);
+    }
 }

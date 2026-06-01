@@ -255,6 +255,10 @@ switch ($Command) {
         . "$FelixRoot\commands\setup.ps1"
         Invoke-Setup -Args $remainingArgs
     }
+    "search" {
+        . "$FelixRoot\commands\search.ps1"
+        Invoke-Search @remainingArgs
+    }
     "version" {
         . "$FelixRoot\commands\version.ps1"
         Show-Version
