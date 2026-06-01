@@ -294,4 +294,51 @@ public sealed class V2CommandsTests
         var jsonOpt = search.Options.Single(o => o.Name == "json");
         Assert.Equal(typeof(bool), jsonOpt.ValueType);
     }
+
+    // ── review (Phase E2) ─────────────────────────────────────────────────
+
+    [Fact]
+    public void ReviewCommand_IsRegistered()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("review", names);
+    }
+
+    [Fact]
+    public void ReviewCommand_HasExpectedOptions()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var review = root.Subcommands.Single(c => c.Name == "review");
+        var opts   = review.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("learnings",    opts);
+        Assert.Contains("prompts",      opts);
+        Assert.Contains("all",          opts);
+        Assert.Contains("acknowledge",  opts);
+        Assert.Contains("dry-run",      opts);
+    }
+
+    // ── memory (Phase E5) ─────────────────────────────────────────────────
+
+    [Fact]
+    public void MemoryCommand_IsRegistered()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("memory", names);
+    }
+
+    [Fact]
+    public void MemoryCommand_HasExpectedSubcommands()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var memory = root.Subcommands.Single(c => c.Name == "memory");
+        var subs   = memory.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.Contains("view",  subs);
+        Assert.Contains("add",   subs);
+        Assert.Contains("edit",  subs);
+        Assert.Contains("prune", subs);
+    }
 }

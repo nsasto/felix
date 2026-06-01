@@ -82,6 +82,8 @@ partial class Program
         rootCommand.AddCommand(CreateEventCommand(felixPs1));
         rootCommand.AddCommand(CreateSkillCommand(felixPs1));
         rootCommand.AddCommand(CreateSearchCommand(felixPs1));
+        rootCommand.AddCommand(CreateReviewCommand(felixPs1));
+        rootCommand.AddCommand(CreateMemoryCommand(felixPs1));
         return rootCommand;
     }
 

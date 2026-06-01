@@ -49,8 +49,10 @@ function New-IterationPrompt {
     # Load v2 modules if present (graceful fallback for v1 environments)
     $agentsLoaderPath  = Join-Path $PSScriptRoot "agents-loader.ps1"
     $budgeterPath      = Join-Path $PSScriptRoot "context-budgeter.ps1"
+    $memoryLoaderPath  = Join-Path $PSScriptRoot "memory-loader.ps1"
     if (Test-Path $agentsLoaderPath)  { . $agentsLoaderPath }
     if (Test-Path $budgeterPath)      { . $budgeterPath }
+    if (Test-Path $memoryLoaderPath)  { . $memoryLoaderPath }
 
     # Load prompt template
     $promptFile = Join-Path $Paths.PromptsDir "$Mode.md"
@@ -289,8 +291,21 @@ function New-IterationPrompt {
         plan           = $planContentForBudget
         context_map    = $contextMapContent
         skills         = $skillsContent
-        memory         = ""   # filled by Phase E
+        memory         = ""   # filled below by Phase E
         extras         = ($contextParts -join "`n`n---`n`n")
+    }
+
+    # E4: Load memory context (.felix/memory/ tree)
+    if (Get-Command Get-MemoryContext -ErrorAction SilentlyContinue) {
+        try {
+            $memContent = Get-MemoryContext `
+                -FelixDir $Paths.FelixDir `
+                -RequirementId $CurrentRequirement.id
+            if ($memContent) {
+                $budgetSources.memory = $memContent
+                Emit-Log -Level "debug" -Message "Memory context loaded ($([int]($memContent.Length/4)) tokens est.)" -Component "prompt-builder"
+            }
+        } catch { $budgetSources.memory = "" }
     }
 
     # Apply budget (A5)

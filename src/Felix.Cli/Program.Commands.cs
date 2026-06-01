@@ -587,6 +587,99 @@ partial class Program
         return cmd;
     }
 
+    // ── v2: felix review (E2) ────────────────────────────────────────────
+
+    static Command CreateReviewCommand(string felixPs1)
+    {
+        var learningsOpt    = new Option<bool>("--learnings",    "Walk agents-md-suggestions.md proposals from recent runs");
+        var promptsOpt      = new Option<bool>("--prompts",      "Audit prompts and skills for model-workaround heuristics");
+        var allOpt          = new Option<bool>("--all",          "Review learnings then prompts in sequence");
+        var acknowledgeOpt  = new Option<bool>("--acknowledge",  "Stamp last_review in state.json to silence doctor warning");
+        var dryRunOpt       = new Option<bool>("--dry-run",      "Preview without writing or committing");
+
+        var cmd = new Command("review", "Inspect run learnings and prompt heuristics")
+        {
+            learningsOpt,
+            promptsOpt,
+            allOpt,
+            acknowledgeOpt,
+            dryRunOpt
+        };
+
+        cmd.SetHandler(async (learnings, prompts, all, acknowledge, dryRun) =>
+        {
+            var args = new List<string> { "review" };
+            if (learnings)   args.Add("--learnings");
+            if (prompts)     args.Add("--prompts");
+            if (all)         args.Add("--all");
+            if (acknowledge) args.Add("--acknowledge");
+            if (dryRun)      args.Add("--dry-run");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, learningsOpt, promptsOpt, allOpt, acknowledgeOpt, dryRunOpt);
+
+        return cmd;
+    }
+
+    // ── v2: felix memory (E5) ────────────────────────────────────────────
+
+    static Command CreateMemoryCommand(string felixPs1)
+    {
+        var cmd = new Command("memory", "Manage the .felix/memory/ durable memory tree");
+
+        // memory view [--scope global|repo|requirement] [--req <id>]
+        var viewScopeOpt = new Option<string?>("--scope", "Filter by scope: global, repo, or requirement");
+        var viewReqOpt   = new Option<string?>("--req",   "Requirement ID (for scope=requirement)");
+        var viewCmd      = new Command("view", "List memory files with titles") { viewScopeOpt, viewReqOpt };
+        viewCmd.SetHandler(async (scope, req) =>
+        {
+            var args = new List<string> { "memory", "view" };
+            if (!string.IsNullOrEmpty(scope)) args.AddRange(new[] { "--scope", scope });
+            if (!string.IsNullOrEmpty(req))   args.AddRange(new[] { "--req", req });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, viewScopeOpt, viewReqOpt);
+
+        // memory add --scope <scope> --title "<t>" --body "<b>" [--req <id>]
+        var addScopeOpt = new Option<string>("--scope", "Scope: global, repo, or requirement") { IsRequired = true };
+        var addTitleOpt = new Option<string>("--title", "Title for this memory entry") { IsRequired = true };
+        var addBodyOpt  = new Option<string>("--body",  "Body text for this memory entry") { IsRequired = true };
+        var addReqOpt   = new Option<string?>("--req",  "Requirement ID (required for scope=requirement)");
+        var addCmd      = new Command("add", "Create a new memory entry") { addScopeOpt, addTitleOpt, addBodyOpt, addReqOpt };
+        addCmd.SetHandler(async (scope, title, body, req) =>
+        {
+            var args = new List<string> { "memory", "add", "--scope", scope, "--title", title, "--body", body };
+            if (!string.IsNullOrEmpty(req)) args.AddRange(new[] { "--req", req });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, addScopeOpt, addTitleOpt, addBodyOpt, addReqOpt);
+
+        // memory edit <file>
+        var editFileArg = new Argument<string>("file", "Memory file to edit");
+        var editCmd     = new Command("edit", "Open a memory file in the default editor") { editFileArg };
+        editCmd.SetHandler(async (file) =>
+        {
+            await ExecutePowerShell(felixPs1, "memory", "edit", file);
+        }, editFileArg);
+
+        // memory prune [--older-than <days>] [--dry-run]
+        var pruneOlderOpt  = new Option<int>("--older-than", () => 30, "Delete proposals older than N days");
+        var pruneDryRunOpt = new Option<bool>("--dry-run", "Preview without deleting");
+        var pruneCmd       = new Command("prune", "Delete old agents-md-suggestions.md proposal files from runs/")
+        {
+            pruneOlderOpt, pruneDryRunOpt
+        };
+        pruneCmd.SetHandler(async (olderThan, dryRun) =>
+        {
+            var args = new List<string> { "memory", "prune", "--older-than", olderThan.ToString() };
+            if (dryRun) args.Add("--dry-run");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, pruneOlderOpt, pruneDryRunOpt);
+
+        cmd.AddCommand(viewCmd);
+        cmd.AddCommand(addCmd);
+        cmd.AddCommand(editCmd);
+        cmd.AddCommand(pruneCmd);
+        return cmd;
+    }
+
     // ── v2: felix skill (B4) ──────────────────────────────────────────────
 
     static Command CreateSkillCommand(string felixPs1)

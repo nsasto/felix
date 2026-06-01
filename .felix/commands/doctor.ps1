@@ -32,8 +32,9 @@ param(
 . "$PSScriptRoot\..\core\felixignore-utils.ps1"
 . "$PSScriptRoot\..\core\frontmatter-parser.ps1"
 
-$felixDir = Join-Path $ProjectPath ".felix"
-$results  = [System.Collections.ArrayList]@()
+$felixDir  = Join-Path $ProjectPath ".felix"
+$stateFile = Join-Path $felixDir "state.json"
+$results   = [System.Collections.ArrayList]@()
 
 # -- Explain mode (A3) ----------------------------------------------------
 
@@ -197,6 +198,32 @@ if (Test-Path $specsDir) {
     }
 } else {
     Add-CheckResult -Id "spec-frontmatter" -Status "ok" -Message "specs/ directory not found (skipped)"
+}
+
+# Check 5: stale-review (Phase E)
+$stateForReview = $null
+if (Test-Path $stateFile) {
+    try { $stateForReview = Get-Content $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
+}
+if ($stateForReview -and $stateForReview.last_review) {
+    try {
+        $lastReview = [datetime]::Parse($stateForReview.last_review)
+        $daysSince  = ((Get-Date) - $lastReview).TotalDays
+        if ($daysSince -gt 90) {
+            $daysInt = [int]$daysSince
+            Add-CheckResult -Id "stale-review" -Status "warn" `
+                -Message "Review overdue: last review was $daysInt days ago. Run 'felix review --acknowledge' to suppress." `
+                -FixDetail "Run: felix review --acknowledge"
+        } else {
+            Add-CheckResult -Id "stale-review" -Status "ok" -Message "Review up to date (last: $($stateForReview.last_review))"
+        }
+    } catch {
+        Add-CheckResult -Id "stale-review" -Status "warn" -Message "Could not parse last_review timestamp: $_"
+    }
+} else {
+    Add-CheckResult -Id "stale-review" -Status "warn" `
+        -Message "No review on record. Run 'felix review --learnings' periodically then 'felix review --acknowledge'." `
+        -FixDetail "Run: felix review --acknowledge"
 }
 
 # -- Output ----------------------------------------------------------------

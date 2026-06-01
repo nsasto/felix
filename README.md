@@ -205,6 +205,35 @@ JSON output schema (frozen contract):
 
 Per-run search results are memoised in `runs/<run-id>/search-cache.json` (keyed by SHA1 of query+flags; TTL = run lifetime).
 
+**`felix review` and `felix memory`** (Phase E)
+
+Felix accumulates learnings across runs and surfaces them for review:
+
+```powershell
+# Review learning proposals from recent runs
+felix review --learnings       # walk agents-md-suggestions.md proposals (accept/reject/defer)
+felix review --prompts         # audit prompts/skills for stale model-workaround patterns
+felix review --all             # both in sequence
+felix review --acknowledge     # stamp last_review in state.json (clears doctor warning)
+felix review --dry-run         # preview without writing
+
+# Manage the durable memory tree (.felix/memory/)
+felix memory view [--scope global|repo|requirement] [--req <id>]
+felix memory add --scope repo --title "Retry pattern" --body "Always retry flaky tests 3 times"
+felix memory add --scope requirement --req S-0001 --title "DB schema note" --body "Uses UUID PK"
+felix memory edit .felix/memory/repo/2026-01-01-retry-pattern.md
+felix memory prune [--older-than <days>] [--dry-run]   # prune old proposal files only
+```
+
+Memory scopes:
+- **global** – `%USERPROFILE%\.felix\memory\global\` – applies across all projects
+- **repo** – `.felix/memory/repo/` – applies to this repo
+- **requirement** – `.felix/memory/requirement/<req-id>/` – requirement-specific notes
+
+`felix doctor` warns when `last_review` is missing or older than 90 days.
+
+The **learning-capture plugin** (`OnPostIteration` hook) automatically proposes AGENTS.md additions based on backpressure failures and iteration outcomes. Proposals are written to `runs/<run-id>/agents-md-suggestions.md`. Disable with `Config.learning.auto_propose = false`.
+
 **Optional: Enable cloud sync for run artifacts (free)**
 
 Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) - it's free. Then set env vars or add to `.felix/config.json`:

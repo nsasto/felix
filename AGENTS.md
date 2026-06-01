@@ -61,6 +61,9 @@ dotnet test tests\Felix.Cli.Tests\
 # Run Phase D PowerShell unit tests (search: Get-SearchCacheKey, SearchCache, Get-RelatedFiles, JSON schema)
 .\tests\Test-PhaseD.ps1
 
+# Run Phase E PowerShell unit tests (learning: Get-RunEvents, Get-MemoryContext, memory/review CLI, doctor, learning-capture)
+.\tests\Test-PhaseE.ps1
+
 # Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
@@ -182,6 +185,41 @@ Felix-aware, `.felixignore`-scoped search command backed by ripgrep (falls back 
 **Core scripts:**
 - `.felix/commands/search.ps1` — `Invoke-Search`, `Get-RelatedFiles`
 - `.felix/core/search-cache.ps1` — `Get-SearchCacheKey`, `Get-SearchCache`, `Set-SearchCache`, `Clear-SearchCache`
+
+## Learning, Memory, and Review (Phase E)
+
+Felix captures learnings from run events and exposes them for curation via `felix review` and `felix memory`.
+
+**`felix review`:**
+- `--learnings` — walk `agents-md-suggestions.md` proposals; accept/reject/defer to AGENTS.md
+- `--prompts` — audit `.felix/prompts/` and `.felix/skills/` for stale model-workaround patterns
+- `--all` — both in sequence
+- `--acknowledge` — stamp `last_review` in `state.json` (clears doctor warning)
+- `--dry-run` — preview without writing or committing
+
+**`felix memory`:**
+- `view [--scope global|repo|requirement] [--req <id>]` — list memory entries
+- `add --scope <s> --title "<t>" --body "<b>" [--req <id>]` — create a new memory file
+- `edit <file>` — open in `$EDITOR` (falls back to notepad)
+- `prune [--older-than <days>] [--dry-run]` — prune old `agents-md-suggestions.md` proposal files only
+
+**Memory tree scopes:**
+- `global` — `%USERPROFILE%\.felix\memory\global\` — applies to all projects
+- `repo` — `.felix/memory/repo/` — applies to this repo
+- `requirement` — `.felix/memory/requirement/<req-id>/` — requirement-specific notes
+
+Memory files use YAML frontmatter: `title`, `scope`, `created`, `tags`. They are NEVER auto-deleted; only proposal files in `runs/*/agents-md-suggestions.md` are pruned.
+
+**`felix doctor` stale-review check:** warns when `last_review` is missing or older than 90 days. Run `felix review --acknowledge` to clear.
+
+**learning-capture plugin** (`OnPostIteration` hook): reads `events.jsonl` via `Get-RunEvents` and writes `runs/<run-id>/agents-md-suggestions.md`. Disable with `Config.learning.auto_propose = false`.
+
+**Core scripts:**
+- `.felix/commands/review.ps1` — `Invoke-Review`
+- `.felix/commands/memory.ps1` — `Invoke-Memory`
+- `.felix/core/event-reader.ps1` — `Get-RunEvents`
+- `.felix/core/memory-loader.ps1` — `Get-MemoryContext`
+- `.felix/plugins/learning-capture/on-postiteration.ps1` — OnPostIteration hook
 
 ## Sync Troubleshooting
 

@@ -1,0 +1,20 @@
+{
+  "id": "learning-capture",
+  "name": "Learning Capture",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "description": "Captures per-iteration learnings into reviewable agents-md-suggestions.md proposals. Never auto-applies.",
+  "author": "Felix Team",
+  "permissions": [
+    "read:events",
+    "write:runs"
+  ],
+  "hooks": [
+    { "name": "OnPostIteration", "type": "powershell", "script": "on-postiteration.ps1" }
+  ],
+  "priority": 50,
+  "config": {
+    "auto_propose": true
+  },
+  "felix_version_min": "0.5.0"
+}

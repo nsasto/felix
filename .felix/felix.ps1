@@ -259,6 +259,14 @@ switch ($Command) {
         . "$FelixRoot\commands\search.ps1"
         Invoke-Search @remainingArgs
     }
+    "review" {
+        . "$FelixRoot\commands\review.ps1"
+        Invoke-Review -CmdArgs $remainingArgs
+    }
+    "memory" {
+        . "$FelixRoot\commands\memory.ps1"
+        Invoke-Memory -CmdArgs $remainingArgs
+    }
     "version" {
         . "$FelixRoot\commands\version.ps1"
         Show-Version
