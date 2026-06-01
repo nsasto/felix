@@ -120,8 +120,7 @@ $ec3 = Get-ExploreConfig -Config (Make-Config -Enabled $false)
 $r = Test-ExploreEnabled -ExploreConfig $ec3 -ProjectPath $repoRoot -Iteration 1 -ExplicitExplore $false -ExplicitNoExplore $false
 Assert-False $r "Test-ExploreEnabled: enabled=false, no flags -> disabled"
 
-# ── Assert-ContextMapSchema ───────────────────────────────────────────────────
-Write-Host "`n== Assert-ContextMapSchema ==" -ForegroundColor Cyan
+# ── Assert-ContextMapSchema ───────────────────────────────────────────────────Write-Host "`n== Assert-ContextMapSchema ==" -ForegroundColor Cyan
 
 # Full valid context-map with all required sections
 $fullMap = @"
@@ -156,6 +155,71 @@ Assert-False ($r3.Valid)                             "Assert-ContextMapSchema: p
 Assert-True  ($r3.Missing -contains "## Symbols of interest") "Assert-ContextMapSchema: partial missing 'Symbols of interest'"
 Assert-True  ($r3.Missing -contains "## Related tests")       "Assert-ContextMapSchema: partial missing 'Related tests'"
 Assert-True  ($r3.Missing -contains "## Prior runs")          "Assert-ContextMapSchema: partial missing 'Prior runs'"
+
+# ── Test-AgentReadOnly ───────────────────────────────────────────────────────
+Write-Host "`n== Test-AgentReadOnly ==" -ForegroundColor Cyan
+
+# Default agent config (no read_only_supported field) -> returns true
+$defaultAgent = @{}
+Assert-True  (Test-AgentReadOnly -AgentConfig $defaultAgent)  "Test-AgentReadOnly: no flag -> defaults true"
+
+# Explicit read_only_supported = true
+$roAgent = @{ read_only_supported = $true }
+Assert-True  (Test-AgentReadOnly -AgentConfig $roAgent)       "Test-AgentReadOnly: explicit true -> true"
+
+# Explicit read_only_supported = false
+$rwAgent = @{ read_only_supported = $false }
+Assert-False (Test-AgentReadOnly -AgentConfig $rwAgent)       "Test-AgentReadOnly: explicit false -> false"
+
+# Null agent config -> defaults true (safe fallback)
+Assert-True  (Test-AgentReadOnly -AgentConfig $null)          "Test-AgentReadOnly: null config -> true"
+
+# ── Test-ExploreAutoEnable ────────────────────────────────────────────────────
+Write-Host "`n== Test-ExploreAutoEnable ==" -ForegroundColor Cyan
+
+# Threshold = 1 -> any repo with at least 1 tracked file passes
+$autoWhen1 = @{ min_tracked_files = 1 }
+$r = Test-ExploreAutoEnable -ProjectPath $repoRoot -AutoEnableWhen $autoWhen1
+Assert-True $r "Test-ExploreAutoEnable: threshold=1 -> true for repo with tracked files"
+
+# Threshold = 9999999 -> no repo has this many files
+$autoWhenHuge = @{ min_tracked_files = 9999999 }
+$r = Test-ExploreAutoEnable -ProjectPath $repoRoot -AutoEnableWhen $autoWhenHuge
+Assert-False $r "Test-ExploreAutoEnable: threshold=9999999 -> false for normal repo"
+
+# null AutoEnableWhen -> false
+$r = Test-ExploreAutoEnable -ProjectPath $repoRoot -AutoEnableWhen $null
+Assert-False $r "Test-ExploreAutoEnable: null AutoEnableWhen -> false"
+
+# Missing min_tracked_files key -> false
+$r = Test-ExploreAutoEnable -ProjectPath $repoRoot -AutoEnableWhen @{}
+Assert-False $r "Test-ExploreAutoEnable: empty AutoEnableWhen -> false"
+
+# ── Section injection ─────────────────────────────────────────────────────────
+Write-Host "`n== Section injection (inline logic from Invoke-ExplorePhase) ==" -ForegroundColor Cyan
+
+# Simulate what Invoke-ExplorePhase does when schema validation fails:
+# inject missing sections with _(no data)_ then validate again
+$incompleteMap = "## Files likely to change`n- src/main.ps1"
+$schemaResult = Assert-ContextMapSchema -Content $incompleteMap
+$injectedContent = $incompleteMap
+foreach ($section in $schemaResult.Missing) {
+    $injectedContent += "`n`n$section`n`n_(no data)_"
+}
+$recheck = Assert-ContextMapSchema -Content $injectedContent
+Assert-True  ($recheck.Valid)   "Section injection: after injection all sections present -> Valid=true"
+Assert-Equal 0 $recheck.Missing.Count "Section injection: 0 missing after injection"
+Assert-True  ($injectedContent -match "## Prior runs")          "Section injection: 'Prior runs' present"
+Assert-True  ($injectedContent -match "## Symbols of interest") "Section injection: 'Symbols of interest' present"
+Assert-True  ($injectedContent -match "## Related tests")       "Section injection: 'Related tests' present"
+Assert-True  ($injectedContent -match "_\(no data\)_")          "Section injection: placeholder text present"
+
+# Header prepend: if map doesn't start with '# Context Map' it should be prepended
+$noHeader = "## Files likely to change`n- src/a.ps1`n`n## Files to read for context`n- README.md`n`n## Symbols of interest`n- foo`n`n## Related tests`n- tests/foo.ps1`n`n## Prior runs`n- none"
+$header = "# Context Map -- S-0001 it1`n`n"
+$withHeader = $header + $noHeader
+Assert-True  ($withHeader -match "^# Context Map")  "Header prepend: starts with '# Context Map'"
+Assert-True  ($withHeader -match "S-0001 it1")      "Header prepend: includes req id and iteration"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 Write-Host ""
