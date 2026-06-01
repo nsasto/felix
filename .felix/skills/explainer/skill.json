@@ -1,0 +1,13 @@
+{
+  "id": "explainer",
+  "name": "Explainer",
+  "description": "Explains a technical concept or codebase section in plain language",
+  "version": "1.0.0",
+  "triggers": {
+    "commands": [],
+    "applyTo": [],
+    "tags": ["docs", "explain"],
+    "keywords": ["explain", "clarify", "understand", "how does", "what is"]
+  },
+  "prompt": "prompt.md"
+}

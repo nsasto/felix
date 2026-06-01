@@ -1,0 +1,13 @@
+{
+  "id": "learning",
+  "name": "Learning Capture",
+  "description": "Captures lessons learned and architectural insights from a completed requirement",
+  "version": "1.0.0",
+  "triggers": {
+    "commands": [],
+    "applyTo": [],
+    "tags": ["learning", "retrospective"],
+    "keywords": ["learn", "lesson", "retro", "what went wrong", "insight"]
+  },
+  "prompt": "prompt.md"
+}

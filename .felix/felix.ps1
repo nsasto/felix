@@ -231,6 +231,10 @@ switch ($Command) {
         . "$FelixRoot\commands\event.ps1"
         Invoke-Event -Args $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
     }
+    "skill" {
+        . "$FelixRoot\commands\skill.ps1"
+        Invoke-Skill -Args $remainingArgs -RepoRoot $RepoRoot
+    }
     "tui" {
         . "$FelixRoot\commands\tui.ps1"
         Invoke-Tui

@@ -1,0 +1,13 @@
+{
+  "id": "documenter",
+  "name": "Documenter",
+  "description": "Writes high-level narrative documentation of a codebase for non-technical stakeholders",
+  "version": "1.0.0",
+  "triggers": {
+    "commands": [],
+    "applyTo": [],
+    "tags": ["docs", "documentation"],
+    "keywords": ["document", "narrative", "overview", "architecture"]
+  },
+  "prompt": "prompt.md"
+}

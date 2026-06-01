@@ -40,7 +40,10 @@ partial class Program
         "agent list",
         "agent current",
         "agent install-help",
-        "procs list"
+        "procs list",
+        "skill list",
+        "skill show",
+        "event list"
     };
 
     static readonly HashSet<string> TuiCommandsThatStageBeforeExecution = new(StringComparer.OrdinalIgnoreCase)

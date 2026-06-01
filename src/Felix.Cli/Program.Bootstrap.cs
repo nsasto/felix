@@ -80,6 +80,7 @@ partial class Program
         rootCommand.AddCommand(CreateDoctorCommand(felixPs1));
         rootCommand.AddCommand(CreatePluginCommand(felixPs1));
         rootCommand.AddCommand(CreateEventCommand(felixPs1));
+        rootCommand.AddCommand(CreateSkillCommand(felixPs1));
         return rootCommand;
     }
 

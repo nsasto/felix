@@ -1,0 +1,13 @@
+{
+  "id": "build-agents",
+  "name": "Build Agents Guide",
+  "description": "Generates or updates the AGENTS.md operational guide for a repository",
+  "version": "1.0.0",
+  "triggers": {
+    "commands": [],
+    "applyTo": [],
+    "tags": ["agents", "docs"],
+    "keywords": ["AGENTS.md", "agents guide", "operational guide", "run guide"]
+  },
+  "prompt": "prompt.md"
+}

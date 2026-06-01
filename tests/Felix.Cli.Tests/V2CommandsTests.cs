@@ -145,4 +145,51 @@ public sealed class V2CommandsTests
         var optNames = replay.Options.Select(o => o.Name).ToHashSet();
         Assert.Contains("iteration", optNames);
     }
+
+    // ── skill (B4) ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void CreateRootCommand_RegistersSkillCommand()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("skill", names);
+    }
+
+    [Fact]
+    public void SkillCommand_HasExpectedSubcommands()
+    {
+        var root    = Program.CreateRootCommand(FakeFelixPs1);
+        var skill   = root.Subcommands.Single(c => c.Name == "skill");
+        var subCmds = skill.Subcommands.Select(c => c.Name).ToHashSet();
+
+        Assert.Contains("list", subCmds);
+        Assert.Contains("show", subCmds);
+        Assert.Contains("enable", subCmds);
+        Assert.Contains("disable", subCmds);
+        Assert.Contains("install", subCmds);
+    }
+
+    [Fact]
+    public void SkillListCommand_HasScopeAndJsonOptions()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var skill = root.Subcommands.Single(c => c.Name == "skill");
+        var list  = skill.Subcommands.Single(c => c.Name == "list");
+
+        var optNames = list.Options.Select(o => o.Name).ToHashSet();
+        Assert.Contains("scope", optNames);
+        Assert.Contains("json", optNames);
+    }
+
+    [Fact]
+    public void SkillShowCommand_HasIdArgument()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var skill = root.Subcommands.Single(c => c.Name == "skill");
+        var show  = skill.Subcommands.Single(c => c.Name == "show");
+
+        var argNames = show.Arguments.Select(a => a.Name).ToHashSet();
+        Assert.Contains("id", argNames);
+    }
 }

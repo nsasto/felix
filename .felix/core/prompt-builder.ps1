@@ -37,7 +37,13 @@ function New-IterationPrompt {
         [string]$PlanContent = $null,
         
         [Parameter(Mandatory = $false)]
-        [switch]$NoCommit
+        [switch]$NoCommit,
+
+        [Parameter(Mandatory = $false)]
+        [string]$CurrentCommand = "",
+
+        [Parameter(Mandatory = $false)]
+        [string]$TaskDescription = ""
     )
 
     # Load v2 modules if present (graceful fallback for v1 environments)
@@ -228,6 +234,33 @@ function New-IterationPrompt {
         }
     }
 
+    # B3: Skills - load and match skills against current context
+    $skillsContent = ""
+    $skillLoaderPath = Join-Path $Paths.FelixDir "core\skill-loader.ps1"
+    if (Test-Path $skillLoaderPath) {
+        . $skillLoaderPath
+        try {
+            # Parse spec frontmatter for applyTo, tags (B5)
+            $specFrontmatter = @{}
+            $frontmatterParserPath = Join-Path $Paths.FelixDir "core\frontmatter-parser.ps1"
+            if (Test-Path $frontmatterParserPath) {
+                . $frontmatterParserPath
+                $specFilePath2 = Join-Path $Paths.ProjectPath $specPath
+                if (Test-Path $specFilePath2) {
+                    $fm = Get-SpecFrontmatter -SpecPath $specFilePath2
+                    if ($fm) { $specFrontmatter = $fm }
+                }
+            }
+            $skillsContent = Invoke-SkillLoader `
+                -RepoRoot $repoRoot `
+                -Config $(if ($Config) { $Config } else { @{} }) `
+                -CurrentCommand $CurrentCommand `
+                -RequirementApplyTo @($(if ($specFrontmatter -and $specFrontmatter.applyTo) { $specFrontmatter.applyTo } else { @() })) `
+                -RequirementTags    @($(if ($specFrontmatter -and $specFrontmatter.tags) { $specFrontmatter.tags } else { @() })) `
+                -TaskDescription    $(if ($TaskDescription) { $TaskDescription } else { "" })
+        } catch { $skillsContent = "" }
+    }
+
     # Spec content
     $specContent = ""
     $specFilePath = Join-Path $Paths.ProjectPath $specPath
@@ -245,7 +278,7 @@ function New-IterationPrompt {
         spec           = $specContent
         plan           = $planContentForBudget
         context_map    = ""   # filled by Phase C (explore)
-        skills         = ""   # filled by Phase B
+        skills         = $skillsContent
         memory         = ""   # filled by Phase E
         extras         = ($contextParts -join "`n`n---`n`n")
     }

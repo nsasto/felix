@@ -30,6 +30,7 @@ param(
 )
 
 . "$PSScriptRoot\..\core\felixignore-utils.ps1"
+. "$PSScriptRoot\..\core\frontmatter-parser.ps1"
 
 $felixDir = Join-Path $ProjectPath ".felix"
 $results  = [System.Collections.ArrayList]@()
@@ -158,6 +159,44 @@ if (Test-Path $agentsPath) {
     }
 } else {
     Add-CheckResult -Id "repo-map-stale" -Status "warn" -Message "Root AGENTS.md not found"
+}
+
+# Check 4: spec-frontmatter (B7)
+$configPath = Join-Path $felixDir "config.json"
+$specFrontmatterEnforcement = "warn"
+if (Test-Path $configPath) {
+    $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+    if ($cfg.doctor -and $cfg.doctor.gates -and $cfg.doctor.gates.spec_frontmatter) {
+        $specFrontmatterEnforcement = $cfg.doctor.gates.spec_frontmatter
+    }
+}
+
+$specsDir = Join-Path $ProjectPath "specs"
+if (Test-Path $specsDir) {
+    $missingFM = Get-ChildItem -Path $specsDir -Filter "*.md" -ErrorAction SilentlyContinue |
+        Where-Object {
+            $firstLine = Get-Content $_.FullName -TotalCount 1 -ErrorAction SilentlyContinue
+            $firstLine -ne "---"
+        }
+
+    if ($missingFM -and @($missingFM).Count -gt 0) {
+        $names = ($missingFM | Select-Object -First 5 | ForEach-Object { $_.Name }) -join ", "
+        $more  = if (@($missingFM).Count -gt 5) { " (and $(@($missingFM).Count - 5) more)" } else { "" }
+        $status = if ($specFrontmatterEnforcement -eq "error") { "fail" } else { "warn" }
+        Add-CheckResult -Id "spec-frontmatter" -Status $status `
+            -Message "$(@($missingFM).Count) spec(s) missing frontmatter: $names$more. Run 'felix migrate --apply --only spec-frontmatter' to fix." `
+            -FixDetail "Run felix migrate --apply --only spec-frontmatter"
+        if ($Fix) {
+            $migrateScript = Join-Path $PSScriptRoot "migrate.ps1"
+            if (Test-Path $migrateScript) {
+                & $migrateScript -Apply -Only "spec-frontmatter" -ProjectPath $ProjectPath
+            }
+        }
+    } else {
+        Add-CheckResult -Id "spec-frontmatter" -Status "ok" -Message "All specs have frontmatter"
+    }
+} else {
+    Add-CheckResult -Id "spec-frontmatter" -Status "ok" -Message "specs/ directory not found (skipped)"
 }
 
 # -- Output ----------------------------------------------------------------

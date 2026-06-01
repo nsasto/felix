@@ -1,0 +1,13 @@
+{
+  "id": "build-context",
+  "name": "Build Context",
+  "description": "Forensic codebase analysis: generates or updates CONTEXT.md with tech stack, architecture, and standards",
+  "version": "1.0.0",
+  "triggers": {
+    "commands": ["context build"],
+    "applyTo": [],
+    "tags": ["context"],
+    "keywords": ["context", "CONTEXT.md", "architecture", "tech stack"]
+  },
+  "prompt": "prompt.md"
+}

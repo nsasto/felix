@@ -549,4 +549,62 @@ partial class Program
 
         return cmd;
     }
+
+    // ── v2: felix skill (B4) ──────────────────────────────────────────────
+
+    static Command CreateSkillCommand(string felixPs1)
+    {
+        var cmd = new Command("skill", "Manage Felix skills (.felix/skills/<id>/)");
+
+        // skill list [--scope repo|user|all] [--json]
+        var scopeOpt = new Option<string?>("--scope", "Filter by scope: repo, user, or all (default)");
+        var jsonOpt  = new Option<bool>("--json", "Machine-readable output");
+        var listCmd  = new Command("list", "List available skills") { scopeOpt, jsonOpt };
+        listCmd.SetHandler(async (scope, json) =>
+        {
+            var args = new List<string> { "skill", "list" };
+            if (!string.IsNullOrEmpty(scope)) args.AddRange(new[] { "--scope", scope });
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, scopeOpt, jsonOpt);
+
+        // skill show <id>
+        var showIdArg = new Argument<string>("id", "Skill ID to show");
+        var showCmd   = new Command("show", "Show skill manifest and prompt") { showIdArg };
+        showCmd.SetHandler(async (id) =>
+        {
+            await ExecutePowerShell(felixPs1, "skill", "show", id);
+        }, showIdArg);
+
+        // skill enable <id>
+        var enableIdArg = new Argument<string>("id", "Skill ID to enable");
+        var enableCmd   = new Command("enable", "Enable a disabled skill") { enableIdArg };
+        enableCmd.SetHandler(async (id) =>
+        {
+            await ExecutePowerShell(felixPs1, "skill", "enable", id);
+        }, enableIdArg);
+
+        // skill disable <id>
+        var disableIdArg = new Argument<string>("id", "Skill ID to disable");
+        var disableCmd   = new Command("disable", "Disable a skill") { disableIdArg };
+        disableCmd.SetHandler(async (id) =>
+        {
+            await ExecutePowerShell(felixPs1, "skill", "disable", id);
+        }, disableIdArg);
+
+        // skill install <source> — deferred to Phase G
+        var installSourceArg = new Argument<string>("source", "Skill source (deferred to Phase G)");
+        var installCmd = new Command("install", "Install a skill (deferred to Phase G)") { installSourceArg };
+        installCmd.SetHandler(async (source) =>
+        {
+            await ExecutePowerShell(felixPs1, "skill", "install", source);
+        }, installSourceArg);
+
+        cmd.AddCommand(listCmd);
+        cmd.AddCommand(showCmd);
+        cmd.AddCommand(enableCmd);
+        cmd.AddCommand(disableCmd);
+        cmd.AddCommand(installCmd);
+        return cmd;
+    }
 }

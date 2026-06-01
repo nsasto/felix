@@ -1,0 +1,14 @@
+{
+  "id": "spec-builder",
+  "name": "Spec Builder",
+  "description": "Generates new requirement specs from a one-line description via interactive Q&A",
+  "version": "1.0.0",
+  "triggers": {
+    "commands": ["spec create"],
+    "applyTo": [],
+    "tags": [],
+    "keywords": []
+  },
+  "prompt": "prompt.md",
+  "assets": ["spec_rules.md", "spec_q_1.txt"]
+}

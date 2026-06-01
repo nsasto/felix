@@ -1,0 +1,14 @@
+{
+  "id": "check-tasks-complete",
+  "name": "Check Tasks Complete",
+  "description": "Verifies all plan tasks are done and no loose ends remain before signalling ALL_COMPLETE",
+  "version": "1.0.0",
+  "triggers": {
+    "commands": [],
+    "applyTo": [],
+    "tags": [],
+    "keywords": ["ALL_COMPLETE", "tasks complete", "verify done", "check complete"],
+    "always": false
+  },
+  "prompt": "prompt.md"
+}

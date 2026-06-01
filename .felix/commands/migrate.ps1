@@ -24,6 +24,7 @@ param(
 )
 
 . "$PSScriptRoot\..\core\felixignore-utils.ps1"
+. "$PSScriptRoot\..\core\frontmatter-parser.ps1"
 
 # -- Transform registry -----------------------------------------------------
 
@@ -99,7 +100,59 @@ $transforms["agents-map-init"] = @{
     }
 }
 
-# -- Command implementation ------------------------------------------------
+# B: Spec frontmatter migration
+$transforms["spec-frontmatter"] = @{
+    Id          = "spec-frontmatter"
+    Description = "Add YAML frontmatter to v1 spec files that lack it"
+    Phase       = "B"
+    Check       = {
+        param($ProjectPath)
+        $specsDir = Join-Path $ProjectPath "specs"
+        if (-not (Test-Path $specsDir)) { return $false }
+        $v1specs = Get-ChildItem -Path $specsDir -Filter "*.md" -ErrorAction SilentlyContinue |
+            Where-Object {
+                $firstLine = Get-Content $_.FullName -TotalCount 1 -ErrorAction SilentlyContinue
+                $firstLine -ne "---"
+            }
+        return ($v1specs -and @($v1specs).Count -gt 0)
+    }
+    Apply       = {
+        param($ProjectPath)
+        $specsDir = Join-Path $ProjectPath "specs"
+        $v1specs = Get-ChildItem -Path $specsDir -Filter "*.md" -ErrorAction SilentlyContinue |
+            Where-Object {
+                $firstLine = Get-Content $_.FullName -TotalCount 1 -ErrorAction SilentlyContinue
+                $firstLine -ne "---"
+            }
+
+        $count = 0
+        foreach ($f in $v1specs) {
+            $fname  = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
+            $specId = if ($fname -match "^(S-\d+)") { $Matches[1] } else { $fname }
+            $fm     = New-DefaultFrontmatter -SpecPath $f.FullName -SpecId $specId
+            $fmBlock = Format-SpecFrontmatter -Frontmatter $fm
+            $body   = Get-Content $f.FullName -Raw -ErrorAction SilentlyContinue
+            Set-Content -Path $f.FullName -Value "$fmBlock`n`n$body" -Encoding UTF8 -NoNewline
+            $count++
+        }
+
+        # Once all specs have frontmatter, flip doctor.gates.spec_frontmatter to "error"
+        $configPath = Join-Path $ProjectPath ".felix\config.json"
+        if (Test-Path $configPath) {
+            $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+            if (-not $cfg.doctor) {
+                $cfg | Add-Member -MemberType NoteProperty -Name "doctor" -Value ([PSCustomObject]@{}) -Force
+            }
+            if (-not $cfg.doctor.gates) {
+                $cfg.doctor | Add-Member -MemberType NoteProperty -Name "gates" -Value ([PSCustomObject]@{}) -Force
+            }
+            $cfg.doctor.gates | Add-Member -MemberType NoteProperty -Name "spec_frontmatter" -Value "error" -Force
+            $cfg | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        }
+
+        return @{ Changed = $true; Detail = "Added frontmatter to $count spec(s)" }
+    }
+}
 
 if (-not $DryRun -and -not $Apply) {
     $DryRun = $true
