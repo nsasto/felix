@@ -1230,6 +1230,19 @@ partial class Program
             0,
             TuiCommandExecutionMode.Captured,
             TuiCommandExecutionBackend.CSharp));
+
+        // v2 A7: run now has a 'replay' subcommand, so IsExecutableCommand excludes it.
+        // Add run as a virtual entry so the TUI catalog still surfaces it correctly.
+        entries.Add(new TuiCommandCatalogEntry(
+            "run",
+            "Execute a single requirement",
+            "/run <requirement-id>",
+            new[] { "run" },
+            new[] { "--verbose", "--debug", "--quiet", "--sync" },
+            new[] { "requirement-id" },
+            1,
+            TuiCommandExecutionMode.Standalone,
+            TuiCommandExecutionBackend.Auto));
     }
 
     static void BuildTuiCommandCatalog(List<TuiCommandCatalogEntry> entries, RootCommand rootCommand, Command command, IReadOnlyList<string> parentPath)

@@ -109,6 +109,37 @@ felix procs
 
 When sync is disabled, local runs do not probe git or backend repo state for projects that are not inside a git repository. That keeps Felix usable against plain directories and unpacked source drops.
 
+### v2 Commands (Context Layer)
+
+Felix v2 adds a context-delivery layer with dedicated CLI commands:
+
+```powershell
+# Inspect current context budget (what fits in the LLM prompt)
+felix context inspect
+
+# Migrate a v1 repo to v2 layout (seeds .felixignore, adds ## Map to AGENTS.md)
+felix migrate --dry-run      # preview only
+felix migrate --apply        # write changes
+
+# Diagnose operational issues (corrupt event log, plugin hash mismatches, stale map)
+felix doctor
+felix doctor --fix           # attempt non-destructive repairs
+felix doctor --explain path/to/file   # which .felixignore rule matches?
+
+# Plugin management
+felix plugin install ./my-plugin
+felix plugin list
+felix plugin remove my-plugin
+felix plugin info my-plugin
+
+# Event Bus (audit log)
+felix event tail --kind log --since 1h
+felix event query "run_id=S-0001"
+
+# Replay a previous run's prompt artifacts
+felix run replay S-0001-20260101-120000
+```
+
 **Optional: Enable cloud sync for run artifacts (free)**
 
 Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) - it's free. Then set env vars or add to `.felix/config.json`:
@@ -183,9 +214,18 @@ your-project/
 │   │   └── *.jsonl                # Queued uploads (retry on network failure)
 │   ├── sync.log                   # Sync operation log (rotates at 5MB)
 │   ├── core/                      # Core modules & interfaces
+│   │   ├── agents-loader.ps1     # v2 A1: hierarchical AGENTS.md loader
+│   │   ├── context-budgeter.ps1  # v2 A5: token budget enforcement
+│   │   ├── felixignore-utils.ps1 # v2 A3: .felixignore glob matching
 │   │   └── sync-interface.ps1    # Abstract sync plugin interface
 │   ├── plugins/                   # Plugin system (see docs/PLUGINS.md)
 │   │   └── sync-http/            # HTTP sync plugin (reference implementation)
+│   ├── commands/                  # CLI command handlers
+│   │   ├── migrate.ps1           # v2 A6: felix migrate
+│   │   ├── doctor.ps1            # v2 AS4: felix doctor
+│   │   ├── plugin.ps1            # v2 AS1: felix plugin
+│   │   └── event.ps1             # v2 AS2: felix event
+│   ├── events.jsonl               # v2 Event Bus (JSONL, rotates at 5MB)
 │   └── prompts/                   # Mode-specific LLM prompts
 │       ├── planning.md
 │       └── building.md
