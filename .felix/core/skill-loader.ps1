@@ -72,10 +72,10 @@ function Test-GlobMatch {
     #>
     param([string]$Pattern, [string]$Path)
     # Convert to regex (reuse logic from felixignore-utils if available)
-    $regex = "^" + [regex]::Escape($Pattern) `
+    $regex = ("^" + [regex]::Escape($Pattern) `
         -replace "\\\*\\\*", ".*" `
         -replace "\\\*", "[^/\\]*" `
-        -replace "\\\?", "[^/\\]" + "$"
+        -replace "\\\?", "[^/\\]") + "$"
     return $Path -match $regex
 }
 

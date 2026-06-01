@@ -136,6 +136,13 @@ felix plugin info my-plugin
 felix event tail --kind log --since 1h
 felix event query "run_id=S-0001"
 
+# Skill management (context-aware prompt fragments)
+felix skill list                   # list all skills (repo + user scope)
+felix skill list --scope repo      # repo-only skills
+felix skill show spec-builder      # show manifest + prompt
+felix skill enable <id>            # un-disable a skill
+felix skill disable <id>           # disable without deleting
+
 # Replay a previous run's prompt artifacts
 felix run replay S-0001-20260101-120000
 ```
@@ -224,7 +231,16 @@ your-project/
 │   │   ├── migrate.ps1           # v2 A6: felix migrate
 │   │   ├── doctor.ps1            # v2 AS4: felix doctor
 │   │   ├── plugin.ps1            # v2 AS1: felix plugin
-│   │   └── event.ps1             # v2 AS2: felix event
+│   │   ├── event.ps1             # v2 AS2: felix event
+│   │   └── skill.ps1             # v2 B4: felix skill
+│   ├── skills/                    # v2 B1: skill prompt fragments
+│   │   ├── spec-builder/         # spec creation skill (always-on)
+│   │   ├── documenter/           # documentation skill
+│   │   ├── explainer/            # code explanation skill
+│   │   ├── learning/             # learning-mode skill
+│   │   ├── build-context/        # build command skill
+│   │   ├── build-agents/         # agent-building skill
+│   │   └── check-tasks-complete/ # task-completion checker skill
 │   ├── events.jsonl               # v2 Event Bus (JSONL, rotates at 5MB)
 │   └── prompts/                   # Mode-specific LLM prompts
 │       ├── planning.md

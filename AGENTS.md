@@ -49,7 +49,13 @@ felix tui
 ## Run Tests
 
 ```powershell
-# Run Felix CLI tests
+# Run Felix CLI unit tests (C# / xUnit)
+dotnet test tests\Felix.Cli.Tests\
+
+# Run Phase B PowerShell unit tests (skill-loader, frontmatter-parser)
+.\tests\Test-PhaseB.ps1
+
+# Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
 
