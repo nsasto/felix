@@ -130,11 +130,33 @@ function Invoke-Context {
         "inspect" {
             # A5: context budget inspection report
             . "$PSScriptRoot\..\core\context-budgeter.ps1"
+            . "$PSScriptRoot\..\core\agents-loader.ps1"
             . "$PSScriptRoot\..\core\config-loader.ps1"
-            $configPath  = Join-Path $RepoRoot ".felix\config.json"
-            $cfg         = Get-FelixConfig -ConfigFile $configPath
-            $budgetTokens = if ($cfg.context -and $cfg.context.budget_tokens) { [int]$cfg.context.budget_tokens } else { 32000 }
-            $report = Get-ContextInspectReport -RepoRoot $RepoRoot -BudgetTokens $budgetTokens
+            $configPath   = Join-Path $RepoRoot ".felix\config.json"
+            $cfg          = Get-FelixConfig -ConfigFile $configPath
+            $budgetTokens = if ($cfg -and $cfg.context -and $cfg.context.budget_tokens) { [int]$cfg.context.budget_tokens } else { 32000 }
+
+            $felixDir    = Join-Path $RepoRoot ".felix"
+            $agentsCtx   = Get-LayeredAgentsContext -StartPath $RepoRoot -RepoRoot $RepoRoot
+            $contextFile = if ($cfg -and $cfg.context -and $cfg.context.file) {
+                Join-Path $RepoRoot $cfg.context.file
+            } else {
+                Join-Path $felixDir "CONTEXT.md"
+            }
+
+            # Static on-disk sources; runtime sources (spec, plan, skills, memory) require
+            # an active run context and will show 0 tokens here.
+            $sources = @{
+                layered_agents = if ($agentsCtx -and $agentsCtx.Blob) { $agentsCtx.Blob } else { "" }
+                repo_map       = ""
+                context_map    = (Get-Content $contextFile -Raw -ErrorAction SilentlyContinue) -as [string]
+                spec           = ""
+                plan           = ""
+                skills         = ""
+                memory         = ""
+                extras         = ""
+            }
+            $report = Get-ContextInspectReport -Sources $sources -BudgetTokens $budgetTokens
             Write-Host $report
         }
 

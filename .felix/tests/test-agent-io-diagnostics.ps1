@@ -88,6 +88,13 @@ function Invoke-AgentProbe {
     Write-Host "PromptMode: $($invocation.PromptMode)" -ForegroundColor Gray
     Write-Host "Timeout:    $TimeoutSeconds s" -ForegroundColor Gray
 
+    # Clear CLAUDECODE so a nested claude subprocess is not blocked by the host session guard.
+    # Use -ne $null (not truthiness) so an empty-string value is also cleared.
+    $claudeCodeBackup = [Environment]::GetEnvironmentVariable("CLAUDECODE", "Process")
+    if ($null -ne $claudeCodeBackup) {
+        [Environment]::SetEnvironmentVariable("CLAUDECODE", $null, "Process")
+    }
+
     try {
         if ($invocation.PromptMode -eq "stdin") {
             $inputPath = [System.IO.Path]::GetTempFileName()
@@ -172,6 +179,9 @@ function Invoke-AgentProbe {
     finally {
         if ($inputPath -and (Test-Path $inputPath)) {
             Remove-Item $inputPath -Force -ErrorAction SilentlyContinue
+        }
+        if ($claudeCodeBackup) {
+            [Environment]::SetEnvironmentVariable("CLAUDECODE", $claudeCodeBackup, "Process")
         }
     }
 }

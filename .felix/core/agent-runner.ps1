@@ -338,6 +338,15 @@ function Invoke-AgentExecution {
     $envBackup = @{}
     $exitCode = 0
     $succeeded = $true
+
+    # Clear CLAUDECODE so the agent subprocess is not blocked by the "nested session" guard.
+    # Claude Code sets this env var in the host session; any child claude process sees it and
+    # refuses to start. We save and restore it around the subprocess call.
+    $claudeCodeValue = [Environment]::GetEnvironmentVariable("CLAUDECODE", "Process")
+    if ($claudeCodeValue) {
+        $envBackup["CLAUDECODE"] = $claudeCodeValue
+        [Environment]::SetEnvironmentVariable("CLAUDECODE", $null, "Process")
+    }
     try {
         if ($adapterType -eq "copilot" -and (Test-UseCopilotCliBridge)) {
             Emit-Log -Level "info" -Message "Using C# Copilot bridge for agent execution" -Component "agent"
@@ -415,7 +424,11 @@ function Invoke-AgentExecution {
                 foreach ($prop in $AgentConfig.environment.PSObject.Properties) {
                     $key = $prop.Name
                     $value = [string]$prop.Value
-                    $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                    # Only save the original value if not already backed up (e.g. CLAUDECODE was
+                    # pre-cleared above; overwriting the backup here would discard the original).
+                    if (-not $envBackup.ContainsKey($key)) {
+                        $envBackup[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+                    }
                     [Environment]::SetEnvironmentVariable($key, $value, "Process")
                 }
             }

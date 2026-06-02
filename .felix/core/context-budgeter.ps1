@@ -21,6 +21,8 @@ Budget event emitted to Event Bus (AS2) per iteration.
 #>
 
 # Code constants (v2.0  -  not user-tunable; promoted to config on bench-backed demand)
+# NOTE: BUDGET_WEIGHTS are used only for the inspect report display (allocated column).
+# They do NOT control eviction priority — that is determined solely by EVICTION_ORDER below.
 $script:BUDGET_WEIGHTS = @{
     layered_agents = 0.15
     repo_map       = 0.05

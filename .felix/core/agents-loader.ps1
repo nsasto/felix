@@ -118,27 +118,23 @@ function Get-LayeredAgentsContext {
     }
 }
 
-function Resolve-RepoRoot {
-    <#
-    .SYNOPSIS
-    Resolves the git repository root for a given path.
+# Only define Resolve-RepoRoot if felix.ps1 hasn't already defined it. The version in
+# felix.ps1 also checks for .felix (not just .git) and should take precedence.
+if (-not (Get-Command Resolve-RepoRoot -ErrorAction SilentlyContinue)) {
+    function Resolve-RepoRoot {
+        param([string]$Path = (Get-Location).Path)
 
-    .PARAMETER Path
-    Starting path to search from.
-    #>
-    param([string]$Path = (Get-Location).Path)
-
-    $current = [System.IO.Path]::GetFullPath($Path)
-    while ($current) {
-        if (Test-Path (Join-Path $current ".git")) {
-            return $current
+        $current = [System.IO.Path]::GetFullPath($Path)
+        while ($current) {
+            if (Test-Path (Join-Path $current ".git")) {
+                return $current
+            }
+            $parent = Split-Path $current -Parent
+            if (-not $parent -or $parent -eq $current) {
+                break
+            }
+            $current = $parent
         }
-        $parent = Split-Path $current -Parent
-        if (-not $parent -or $parent -eq $current) {
-            break
-        }
-        $current = $parent
+        return [System.IO.Path]::GetFullPath($Path)
     }
-    # Fall back to the provided path if no git root found
-    return [System.IO.Path]::GetFullPath($Path)
 }

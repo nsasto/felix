@@ -228,11 +228,7 @@ switch ($Command) {
         . "$FelixRoot\commands\plugin.ps1"
         Invoke-Plugin -CmdArgs $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
     }
-    "event" {
-        . "$FelixRoot\commands\event.ps1"
-        Invoke-Event -Args $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
-    }
-    "events" {
+    { $_ -in @("event", "events") } {
         . "$FelixRoot\commands\event.ps1"
         Invoke-Event -Args $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
     }
@@ -276,12 +272,7 @@ switch ($Command) {
         . "$FelixRoot\commands\query.ps1"
         Invoke-Query -CmdArgs $remainingArgs
     }
-    "tool" {
-        . "$FelixRoot\commands\tool.ps1"
-        Invoke-Tool -CmdArgs $remainingArgs
-    }
-    "tools" {
-        # Alias for "tool" (deprecated in next minor per F5 spec)
+    { $_ -in @("tool", "tools") } {
         . "$FelixRoot\commands\tool.ps1"
         Invoke-Tool -CmdArgs $remainingArgs
     }

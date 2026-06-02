@@ -479,9 +479,38 @@ class ClaudeAdapter {
             Error      = $null
         }
 
-        $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
-        if ($signal) {
-            Set-CompletionResult -Result $result -Signal $signal
+        # Try to parse as stream-json (used in verbose mode).
+        # Claude emits one JSON object per line; the "result" event contains the final text.
+        $lines = $output -split '\r?\n' | Where-Object { $_.Trim() -ne '' }
+        $foundStreamResult = $false
+        foreach ($line in $lines) {
+            try {
+                $evt = $line | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($evt -and $evt.type -eq "result") {
+                    if ($evt.subtype -eq "error" -or $evt.is_error) {
+                        $result.Error = if ($evt.result) { [string]$evt.result } else { "Claude returned an error result" }
+                        $foundStreamResult = $true  # Suppress plain-text fallback; scanning NDJSON for signals would produce false positives
+                    }
+                    elseif ($null -ne $evt.result) {
+                        $result.Output = [string]$evt.result
+                        $foundStreamResult = $true
+                        $innerSignal = Get-CompletionSignal -Output ([string]$evt.result) -AllowPlanningAlias
+                        if ($innerSignal) {
+                            Set-CompletionResult -Result $result -Signal $innerSignal
+                        }
+                    }
+                    break
+                }
+            }
+            catch { }
+        }
+
+        # Plain-text mode (non-verbose): check output directly for completion signals.
+        if (-not $foundStreamResult) {
+            $signal = Get-CompletionSignal -Output $output -AllowPlanningAlias
+            if ($signal) {
+                Set-CompletionResult -Result $result -Signal $signal
+            }
         }
 
         return $result
@@ -497,19 +526,24 @@ class ClaudeAdapter {
 
     [string[]] BuildArgs([object]$config, [bool]$verbose) {
         # Modern: Adapter builds args
-        $args = @("-p")  # Pipe mode
-        
-        if ($config.model) {
-            $args += @("--model", $config.model)
-        }
-        
-        $args += @("--output-format", "text")
+        $cliArgs = @("-p")  # Pipe mode
 
-        if ($verbose) {
-            $args += "--verbose"
+        if ($config.model) {
+            $cliArgs += @("--model", $config.model)
         }
-        
-        return $args
+
+        # In verbose mode use stream-json so Claude writes one JSON event per token to stdout,
+        # giving live output that the poll loop can forward as agent_stream events.
+        # Claude requires --verbose when using stream-json with --print (-p).
+        # In normal mode use plain text for simple output parsing.
+        if ($verbose) {
+            $cliArgs += @("--output-format", "stream-json", "--verbose")
+        }
+        else {
+            $cliArgs += @("--output-format", "text")
+        }
+
+        return $cliArgs
     }
 }
 

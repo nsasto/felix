@@ -77,11 +77,15 @@ function Write-EventBus {
             [System.IO.FileAccess]::Write,
             [System.IO.FileShare]::ReadWrite
         )
-        $writer = [System.IO.StreamWriter]::new($stream, [System.Text.Encoding]::UTF8)
-        $writer.WriteLine($JsonLine)
-        $writer.Flush()
-        $writer.Close()
-        $stream.Close()
+        try {
+            $writer = [System.IO.StreamWriter]::new($stream, [System.Text.Encoding]::UTF8)
+            $writer.WriteLine($JsonLine)
+            $writer.Flush()
+        }
+        finally {
+            if ($writer) { $writer.Close() }
+            $stream.Close()
+        }
     } catch { }
 }
 
