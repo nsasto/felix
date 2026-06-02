@@ -234,6 +234,26 @@ Memory scopes:
 
 The **learning-capture plugin** (`OnPostIteration` hook) automatically proposes AGENTS.md additions based on backpressure failures and iteration outcomes. Proposals are written to `runs/<run-id>/agents-md-suggestions.md`. Disable with `Config.learning.auto_propose = false`.
 
+**`felix query`, `felix tool`, `felix gc`** (Phase F)
+
+Query requirements, lock down tool usage, and reclaim disk space:
+
+```powershell
+# Query agent state
+felix query requirements [--status planned|done|blocked] [--json]
+felix query runs         [--requirement S-0001] [--json]
+felix query state        [--json]
+
+# Tool allowlist (default-allow; audit log always written)
+felix tool status                     # show current policy
+felix tool harden [--yes] [--dry-run] # flip to deny; infer allowlist from events.jsonl
+
+# Garbage-collect stale artifacts
+felix gc [--dry-run] [--yes]          # prune runs older than retention_days (default 30)
+```
+
+Per-path backpressure: add `appliesTo` globs to config so expensive checks only run when relevant files change. Validation gates: add `gates: [name]` to spec YAML frontmatter to run named checks during `felix validate`.
+
 **Optional: Enable cloud sync for run artifacts (free)**
 
 Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) - it's free. Then set env vars or add to `.felix/config.json`:

@@ -267,6 +267,23 @@ switch ($Command) {
         . "$FelixRoot\commands\memory.ps1"
         Invoke-Memory -CmdArgs $remainingArgs
     }
+    "query" {
+        . "$FelixRoot\commands\query.ps1"
+        Invoke-Query -CmdArgs $remainingArgs
+    }
+    "tool" {
+        . "$FelixRoot\commands\tool.ps1"
+        Invoke-Tool -CmdArgs $remainingArgs
+    }
+    "tools" {
+        # Alias for "tool" (deprecated in next minor per F5 spec)
+        . "$FelixRoot\commands\tool.ps1"
+        Invoke-Tool -CmdArgs $remainingArgs
+    }
+    "gc" {
+        . "$FelixRoot\commands\gc.ps1"
+        Invoke-Gc -CmdArgs $remainingArgs
+    }
     "version" {
         . "$FelixRoot\commands\version.ps1"
         Show-Version

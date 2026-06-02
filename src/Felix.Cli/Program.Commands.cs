@@ -1,4 +1,4 @@
-using System.CommandLine;
+﻿using System.CommandLine;
 
 namespace Felix.Cli;
 
@@ -682,6 +682,100 @@ partial class Program
 
     // ── v2: felix skill (B4) ──────────────────────────────────────────────
 
+    // ─── v2: felix query (F3) ───────────────────────────────────────────
+
+    static Command CreateQueryCommand(string felixPs1)
+    {
+        var cmd = new Command("query", "Query Felix state, requirements, and runs");
+
+        var rStatusOpt = new Option<string?>("--status", "Filter by status (planned/in-progress/done/blocked)");
+        var rSinceOpt  = new Option<string?>("--since",  "ISO date — only updated after this date");
+        var rJsonOpt   = new Option<bool>("--json", "Machine-readable output");
+        var reqCmd     = new Command("requirements", "List requirements and their current status") { rStatusOpt, rSinceOpt, rJsonOpt };
+        reqCmd.SetHandler(async (status, since, json) =>
+        {
+            var args = new List<string> { "query", "requirements" };
+            if (!string.IsNullOrEmpty(status)) args.AddRange(new[] { "--status", status });
+            if (!string.IsNullOrEmpty(since))  args.AddRange(new[] { "--since",  since  });
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, rStatusOpt, rSinceOpt, rJsonOpt);
+
+        var runReqOpt  = new Option<string?>("--requirement", "Filter by requirement ID");
+        var runJsonOpt = new Option<bool>("--json", "Machine-readable output");
+        var runsCmd    = new Command("runs", "List completed agent runs") { runReqOpt, runJsonOpt };
+        runsCmd.SetHandler(async (req, json) =>
+        {
+            var args = new List<string> { "query", "runs" };
+            if (!string.IsNullOrEmpty(req)) args.AddRange(new[] { "--requirement", req });
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, runReqOpt, runJsonOpt);
+
+        var stateJsonOpt = new Option<bool>("--json", "Machine-readable output");
+        var stateCmd     = new Command("state", "Show current agent loop state") { stateJsonOpt };
+        stateCmd.SetHandler(async (json) =>
+        {
+            var args = new List<string> { "query", "state" };
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, stateJsonOpt);
+
+        cmd.AddCommand(reqCmd);
+        cmd.AddCommand(runsCmd);
+        cmd.AddCommand(stateCmd);
+        return cmd;
+    }
+
+    // ─── v2: felix tool (F5) ────────────────────────────────────────────
+
+    static Command CreateToolCommand(string felixPs1)
+    {
+        var cmd = new Command("tool", "Manage the agent tool allowlist");
+
+        var hardenYesOpt    = new Option<bool>("--yes",     "Skip confirmation prompt");
+        var hardenDryRunOpt = new Option<bool>("--dry-run", "Preview without writing config");
+        var hardenCmd       = new Command("harden", "Switch policy to deny and infer allowlist from audit log") { hardenYesOpt, hardenDryRunOpt };
+        hardenCmd.SetHandler(async (yes, dryRun) =>
+        {
+            var args = new List<string> { "tool", "harden" };
+            if (yes)    args.Add("--yes");
+            if (dryRun) args.Add("--dry-run");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, hardenYesOpt, hardenDryRunOpt);
+
+        var statusJsonOpt = new Option<bool>("--json", "Machine-readable output");
+        var statusCmd     = new Command("status", "Show current tool allowlist policy") { statusJsonOpt };
+        statusCmd.SetHandler(async (json) =>
+        {
+            var args = new List<string> { "tool", "status" };
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, statusJsonOpt);
+
+        cmd.AddCommand(hardenCmd);
+        cmd.AddCommand(statusCmd);
+        return cmd;
+    }
+
+    // ─── v2: felix gc (F8) ──────────────────────────────────────────────
+
+    static Command CreateGcCommand(string felixPs1)
+    {
+        var cmd     = new Command("gc", "Garbage-collect stale Felix artifacts");
+        var dryRun  = new Option<bool>("--dry-run", "Preview what would be deleted");
+        var yes     = new Option<bool>("--yes",     "Skip confirmation prompt");
+        cmd.AddOption(dryRun);
+        cmd.AddOption(yes);
+        cmd.SetHandler(async (dryRunVal, yesVal) =>
+        {
+            var args = new List<string> { "gc" };
+            if (dryRunVal) args.Add("--dry-run");
+            if (yesVal)    args.Add("--yes");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, dryRun, yes);
+        return cmd;
+    }
     static Command CreateSkillCommand(string felixPs1)
     {
         var cmd = new Command("skill", "Manage Felix skills (.felix/skills/<id>/)");

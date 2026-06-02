@@ -24,6 +24,9 @@ public sealed class V2CommandsTests
         Assert.Contains("doctor", names);
         Assert.Contains("plugin", names);
         Assert.Contains("event", names);
+        Assert.Contains("query", names);
+        Assert.Contains("tool",  names);
+        Assert.Contains("gc",    names);
     }
 
     // ── migrate ──────────────────────────────────────────────────────────
@@ -340,5 +343,89 @@ public sealed class V2CommandsTests
         Assert.Contains("add",   subs);
         Assert.Contains("edit",  subs);
         Assert.Contains("prune", subs);
+    }
+
+    // ── query (Phase F3) ─────────────────────────────────────────────────
+
+    [Fact]
+    public void QueryCommand_IsRegistered()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("query", names);
+    }
+
+    [Fact]
+    public void QueryCommand_HasExpectedSubcommands()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var query = root.Subcommands.Single(c => c.Name == "query");
+        var subs  = query.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("requirements", subs);
+        Assert.Contains("runs",         subs);
+        Assert.Contains("state",        subs);
+    }
+
+    [Fact]
+    public void QueryCommand_RequirementsSubcommand_HasStatusAndSinceOptions()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var query = root.Subcommands.Single(c => c.Name == "query");
+        var req   = query.Subcommands.Single(c => c.Name == "requirements");
+        var opts  = req.Options.Select(o => o.Name).ToHashSet();
+        Assert.Contains("status", opts);
+        Assert.Contains("since",  opts);
+        Assert.Contains("json",   opts);
+    }
+
+    // ── tool (Phase F5) ──────────────────────────────────────────────────
+
+    [Fact]
+    public void ToolCommand_IsRegistered()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("tool", names);
+    }
+
+    [Fact]
+    public void ToolCommand_HasHardenAndStatusSubcommands()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var tool  = root.Subcommands.Single(c => c.Name == "tool");
+        var subs  = tool.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("harden", subs);
+        Assert.Contains("status", subs);
+    }
+
+    [Fact]
+    public void ToolCommand_HardenSubcommand_HasYesAndDryRunOptions()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var tool   = root.Subcommands.Single(c => c.Name == "tool");
+        var harden = tool.Subcommands.Single(c => c.Name == "harden");
+        var opts   = harden.Options.Select(o => o.Name).ToHashSet();
+        Assert.Contains("yes",     opts);
+        Assert.Contains("dry-run", opts);
+    }
+
+    // ── gc (Phase F8) ────────────────────────────────────────────────────
+
+    [Fact]
+    public void GcCommand_IsRegistered()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("gc", names);
+    }
+
+    [Fact]
+    public void GcCommand_HasDryRunAndYesOptions()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var gc   = root.Subcommands.Single(c => c.Name == "gc");
+        var opts = gc.Options.Select(o => o.Name).ToHashSet();
+        Assert.Contains("dry-run", opts);
+        Assert.Contains("yes",     opts);
     }
 }

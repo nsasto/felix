@@ -195,6 +195,34 @@ $transforms["explore-enable"] = @{
     }
 }
 
+# F: tools-allow — seed tools.default=allow in config.json (F5 default-allow on upgrade)
+$transforms["tools-allow"] = @{
+    Id          = "tools-allow"
+    Description = "Seed tools.default='allow' in .felix/config.json (F5 default-allow on v1->v2 upgrade)"
+    Phase       = "F"
+    Check       = {
+        param($ProjectPath)
+        $configPath = Join-Path $ProjectPath ".felix\config.json"
+        if (-not (Test-Path $configPath)) { return $false }
+        $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+        # Already has tools block? No-op
+        if ($cfg.PSObject.Properties["tools"]) { return $false }
+        return $true
+    }
+    Apply       = {
+        param($ProjectPath)
+        $configPath = Join-Path $ProjectPath ".felix\config.json"
+        $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+        $cfg | Add-Member -MemberType NoteProperty -Name "tools" -Value ([PSCustomObject]@{
+            allow   = @()
+            deny    = @()
+            default = "allow"
+        }) -Force
+        $cfg | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        return @{ Changed = $true; Detail = "Seeded tools.default='allow' (audit-only mode until 'felix tool harden')" }
+    }
+}
+
 if (-not $DryRun -and -not $Apply) {
     $DryRun = $true
 }

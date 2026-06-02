@@ -21,8 +21,10 @@
 #>
 
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$RequirementId
+    [Parameter(Mandatory = $false)]
+    [string]$RequirementId,
+
+    [switch]$DotSourceOnly  # When set, only defines functions without executing (for testing)
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,6 +150,39 @@ function Find-SpecFile {
     }
     
     return $null
+}
+
+function Get-SpecFrontmatter {
+    <#
+    .SYNOPSIS
+    Parses YAML frontmatter from a spec markdown file.
+    Returns a hashtable of scalar string/array values.
+    Only supports simple key: value and key: [val1, val2] syntax.
+    #>
+    param([string]$SpecContent)
+
+    $fm = @{}
+    if (-not ($SpecContent -match '(?s)^---\s*\r?\n(.+?)\r?\n---')) { return $fm }
+
+    $block = $Matches[1]
+    foreach ($line in ($block -split '\r?\n')) {
+        $line = $line.Trim()
+        if (-not $line -or $line.StartsWith('#')) { continue }
+        $colon = $line.IndexOf(':')
+        if ($colon -le 0) { continue }
+        $key = $line.Substring(0, $colon).Trim()
+        $val = $line.Substring($colon + 1).Trim()
+        # inline array [a, b, c]
+        if ($val.StartsWith('[') -and $val.EndsWith(']')) {
+            $inner = $val.Substring(1, $val.Length - 2)
+            $arr   = @($inner -split '\s*,\s*' | ForEach-Object { $_.Trim().Trim('"').Trim("'") } | Where-Object { $_ })
+            $fm[$key] = $arr
+        }
+        else {
+            $fm[$key] = $val.Trim('"').Trim("'")
+        }
+    }
+    return $fm
 }
 
 function Get-RequirementTags {
@@ -621,8 +656,48 @@ function Invoke-RequirementValidation {
         
         # Load spec content
         $specContent = Get-Content $specFile -Raw -Encoding UTF8
-        
-        # Parse acceptance criteria
+
+        # v2 F2: read frontmatter gates to run path-scoped backpressure commands
+        $allPassed   = $true
+        $frontmatter = Get-SpecFrontmatter -SpecContent $specContent
+        $specGates   = if ($frontmatter.gates) { @($frontmatter.gates) } else { @() }
+
+        if ($specGates.Count -gt 0) {
+            Write-Host "Spec gates: $($specGates -join ', ')"
+            $configPath  = Join-Path $projectRoot ".felix\config.json"
+            if (Test-Path $configPath) {
+                $felixConfig   = Get-Content $configPath -Raw | ConvertFrom-Json
+                $allCmds       = @($felixConfig.backpressure.commands)
+                $gateCmds      = $allCmds | Where-Object {
+                    $n = if ($_.name) { $_.name } else { "$_" }
+                    $specGates -icontains $n
+                }
+                if (@($gateCmds).Count -gt 0) {
+                    Write-Host "Running $(@($gateCmds).Count) gate command(s) from config..."
+                    foreach ($gc in $gateCmds) {
+                        $gcCmd = if ($gc.cmd) { $gc.cmd } else { "$gc" }
+                        $gcName = if ($gc.name) { $gc.name } else { $gcCmd }
+                        Write-Host "  Gate [$gcName]: $gcCmd"
+                        try {
+                            Push-Location $projectRoot
+                            Invoke-Expression $gcCmd 2>&1 | Out-String | Write-Host
+                            if ($LASTEXITCODE -ne 0) {
+                                Write-ColorOutput "Gate FAILED: $gcName (exit $LASTEXITCODE)" "Failure"
+                                $allPassed = $false
+                            } else {
+                                Write-ColorOutput "Gate passed: $gcName" "Success"
+                            }
+                        } catch {
+                            Write-ColorOutput "Gate error: $gcName - $_" "Failure"
+                            $allPassed = $false
+                        } finally {
+                            Pop-Location
+                        }
+                    }
+                    Write-Host ""
+                }
+            }
+        }
         $criteria = Parse-AcceptanceCriteria -SpecContent $specContent
         
         if ($criteria.Count -eq 0) {
@@ -642,7 +717,6 @@ function Invoke-RequirementValidation {
         Write-Host ""
         
         # Validate each criterion
-        $allPassed = $true
         $results = @()
         
         Write-Host "Checking acceptance criteria:"
@@ -762,6 +836,9 @@ function Invoke-RequirementValidation {
 # ============================================================================
 # Main Entry Point
 # ============================================================================
+
+# When dot-sourced for testing, skip execution
+if ($DotSourceOnly) { return }
 
 # Validate requirement ID format (warning only)
 if ($RequirementId -notmatch '^S-\d{4}$') {

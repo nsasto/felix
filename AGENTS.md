@@ -64,6 +64,9 @@ dotnet test tests\Felix.Cli.Tests\
 # Run Phase E PowerShell unit tests (learning: Get-RunEvents, Get-MemoryContext, memory/review CLI, doctor, learning-capture)
 .\tests\Test-PhaseE.ps1
 
+# Run Phase F PowerShell unit tests (targeted execution: path-matcher, backpressure v2, query, tool-allowlist, gc)
+.\tests\Test-PhaseF.ps1
+
 # Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
@@ -220,6 +223,60 @@ Memory files use YAML frontmatter: `title`, `scope`, `created`, `tags`. They are
 - `.felix/core/event-reader.ps1` — `Get-RunEvents`
 - `.felix/core/memory-loader.ps1` — `Get-MemoryContext`
 - `.felix/plugins/learning-capture/on-postiteration.ps1` — OnPostIteration hook
+
+## Targeted Execution + Security (Phase F)
+
+Phase F adds per-path backpressure filtering, requirement gate validation, query/audit/GC CLI commands, and tool allowlist hardening.
+
+**`felix query`:**
+```powershell
+felix query requirements [--status planned|in-progress|done|blocked] [--since <date>] [--json]
+felix query runs         [--requirement S-0001] [--json]
+felix query state        [--json]
+```
+All outputs use versioned `_v:1` JSON when `--json` is passed.
+
+**`felix tool`:**
+```powershell
+felix tool status                     # show current policy (default-allow/deny, patterns)
+felix tool harden [--yes] [--dry-run] # flip to deny; infer allowlist from audit log
+```
+Tool calls are logged to `events.jsonl` as `tool.call` events regardless of policy. After running the agent enough cycles to populate the audit log, run `felix tool harden` to switch to an explicit allowlist.
+
+**`felix gc`:**
+```powershell
+felix gc             # prune stale runs, event rotations, orphaned worktrees (asks for confirmation)
+felix gc --dry-run   # preview what would be deleted
+felix gc --yes       # skip confirmation
+```
+GC always preserves the last successful run per requirement regardless of age. Configure retention in `.felix/config.json`: `gc.retention_days` (default 30), `gc.events_retention_days` (default 30).
+
+**Per-path backpressure (F1):** Backpressure commands now support an `appliesTo` field so expensive checks only run when relevant files changed:
+```json
+"backpressure": {
+  "commands": [
+    { "name": "dotnet.test", "cmd": "dotnet test --no-build", "appliesTo": ["src/**", "tests/**"] },
+    { "name": "npm.lint",    "cmd": "npm run lint",           "appliesTo": ["*.ts", "*.tsx"] }
+  ],
+  "always_run": ["dotnet.test"]
+}
+```
+Old plain-string format (`"commands": ["cmd1"]`) is still accepted (runs always).
+
+**Validation gates (F2):** Spec files can declare `gates:` in YAML frontmatter to run specific backpressure commands during `felix validate`:
+```markdown
+---
+id: S-0005
+gates: [dotnet.test, npm.lint]
+---
+```
+
+**Core scripts:**
+- `.felix/core/path-matcher.ps1` — `Test-GlobMatch`, `ConvertTo-GlobRegex`
+- `.felix/core/tool-allowlist.ps1` — `Test-ToolAllowed`, `Test-AllowlistDecision`, `Emit-ToolCallEvent`
+- `.felix/commands/query.ps1` — `Invoke-Query`
+- `.felix/commands/tool.ps1` — `Invoke-Tool`
+- `.felix/commands/gc.ps1` — `Invoke-Gc`
 
 ## Sync Troubleshooting
 

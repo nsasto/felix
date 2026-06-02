@@ -84,6 +84,9 @@ partial class Program
         rootCommand.AddCommand(CreateSearchCommand(felixPs1));
         rootCommand.AddCommand(CreateReviewCommand(felixPs1));
         rootCommand.AddCommand(CreateMemoryCommand(felixPs1));
+        rootCommand.AddCommand(CreateQueryCommand(felixPs1));
+        rootCommand.AddCommand(CreateToolCommand(felixPs1));
+        rootCommand.AddCommand(CreateGcCommand(felixPs1));
         return rootCommand;
     }
 

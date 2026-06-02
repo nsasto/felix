@@ -7,45 +7,68 @@ function Get-BackpressureCommands {
     <#
     .SYNOPSIS
     Parses test/build/lint commands from AGENTS.md
-    
+
     .DESCRIPTION
     Looks for these sections in AGENTS.md:
     - "## Run Tests" - test commands
     - "## Build the Project" - build commands
     - "## Lint" - lint commands
-    
+
     Commands are extracted from bash/sh code blocks within these sections.
-    
+    Config commands (v2 F1 format) take precedence when non-empty.
+
     .PARAMETER AgentsFilePath
     Path to the AGENTS.md file
-    
+
     .PARAMETER ConfigCommands
-    Optional array of commands from config.json backpressure.commands
-    If provided and non-empty, these take precedence over parsing AGENTS.md
-    
+    Optional array of commands from config.json backpressure.commands.
+    Supports both old string format and new object format:
+      Old: "dotnet test ..."
+      New: { name: "dotnet.test", cmd: "dotnet test ...", appliesTo: ["src/**"] }
+
     .OUTPUTS
-    Array of hashtables with keys: command, type, description
+    Array of hashtables with keys: command, name, type, description, appliesTo (may be null)
     #>
     param(
         [string]$AgentsFilePath,
         [array]$ConfigCommands = @()
     )
-    
+
     $commands = @()
-    
+
     # If config commands are explicitly provided, use those
     if ($ConfigCommands -and $ConfigCommands.Count -gt 0) {
         Emit-Log -Level "info" -Message "Using commands from config.json" -Component "backpressure"
-        foreach ($cmd in $ConfigCommands) {
-            $commands += @{
-                command     = $cmd
-                type        = "config"
-                description = "Command from config.json"
+        foreach ($rawCmd in $ConfigCommands) {
+            # v2 F1: object format with name/cmd/appliesTo
+            if ($rawCmd -is [PSCustomObject] -or $rawCmd -is [hashtable]) {
+                $cmdStr    = if ($rawCmd.cmd)  { $rawCmd.cmd }  elseif ($rawCmd.command) { $rawCmd.command } else { "" }
+                $cmdName   = if ($rawCmd.name) { $rawCmd.name } else { $cmdStr }
+                $appliesto = if ($rawCmd.appliesTo) { @($rawCmd.appliesTo) } else { $null }
+                if ($cmdStr) {
+                    $commands += @{
+                        command     = $cmdStr
+                        name        = $cmdName
+                        type        = "config"
+                        description = "Command from config.json: $cmdName"
+                        appliesTo   = $appliesto
+                    }
+                }
+            }
+            else {
+                # v1 backwards compat: plain string
+                $commands += @{
+                    command     = [string]$rawCmd
+                    name        = [string]$rawCmd
+                    type        = "config"
+                    description = "Command from config.json"
+                    appliesTo   = $null
+                }
             }
         }
         return $commands
     }
-    
+
     # Parse commands from AGENTS.md
     if (-not (Test-Path $AgentsFilePath)) {
         Emit-Log -Level "warn" -Message "AGENTS.md not found at $AgentsFilePath" -Component "backpressure" | Out-Null
@@ -151,7 +174,8 @@ function Invoke-BackpressureValidation {
         [string]$WorkingDir,
         [string]$AgentsFilePath,
         [object]$Config,
-        [string]$RunDir
+        [string]$RunDir,
+        [string[]]$ChangedFiles = @()
     )
     
     $result = @{
@@ -175,6 +199,73 @@ function Invoke-BackpressureValidation {
     }
     
     $commands = Get-BackpressureCommands -AgentsFilePath $AgentsFilePath -ConfigCommands $configCommands
+
+    # v2 F1: per-path filtering
+    # Resolve changed files from git when not supplied
+    $effectiveChangedFiles = $ChangedFiles
+    if ((-not $effectiveChangedFiles -or $effectiveChangedFiles.Count -eq 0) -and $WorkingDir) {
+        try {
+            Push-Location $WorkingDir
+            $gitChanged = @(git diff --name-only HEAD 2>$null)
+            $gitChanged += @(git diff --cached --name-only 2>$null)
+            $gitChanged += @(git ls-files --others --exclude-standard 2>$null)
+            $effectiveChangedFiles = @($gitChanged | Select-Object -Unique | Where-Object { $_ })
+            Pop-Location
+        } catch {
+            $effectiveChangedFiles = @()
+        }
+    }
+
+    # Resolve always_run names
+    $alwaysRun = @()
+    if ($Config.backpressure.always_run) { $alwaysRun = @($Config.backpressure.always_run) }
+
+    # Load path-matcher for glob matching
+    $pathMatcherPath = Join-Path $PSScriptRoot "path-matcher.ps1"
+    if (Test-Path $pathMatcherPath) { . $pathMatcherPath }
+
+    $filteredCommands = [System.Collections.ArrayList]@()
+    foreach ($cmd in $commands) {
+        $cmdAppliesTo = $cmd.appliesTo
+        $cmdName      = if ($cmd.name) { $cmd.name } else { $cmd.command }
+
+        # always_run overrides appliesTo
+        if ($alwaysRun -icontains $cmdName) {
+            Emit-Log -Level "debug" -Message "always_run: $cmdName" -Component "backpressure"
+            [void]$filteredCommands.Add($cmd)
+            continue
+        }
+
+        # No appliesTo — backwards compat: always run
+        if (-not $cmdAppliesTo -or $cmdAppliesTo.Count -eq 0) {
+            [void]$filteredCommands.Add($cmd)
+            continue
+        }
+
+        # appliesTo present — only run if changed files match
+        if ($effectiveChangedFiles.Count -eq 0) {
+            # No changed files info — run all to be safe
+            [void]$filteredCommands.Add($cmd)
+            continue
+        }
+
+        $matched = $false
+        if (Get-Command Test-GlobMatch -ErrorAction SilentlyContinue) {
+            foreach ($f in $effectiveChangedFiles) {
+                if (Test-GlobMatch -Path $f -Patterns $cmdAppliesTo) { $matched = $true; break }
+            }
+        } else {
+            $matched = $true  # no path-matcher loaded — safe default: run
+        }
+
+        if ($matched) {
+            Emit-Log -Level "debug" -Message "appliesTo matched: $cmdName" -Component "backpressure"
+            [void]$filteredCommands.Add($cmd)
+        } else {
+            Emit-Log -Level "info" -Message "Skipping $cmdName (no matching changed files)" -Component "backpressure"
+        }
+    }
+    $commands = @($filteredCommands)
     
     if ($commands.Count -eq 0) {
         Emit-Log -Level "warn" -Message "No validation commands found - skipping backpressure" -Component "backpressure"

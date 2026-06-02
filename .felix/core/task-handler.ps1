@@ -79,11 +79,23 @@ function Invoke-TaskCompletion {
             }
             
             # Run backpressure validation
+            # v2 F1: collect changed files from git to enable per-path filtering
+            $changedFiles = @()
+            try {
+                Push-Location $Paths.ProjectPath
+                $changedFiles = @(git diff --name-only HEAD 2>$null)
+                $changedFiles += @(git diff --cached --name-only 2>$null)
+                $changedFiles += @(git ls-files --others --exclude-standard 2>$null)
+                $changedFiles = @($changedFiles | Select-Object -Unique | Where-Object { $_ })
+                Pop-Location
+            } catch { $changedFiles = @() }
+
             $backpressureResult = Invoke-BackpressureValidation `
                 -WorkingDir $Paths.ProjectPath `
                 -AgentsFilePath $Paths.AgentsFile `
                 -Config $Config `
-                -RunDir $RunDir
+                -RunDir $RunDir `
+                -ChangedFiles $changedFiles
         }
         
         if (-not $backpressureResult.skipped -and -not $backpressureResult.success) {
