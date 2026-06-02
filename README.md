@@ -532,19 +532,16 @@ Blocked requirements must be manually reset to "planned" status in `.felix/requi
 
 ## Documentation
 
-### Getting Started
+📖 **[Full documentation → docs/](docs/README.md)**
 
-- 📘 **[CLI Reference](docs/CLI.md)** - Installation, setup, commands, and usage guide
-- 🎓 Philosophy - Origins in the [Ralph Playbook](https://github.com/ClaytonFarr/ralph-playbook), why naive persistence works
+Quick links:
 
-### Technical Reference
-
-- 📊 **[Execution Flow](tuts/EXECUTION_FLOW.md)** - Detailed flow diagram, phase descriptions, exit codes
-- 📚 **[Artifacts](tuts/FELIX_EXPLAINED.md)** - Durable memory, plans, and artifact lifecycle
-- 🤖 **[Switching Agents](tuts/SWITCHING_AGENTS.md)** - Configure profiles, select the active agent, and smoke-test it
-- 🧩 **[Writing Plugins](docs/PLUGINS.md)** - Build plugins with lifecycle hooks, state management, examples
-- 🔄 **[Sync Operations](docs/SYNC_OPERATIONS.md)** - Cloud sync setup, troubleshooting, architecture
-- 📋 **[Features](docs/FEATURES.md)** - Product capabilities and feature list
+- 📘 **[CLI Reference](docs/CLI.md)** — All commands, options, exit codes
+- ⚙️ **[Configuration](docs/CONFIGURATION.md)** — Every `config.json` key explained
+- 🔀 **[Concurrency](docs/CONCURRENCY.md)** — Parallel workers, worktrees, crash recovery
+- 🧩 **[Writing Plugins](docs/PLUGINS.md)** — Lifecycle hooks, manifest, examples
+- 🔄 **[Sync Operations](docs/SYNC_OPERATIONS.md)** — Cloud sync setup and troubleshooting
+- 📊 **[Execution Flow](tuts/EXECUTION_FLOW.md)** — Detailed flow diagrams and phase descriptions
 
 ### Knowledge Base
 
