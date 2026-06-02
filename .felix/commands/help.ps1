@@ -298,6 +298,236 @@ function Show-Help {
                 Write-Host "  procs kill force-terminates the tracked process tree and removes the session record." -ForegroundColor Gray
                 Write-Host ""
             }
+            "doctor" {
+                Write-Host ""
+                Write-Host "felix doctor [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Run health checks on the Felix project configuration."
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --fix                Auto-repair non-destructive issues"
+                Write-Host "  --explain <path>     Report which .felixignore rule matched a path"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix doctor"
+                Write-Host "  felix doctor --fix"
+                Write-Host "  felix doctor --explain src/main.js"
+                Write-Host ""
+            }
+            "event" {
+                Write-Host ""
+                Write-Host "felix event <subcommand> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Inspect the Felix event stream."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  tail                         Stream recent events live"
+                Write-Host "  query [--kind <type>] [--run-id <id>] [--since <duration>]  Filter events"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix event tail"
+                Write-Host "  felix event query --kind backpressure.fail"
+                Write-Host "  felix event query --run-id S-0001-20260601 --since 1h"
+                Write-Host ""
+            }
+            "gc" {
+                Write-Host ""
+                Write-Host "felix gc [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Garbage-collect stale runs, rotated events, and orphaned worktrees."
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --dry-run    Show what would be pruned without deleting"
+                Write-Host "  --yes        Skip interactive confirmation"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix gc"
+                Write-Host "  felix gc --dry-run"
+                Write-Host "  felix gc --yes"
+                Write-Host ""
+            }
+            "memory" {
+                Write-Host ""
+                Write-Host "felix memory <subcommand> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Manage persistent agent memory stored in .felix/memory/."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  view  [--scope global|repo|requirement] [--req <id>]   Display memories"
+                Write-Host "  add   --scope <scope> --title <t> --body <b> [--req <id>]  Add a memory"
+                Write-Host "  edit  <id>                                              Edit a memory entry"
+                Write-Host "  prune [--older-than <days>] [--dry-run]                Remove stale memories"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix memory view"
+                Write-Host "  felix memory view --scope repo"
+                Write-Host "  felix memory add --scope global --title ""Always use UTF-8"" --body ""..."""
+                Write-Host "  felix memory prune --older-than 30 --dry-run"
+                Write-Host ""
+            }
+            "migrate" {
+                Write-Host ""
+                Write-Host "felix migrate [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Run schema migrations on requirements.json, config.json, and spec files."
+                Write-Host "Preview mode by default; --apply is required to write changes."
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --dry-run            Preview changes without writing (default)"
+                Write-Host "  --apply              Write changes to disk"
+                Write-Host "  --only <migration>   Run a single named migration"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix migrate"
+                Write-Host "  felix migrate --apply"
+                Write-Host "  felix migrate --apply --only spec-frontmatter"
+                Write-Host ""
+            }
+            "plugin" {
+                Write-Host ""
+                Write-Host "felix plugin <subcommand> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Manage Felix plugins."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  list   [--remote] [--channel stable|beta] [--json]   List installed/available plugins"
+                Write-Host "  install <name|url|path> [--channel stable|beta]      Install a plugin"
+                Write-Host "  remove  <id>                                          Remove a plugin"
+                Write-Host "  info    <id>                                          Show plugin details"
+                Write-Host "  update  [<id>|--all] [--dry-run] [--channel stable]  Update plugin(s)"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix plugin list"
+                Write-Host "  felix plugin list --remote"
+                Write-Host "  felix plugin install sync-http"
+                Write-Host "  felix plugin update --all --dry-run"
+                Write-Host "  felix plugin remove my-plugin"
+                Write-Host ""
+            }
+            "query" {
+                Write-Host ""
+                Write-Host "felix query <target> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Structured query over Felix state."
+                Write-Host ""
+                Write-Host "Targets:" -ForegroundColor Yellow
+                Write-Host "  requirements   Query requirements.json"
+                Write-Host "  runs           Query run history"
+                Write-Host "  state          Show agent state.json"
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --status <status>        Filter requirements by status"
+                Write-Host "  --since <duration>       Filter runs by age (e.g. 24h, 7d)"
+                Write-Host "  --requirement <id>       Filter runs by requirement ID"
+                Write-Host "  --json                   Machine-readable output"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix query requirements --status planned"
+                Write-Host "  felix query runs --since 24h --requirement S-0042"
+                Write-Host "  felix query state --json"
+                Write-Host ""
+            }
+            "recover" {
+                Write-Host ""
+                Write-Host "felix recover [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Recover from crashed parallel workers — inspect orphaned leases and worktrees."
+                Write-Host "Also available as: felix run recover"
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --run <run-id>   Recover a specific run"
+                Write-Host "  --all            Enumerate all orphaned runs"
+                Write-Host "  --yes            Apply without interactive confirmation"
+                Write-Host "  --dry-run        Show plan but make no changes"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix recover --all"
+                Write-Host "  felix recover --run S-0042-20260601"
+                Write-Host "  felix recover --all --yes"
+                Write-Host "  felix recover --all --dry-run"
+                Write-Host ""
+            }
+            "review" {
+                Write-Host ""
+                Write-Host "felix review [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Review and accept/reject agent learning proposals."
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --learnings      Walk agents-md-suggestions.md proposals; accept/reject/defer"
+                Write-Host "  --prompts        Audit prompts/skills for model-workaround heuristics"
+                Write-Host "  --all            Both --learnings and --prompts in sequence"
+                Write-Host "  --acknowledge    Stamp state.json#last_review (silences staleness warning)"
+                Write-Host "  --dry-run        Preview without writing or committing"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix review --learnings"
+                Write-Host "  felix review --all --dry-run"
+                Write-Host "  felix review --acknowledge"
+                Write-Host ""
+            }
+            "search" {
+                Write-Host ""
+                Write-Host "felix search <pattern> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Full-text search across specs, runs, and project context."
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --scope file|symbol      Search scope (default: file)"
+                Write-Host "  --in code|specs|runs|all Target corpus (default: all)"
+                Write-Host "  --max <n>                Max results to return"
+                Write-Host "  --json                   Machine-readable output"
+                Write-Host "  --related-to <req-id>    Find content related to a requirement"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix search ""authentication"""
+                Write-Host "  felix search ""token expiry"" --in specs"
+                Write-Host "  felix search ""UserService"" --scope symbol"
+                Write-Host "  felix search ""login"" --related-to S-0001 --json"
+                Write-Host ""
+            }
+            "skill" {
+                Write-Host ""
+                Write-Host "felix skill <subcommand> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Manage Felix skills (reusable agent capabilities)."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  list    [--remote] [--json]                         List installed/available skills"
+                Write-Host "  show    <id>                                        Show skill details"
+                Write-Host "  enable  <id>                                        Enable a skill"
+                Write-Host "  disable <id>                                        Disable a skill"
+                Write-Host "  install <name|url|path> [--scope repo|user] [--channel stable|beta]  Install a skill"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix skill list"
+                Write-Host "  felix skill list --remote"
+                Write-Host "  felix skill show code-review"
+                Write-Host "  felix skill install code-review --scope repo"
+                Write-Host "  felix skill enable code-review"
+                Write-Host "  felix skill disable code-review"
+                Write-Host ""
+            }
+            "tool" {
+                Write-Host ""
+                Write-Host "felix tool <subcommand> [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Manage the agent tool allowlist (which tools agents are permitted to call)."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  list                             Show current allowlist config"
+                Write-Host "  enable  <tool>                   Add a tool to the allowlist"
+                Write-Host "  disable <tool>                   Block a tool"
+                Write-Host "  harden  [--yes] [--dry-run]      Switch to deny-by-default; infer allowlist from audit log"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix tool list"
+                Write-Host "  felix tool enable bash"
+                Write-Host "  felix tool disable browser"
+                Write-Host "  felix tool harden --dry-run"
+                Write-Host "  felix tool harden --yes"
+                Write-Host ""
+            }
             default {
                 Write-Host "Unknown command: $SubCommand" -ForegroundColor Red
                 Show-Help
@@ -315,12 +545,24 @@ function Show-Help {
         Write-Host "  run <req-id>          Execute a single requirement"
         Write-Host "  run-next              Claim and run next available requirement (local or server)"
         Write-Host "  loop                  Run agent in continuous loop mode"
+        Write-Host "  recover               Recover from crashed parallel workers"
         Write-Host "  status [req-id]       Show requirement status"
         Write-Host "  list                  List all requirements with filters"
         Write-Host "  validate <req-id>     Run validation checks"
         Write-Host "  deps [req-id]         Show dependencies and validate status"
         Write-Host "  spec <subcommand>     Manage requirement specifications"
         Write-Host "  context <subcommand>  Generate/view project context documentation"
+        Write-Host "  search <pattern>      Full-text search across specs, runs, and project code"
+        Write-Host "  query <target>        Structured query over Felix state"
+        Write-Host "  memory <subcommand>   Manage persistent agent memory"
+        Write-Host "  skill <subcommand>    Manage Felix skills (reusable agent capabilities)"
+        Write-Host "  plugin <subcommand>   Manage Felix plugins"
+        Write-Host "  tool <subcommand>     Manage agent tool allowlist"
+        Write-Host "  review [options]      Review and accept/reject agent learning proposals"
+        Write-Host "  event <subcommand>    Inspect the Felix event stream"
+        Write-Host "  migrate               Run schema migrations on project files"
+        Write-Host "  gc                    Garbage-collect stale runs and orphaned worktrees"
+        Write-Host "  doctor                Run health checks on the Felix project"
         Write-Host "  update                Update the installed Felix CLI from GitHub Releases"
         Write-Host "  agent <subcommand>    Manage and switch agents"
         Write-Host "  procs [subcommand]    Manage active execution sessions"
