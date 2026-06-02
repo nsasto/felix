@@ -8,7 +8,8 @@ This hub covers everything you need to run, configure, and extend Felix — the 
 
 | Document | Audience | Covers |
 |---|---|---|
-| [CLI.md](CLI.md) | Developers, AI agents | All commands, options, workflows, exit codes |
+| [CLI.md](CLI.md) | Developers, AI agents | Command index, global options, operating modes, workflows, war stories |
+| [SETUP.md](SETUP.md) | Developers, operators | Installation, setup, agents, tools, migration, doctor, gc |
 | [CONFIGURATION.md](CONFIGURATION.md) | Operators, developers | Every `config.json` key with type, default, and description |
 | [../tuts/EXECUTION_FLOW.md](../tuts/EXECUTION_FLOW.md) | Developers | Execution flow, mode transitions, validation, artifacts |
 
@@ -24,6 +25,8 @@ This hub covers everything you need to run, configure, and extend Felix — the 
 
 | Document | Audience | Covers |
 |---|---|---|
+| [RUNNING.md](RUNNING.md) | Developers | Executing requirements, loop, procs, exit codes |
+| [SPECS.md](SPECS.md) | Developers | Spec and requirement lifecycle management |
 | [CONTEXT.md](CONTEXT.md) | Developers | Run artifacts, context inspection, event stream, replay |
 | [SEARCH.md](SEARCH.md) | Developers | Full-text search, dependency graph, structured queries |
 | [MEMORY.md](MEMORY.md) | Developers | Persistent agent memory, CLI, budget, learning proposals |

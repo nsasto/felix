@@ -1,8 +1,6 @@
-# The Felix CLI
+﻿# The Felix CLI
 
-Complete reference for the Felix command-line interface — commands, options, workflows, and conventions.
-
-> **Quick links:** [Core Commands](#the-core-commands-your-daily-drivers) · [Update Command](#felix-update---refresh-the-installed-cli) · [Spec Management](#specification-management) · [Agent Management](#agent-management) · [Global Options](#global-options-the-switches-that-work-everywhere) · [Exit Codes](#the-exit-code-contract-what-they-mean) · [Workflows](#common-workflows)
+> **Quick links:** [Command Index](#command-index) Â· [Global Options](#global-options) Â· [felix tui](#felix-tui) Â· [Operating Modes](#operating-modes) Â· [Best Practices](#best-practices)
 
 ---
 
@@ -33,29 +31,29 @@ A Felix-enabled repository typically looks like this:
 
 ```
 .
-├── specs/                         # Requirements (markdown)
-│   ├── CONTEXT.md
-│   └── auth-email-signin.md
-├── AGENTS.md                      # How to run the system
-├── .felix/
-│   ├── requirements.json          # Central registry and status
-│   ├── state.json                 # Agent control state
-│   ├── config.json                # Sync, agent, executor settings
-│   ├── agents.json                # LLM agent profiles
-│   ├── sessions.json              # Active process tracking
-│   ├── outbox/                    # Sync queue (when enabled)
-│   ├── prompts/
-│   │   ├── planning.md
-│   │   └── building.md
-│   └── plugins/
-│       └── sync-http/             # HTTP sync plugin
-├── runs/
-│   └── <run-id>/
-│       ├── plan-<req-id>.md       # Working plan
-│       ├── commands.log.jsonl     # Execution log
-│       ├── diff.patch             # Git diff
-│       └── report.md              # Run summary
-└── app/                           # Your application code
+â”œâ”€â”€ specs/                         # Requirements (markdown)
+â”‚   â”œâ”€â”€ CONTEXT.md
+â”‚   â””â”€â”€ auth-email-signin.md
+â”œâ”€â”€ AGENTS.md                      # How to run the system
+â”œâ”€â”€ .felix/
+â”‚   â”œâ”€â”€ requirements.json          # Central registry and status
+â”‚   â”œâ”€â”€ state.json                 # Agent control state
+â”‚   â”œâ”€â”€ config.json                # Sync, agent, executor settings
+â”‚   â”œâ”€â”€ agents.json                # LLM agent profiles
+â”‚   â”œâ”€â”€ sessions.json              # Active process tracking
+â”‚   â”œâ”€â”€ outbox/                    # Sync queue (when enabled)
+â”‚   â”œâ”€â”€ prompts/
+â”‚   â”‚   â”œâ”€â”€ planning.md
+â”‚   â”‚   â””â”€â”€ building.md
+â”‚   â””â”€â”€ plugins/
+â”‚       â””â”€â”€ sync-http/             # HTTP sync plugin
+â”œâ”€â”€ runs/
+â”‚   â””â”€â”€ <run-id>/
+â”‚       â”œâ”€â”€ plan-<req-id>.md       # Working plan
+â”‚       â”œâ”€â”€ commands.log.jsonl     # Execution log
+â”‚       â”œâ”€â”€ diff.patch             # Git diff
+â”‚       â””â”€â”€ report.md             # Run summary
+â””â”€â”€ app/                           # Your application code
 ```
 
 ---
@@ -78,1031 +76,119 @@ One topic per file. Narrow scope. No implementation detail. Stable over time.
 
 ### Requirements Registry (`.felix/requirements.json`)
 
-Slim index — only what Felix needs to schedule and track work:
+Slim index â€” only what Felix needs to schedule and track work. **Status values:** `draft` â†’ `planned` â†’ `in_progress` â†’ `complete` / `blocked`. Rich metadata (`priority`, `tags`, `depends_on`) lives in `specs/*.meta.json` sidecars.
 
-```json
-{
-  "requirements": [
-    {
-      "id": "S-0001",
-      "title": "Auth email sign-in",
-      "spec_path": "specs/auth-email-signin.md",
-      "status": "planned",
-      "commit_on_complete": false
-    }
-  ]
-}
-```
-
-Rich metadata (`priority`, `tags`, `depends_on`) lives in `specs/*.meta.json` sidecars. Keep `requirements.json` boring and stable.
-
-**Status values:** `draft` → `planned` → `in_progress` → `complete` / `blocked`
-
-### Validation Criteria (the "Forever Checkbox")
-
-Leave checkboxes **unchecked** — Felix re-runs them every iteration:
-
-```markdown
-- [ ] Backend healthy: `curl localhost:8080/health` (status 200)
-```
-
-Only use backticks for **actual executable commands**. Use **bold** for file paths, plain text for URLs and placeholders.
+See [SPECS.md](SPECS.md) for the full registry format, `felix spec` commands, and validation criteria rules.
 
 ---
 
-## Installation
+## Command Index
 
-### PowerShell CLI (Original)
-
-```powershell
-.\.felix\felix.ps1 run S-0001
-```
-
-Optional PATH install: `.\scripts\install-cli.ps1` → then use `felix run S-0001`
-
-### C# CLI (Cross-Platform)
-
-```powershell
-.\scripts\install-cli-csharp.ps1   # One-time build + PATH install
-Felix.Cli.exe run S-0001
-Felix.Cli.exe dashboard            # Interactive status overview
-```
-
-Both CLIs share the same backend: `Felix.Cli.exe` → `.felix/felix.ps1` → `scripts/*.ps1`. No logic duplication.
-
-### Global Installer
-
-```powershell
-# Windows
-irm https://felixai.dev/install.ps1 | iex
-
-# macOS / Linux
-curl -sSL https://felixai.dev/install.sh | bash
-```
-
-After installation: `felix install` once per machine, then `felix setup` in any project.
-
-To update an existing install from GitHub Releases:
-
-```powershell
-felix update
-felix update --check
-```
-
-Use `felix update --yes` to skip the interactive confirmation prompt.
-
-The updater downloads the latest published release for the current platform, verifies the checksum manifest, stages the payload in a temporary directory, and replaces the installed files after the current Felix process exits.
-
-Supported release identifiers:
-
-- `win-x64`
-- `linux-x64`
-- `osx-x64`
-- `osx-arm64`
-
-If the install directory does not already contain Felix, `felix update` treats the latest release as the install target and bootstraps that location.
+| Command | What it does | Reference |
+|---|---|---|
+| `felix run` | Execute one requirement | [RUNNING.md](RUNNING.md) |
+| `felix loop` | Continuous execution loop | [RUNNING.md](RUNNING.md) |
+| `felix run-next` | Claim and run next queued requirement | [RUNNING.md](RUNNING.md) |
+| `felix run replay` | Re-run a saved iteration | [RUNNING.md](RUNNING.md) |
+| `felix procs` | View running agent processes | [RUNNING.md](RUNNING.md) |
+| `felix spec` | Create, manage, sync specs | [SPECS.md](SPECS.md) |
+| `felix validate` | Run acceptance criteria | [SPECS.md](SPECS.md) |
+| `felix list` | List requirements and status | [SPECS.md](SPECS.md) |
+| `felix status` | Show requirement status | [SPECS.md](SPECS.md) |
+| `felix setup` | Interactive project wizard | [SETUP.md](SETUP.md) |
+| `felix agent` | Manage agent profiles | [SETUP.md](SETUP.md) |
+| `felix tool` | Tool allowlist management | [SETUP.md](SETUP.md) |
+| `felix migrate` | Schema migration | [SETUP.md](SETUP.md) |
+| `felix doctor` | Health check | [SETUP.md](SETUP.md) |
+| `felix gc` | Garbage collection | [SETUP.md](SETUP.md) |
+| `felix update` | Update the CLI | [SETUP.md](SETUP.md) |
+| `felix context` | Context inspection, build, push/pull | [CONTEXT.md](CONTEXT.md) |
+| `felix event` | Event stream | [CONTEXT.md](CONTEXT.md) |
+| `felix search` | Full-text search | [SEARCH.md](SEARCH.md) |
+| `felix deps` | Dependency graph | [SEARCH.md](SEARCH.md) |
+| `felix query` | Structured state query | [SEARCH.md](SEARCH.md) |
+| `felix memory` | Agent memory management | [MEMORY.md](MEMORY.md) |
+| `felix skill` | Skill management | [SKILLS.md](SKILLS.md) |
+| `felix plugin` | Plugin management | [PLUGINS.md](PLUGINS.md) |
+| `felix loop --parallel` | Parallel workers | [CONCURRENCY.md](CONCURRENCY.md) |
+| `felix recover` | Crash recovery | [CONCURRENCY.md](CONCURRENCY.md) |
+| `felix tui` | Interactive terminal shell | *(below)* |
+| `felix version` | Show version | [SETUP.md](SETUP.md) |
+| `felix help` | Command reference | [SETUP.md](SETUP.md) |
 
 ---
 
-## The Core Commands: Your Daily Drivers
+## Global Options
 
-### `felix run <requirement-id>` - Execute One Thing
+These flags work with every command.
 
-**What it does:** Tells the agent "work on this specific requirement until it's done or you hit a wall."
+### `--format <json|plain|rich>`
 
-```bash
-felix run S-0001
-```
+| Value | Description |
+|---|---|
+| `rich` (default) | Progress indicators, colored output, formatted tables |
+| `plain` | Simple colored text â€” good for log files and basic CI |
+| `json` | One JSON object per line â€” perfect for scripting and pipelines |
 
-**When to use it:**
+### `--verbose`
 
-- You have a specific requirement ready to implement
-- You want focused, controlled execution
-- You're testing a new spec before letting the agent loose
+Debug-level output: state transitions, LLM prompt construction, file I/O, git commands. **Warning:** very chatty.
 
-**Real-world example:**
+### `--quiet`
 
-```bash
-# Execute requirement with rich terminal output (default)
-felix run S-0042
+Suppresses info messages, progress indicators, and statistics. Only errors, warnings, and final status are shown. Use for background jobs and cron tasks.
 
-# Get JSON events for parsing in scripts
-felix run S-0042 --format json
+### `--no-stats`
 
-# Push artifacts to backend server
-felix run S-0042 --sync
-```
+Suppresses the run statistics summary (`Events`, `Errors`, `Duration`, etc.) at the end of a run. Useful with `--format json` to avoid breaking parsers.
 
-**Behind the scenes:** Felix spawns `felix-agent.ps1` as a subprocess, streams NDJSON events from stdout, and renders them in your chosen format. The agent runs in a loop (up to 100 iterations by default) trying to complete the requirement: building context, calling the LLM, processing responses, running tests, committing changes, and validating success.
+### `--sync`
 
-When sync is disabled, Felix treats non-git working directories as valid local projects. It skips git-state probing and commit capture instead of failing with repository checks.
+Enables artifact mirroring to a remote backend for this run only, overriding `sync.enabled` in `.felix/config.json`.
 
-**Exit codes tell the story:**
+**What gets synced:** agent registration, run creation, full NDJSON event stream, output files (logs, diffs, reports), run completion.
 
-- `0` = Success (requirement completed and validated)
-- `1` = Error (agent crashed or hit an unexpected failure)
-- `2` = Blocked by backpressure (tests failed too many times)
-- `3` = Blocked by validation (acceptance criteria failed)
+**Configuration hierarchy:** `--sync` flag (highest) â†’ `$env:FELIX_SYNC_ENABLED` â†’ `.felix/config.json`
 
-### `felix loop` - Let It Run Wild
+```powershell
+# Override for one run
+felix run S-0001 --sync
 
-**What it does:** Autonomously processes all planned/in-progress requirements until the backlog is empty or you stop it.
-
-```bash
+# Production automation
+$env:FELIX_SYNC_ENABLED = "true"
+$env:FELIX_SYNC_URL = "https://felix.company.com"
+$env:FELIX_SYNC_KEY = "fsk_prod_key_here"
 felix loop
 ```
 
-**When to use it:**
+See [SYNC_OPERATIONS.md](SYNC_OPERATIONS.md) for full sync configuration and troubleshooting.
 
-- Friday afternoon before the weekend (let it work while you're gone)
-- You have 20 small requirements and don't want to babysit each one
-- You trust your specs and backpressure tests
+### `--no-commit`
 
-**When NOT to use it:**
-
-- Your specs are half-baked or vague
-- You haven't validated your test suite catches regressions
-- It's Monday morning and your boss wants a demo at 10 AM
-
-**Options:**
+Agent makes all code changes but skips `git commit` at the end. Useful for testing specs and reviewing output before committing:
 
 ```bash
-# Limit to 5 requirements then stop
-felix loop --max-iterations 5
-
-# Continuously sync artifacts to backend
-felix loop --sync
-
-# Skip git commits (useful for reviewing before committing)
-felix loop --no-commit
+felix run S-0001 --no-commit --format plain | tee test-output.log
+# Review, then either:
+git add -A && git commit -m "Implement S-0001 (manually verified)"
+# or:
+git reset --hard
 ```
 
-**Pro tip:** Loop mode creates lock files in `.felix/.locks/loop-<PID>.lock` to prevent multiple loops from colliding. If Felix crashes and leaves a stale lock, you'll need to manually clean it up.
+### `--quick`
 
-**War story:** We once let `felix loop` run overnight on a fresh project with 30 requirements. Came back to find 28 complete, 1 blocked (flaky test), and 1 in a hilarious infinite loop arguing with itself about whether a function should be async or not. Lesson learned: always write clear acceptance criteria.
+Used with `felix spec create` â€” skips interactive prompts, defaults everything to `planned` with minimal frontmatter. Useful for batch-creating 20+ requirements quickly.
 
 ---
 
-### `felix run-next` - Claim and Run the Next Queued Requirement
-
-**What it does:** Finds the next available requirement and runs it immediately — server-assigned in team mode, locally-picked in solo mode.
-
-```bash
-felix run-next
-felix run-next --sync    # enable sync for this run
-felix run-next --format json
-```
-
-**Remote mode** (sync enabled): calls `GET /api/sync/work/next` — atomic, `FOR UPDATE SKIP LOCKED` so multiple agents on the same project never claim the same item. Marks it `reserved`, then transitions to `in_progress` when the agent starts.
-
-**Local mode**: picks the next `in_progress` then `planned` requirement from `requirements.json`, sorted by ID.
-
-**Exit codes:**
-
-| Code    | Meaning                                                    |
-| ------- | ---------------------------------------------------------- |
-| `0`     | Requirement completed successfully                         |
-| `2`/`3` | Blocked — claim auto-released back to `planned`            |
-| `5`     | No work available — nothing planned or already all claimed |
-
-The `5` exit code is designed for CI poll loops:
-
-```powershell
-while ($true) {
-    felix run-next --sync
-    if ($LASTEXITCODE -eq 5) { Start-Sleep 60 }  # nothing to do, wait
-    elseif ($LASTEXITCODE -ne 0) { break }        # error or block needs attention
-}
-```
-
----
-
-### `felix update` - Refresh the Installed CLI
-
-**What it does:** Checks GitHub Releases for the newest Felix build, compares it to the local installed version, and stages the matching platform package for replacement.
-
-```bash
-felix update
-```
-
-**What actually happens:**
-
-- Detects the current platform release ID
-- Fetches the latest release metadata from GitHub
-- Selects the matching zip artifact and checksum manifest
-- Verifies the downloaded package before staging it
-- Prompts before install unless you pass `--yes`
-- Launches a helper that swaps binaries after the current process exits
-
-**Common forms:**
-
-```bash
-# See whether a newer release exists
-felix update --check
-
-# Install without prompting
-felix update --yes
-```
-
-**When to use it:**
-
-- You installed Felix globally and want the newest published release
-- You want a safe checksum-verified upgrade path
-- You need a non-interactive upgrade step for scripts or provisioning
-
-**When not to use it:**
-
-- You are doing a first-time local source checkout and plan to run from the repo directly
-- You specifically want to stay on an older pinned release
-
-**Install versus update:** `felix install` is the bootstrap path. `felix update` is the release-upgrade path. If no existing installed copy is found in the target install directory, `felix update` can still stage the latest release there.
-
-**Troubleshooting:**
-
-- Network failures: retry the command and confirm GitHub Releases is reachable from the machine running Felix. Proxy, firewall, or transient GitHub API failures will surface as update check or download errors.
-- Checksum failures: do not force the install. Re-run the update to fetch a clean copy. If the checksum mismatch persists, treat the release asset or download path as suspect until the published checksums and artifact match.
-- Unsupported platform errors: Felix only updates from published release assets for supported RIDs. If your machine reports an unsupported platform, install from source or use a supported published build target.
-
----
-
-## Status & Visibility Commands
-
-### `felix status [requirement-id]` - What's Happening?
-
-**Check on everything:**
-
-```bash
-felix status
-```
-
-**Check one requirement:**
-
-```bash
-felix status S-0001
-```
-
-**Get machine-readable output:**
-
-```bash
-felix status --format json
-```
-
-**What you'll see:**
-
-- Current requirement status (planned, in_progress, complete, blocked)
-- Agent name and last execution time
-- Validation results
-- Git commit associated with completion
-
-**Why this matters:** When your agent has been churning for 30 minutes and you're wondering if it's actually working or stuck in a loop, `felix status` is your reality check.
-
-### `felix spec list` - See the Big Picture
-
-`felix spec list` is the canonical command. The top-level `felix list` alias still works for compatibility.
-
-**All requirements:**
-
-```bash
-felix spec list
-```
-
-**Filter by status:**
-
-```bash
-felix spec list --status planned
-felix spec list --status complete
-felix spec list --status blocked
-```
-
-**Filter by priority:**
-
-```bash
-felix spec list --priority high
-felix spec list --priority low
-```
-
-**Filter by tags (comma-separated):**
-
-```bash
-felix spec list --tags backend
-felix spec list --tags backend,auth
-```
-
-**Show requirements blocked by incomplete dependencies:**
-
-```bash
-felix spec list --blocked-by incomplete-deps
-```
-
-**Include dependency details in output:**
-
-```bash
-felix spec list --with-deps
-```
-
-**JSON for scripting:**
-
-```bash
-felix spec list --format json | jq '.[] | select(.status == "blocked")'
-```
-
-**Useful patterns:**
-
-```bash
-# Morning standup: what got done overnight?
-felix spec list --status complete
-
-# Planning: what's ready to work on?
-felix spec list --status planned
-
-# What's stuck on unfinished dependencies?
-felix spec list --blocked-by incomplete-deps
-
-# Troubleshooting: what's stuck?
-felix spec list --status blocked
-```
-
----
-
-## Validation & Dependencies
-
-### `felix validate <requirement-id>` - Did It Actually Work?
-
-**What it does:** Runs requirement-level acceptance verification from the spec file without running the full agent loop.
-
-**What this answers:** "Has this requirement been achieved according to its own acceptance criteria?"
-
-**What it does not do:** It does not replace loop backpressure checks. Backpressure is the per-iteration safety gate (tests/build/lint before commit), while `felix validate` is a requirement-level done check.
-
-```bash
-felix validate S-0001
-```
-
-```bash
-# Machine-readable result for CI/UI
-felix validate S-0001 --json
-```
-
-**Why you need this:**
-
-1. **Testing your acceptance criteria** before letting the agent loose
-2. **Debugging failures** - run validation in isolation to see what's actually broken
-3. **Post-deployment checks** - validate requirements still work after merging
-4. **Progress confidence** - measure completion against explicit, executable criteria
-
-**Validation criteria format** (from your spec file):
-
-```markdown
-## Validation Criteria
-
-- [ ] Tests pass: `pytest` (exit code 0)
-- [ ] Lint clean: `npm run lint` (exit code 0)
-```
-
-**Critical rule:** Only use backticks for actual executable commands. If it's not meant to run in a shell, don't wrap it in backticks. We learned this the hard way when someone wrote:
-
-```markdown
-- [ ] File exists: `src/config.py`
-```
-
-The validator tried to execute "src/config.py" as a command and exploded. Correct version:
-
-```markdown
-- [ ] File exists: **src/config.py** (file exists)
-```
-
-### `felix deps [requirement-id]` - Dependency Detective
-
-**Show dependencies for one requirement:**
-
-```bash
-felix deps S-0001
-```
-
-**Check if dependencies are satisfied:**
-
-```bash
-felix deps S-0001 --check
-```
-
-**See the full dependency tree:**
-
-```bash
-felix deps --tree
-```
-
-**Find what's blocking progress:**
-
-```bash
-felix deps --incomplete
-```
-
-**Why dependencies matter:** Requirements have `depends_on` relationships. If S-0005 depends on S-0003 and S-0004, the agent won't start S-0005 until both dependencies are complete. This prevents building features on top of features that don't exist yet.
-
-**Dependency resolution is smart:**
-
-- Transitive dependencies work (A depends on B, B depends on C → A waits for C)
-- Circular dependencies are detected and rejected
-- Incomplete dependencies automatically block execution
-
----
-
-## Specification Management
-
-### `felix spec create <description>` - Start a New Requirement
-
-**Interactive mode (asks questions):**
-
-```bash
-felix spec create "Add user authentication"
-```
-
-**Quick mode (makes reasonable assumptions):**
-
-```bash
-felix spec create "Add user authentication" --quick
-```
-
-**What --quick does:**
-
-- Skips asking for detailed description (uses the title)
-- Defaults to planned status
-- No dependencies
-- Generates minimal acceptance criteria
-
-**Interactive mode asks:**
-
-1. Do you want to provide a detailed description? (y/N)
-2. What status should this be? (planned/draft/in-progress)
-3. Does this depend on other requirements? (comma-separated IDs)
-4. Do you want to generate acceptance criteria with the agent? (y/N)
-
-**Behind the scenes:** Felix auto-generates the next requirement ID (finds highest S-NNNN in specs/ folder and increments), creates the spec file with frontmatter, and optionally launches the agent in spec-builder mode to write detailed acceptance criteria.
-
-**Pro tip:** Use `--quick` for small, obvious requirements. Use interactive mode for complex features that need detailed planning.
-
-### `felix spec fix` - Sync Specs Folder with requirements.json
-
-**Scan specs folder and fix alignment:**
-
-```bash
-felix spec fix
-```
-
-**Auto-rename duplicate spec IDs:**
-
-```bash
-felix spec fix --fix-duplicates
-```
-
-**What this does:** Scans all `S-*.md` files in `specs/` and reconciles them against `.felix/requirements.json`:
-
-- Adds entries for spec files that are missing from `requirements.json`
-- Rebuilds the `requirements.json` view of the current `specs/` directory
-- With `--fix-duplicates`: detects duplicate `S-NNNN` IDs and renames files to the next available ID
-
-**When to use:**
-
-- After manually creating or deleting spec files without using `felix spec create`/`delete`
-- After cloning a repo where `requirements.json` is out of sync with `specs/`
-- When you see "requirement not found" errors that don't match your spec files
-
-### `felix spec delete <requirement-id>` - Remove a Spec
-
-**Delete with confirmation:**
-
-```bash
-felix spec delete S-0001
-```
-
-**Delete without prompting:**
-
-```bash
-felix spec delete S-0001 --yes
-```
-
-**What gets deleted:**
-
-- The spec file (`specs/S-NNNN.md`)
-- The requirement entry in `.felix/requirements.json`
-
-**What stays:**
-
-- Historical run artifacts in `runs/` (for audit trail)
-- Git history (no force deletion)
-
-**Safety:** Prompts for confirmation unless you pass `--yes`.
-
-### `felix spec status <requirement-id> <status>` - Update Requirement Status
-
-**Change the status of a requirement:**
-
-```bash
-felix spec status S-0042 planned
-felix spec status S-0042 in_progress
-felix spec status S-0042 complete
-felix spec status S-0042 blocked
-```
-
-**What it does:** Updates the `status` field for the given requirement in `.felix/requirements.json`. Useful for manually overriding status without hand-editing the JSON file.
-
-**Common use cases:**
-
-- Unblocking a blocked requirement: `felix spec status S-0042 planned`
-- Manually marking something complete: `felix spec status S-0042 complete`
-- Forcing a requirement back into the queue: `felix spec status S-0042 in_progress`
-
-**Equivalent to:** opening `.felix/requirements.json` and editing `"status"` directly, but without the risk of malforming the JSON.
-
-### `felix spec pull` - Sync Specs from Server
-
-**Pull all specs that are out of date:**
-
-```bash
-felix spec pull
-```
-
-**Preview without writing any files:**
-
-```bash
-felix spec pull --dry-run
-```
-
-**Force overwrite of local files even if they exist:**
-
-```bash
-felix spec pull --force
-```
-
-**Also delete local specs that no longer exist on the server:**
-
-```bash
-felix spec pull --delete
-```
-
-**What it does:**
-
-1. Calls `POST /api/sync/specs/check` with a manifest of local file hashes
-2. Server responds with which files are missing, outdated, or current
-3. Downloads only the files that differ (`.md` specs and `.meta.json` sidecars)
-4. Writes them into the repo, updates `.felix/spec-manifest.json`, and optionally removes files the server no longer tracks
-
-If a newly downloaded markdown spec does not yet have a `.meta.json` sidecar, Felix creates a fallback sidecar locally so metadata resolution stays consistent until the next full sync.
-
-**What are `.meta.json` sidecars?**
-
-Each spec has an accompanying `specs/S-NNNN-name.meta.json` file containing rich metadata stored in the server DB:
-
-```json
-{
-  "priority": "high",
-  "tags": ["backend", "auth"],
-  "depends_on": ["S-0001", "S-0002"],
-  "updated_at": "2026-02-23"
-}
-```
-
-- Generated automatically on `spec create` and `spec fix`
-- Gitignored (`specs/*.meta.json`) so they don't pollute version control
-- Used by the agent loop to resolve `depends_on` for the current requirement
-- Downloaded fresh each time via `felix spec pull`
-
-**When to use it:**
-
-- Before starting work in remote/team mode to get the latest server state
-- When another team member has updated spec priorities or dependencies
-- After `felix setup` on a new clone — pull specs before running the loop
-
-**Authentication:** Requires `sync.api_key` in `.felix/config.json` or `FELIX_SYNC_KEY` env var.
-
-**Safety rules:**
-
-- Existing local files that are not tracked in `.felix/spec-manifest.json` are skipped unless you pass `--force`
-- Server-deleted files are only removed locally when you pass `--delete`
-- `--dry-run` shows planned download, update, and delete actions without touching files
-
-```bash
-# Typical workflow before running the agent loop in team mode
-felix spec pull
-felix loop
-```
-
-### `felix spec push` - Upload Local Specs to Server
-
-**Upload all specs:**
-
-```bash
-felix spec push
-```
-
-**Preview without uploading:**
-
-```bash
-felix spec push --dry-run
-```
-
-**Re-upload all even if unchanged:**
-
-```bash
-felix spec push --force
-```
-
-**What it does:** Reads all `*.md` files from `specs/`, encodes them as base64, and uploads them to `POST /api/sync/specs/upload` in chunks. Felix retries failed chunks before giving up and reports per-file upload or skip results after the server responds.
-
-When `--force` is set, Felix asks the server to create missing requirement mappings if the backend supports that behavior.
-
-**Authentication:** Requires `sync.api_key` in `.felix/config.json` or `FELIX_SYNC_KEY` env var.
-
-**When to use:**
-
-- After creating or editing specs locally that you want remote agents to pick up
-- Before starting a distributed team session — push local changes so others get them via `felix spec pull`
-- After bulk-creating specs with `felix spec create --quick`
-
-**Typical team workflow:**
-
-```bash
-# Developer A: create and push specs
-felix spec create "Add rate limiting" --quick
-felix spec push
-
-# Agent on another machine: pull and work
-felix spec pull
-felix loop
-```
-
----
-
-## Context Management
-
-### `felix context build` - Generate Project Documentation
-
-**Standard build:**
-
-```bash
-felix context build
-```
-
-**Include hidden files:**
-
-```bash
-felix context build --include-hidden
-```
-
-**Skip overwrite confirmation:**
-
-```bash
-felix context build --force
-```
-
-**What it does:** Launches the agent to autonomously analyze your project and generate `CONTEXT.md` - a comprehensive document describing:
-
-- Project purpose and architecture
-- Tech stack and dependencies
-- File structure and organization
-- Key components and how they connect
-- Development setup and workflows
-
-**Why this exists:** Every project needs a "README for your brain" that explains the big picture. Rather than manually maintaining this (and watching it go stale), let the agent regenerate it periodically.
-
-**Pro tip:** Run this after major architectural changes or before onboarding new team members. The agent will analyze file patterns, dependency graphs, import statements, and configuration files to understand your stack.
-
-**Time commitment:** Usually takes 2-5 minutes depending on project size.
-
-### `felix context show` - View Current Context
-
-```bash
-felix context show
-```
-
-Displays `CONTEXT.md` content in your terminal. Useful for quick reference without opening an editor.
-
-### `felix context push` - Upload Project Docs to Server
-
-**Upload all three docs:**
-
-```bash
-felix context push
-```
-
-**Preview without uploading:**
-
-```bash
-felix context push --dry-run
-```
-
-**Re-upload even if content is unchanged:**
-
-```bash
-felix context push --force
-```
-
-**What it does:** Reads `README.md`, `CONTEXT.md`, and `AGENTS.md` from the repo root, computes SHA256 hashes, skips files that haven't changed since the last push (using `.felix/manifest-hashes.json` as the cache), and uploads changed files to `PATCH /api/projects/{id}/manifest`.
-
-Content is base64-encoded before sending to ensure safe transport of any special characters.
-
-**Authentication:** Requires `sync.api_key` in `.felix/config.json` or `FELIX_SYNC_KEY` env var.
-
-**When to use:**
-
-- After updating `CONTEXT.md` to reflect architectural changes
-- After modifying `AGENTS.md` with new agent instructions
-- Keeping the UI project page and remote agents in sync with your local docs
-
-### `felix context pull` - Download Project Docs from Server
-
-**Download changed docs:**
-
-```bash
-felix context pull
-```
-
-**Preview without writing files:**
-
-```bash
-felix context pull --dry-run
-```
-
-**Overwrite local files not in the manifest cache:**
-
-```bash
-felix context pull --force
-```
-
-**What it does:** Calls `GET /api/projects/{id}/manifest`, compares each field's hash against the cached values in `.felix/manifest-hashes.json` (written after the last pull or push), and writes only the files that have changed. Shows `[SKIP]` for up-to-date files and `[OK]` for files that were updated.
-
-**Authentication:** Requires `sync.api_key` in `.felix/config.json` or `FELIX_SYNC_KEY` env var.
-
-**When to use:**
-
-- When another team member has updated docs and pushed them
-- Before a work session to ensure you have the latest `AGENTS.md`
-- After another machine has run `felix context push`
-
-**Typical workflow:**
-
-```bash
-# Morning sync before starting work
-felix context pull
-felix spec pull
-felix loop
-```
-
----
-
-## Project Setup
-
-### `felix setup` - Interactive Configuration Wizard
-
-```bash
-felix setup
-```
-
-**What it does:** Guided wizard for configuring a Felix project from scratch (or reconfiguring an existing one). Safe to re-run — idempotent, never overwrites files that already exist.
-
-The installed CLI now presents this flow with a richer Spectre.Console interface instead of a plain `Read-Host` prompt sequence. Searchable pickers are used where they reduce setup friction, while the resulting files and defaults stay compatible with the PowerShell backend.
-
-**Steps:**
-
-1. **Confirm project folder** — defaults to current directory; accepts a different path
-2. **Scaffold** — creates missing `policies/`, `specs/`, `config.json`, `requirements.json`, `state.json` and templates (idempotent)
-3. **AGENTS.md check** — offers to create a starter repository operations guide if one does not exist
-4. **Agent profile setup** — optional searchable multi-select of installed providers plus per-provider model selection; writes `.felix/agents.json`
-5. **Active agent selection** — searchable chooser for which configured profile is active in `.felix/config.json` (`agent.agent_id`)
-6. **Auto-select shortcut** — if exactly one agent profile exists, setup auto-selects it and skips the chooser
-7. **Test command** — prompts for backpressure test command
-8. **Mode choice** — local (no server) or remote (server-backed team mode)
-9. **Remote config** — in remote mode, prompts for backend URL and API key, validates key, then offers `spec pull` + `spec fix`
-
-**Note:** Setup now distinguishes between configuring agent profiles (`.felix/agents.json`) and choosing the active profile (`.felix/config.json`) so you are not asked to re-pick providers from a hardcoded list.
-
-**When to use:**
-
-- Bootstrapping a brand-new project
-- Onboarding a new team member on an existing project
-- After a global `felix install` to set up a project without copying engine files
-
----
-
-## Agent Management
-
-### `felix agent list` - See Available Agents
-
-```bash
-felix agent list
-```
-
-**Output:** The installed CLI renders a table showing current profile, key, provider, model, and executable status.
-
-```
-Current  Key          Name    Provider  Model    Executable
-*        ag_ee77df894 claude  claude    sonnet   claude
--        ag_16fffb5a4 codex   codex     default  codex
-```
-
-The `*` marks your current agent (configured in `.felix/config.json`). Agent IDs are content-addressed keys (`ag_XXXXXXXXX`) generated from agent config.
-
-### `felix agent current` - What Am I Using?
-
-```bash
-felix agent current
-```
-
-Shows the currently configured agent with full details.
-
-### `felix agent setup` - Configure Agents
-
-```bash
-felix agent setup
-```
-
-Interactive configuration for agents and default models. This writes or updates
-`.felix/agents.json` with selected agents and models.
-
-The installed CLI presents this as a searchable multi-select with provider status,
-preselects already-configured profiles, and then prompts for a model for each selected provider.
-Providers that are not installed are shown but cannot be selected, and the command points you to `felix agent install-help <name>` for installation guidance.
-
-For `copilot`, Felix currently uses a curated static model list instead of querying the CLI dynamically. By default Felix does not pass `--model` for Copilot, and Felix retries without `--model` if a configured Copilot model is no longer available.
-
-### `felix agent install-help [name]` - Show Install Instructions
-
-```bash
-felix agent install-help
-felix agent install-help copilot
-```
-
-**What it does:** Prints install and login guidance for all supported agents, or for one named agent.
-
-**When to use this:** When `felix agent setup` shows `Agent not installed` and you need concrete steps for that provider.
-
-### `felix agent use <id|name>` - Switch Agents
-
-```bash
-felix agent use claude
-```
-
-```bash
-felix agent use claude --model sonnet
-```
-
-**Interactive selection:**
-
-```bash
-felix agent use
-```
-
-**What it does:** Updates `.felix/config.json` to use a different agent profile from `.felix/agents.json`.
-
-If you pass `--model` and that model changes the agent identity, Felix also rewrites the matching entry in `.felix/agents.json` with the new deterministic `ag_...` key before updating `.felix/config.json`.
-
-When you launch `felix agent use` without a target, the installed CLI shows a searchable picker of configured profiles and, when the provider has multiple known models, a second picker that lets you keep the current model or switch to another one.
-
-If you prefer wording that emphasizes the persistent default rather than the immediate switch, use the alias `felix agent set-default`.
-
-### `felix agent set-default <id|name>` - Set The Persistent Default
-
-```bash
-felix agent set-default claude
-felix agent set-default copilot
-```
-
-**Interactive selection:**
-
-```bash
-felix agent set-default
-```
-
-**What it does:** Updates `.felix/config.json` to persist the default agent Felix should use for future runs. This is an alias for the same underlying operation as `felix agent use`, but named for the "set my default" workflow.
-
-Like `felix agent use`, the command can also update `.felix/agents.json` when a model switch produces a different deterministic agent key.
-
-**Why you'd switch:**
-
-- `droid` is fast and cheap, good for bulk work
-- `claude` has better reasoning for complex problems
-- `codex` uses a diff-based workflow (different UX)
-- `gemini` if you want to test Google's model
-- `copilot` uses GitHub Copilot CLI autopilot locally
-
-**Behind the scenes:** Agents are just different LLM adapters with different executables. They all speak the same protocol (JSON events) and follow the same workflow, but have different strengths.
-
-### `felix agent test <id|name>` - Smoke Test an Agent
-
-```bash
-felix agent test droid
-```
-
-**What it does:** Runs a quick smoke test to verify:
-
-1. Executable is in PATH
-2. The executable can be launched
-3. A version probe works, or is skipped safely if unsupported
-
-**When to use this:** After installing a new agent executable or updating versions.
-
-### `felix agent register` - Register Agent with Sync Server
-
-```bash
-felix agent register
-```
-
-**What it does:** Registers the current agent profile (from `.felix/agents.json`) with the sync server so it appears in the UI Fleet view and can claim work via `GET /api/sync/work/next`.
-
-- Shows the target URL and API key prefix before attempting
-- Prompts to proceed if sync is disabled in config
-- Continues safely in non-interactive shells by using the configured sync values without prompting
-- Safe to re-run — uses an upsert (`ON CONFLICT DO UPDATE`) so repeated calls just refresh metadata
-- Surfaces backend error detail inline: key mismatch, git URL mismatch, DB errors
-
-**Agent keys are content-addressed:**
-
-```
-ag_ + first 9 chars of sha256("{provider}::{model}::{}::{machine}::{git_url}")
-```
-
-This means `.felix/agents.json` only needs `name`, `provider`, and `model` — no manual UUIDs. `felix setup` generates a correct `agents.json` automatically.
-
-See [tuts/MULTI_AGENT_SUPPORT.md](../tuts/MULTI_AGENT_SUPPORT.md) for the full adapter architecture.
-
----
-
-## Process Management
-
-### `felix procs` - See What's Running
-
-```bash
-felix procs
-felix procs list
-```
-
-**Shows:**
-
-- Session ID (run identifier)
-- Requirement being executed
-- Agent name
-- Process ID (PID)
-- Running duration
-- Status (running/paused)
-
-**Example output:**
-
-```
-Active Sessions:
-
-  Session: S-0042-20260217-143022-it1
-  Requirement: S-0042
-  Agent: droid
-  PID: 18432
-  Duration: 12:34
-  Status: running
-```
-
-**Why this matters:** Sometimes you spawn `felix loop` in a background terminal and forget about it. `felix procs` shows you it's still churning away.
-
-### `felix procs kill <session-id>` - Stop a Runaway Process
-
-```bash
-felix procs kill S-0042-20260217-143022-it1
-```
-
-**Kill all running sessions at once:**
-
-```bash
-felix procs kill all
-```
-
-**What it does:** Force-terminates tracked agent processes and removes their entries from `.felix/sessions.json`.
-
-- `felix procs kill <session-id>` stops one tracked session
-- `felix procs kill all` stops every tracked session in the repo
-- stale session records are cleaned up automatically when Felix reads `.felix/sessions.json`
-
-**When you need this:**
-
-- Agent is stuck in an infinite loop
-- You realized the spec is wrong mid-execution
-- You need to free up CPU/memory for something else
-
-**Safety:** This is a force stop of the tracked process tree, not a graceful "finish the current iteration" shutdown. Use it when you want the session gone now.
-
----
-
-## Utility Commands
-
-### `felix tui` - Interactive Terminal Shell
+## `felix tui`
 
 ```bash
 felix tui
+felix dashboard   # alias
 ```
 
-Also available as:
-
-```bash
-felix dashboard
-```
-
-**What it does:** Launches an interactive terminal UI (built with .NET/Spectre.Console) that provides:
+Launches an interactive terminal UI (built with .NET/Spectre.Console) providing:
 
 - A bordered welcome and status card on initial load
 - A Copilot-style slash-command composer at the bottom while typing
@@ -1111,187 +197,24 @@ felix dashboard
 
 **Navigation:**
 
-| Key         | Action                                                     |
-| ----------- | ---------------------------------------------------------- |
-| `/`         | Start a slash command and open command suggestions         |
-| `Up`/`Down` | Move through the visible suggestion window                 |
-| `Enter`     | Accept the highlighted suggestion or run the current input |
-| `Esc`       | Cancel the current prompt or suggestion list               |
-| `Backspace` | Delete input, or cancel when the prompt is empty           |
+| Key | Action |
+|---|---|
+| `/` | Start a slash command and open command suggestions |
+| `Up`/`Down` | Move through the visible suggestion window |
+| `Enter` | Accept the highlighted suggestion or run the current input |
+| `Esc` | Cancel the current prompt or suggestion list |
+| `Backspace` | Delete input, or cancel when the prompt is empty |
 
-**Common commands:**
-
-- `/help`
-- `/version`
-- `/status`
-- `/list`
-- `/run <requirement-id>`
-- `/run-next`
-- `/validate <requirement-id>`
-- `/deps <requirement-id>`
-- `/setup`
-- `/quit`
+**Common commands:** `/help` Â· `/status` Â· `/list` Â· `/run <id>` Â· `/run-next` Â· `/validate <id>` Â· `/deps <id>` Â· `/setup` Â· `/quit`
 
 **Notes:**
-
-- The welcome card is startup content, not a permanently fixed header.
-- Output is appended below each command instead of clearing the screen, so terminal scrollback is preserved.
-- The command composer stays at the bottom while entering input; long suggestion lists scroll around the selected item instead of rendering all matches at once.
-- Some commands intentionally take over the terminal directly, then return to the shell when they finish. This applies to longer-running or interactive flows such as `/run`, `/run-next`, `/loop`, `/setup`, and `/procs kill` without an explicit target.
-- `felix dashboard` remains an alias for `felix tui`.
-- .NET SDK (`dotnet` CLI) must be installed. The TUI is the C# `src/Felix.Cli` project and is separate from the PowerShell CLI.
-
-### `felix version` - Show Version Information
-
-```bash
-felix version
-```
-
-Displays the Felix CLI version, current git branch, and short commit hash. Useful for bug reports and confirming which version is installed.
-
-**Example output:**
-
-```
-Felix CLI v0.3.0-alpha (Phase 1: PowerShell)
-Repository: C:\dev\myproject
-Branch: main
-Commit: a3f8c12
-```
-
-### `felix help [command]` - Command Reference
-
-```bash
-felix help
-felix help run
-felix help loop
-felix help spec
-felix help context
-felix help agent
-felix help deps
-felix help procs
-felix help tui
-```
-
-Prints usage, options, and examples for any command. Running `felix help` with no argument prints the full command list.
+- Output is appended below each command (terminal scrollback is preserved)
+- Some commands take over the terminal directly, then return when they finish (`/run`, `/run-next`, `/loop`, `/setup`, `/procs kill`)
+- .NET SDK (`dotnet` CLI) must be installed â€” TUI is the C# `src/Felix.Cli` project
 
 ---
 
-## Global Options: The Switches That Work Everywhere
-
-### `--format <json|plain|rich>` - Control Output Style
-
-**JSON (machine-readable):**
-
-```bash
-felix run S-0001 --format json
-```
-
-Every event as a complete JSON object on one line. Perfect for:
-
-- Parsing in scripts
-- Piping to other tools
-- Remote execution / headless environments
-
-**Plain (human-readable text):**
-
-```bash
-felix run S-0001 --format plain
-```
-
-Simple colored text output. Good for:
-
-- Basic terminal environments
-- Log files
-- CI/CD pipelines where colors might break
-
-**Rich (default, fancy):**
-
-```bash
-felix run S-0001 --format rich
-```
-
-Enhanced visuals with:
-
-- Progress indicators
-- Colored output
-- Formatted tables
-- Statistics summary
-
-**Default:** Rich format for interactive terminals, JSON for scripts/pipelines.
-
-### `--verbose` - See Everything
-
-```bash
-felix run S-0001 --verbose
-```
-
-**What you get:**
-
-- Debug-level log messages
-- Internal state transitions
-- LLM prompt construction details
-- File I/O operations
-- Git command execution
-
-**When to use it:**
-
-- Debugging agent behavior
-- Understanding why a requirement failed
-- Learning how Felix works internally
-
-**Warning:** VERY chatty. Your terminal will scroll like the Matrix.
-
-### `--quiet` - Shut Up and Work
-
-```bash
-felix run S-0001 --quiet
-```
-
-**What gets suppressed:**
-
-- Info-level messages
-- Progress indicators
-- Statistics
-
-**What you still see:**
-
-- Errors (obviously)
-- Warnings
-- Final status
-
-**Use case:** Background jobs, cron tasks, CI/CD where you only want to know if it failed.
-
-### `--no-stats` - Skip the Summary
-
-```bash
-felix run S-0001 --no-stats
-```
-
-Normally Felix shows a summary at the end:
-
-```
-=== Run Statistics ===
-Events: 1,247
-Errors: 2
-Warnings: 5
-Tasks completed: 8
-Validations passed: 3
-Duration: 4m 32s
-```
-
-With `--no-stats`, this is suppressed. Useful for:
-
-- JSON output mode (stats would break parsing)
-- Scripted execution where you don't care
-- Minimalist aesthetic preferences
-
----
-
-## Advanced Switches: The Power User Tools
-
----
-
-## Operating Modes: Local vs Team
+## Operating Modes
 
 Felix runs in one of two modes depending on `sync.enabled` in `.felix/config.json`.
 
@@ -1305,11 +228,7 @@ No server required. Everything runs from local files.
 - No network calls during the agent loop
 
 ```json
-{
-  "sync": {
-    "enabled": false
-  }
-}
+{ "sync": { "enabled": false } }
 ```
 
 ### Remote / Team Mode
@@ -1330,19 +249,15 @@ Requires a running Felix backend. Enables server-side work allocation so multipl
 
 1. `felix loop` calls `GET /api/sync/work/next` instead of scanning `requirements.json`
 2. Server uses `FOR UPDATE SKIP LOCKED` to atomically assign a requirement to one agent
-3. Returns 204 when nothing is available — loop idles and retries
+3. Returns 204 when nothing is available â€” loop idles and retries
 4. If the agent is blocked (exit code 2 or 3), it calls `POST /api/sync/work/release` to return the requirement to the queue for another agent
 
 **Typical remote mode workflow:**
 
 ```bash
-# 1. Pull latest specs and metadata from server
-felix spec pull
-
-# 2. Start the autonomous loop (uses server work allocation)
-felix loop
-
-# Terminal 2 — second agent works in parallel on different requirements
+felix spec pull           # Get latest specs and metadata from server
+felix loop                # Start the autonomous loop (uses server work allocation)
+# Terminal 2 â€” second agent works in parallel on different requirements
 felix loop
 ```
 
@@ -1354,546 +269,6 @@ $env:FELIX_SYNC_URL     = "https://felix.company.com"
 $env:FELIX_SYNC_KEY     = "fsk_prod_key_here"
 felix loop
 ```
-
----
-
-## Advanced Switches: The Power User Tools
-
-### `--sync` - Push Artifacts to Backend Server
-
-**Usage:**
-
-```bash
-felix run S-0001 --sync
-felix loop --sync
-```
-
-**What it does:** Enables artifact mirroring to a remote backend for this run only, overriding the `sync.enabled` setting in `.felix/config.json`.
-
-**Why temporary override?**
-
-- You normally run locally without sync (faster, no network dependency)
-- But for important requirements you want artifacts backed up
-- Or you're showing progress to stakeholders who don't have local access
-
-**What gets synced:**
-
-- Agent registration (hostname, platform, version)
-- Run creation (requirement ID, start time)
-- Events (full NDJSON stream)
-- Output files (logs, diffs, reports)
-- Run completion (status, exit code)
-
-**Architecture:**
-
----
-
-## v2 Commands Reference
-
-The following commands were added in Felix v2. They supplement (but do not replace) the commands documented above.
-
----
-
-### `felix run replay` — Inspect a previous run's prompt
-
-Re-open the exact prompt artifact that was sent to the model for a past run. Read-only — does not re-execute the agent.
-
-```powershell
-felix run replay <run-id>
-felix run replay <run-id> --iteration <N>
-```
-
-| Argument/Flag | Description |
-|---|---|
-| `<run-id>` | Run directory name (e.g., `S-0001-20260601-143022-it1`). |
-| `--iteration N` | Open the prompt for iteration N. Defaults to the last iteration. |
-
-**What it opens:** `runs/<run-id>/iteration-<N>/prompt.txt` in `$EDITOR` (falls back to `notepad`).
-
-**Why:** When an agent produces unexpected output, `replay` lets you read the exact context it received — diagnose truncated specs, wrong skill loading, or missing memory entries.
-
----
-
-### `felix recover` — Crash recovery
-
-Recover orphaned runs left by crashed or interrupted workers.
-
-```powershell
-felix recover [--run <run-id>] [--all] [--yes] [--dry-run]
-```
-
-Alias: `felix run recover [flags]`
-
-| Flag | Description |
-|---|---|
-| `--run <id>` | Recover a specific run (by run-id or requirement-id). |
-| `--all` | Enumerate all orphaned runs and prompt per-run. |
-| `--yes` | Apply recovery actions non-interactively (defaults to `block`). |
-| `--dry-run` | Show the recovery plan; make no changes. |
-
-**Recovery actions (interactive):**
-
-- `r` — release the stale lease so the requirement can be claimed again
-- `a` — mark the requirement `blocked` with `block_reason: "recovered-from-crash"` and remove the orphaned worktree
-- `s` — skip this run
-
-See [CONCURRENCY.md](CONCURRENCY.md) for details.
-
----
-
-### `felix loop --parallel N [--worktrees]` — Parallel workers
-
-Spawn multiple workers to process requirements concurrently.
-
-```powershell
-felix loop --parallel 4
-felix loop --parallel 4 --worktrees
-felix loop --parallel 4 --worktrees --no-commit
-```
-
-| Flag | Description |
-|---|---|
-| `--parallel N` | Number of worker processes to spawn. Default: `1`. |
-| `--worktrees` | Give each worker an isolated git worktree at `.felix/worktrees/<run-id>/`. |
-| `--no-commit` | Suppress auto-commit on completion (applies to all workers). |
-| `--sync` | Enable artifact sync to the remote server for all workers. |
-
-Workers coordinate via atomic lease files in `.felix/.locks/`. See [CONCURRENCY.md](CONCURRENCY.md).
-
----
-
-### `felix event tail` / `felix event query` — Event stream
-
-Read from the Felix event bus at `.felix/events.jsonl`.
-
-```powershell
-# Stream recent events with filters
-felix event tail
-felix event tail --kind agent.start
-felix event tail --kind backpressure.fail
-felix event tail --run-id S-0001-20260601-143022-it1
-felix event tail --since 30m
-felix event tail --since 2h
-felix event tail --since 1d
-
-# Filter events by field=value expression
-felix event query "type=log"
-felix event query "run_id=S-0001-20260601-143022-it1"
-```
-
-**`tail` flags:**
-
-| Flag | Description |
-|---|---|
-| `--kind <type>` | Filter to events of this type (e.g., `agent.start`, `tool.call`). |
-| `--run-id <id>` | Filter to events from a specific run. |
-| `--since <duration>` | Show events from last `Nm` (minutes), `Nh` (hours), or `Nd` (days). |
-
-Output is raw NDJSON (one JSON object per line). See [CONTEXT.md](CONTEXT.md) for the full event type reference.
-
----
-
-### `felix context inspect` — Token budget breakdown
-
-Print a table showing token consumption per context source and what would be evicted if the budget were exceeded.
-
-```powershell
-felix context inspect
-felix context inspect --requirement S-0001
-```
-
-Output:
-
-```
-Context budget: 8,420 / 32,000 tokens
-
-  Source           Tokens   Status
-  ─────────────────────────────────
-  layered_agents    1,240   ok
-  spec              2,100   ok
-  ...
-
-All sources fit within budget.
-```
-
----
-
-### `felix search` — Full-text search
-
-Search across code, specs, and run history. Honours `.felixignore`.
-
-```powershell
-felix search "<pattern>"
-felix search "RegisterCommands" --in code
-felix search "authentication" --in specs
-felix search "NullReferenceException" --in runs --max 20
-felix search --related-to S-0042 --json
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--scope file\|symbol` | `file` | Match at file level or symbol level (requires LSP for symbol). |
-| `--in code\|specs\|runs\|all` | `code` | Search target. |
-| `--max N` | `50` | Maximum results. |
-| `--json` | — | Emit structured JSON. |
-| `--related-to <req-id>` | — | Files referenced in the requirement's history (no pattern needed). |
-
-See [SEARCH.md](SEARCH.md) for JSON output schema and full details.
-
----
-
-### `felix deps` — Dependency graph
-
-Analyse requirement dependencies and check execution readiness.
-
-```powershell
-felix deps S-0001               # Show direct dependencies with status
-felix deps S-0001 --check       # Exit 0 if all deps complete, exit 1 otherwise
-felix deps S-0001 --tree        # Show transitive dependency tree
-felix deps --incomplete         # List all requirements with incomplete deps
-```
-
----
-
-### `felix query` — Structured state query
-
-Agent-readable JSON interface for requirements, runs, and state. Schema-versioned.
-
-```powershell
-felix query requirements --status planned --json
-felix query requirements --status blocked
-felix query runs --since 24h --requirement S-0042 --json
-felix query state --json
-```
-
-| Kind | Description |
-|---|---|
-| `requirements` | Filter requirements by `--status`. |
-| `runs` | Filter run history by `--since`, `--requirement`. |
-| `state` | Read `.felix/state.json`. |
-
-All JSON responses include a `_v: 1` version field.
-
----
-
-### `felix memory` — Memory management
-
-Manage the persistent `.felix/memory/` knowledge tree.
-
-```powershell
-# View
-felix memory view
-felix memory view --scope global
-felix memory view --scope repo
-felix memory view --scope requirement --req S-0001
-
-# Add
-felix memory add --scope repo      --title "Run build before test" --body "..."
-felix memory add --scope global    --title "Assert.Equal order"    --body "..."
-felix memory add --scope requirement --req S-0042 --title "JWT secret source" --body "..."
-
-# Edit
-felix memory edit .felix\memory\repo\2026-06-01-run-build-before-test.md
-
-# Prune proposal files only (never touches committed entries)
-felix memory prune
-felix memory prune --older-than 14
-felix memory prune --dry-run
-```
-
-See [MEMORY.md](MEMORY.md) for full details.
-
----
-
-### `felix skill` — Skill management
-
-Install, list, inspect, and enable/disable skills.
-
-```powershell
-# List
-felix skill list
-felix skill list --scope repo
-felix skill list --scope user
-felix skill list --json
-
-# Inspect
-felix skill show spec-builder
-
-# Enable / disable
-felix skill enable  security-review
-felix skill disable security-review
-
-# Install
-felix skill install security-review                   # from index
-felix skill install security-review --scope user      # user scope
-felix skill install ./my-skills/test-advisor          # local path
-felix skill install https://example.com/skill.zip     # URL
-felix skill install my-skill --channel beta           # beta channel
-```
-
-See [SKILLS.md](SKILLS.md) for authoring guide and manifest schema.
-
----
-
-### `felix plugin update` — Marketplace updates
-
-Update installed plugins from the remote index.
-
-```powershell
-felix plugin update my-plugin          # Update a specific plugin
-felix plugin update --all              # Update all installed plugins
-felix plugin update --dry-run          # Preview updates without installing
-felix plugin update --all --channel beta  # Include beta versions
-```
-
----
-
-### `felix gc` — Garbage collection
-
-Prune stale run artifacts, event log rotations, and orphaned worktrees.
-
-```powershell
-felix gc               # Interactive — prompts before each category
-felix gc --dry-run     # Preview what would be pruned
-felix gc --yes         # Non-interactive — prune without confirmation
-```
-
-**What is pruned:**
-
-- `runs/` directories older than `gc.retention_days` (default: 30). The most-recent successful run per requirement is always kept.
-- `.felix/events-*.jsonl` rotation files older than `gc.events_retention_days` (default: 30).
-- `.felix/worktrees/<run-id>/` directories not referenced by an active session.
-
-Config keys: `gc.retention_days`, `gc.events_retention_days` — see [CONFIGURATION.md](CONFIGURATION.md).
-
----
-
-### `felix tool` — Tool allowlist
-
-Manage the agent tool allowlist (Phase F security).
-
-```powershell
-# Show current allowlist and audit stats
-felix tool status
-
-# Flip default to deny, infer allowlist from audit log
-felix tool harden
-felix tool harden --dry-run    # Preview without writing
-felix tool harden --yes        # Skip confirmation prompt
-```
-
-After `felix tool harden`, the `tools` block in `config.json` is updated:
-
-```json
-"tools": {
-  "allow": ["search.*", "navigate.*"],
-  "deny":  [],
-  "default": "deny"
-}
-```
-
-Alias: `felix tools harden` (deprecated in next minor).
-
----
-
-### `felix migrate` — Schema migration
-
-Transform a v1 repository layout to v2. Preview by default; `--apply` is required to write changes.
-
-```powershell
-felix migrate              # Dry-run: show pending transforms
-felix migrate --apply      # Execute all pending transforms
-felix migrate --dry-run    # Explicit dry-run
-felix migrate --only felixignore-seed   # Run a single transform
-```
-
-**Registered transforms:**
-
-| ID | Phase | Description |
-|---|---|---|
-| `felixignore-seed` | A | Create `.felixignore` from default template |
-| `agents-map-init` | A | Add `## Map` section to root `AGENTS.md` |
-| `spec-frontmatter` | B | Add YAML frontmatter to v1 spec files |
-| `explore-enable` | C | Auto-enable exploration when tracked files ≥ 500 |
-| `tools-allow` | F | Seed `tools.default = "allow"` in `config.json` |
-
-Migration is **idempotent** — re-running on an already-migrated repo is a no-op. To undo: `git revert` the migration commit. There is no `--revert` flag.
-
----
-
-### `felix doctor` — Health check
-
-Run diagnostic checks against the repository. Extensible — later phases register their own checks.
-
-```powershell
-felix doctor              # Run all checks
-felix doctor --fix        # Run checks and apply non-destructive repairs
-felix doctor --json       # Machine-readable output
-
-# Explain why a specific file is ignored by .felixignore
-felix doctor --explain publish-out/MyApp.exe
-```
-
-**Registered checks:**
-
-| Check | Phase | Description |
-|---|---|---|
-| `event-log` | A | Detect corrupt or truncated `.felix/events.jsonl` |
-| `plugin-hashes` | A | Detect plugin manifest hash mismatches |
-| `repo-map-stale` | A | New top-level folder without entry in `AGENTS.md ## Map` |
-| `spec-frontmatter` | B | Required frontmatter fields present; gates/skills/applyTo valid |
-| `stale-review` | E | Last `felix review` > 90 days ago |
-| `stale-leases` | H | Lease files past their `lease_until` timestamp |
-| `orphaned-worktrees` | H | Worktree directories not tracked in active sessions |
-
-**Exit codes:** `0` all checks passed · `1` one or more checks failed · `2` invalid arguments
-
-```
-CLI Agent → Writes locally to runs/ → Queues to .felix/outbox/*.jsonl
-                                   → Background sync uploads to backend
-                                   → Retry on failure (exponential backoff)
-```
-
-**Sync failure handling:**
-
-- Non-blocking: Agent continues even if sync fails
-- Queued: Failed uploads retry later when backend comes back
-- Eventual consistency: All artifacts eventually reach the backend
-- SHA256 checksums: Duplicate uploads are skipped
-
-**Configuration hierarchy:**
-
-1. `--sync` flag (highest priority - this run only)
-2. `$env:FELIX_SYNC_ENABLED` environment variable
-3. `.felix/config.json` sync.enabled setting (persistent)
-
-**Pro tip:** Set up sync for production/staging environments but disable for local dev:
-
-```powershell
-# Production deployment
-$env:FELIX_SYNC_ENABLED = "true"
-$env:FELIX_SYNC_URL = "https://felix.company.com"
-$env:FELIX_SYNC_KEY = "fsk_prod_key_here"
-felix loop
-```
-
-```powershell
-# Local development (no sync)
-felix run S-0001
-```
-
-**Troubleshooting:** If sync isn't working, check `.felix/outbox/` for queued files. If you see hundreds of `*.jsonl` files, the agent couldn't reach the backend. Clean them up or let them retry when the network recovers.
-
-### `--quick` - Speed Through Interactive Prompts
-
-**Usage:**
-
-```bash
-felix spec create "Add user authentication" --quick
-```
-
-**What it skips:**
-
-- Detailed description prompts
-- Dependency questions
-- Status selection (defaults to "planned")
-- Acceptance criteria generation
-
-**What you get:**
-
-- Spec file with title only
-- Minimal frontmatter
-- Ready to edit manually
-
-**When to use it:**
-
-- You know exactly what you want
-- You'll flesh out details later
-- You have 20 small requirements to batch-create
-
-**Time savings:** Interactive mode: ~2-3 minutes per spec. Quick mode: ~5 seconds.
-
-### `--no-commit` - Disable Git Commits (Testing Mode)
-
-**Usage:**
-
-```bash
-felix run S-0001 --no-commit
-```
-
-**What it does:** Agent makes all code changes but skips `git commit` at the end.
-
-**When to use it:**
-
-- Testing a new spec for the first time
-- Prototyping agent behavior
-- You want to review changes before committing
-
-**Why this exists:** Early on, we'd test a spec and Felix would commit broken code with a message like "Implement feature X [Claude]". Then we'd have to `git reset --hard` and lose the changes. `--no-commit` lets you see what the agent did before deciding to keep it.
-
-**Pro tip:** Combine with `--format plain` for testing:
-
-```bash
-felix run S-0001 --no-commit --format plain | tee test-output.log
-```
-
-Review changes, then either commit manually or discard:
-
-```bash
-# Keep it
-git add -A
-git commit -m "Implement S-0001 (manually verified)"
-
-# Discard it
-git reset --hard
-```
-
----
-
-## The Exit Code Contract: What They Mean
-
-Felix uses exit codes to communicate status in scripts/CI:
-
-| Code | Meaning                | What to Do                                              |
-| ---- | ---------------------- | ------------------------------------------------------- |
-| `0`  | Success                | Requirement complete, tests pass, validated             |
-| `1`  | Error                  | Agent crashed, unexpected failure, infrastructure issue |
-| `2`  | Blocked (Backpressure) | Tests failed 3 times, agent gave up                     |
-| `3`  | Blocked (Validation)   | Acceptance criteria failed 2 times                      |
-| `5`  | No Work Available      | Nothing planned — used by `felix run-next`; safe in CI  |
-
-**Why this matters for automation:**
-
-```powershell
-felix run S-0042
-$exitCode = $LASTEXITCODE
-
-if ($exitCode -eq 0) {
-    # Success - deploy to staging
-    deploy-to-staging
-}
-elseif ($exitCode -eq 2 -or $exitCode -eq 3) {
-    # Blocked - manual intervention needed
-    send-slack-notification "S-0042 blocked, needs attention"
-}
-else {
-    # Error - retry later
-    schedule-retry
-}
-```
-
-**Unblocking requirements:**
-
-When Felix exits with code 2 or 3, it marks the requirement as "blocked" in `.felix/requirements.json`. To unblock:
-
-1. Fix the underlying issue (broken tests, wrong acceptance criteria)
-2. Edit `.felix/requirements.json` and change status from `"blocked"` to `"planned"`
-3. Run Felix again - it will pick up the unblocked requirement
-
-**Common causes:**
-
-- Exit 2: Flaky tests, missing test data, environment issues
-- Exit 3: Vague acceptance criteria, feature genuinely incomplete
 
 ---
 
@@ -1947,7 +322,7 @@ startInfo.Environment["FELIX_SYNC_ENABLED"] = "true";
 
 ### The Arrow Character Encoding Disaster
 
-**The Bug:** Console output showed `â€"` instead of `→` on some systems.
+**The Bug:** Console output showed `Ã¢â‚¬"` instead of `â†’` on some systems.
 
 **Root cause:** UTF-8 string written to console configured for ASCII or Windows-1252.
 
@@ -1960,7 +335,7 @@ chcp 65001 | Out-Null
 $OutputEncoding = [System.Text.Encoding]::UTF8
 ```
 
-**Pragmatic solution:** Changed `→` to `->` in output messages. Not pretty, but works everywhere.
+**Pragmatic solution:** Changed `â†’` to `->` in output messages. Not pretty, but works everywhere.
 
 **Lesson:** Unicode support in terminal apps is a minefield. ASCII-safe characters or emojis (which Windows handles better for some reason) are safer than fancy arrows.
 
@@ -1978,7 +353,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 1. `sync.router` registered first with `/api/agents/register` (simple upsert)
 2. `agents.router` registered second with same path (full auth, metadata handling)
-3. CLI called `/api/agents/register` → routed to sync endpoint (no metadata support)
+3. CLI called `/api/agents/register` â†’ routed to sync endpoint (no metadata support)
 4. No error because the endpoint exists, just wrong implementation
 
 **The fix:** Removed redundant endpoint, unified on single authenticated route.
@@ -2000,10 +375,10 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 **The cascade:**
 
 1. Load config: agent_id is now string "39535ce5-..."
-2. PowerShell sees `[int]$AgentId` → tries to cast string to int → fails silently, uses $null
+2. PowerShell sees `[int]$AgentId` â†’ tries to cast string to int â†’ fails silently, uses $null
 3. Agent runs successfully (default fallback mechanisms)
 4. Exit handler tries to unregister: `Unregister-Agent -AgentId $null`
-5. Backend: "uuid field cannot be null" → 500 error → crash
+5. Backend: "uuid field cannot be null" â†’ 500 error â†’ crash
 
 **The fix:** Changed every `[int]$AgentId` to `[string]$AgentId` across 5 files.
 
@@ -2154,20 +529,16 @@ Why? When a requirement fails, you want to know which agent ran it and with what
 
 ### 7. Archive Old Runs
 
-Run artifacts accumulate fast:
-
-```
-runs/
-  2026-02-01T10-30-00/
-  2026-02-01T11-15-22/
-  2026-02-01T14-45-10/
-  ... 500 more ...
-```
-
-Periodically archive:
+Run artifacts accumulate fast. Periodically prune with `felix gc`:
 
 ```powershell
-# Move runs older than 30 days to archive
+felix gc --dry-run   # See what would be pruned
+felix gc --yes       # Prune without confirmation
+```
+
+Or archive manually:
+
+```powershell
 $cutoff = (Get-Date).AddDays(-30)
 Get-ChildItem runs/* | Where-Object { $_.CreationTime -lt $cutoff } | Move-Item -Destination archive/runs/
 ```
@@ -2349,54 +720,17 @@ python --version
 
 ---
 
-## Putting It All Together: A Real Example
-
-Let's implement a complete feature using Felix:
-
-```bash
-# 1. Create the requirement
-felix spec create "Add rate limiting to API endpoints"
-
-# 2. Review auto-generated spec
-code specs/S-0042.md
-
-# 3. Flesh out acceptance criteria in the spec file
-code specs/S-0042.md
-
-# 4. Check dependencies (might need auth requirement first)
-felix deps S-0042 --check
-
-# 5. Run focused execution
-felix run S-0042 --sync
-
-# 6. Check results
-felix status S-0042
-
-# 7. If blocked, investigate
-felix validate S-0042
-cat runs/*/output.log | grep -i error
-
-# 8. Fix issues and retry
-felix run S-0042
-
-# 9. When complete, verify in staging
-felix spec list --status complete
-```
-
----
-
 ## Going Deeper
 
 The `tuts/` directory contains architecture deep dives written alongside the codebase:
 
-| File                                                          | Description                                                                                         |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [tuts/FELIX_EXPLAINED.md](../tuts/FELIX_EXPLAINED.md)         | Accessible intro — the "tiny brain, big clipboard" mental model, full architecture tour             |
-| [tuts/EXECUTION_FLOW.md](../tuts/EXECUTION_FLOW.md)           | Detailed execution flow with Mermaid diagram — planning mode guardrails, backpressure, git snapshot |
-| tuts/RALPH*EXPLAINED.md *(Coming soon)\_                      | Why the loop design works — context pollution problem, 3-phase model, backpressure rationale        |
-| [tuts/MULTI_AGENT_SUPPORT.md](../tuts/MULTI_AGENT_SUPPORT.md) | Full adapter pattern docs for all 4 LLM profiles                                                    |
-| [tuts/SWITCHING_AGENTS.md](../tuts/SWITCHING_AGENTS.md)       | Step-by-step agent switching guide                                                                  |
-| [tuts/sync/README.md](../tuts/sync/README.md)                 | 9-chapter sync system deep dive — outbox pattern, plugin internals, production ops                  |
+| File | Description |
+|---|---|
+| [tuts/FELIX_EXPLAINED.md](../tuts/FELIX_EXPLAINED.md) | Accessible intro â€” the "tiny brain, big clipboard" mental model, full architecture tour |
+| [tuts/EXECUTION_FLOW.md](../tuts/EXECUTION_FLOW.md) | Detailed execution flow with Mermaid diagram â€” planning mode guardrails, backpressure, git snapshot |
+| [tuts/MULTI_AGENT_SUPPORT.md](../tuts/MULTI_AGENT_SUPPORT.md) | Full adapter pattern docs for all 4 LLM profiles |
+| [tuts/SWITCHING_AGENTS.md](../tuts/SWITCHING_AGENTS.md) | Step-by-step agent switching guide |
+| [tuts/sync/README.md](../tuts/sync/README.md) | 9-chapter sync system deep dive â€” outbox pattern, plugin internals, production ops |
 
 ---
 
@@ -2413,4 +747,8 @@ The best way to learn Felix is to use it on a real project. Start with one simpl
 
 Remember: Felix is a junior developer. Give it clear instructions, testable criteria, and guard rails (backpressure tests), and it will happily churn through work while you focus on architecture and design.
 
-Happy automating! 🚀
+Happy automating! ðŸš€
+
+---
+
+*See also: [RUNNING.md](RUNNING.md) Â· [SPECS.md](SPECS.md) Â· [SETUP.md](SETUP.md) Â· [CONTEXT.md](CONTEXT.md) Â· [SEARCH.md](SEARCH.md) Â· [MEMORY.md](MEMORY.md) Â· [SKILLS.md](SKILLS.md) Â· [PLUGINS.md](PLUGINS.md) Â· [CONCURRENCY.md](CONCURRENCY.md) Â· [SYNC_OPERATIONS.md](SYNC_OPERATIONS.md) Â· [CONFIGURATION.md](CONFIGURATION.md)*
