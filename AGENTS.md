@@ -67,6 +67,9 @@ dotnet test tests\Felix.Cli.Tests\
 # Run Phase F PowerShell unit tests (targeted execution: path-matcher, backpressure v2, query, tool-allowlist, gc)
 .\tests\Test-PhaseF.ps1
 
+# Run Phase G PowerShell unit tests (marketplace: index-client, Compare-SemVer, plugin update, skill install)
+.\tests\Test-PhaseG.ps1
+
 # Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
@@ -277,6 +280,42 @@ gates: [dotnet.test, npm.lint]
 - `.felix/commands/query.ps1` — `Invoke-Query`
 - `.felix/commands/tool.ps1` — `Invoke-Tool`
 - `.felix/commands/gc.ps1` — `Invoke-Gc`
+
+## Marketplace (Phase G)
+
+Phase G adds a curated plugin/skill index, remote list/update, and `felix skill install`.
+
+**`felix plugin update`:**
+```powershell
+felix plugin list --remote [--channel stable|beta]   # list with available-update column
+felix plugin update --all [--dry-run] [--channel stable|beta]
+felix plugin update <id>  [--dry-run]
+felix plugin install <name|./path|https://url.zip> [--channel stable|beta]
+```
+
+**`felix skill install`:**
+```powershell
+felix skill install <name>           # from index (felix_min + SHA256 verified)
+felix skill install ./local/path     # copy local skill dir to .felix/skills/<id>/
+felix skill install https://url.zip  # download, verify, extract
+felix skill install <name> --scope user  # install to user scope (~/.felix/skills/)
+```
+
+**Index config** (`.felix/config.json`):
+```json
+"distribution": {
+  "index_url": "https://nsasto.github.io/felix/plugins.json",
+  "channels": ["stable"]
+}
+```
+Override `index_url` for a private/internal registry.
+
+**Core scripts:**
+- `.felix/core/index-client.ps1` — `Get-PluginIndex`, `Get-DistributionConfig`, `Compare-SemVer`, `Get-CompatibleVersion`, `Test-IndexEntrySha256`, `Install-FromIndexEntry`
+- `docs/plugins.json` — reference curated index (`schema: index-v1`)
+
+**Tests:** `tests/Test-PhaseG.ps1` (53 tests).
+
 
 ## Sync Troubleshooting
 

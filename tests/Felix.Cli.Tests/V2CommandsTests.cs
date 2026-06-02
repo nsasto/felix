@@ -70,6 +70,7 @@ public sealed class V2CommandsTests
         Assert.Contains("list", subCmds);
         Assert.Contains("remove", subCmds);
         Assert.Contains("info", subCmds);
+        // Note: 'update' added in Phase G — full count tested in PluginCommand_HasFiveSubcommands_IncludingUpdate
     }
 
     [Fact]
@@ -427,5 +428,108 @@ public sealed class V2CommandsTests
         var opts = gc.Options.Select(o => o.Name).ToHashSet();
         Assert.Contains("dry-run", opts);
         Assert.Contains("yes",     opts);
+    }
+
+    // ── plugin update (Phase G3) ─────────────────────────────────────────
+
+    [Fact]
+    public void PluginCommand_HasFiveSubcommands_IncludingUpdate()
+    {
+        var root    = Program.CreateRootCommand(FakeFelixPs1);
+        var plugin  = root.Subcommands.Single(c => c.Name == "plugin");
+        var subCmds = plugin.Subcommands.Select(c => c.Name).ToHashSet();
+
+        Assert.Contains("install", subCmds);
+        Assert.Contains("list",    subCmds);
+        Assert.Contains("remove",  subCmds);
+        Assert.Contains("info",    subCmds);
+        Assert.Contains("update",  subCmds);
+        Assert.Equal(5, plugin.Subcommands.Count);
+    }
+
+    [Fact]
+    public void PluginUpdateCommand_HasAllAndDryRunAndChannelOptions()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var plugin = root.Subcommands.Single(c => c.Name == "plugin");
+        var update = plugin.Subcommands.Single(c => c.Name == "update");
+        var opts   = update.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("all",     opts);
+        Assert.Contains("dry-run", opts);
+        Assert.Contains("channel", opts);
+    }
+
+    [Fact]
+    public void PluginUpdateCommand_HasOptionalIdArgument()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var plugin = root.Subcommands.Single(c => c.Name == "plugin");
+        var update = plugin.Subcommands.Single(c => c.Name == "update");
+
+        Assert.Single(update.Arguments);
+        var idArg = update.Arguments.Single();
+        Assert.Equal("id", idArg.Name);
+        Assert.Equal(0, idArg.Arity.MinimumNumberOfValues); // optional
+    }
+
+    [Fact]
+    public void PluginUpdateCommand_ChannelDefaultIsStable()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var plugin = root.Subcommands.Single(c => c.Name == "plugin");
+        var update = plugin.Subcommands.Single(c => c.Name == "update");
+
+        var channelOpt = update.Options.Single(o => o.Name == "channel");
+        Assert.Equal(typeof(string), channelOpt.ValueType);
+    }
+
+    [Fact]
+    public void PluginInstallCommand_HasChannelOption()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var plugin = root.Subcommands.Single(c => c.Name == "plugin");
+        var install = plugin.Subcommands.Single(c => c.Name == "install");
+        var opts   = install.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("channel", opts);
+    }
+
+    [Fact]
+    public void PluginListCommand_HasChannelOption()
+    {
+        var root   = Program.CreateRootCommand(FakeFelixPs1);
+        var plugin = root.Subcommands.Single(c => c.Name == "plugin");
+        var list   = plugin.Subcommands.Single(c => c.Name == "list");
+        var opts   = list.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("remote",  opts);
+        Assert.Contains("json",    opts);
+        Assert.Contains("channel", opts);
+    }
+
+    // ── skill install (Phase G5) ─────────────────────────────────────────
+
+    [Fact]
+    public void SkillInstallCommand_HasChannelAndScopeOptions()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var skill = root.Subcommands.Single(c => c.Name == "skill");
+        var install = skill.Subcommands.Single(c => c.Name == "install");
+        var opts  = install.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("channel", opts);
+        Assert.Contains("scope",   opts);
+    }
+
+    [Fact]
+    public void SkillInstallCommand_ScopeDefaultIsRepo()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var skill = root.Subcommands.Single(c => c.Name == "skill");
+        var install = skill.Subcommands.Single(c => c.Name == "install");
+
+        var scopeOpt = install.Options.Single(o => o.Name == "scope");
+        Assert.Equal(typeof(string), scopeOpt.ValueType);
     }
 }

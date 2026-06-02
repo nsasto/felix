@@ -458,25 +458,30 @@ partial class Program
     {
         var cmd = new Command("plugin", "Manage Felix plugins");
 
-        // plugin install <source>
-        var installSourceArg = new Argument<string>("source", "Plugin source: ./path, https://url, git+https://..., or <name>");
-        var installCmd = new Command("install", "Install a plugin") { installSourceArg };
-        installCmd.SetHandler(async (source) =>
+        // plugin install <source> [--channel stable|beta]
+        var installSourceArg = new Argument<string>("source", "Plugin source: ./path, https://url, git+https://..., or <name> (from index)");
+        var installChannelOpt = new Option<string>("--channel", () => "stable", "Release channel: stable or beta");
+        var installCmd = new Command("install", "Install a plugin") { installSourceArg, installChannelOpt };
+        installCmd.SetHandler(async (source, channel) =>
         {
-            await ExecutePowerShell(felixPs1, "plugin", "install", source);
-        }, installSourceArg);
+            var args = new List<string> { "plugin", "install", source };
+            if (channel != "stable") args.AddRange(new[] { "--channel", channel });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, installSourceArg, installChannelOpt);
 
-        // plugin list [--remote]
-        var remoteOpt  = new Option<bool>("--remote", "List plugins from remote index (requires Phase G)");
-        var jsonOpt    = new Option<bool>("--json", "Machine-readable output");
-        var listCmd    = new Command("list", "List installed plugins") { remoteOpt, jsonOpt };
-        listCmd.SetHandler(async (remote, json) =>
+        // plugin list [--remote] [--channel stable|beta] [--json]
+        var listRemoteOpt  = new Option<bool>("--remote", "Query remote index for available updates");
+        var listJsonOpt    = new Option<bool>("--json", "Machine-readable output");
+        var listChannelOpt = new Option<string>("--channel", () => "stable", "Release channel: stable or beta");
+        var listCmd        = new Command("list", "List installed (and optionally available) plugins") { listRemoteOpt, listJsonOpt, listChannelOpt };
+        listCmd.SetHandler(async (remote, json, channel) =>
         {
             var args = new List<string> { "plugin", "list" };
-            if (remote) args.Add("--remote");
-            if (json) args.Add("--json");
+            if (remote)            args.Add("--remote");
+            if (json)              args.Add("--json");
+            if (channel != "stable") args.AddRange(new[] { "--channel", channel });
             await ExecutePowerShell(felixPs1, args.ToArray());
-        }, remoteOpt, jsonOpt);
+        }, listRemoteOpt, listJsonOpt, listChannelOpt);
 
         // plugin remove <id>
         var removeIdArg = new Argument<string>("id", "Plugin ID to remove");
@@ -494,10 +499,27 @@ partial class Program
             await ExecutePowerShell(felixPs1, "plugin", "info", id);
         }, infoIdArg);
 
+        // plugin update [<id>] [--all] [--dry-run] [--channel stable|beta]
+        var updateIdArg     = new Argument<string?>("id", "Plugin ID to update (omit with --all)") { Arity = ArgumentArity.ZeroOrOne };
+        var updateAllOpt    = new Option<bool>("--all",     "Update all installed plugins");
+        var updateDryRunOpt = new Option<bool>("--dry-run", "Preview updates without downloading");
+        var updateChannelOpt = new Option<string>("--channel", () => "stable", "Release channel: stable or beta");
+        var updateCmd        = new Command("update", "Update installed plugin(s) from index") { updateIdArg, updateAllOpt, updateDryRunOpt, updateChannelOpt };
+        updateCmd.SetHandler(async (id, all, dryRun, channel) =>
+        {
+            var args = new List<string> { "plugin", "update" };
+            if (!string.IsNullOrEmpty(id)) args.Add(id);
+            if (all)    args.Add("--all");
+            if (dryRun) args.Add("--dry-run");
+            if (channel != "stable") args.AddRange(new[] { "--channel", channel });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, updateIdArg, updateAllOpt, updateDryRunOpt, updateChannelOpt);
+
         cmd.AddCommand(installCmd);
         cmd.AddCommand(listCmd);
         cmd.AddCommand(removeCmd);
         cmd.AddCommand(infoCmd);
+        cmd.AddCommand(updateCmd);
         return cmd;
     }
 
@@ -816,13 +838,18 @@ partial class Program
             await ExecutePowerShell(felixPs1, "skill", "disable", id);
         }, disableIdArg);
 
-        // skill install <source> — deferred to Phase G
-        var installSourceArg = new Argument<string>("source", "Skill source (deferred to Phase G)");
-        var installCmd = new Command("install", "Install a skill (deferred to Phase G)") { installSourceArg };
-        installCmd.SetHandler(async (source) =>
+        // skill install <source> [--channel stable|beta] [--scope repo|user]
+        var installSourceArg  = new Argument<string>("source", "Skill source: ./path, https://url.zip, or <name> (from index)");
+        var installChannelOpt = new Option<string>("--channel", () => "stable", "Release channel: stable or beta");
+        var installScopeOpt   = new Option<string>("--scope", () => "repo", "Install scope: repo or user");
+        var installCmd = new Command("install", "Install a skill from index, URL, or local path") { installSourceArg, installChannelOpt, installScopeOpt };
+        installCmd.SetHandler(async (source, channel, scope) =>
         {
-            await ExecutePowerShell(felixPs1, "skill", "install", source);
-        }, installSourceArg);
+            var args = new List<string> { "skill", "install", source };
+            if (channel != "stable") args.AddRange(new[] { "--channel", channel });
+            if (scope   != "repo")   args.AddRange(new[] { "--scope",   scope });
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, installSourceArg, installChannelOpt, installScopeOpt);
 
         cmd.AddCommand(listCmd);
         cmd.AddCommand(showCmd);

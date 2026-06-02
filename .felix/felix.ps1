@@ -221,7 +221,7 @@ switch ($Command) {
     }
     "plugin" {
         . "$FelixRoot\commands\plugin.ps1"
-        Invoke-Plugin -Args $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
+        Invoke-Plugin -CmdArgs $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
     }
     "event" {
         . "$FelixRoot\commands\event.ps1"
@@ -233,7 +233,7 @@ switch ($Command) {
     }
     "skill" {
         . "$FelixRoot\commands\skill.ps1"
-        Invoke-Skill -Args $remainingArgs -RepoRoot $RepoRoot
+        Invoke-Skill -CmdArgs $remainingArgs -RepoRoot $RepoRoot
     }
     "tui" {
         . "$FelixRoot\commands\tui.ps1"

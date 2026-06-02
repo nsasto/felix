@@ -254,6 +254,27 @@ felix gc [--dry-run] [--yes]          # prune runs older than retention_days (de
 
 Per-path backpressure: add `appliesTo` globs to config so expensive checks only run when relevant files change. Validation gates: add `gates: [name]` to spec YAML frontmatter to run named checks during `felix validate`.
 
+**`felix plugin update`, `felix skill install` — Marketplace** (Phase G)
+
+Install and update plugins/skills from the curated index:
+
+```powershell
+# List installed plugins + available updates from index
+felix plugin list --remote [--channel stable|beta]
+
+# Install from index (by name), local path, or URL
+felix plugin install <name|./path|https://url.zip> [--channel stable|beta]
+
+# Update installed plugins
+felix plugin update --all [--dry-run] [--channel stable]
+felix plugin update <id>  [--dry-run]
+
+# Install a skill from index, local path, or URL
+felix skill install <name|./path|https://url.zip> [--scope repo|user] [--channel stable|beta]
+```
+
+The index URL is configured in `.felix/config.json` under `distribution.index_url` (default: `https://nsasto.github.io/felix/plugins.json`). Each install verifies the SHA256 of the downloaded archive.
+
 **Optional: Enable cloud sync for run artifacts (free)**
 
 Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) - it's free. Then set env vars or add to `.felix/config.json`:
