@@ -691,6 +691,73 @@ Felix's distributed orchestration capabilities transform autonomous development 
 - `GET /api/agents/{id}` - Get agent details
 - Run history and configuration updates
 
+---
+
+## ✨ v2 Feature Set
+
+Felix v2 added eight capability phases on top of the original system. Each phase is independently useful and builds on the ones before it.
+
+### Phase A — Context Foundation
+
+- **Hierarchical AGENTS.md loader** — walks up from the requirement's directory, concatenating every `AGENTS.md` found (deepest-first); each level has a 4 KB budget with a warning on overflow
+- **Repo Map convention** — root `AGENTS.md` gains a `## Map` section seeded by `felix migrate`, refreshed by `felix doctor --fix`
+- **`.felixignore` support** — two-layer gitignore-compatible exclusion (`repo-root` + `%USERPROFILE%/.felix/ignore`); all Felix search/read tools honour it
+- **Context budgeter** — per-source token accounting with configurable `budget_tokens`; eviction order defined in code; `felix context inspect` prints the breakdown
+- **`felix migrate` registry** — permanent v1→v2 transform tool; preview by default, `--apply` to write; idempotent; later phases register additional transforms
+
+### Phase B — Skills & Spec Frontmatter
+
+- **Skill manifest schema** — `skill.json` with `id`, `triggers`, and `prompt.md` fragment; skills live in `.felix/skills/<id>/` at repo or user scope; repo overrides user on ID collision
+- **Skill loader** — matched by command, path globs, tags, or keywords; assembled into `{{SKILLS}}` prompt placeholder with deterministic ordering
+- **`felix skill` CLI** — `list`, `show`, `enable`, `disable`, `install`; disable writes to `skills.disabled` in `config.json`
+- **Spec YAML frontmatter** — `id`, `title`, `status`, `applyTo`, `tags`, `skills`, `gates`, `depends_on` fields; parsed by the loop and mirrored to `requirements.json`
+- **`felix spec fix`** — migrates v1 specs (no frontmatter) by inferring fields from the body; `--dry-run` previews, `--apply` writes
+
+### Phase C — Exploration Subagent
+
+- **Exploration subagent** — runs once before the plan phase on the first iteration; reads the repo structure to produce a `context-map.md` that lists files likely to change
+- **Auto-enable threshold** — `felix migrate` enables exploration automatically when the repo has ≥ 500 tracked files
+- **Skip heuristic** — `skip_on_iteration_gt: 1` prevents redundant scans on retry iterations
+- **Token-capped output** — exploration output is bounded by `explore.max_tokens` (default 8000) to avoid crowding the main prompt
+
+### Phase D — Search & Navigation
+
+- **`felix search`** — ripgrep-backed, `.felixignore`-aware full-text search; scopes: `code`, `specs`, `runs`, `all`; JSON output contract with `matches`, `truncated`, `ignored_globs`
+- **Spec/Run-aware search** — `--related-to S-NNNN` returns files referenced in that requirement's plans, diffs, and context maps
+- **Per-run search memoization** — `runs/<run-id>/search-cache.json` caches queries within an iteration, eliminating duplicate greps
+- **LSP-bridge plugin (D′)** — optional daemon for symbol-precise navigation in C#, TypeScript, and Python; degrades gracefully to text search when unavailable; exposed via MCP server
+
+### Phase E — Learning & Memory
+
+- **`.felix/memory/` tree** — three scopes: `global` (user profile), `repo` (committed), `requirement/<id>` (committed alongside spec); loaded additively into `{{MEMORY}}` placeholder
+- **`learning-capture` plugin** — enabled by default; after each iteration writes `agents-md-suggestions.md` proposals to the run directory; never auto-applies
+- **`felix memory` CLI** — `view`, `add`, `edit`, `prune`; prune only deletes proposal files in `runs/`, never committed entries
+- **`felix review` CLI** — `--learnings` accepts/rejects/defers proposals; `--prompts` flags model-workaround heuristics; accepted entries land as git commits with `[felix-learning]` markers
+
+### Phase F — Targeted Execution & Security
+
+- **Per-path backpressure** — `appliesTo` globs on each gate command; gates are skipped when no file in the iteration diff matches; `always_run` for cross-cutting gates
+- **`felix query`** — versioned JSON interface for `requirements`, `runs`, `state`; schema includes `_v: 1` field; decouples agents from raw JSON schema
+- **Agent tool allowlist** — `tools` config block with `allow`, `deny`, and `default` (`"allow"` or `"deny"`); `felix tool harden` infers allowlist from audit log and flips to deny
+- **Tool audit trail** — every tool call emits a `tool.call` event with `tool`, `args`, `allowed`, `caller`
+- **`felix gc`** — prunes stale runs, event log rotations, and orphaned worktrees; `--dry-run` and `--yes` flags; always retains last-success run per requirement
+
+### Phase G — Marketplace
+
+- **Curated index** — `plugins.json` hosted on GitHub Pages; schema `index-v1` with `plugins[]` and `skills[]` arrays; each entry has `versions[]` with `sha256`, `felix_min`, `channel`
+- **`felix plugin list --remote`** — queries index for discoverable plugins and skills
+- **`felix plugin update`** — diff installed vs. latest compatible version; `--all` and `--dry-run` flags; SHA256 verified on every download
+- **`felix skill install`** — installs from index, URL, or local path; `--scope repo|user` and `--channel stable|beta`
+- **Private registry support** — override `distribution.index_url` in `config.json` to use an internal registry
+
+### Phase H — Concurrency & Worktrees
+
+- **`felix loop --parallel N`** — spawns N worker processes; each atomically claims requirements via `.felix/.locks/<id>.lock` lease files; no double-claims
+- **Git worktrees (opt-in)** — `--worktrees` creates isolated working directories at `.felix/worktrees/<run-id>/`; merge-back results: `ok`, `conflict`, `error`
+- **Lease protocol** — `O_CREAT|O_EXCL`-equivalent atomicity; 30-min TTL; 5-min refresh; expired leases are reclaimable; expiry recorded on event bus
+- **`felix recover`** — enumerates orphaned runs (expired leases, abandoned worktrees); interactive or `--yes`/`--dry-run` modes; recovery actions: resume, block, skip
+- **Post-merge gates** — `always_run` gates re-execute on merged state; conflicts mark requirement `blocked` with `block_reason: "merge-conflict"`
+
 **Runs API**
 
 - `POST /api/agents/runs` - Create run and send START command

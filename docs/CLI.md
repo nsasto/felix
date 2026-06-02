@@ -1386,6 +1386,368 @@ felix loop --sync
 
 **Architecture:**
 
+---
+
+## v2 Commands Reference
+
+The following commands were added in Felix v2. They supplement (but do not replace) the commands documented above.
+
+---
+
+### `felix run replay` — Inspect a previous run's prompt
+
+Re-open the exact prompt artifact that was sent to the model for a past run. Read-only — does not re-execute the agent.
+
+```powershell
+felix run replay <run-id>
+felix run replay <run-id> --iteration <N>
+```
+
+| Argument/Flag | Description |
+|---|---|
+| `<run-id>` | Run directory name (e.g., `S-0001-20260601-143022-it1`). |
+| `--iteration N` | Open the prompt for iteration N. Defaults to the last iteration. |
+
+**What it opens:** `runs/<run-id>/iteration-<N>/prompt.txt` in `$EDITOR` (falls back to `notepad`).
+
+**Why:** When an agent produces unexpected output, `replay` lets you read the exact context it received — diagnose truncated specs, wrong skill loading, or missing memory entries.
+
+---
+
+### `felix recover` — Crash recovery
+
+Recover orphaned runs left by crashed or interrupted workers.
+
+```powershell
+felix recover [--run <run-id>] [--all] [--yes] [--dry-run]
+```
+
+Alias: `felix run recover [flags]`
+
+| Flag | Description |
+|---|---|
+| `--run <id>` | Recover a specific run (by run-id or requirement-id). |
+| `--all` | Enumerate all orphaned runs and prompt per-run. |
+| `--yes` | Apply recovery actions non-interactively (defaults to `block`). |
+| `--dry-run` | Show the recovery plan; make no changes. |
+
+**Recovery actions (interactive):**
+
+- `r` — release the stale lease so the requirement can be claimed again
+- `a` — mark the requirement `blocked` with `block_reason: "recovered-from-crash"` and remove the orphaned worktree
+- `s` — skip this run
+
+See [CONCURRENCY.md](CONCURRENCY.md) for details.
+
+---
+
+### `felix loop --parallel N [--worktrees]` — Parallel workers
+
+Spawn multiple workers to process requirements concurrently.
+
+```powershell
+felix loop --parallel 4
+felix loop --parallel 4 --worktrees
+felix loop --parallel 4 --worktrees --no-commit
+```
+
+| Flag | Description |
+|---|---|
+| `--parallel N` | Number of worker processes to spawn. Default: `1`. |
+| `--worktrees` | Give each worker an isolated git worktree at `.felix/worktrees/<run-id>/`. |
+| `--no-commit` | Suppress auto-commit on completion (applies to all workers). |
+| `--sync` | Enable artifact sync to the remote server for all workers. |
+
+Workers coordinate via atomic lease files in `.felix/.locks/`. See [CONCURRENCY.md](CONCURRENCY.md).
+
+---
+
+### `felix event tail` / `felix event query` — Event stream
+
+Read from the Felix event bus at `.felix/events.jsonl`.
+
+```powershell
+# Stream recent events with filters
+felix event tail
+felix event tail --kind agent.start
+felix event tail --kind backpressure.fail
+felix event tail --run-id S-0001-20260601-143022-it1
+felix event tail --since 30m
+felix event tail --since 2h
+felix event tail --since 1d
+
+# Filter events by field=value expression
+felix event query "type=log"
+felix event query "run_id=S-0001-20260601-143022-it1"
+```
+
+**`tail` flags:**
+
+| Flag | Description |
+|---|---|
+| `--kind <type>` | Filter to events of this type (e.g., `agent.start`, `tool.call`). |
+| `--run-id <id>` | Filter to events from a specific run. |
+| `--since <duration>` | Show events from last `Nm` (minutes), `Nh` (hours), or `Nd` (days). |
+
+Output is raw NDJSON (one JSON object per line). See [CONTEXT.md](CONTEXT.md) for the full event type reference.
+
+---
+
+### `felix context inspect` — Token budget breakdown
+
+Print a table showing token consumption per context source and what would be evicted if the budget were exceeded.
+
+```powershell
+felix context inspect
+felix context inspect --requirement S-0001
+```
+
+Output:
+
+```
+Context budget: 8,420 / 32,000 tokens
+
+  Source           Tokens   Status
+  ─────────────────────────────────
+  layered_agents    1,240   ok
+  spec              2,100   ok
+  ...
+
+All sources fit within budget.
+```
+
+---
+
+### `felix search` — Full-text search
+
+Search across code, specs, and run history. Honours `.felixignore`.
+
+```powershell
+felix search "<pattern>"
+felix search "RegisterCommands" --in code
+felix search "authentication" --in specs
+felix search "NullReferenceException" --in runs --max 20
+felix search --related-to S-0042 --json
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--scope file\|symbol` | `file` | Match at file level or symbol level (requires LSP for symbol). |
+| `--in code\|specs\|runs\|all` | `code` | Search target. |
+| `--max N` | `50` | Maximum results. |
+| `--json` | — | Emit structured JSON. |
+| `--related-to <req-id>` | — | Files referenced in the requirement's history (no pattern needed). |
+
+See [SEARCH.md](SEARCH.md) for JSON output schema and full details.
+
+---
+
+### `felix deps` — Dependency graph
+
+Analyse requirement dependencies and check execution readiness.
+
+```powershell
+felix deps S-0001               # Show direct dependencies with status
+felix deps S-0001 --check       # Exit 0 if all deps complete, exit 1 otherwise
+felix deps S-0001 --tree        # Show transitive dependency tree
+felix deps --incomplete         # List all requirements with incomplete deps
+```
+
+---
+
+### `felix query` — Structured state query
+
+Agent-readable JSON interface for requirements, runs, and state. Schema-versioned.
+
+```powershell
+felix query requirements --status planned --json
+felix query requirements --status blocked
+felix query runs --since 24h --requirement S-0042 --json
+felix query state --json
+```
+
+| Kind | Description |
+|---|---|
+| `requirements` | Filter requirements by `--status`. |
+| `runs` | Filter run history by `--since`, `--requirement`. |
+| `state` | Read `.felix/state.json`. |
+
+All JSON responses include a `_v: 1` version field.
+
+---
+
+### `felix memory` — Memory management
+
+Manage the persistent `.felix/memory/` knowledge tree.
+
+```powershell
+# View
+felix memory view
+felix memory view --scope global
+felix memory view --scope repo
+felix memory view --scope requirement --req S-0001
+
+# Add
+felix memory add --scope repo      --title "Run build before test" --body "..."
+felix memory add --scope global    --title "Assert.Equal order"    --body "..."
+felix memory add --scope requirement --req S-0042 --title "JWT secret source" --body "..."
+
+# Edit
+felix memory edit .felix\memory\repo\2026-06-01-run-build-before-test.md
+
+# Prune proposal files only (never touches committed entries)
+felix memory prune
+felix memory prune --older-than 14
+felix memory prune --dry-run
+```
+
+See [MEMORY.md](MEMORY.md) for full details.
+
+---
+
+### `felix skill` — Skill management
+
+Install, list, inspect, and enable/disable skills.
+
+```powershell
+# List
+felix skill list
+felix skill list --scope repo
+felix skill list --scope user
+felix skill list --json
+
+# Inspect
+felix skill show spec-builder
+
+# Enable / disable
+felix skill enable  security-review
+felix skill disable security-review
+
+# Install
+felix skill install security-review                   # from index
+felix skill install security-review --scope user      # user scope
+felix skill install ./my-skills/test-advisor          # local path
+felix skill install https://example.com/skill.zip     # URL
+felix skill install my-skill --channel beta           # beta channel
+```
+
+See [SKILLS.md](SKILLS.md) for authoring guide and manifest schema.
+
+---
+
+### `felix plugin update` — Marketplace updates
+
+Update installed plugins from the remote index.
+
+```powershell
+felix plugin update my-plugin          # Update a specific plugin
+felix plugin update --all              # Update all installed plugins
+felix plugin update --dry-run          # Preview updates without installing
+felix plugin update --all --channel beta  # Include beta versions
+```
+
+---
+
+### `felix gc` — Garbage collection
+
+Prune stale run artifacts, event log rotations, and orphaned worktrees.
+
+```powershell
+felix gc               # Interactive — prompts before each category
+felix gc --dry-run     # Preview what would be pruned
+felix gc --yes         # Non-interactive — prune without confirmation
+```
+
+**What is pruned:**
+
+- `runs/` directories older than `gc.retention_days` (default: 30). The most-recent successful run per requirement is always kept.
+- `.felix/events-*.jsonl` rotation files older than `gc.events_retention_days` (default: 30).
+- `.felix/worktrees/<run-id>/` directories not referenced by an active session.
+
+Config keys: `gc.retention_days`, `gc.events_retention_days` — see [CONFIGURATION.md](CONFIGURATION.md).
+
+---
+
+### `felix tool` — Tool allowlist
+
+Manage the agent tool allowlist (Phase F security).
+
+```powershell
+# Show current allowlist and audit stats
+felix tool status
+
+# Flip default to deny, infer allowlist from audit log
+felix tool harden
+felix tool harden --dry-run    # Preview without writing
+felix tool harden --yes        # Skip confirmation prompt
+```
+
+After `felix tool harden`, the `tools` block in `config.json` is updated:
+
+```json
+"tools": {
+  "allow": ["search.*", "navigate.*"],
+  "deny":  [],
+  "default": "deny"
+}
+```
+
+Alias: `felix tools harden` (deprecated in next minor).
+
+---
+
+### `felix migrate` — Schema migration
+
+Transform a v1 repository layout to v2. Preview by default; `--apply` is required to write changes.
+
+```powershell
+felix migrate              # Dry-run: show pending transforms
+felix migrate --apply      # Execute all pending transforms
+felix migrate --dry-run    # Explicit dry-run
+felix migrate --only felixignore-seed   # Run a single transform
+```
+
+**Registered transforms:**
+
+| ID | Phase | Description |
+|---|---|---|
+| `felixignore-seed` | A | Create `.felixignore` from default template |
+| `agents-map-init` | A | Add `## Map` section to root `AGENTS.md` |
+| `spec-frontmatter` | B | Add YAML frontmatter to v1 spec files |
+| `explore-enable` | C | Auto-enable exploration when tracked files ≥ 500 |
+| `tools-allow` | F | Seed `tools.default = "allow"` in `config.json` |
+
+Migration is **idempotent** — re-running on an already-migrated repo is a no-op. To undo: `git revert` the migration commit. There is no `--revert` flag.
+
+---
+
+### `felix doctor` — Health check
+
+Run diagnostic checks against the repository. Extensible — later phases register their own checks.
+
+```powershell
+felix doctor              # Run all checks
+felix doctor --fix        # Run checks and apply non-destructive repairs
+felix doctor --json       # Machine-readable output
+
+# Explain why a specific file is ignored by .felixignore
+felix doctor --explain publish-out/MyApp.exe
+```
+
+**Registered checks:**
+
+| Check | Phase | Description |
+|---|---|---|
+| `event-log` | A | Detect corrupt or truncated `.felix/events.jsonl` |
+| `plugin-hashes` | A | Detect plugin manifest hash mismatches |
+| `repo-map-stale` | A | New top-level folder without entry in `AGENTS.md ## Map` |
+| `spec-frontmatter` | B | Required frontmatter fields present; gates/skills/applyTo valid |
+| `stale-review` | E | Last `felix review` > 90 days ago |
+| `stale-leases` | H | Lease files past their `lease_until` timestamp |
+| `orphaned-worktrees` | H | Worktree directories not tracked in active sessions |
+
+**Exit codes:** `0` all checks passed · `1` one or more checks failed · `2` invalid arguments
+
 ```
 CLI Agent → Writes locally to runs/ → Queues to .felix/outbox/*.jsonl
                                    → Background sync uploads to backend
