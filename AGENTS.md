@@ -70,6 +70,9 @@ dotnet test tests\Felix.Cli.Tests\
 # Run Phase G PowerShell unit tests (marketplace: index-client, Compare-SemVer, plugin update, skill install)
 .\tests\Test-PhaseG.ps1
 
+# Run Phase H PowerShell unit tests (concurrency: lease-manager, worktree-manager, recover, parallel loop)
+.\tests\Test-PhaseH.ps1
+
 # Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
@@ -315,6 +318,55 @@ Override `index_url` for a private/internal registry.
 - `docs/plugins.json` — reference curated index (`schema: index-v1`)
 
 **Tests:** `tests/Test-PhaseG.ps1` (53 tests).
+
+
+## Concurrency & Worktrees (Phase H)
+
+Phase H adds parallel worker support, git worktree lifecycle management, atomic requirement leases, and crash recovery.
+
+**`felix loop --parallel N`:**
+```powershell
+felix loop --parallel 4              # 4 concurrent workers (lease-coordinated)
+felix loop --parallel 4 --worktrees  # each worker gets its own git worktree
+```
+
+**`felix recover` / `felix run recover`:**
+```powershell
+felix recover --all               # list all orphaned leases/worktrees
+felix recover --run <run-id>      # recover a specific orphaned run
+felix recover --all --yes         # apply fixes without prompts
+felix recover --all --dry-run     # show plan only
+```
+
+**Lease protocol:**
+- Atomic claim: `.felix/.locks/<req-id>.lock` created with `FileMode.CreateNew` (O_CREAT|O_EXCL equivalent)
+- TTL: 30 min, refreshed every 5 min by running worker
+- Expired lease is auto-reclaimed by next `New-RequirementLease` caller
+- `Test-RequirementLeased`, `Get-AllLeases`, `Get-ExpiredLeases` for inspection
+
+**Worktree lifecycle:**
+- Created at `.felix/worktrees/<run-id>/` with `.felix-worktree.json` metadata
+- `Merge-WorktreeToBase` returns "ok"/"conflict"/"error"
+- `Remove-StaleWorktrees` prunes based on `concurrency.retention_days`
+- `Get-ActiveWorktrees` reads all metadata files
+
+**Config** (`.felix/config.json`):
+```json
+"concurrency": {
+  "worktrees": false,
+  "parallel": 1,
+  "merge_strategy": "merge",
+  "retention_days": 3
+}
+```
+
+**Core scripts:**
+- `.felix/core/lease-manager.ps1` — `New-RequirementLease`, `Test-LeaseValid`, `Update-LeaseExpiry`, `Remove-RequirementLease`, `Get-AllLeases`, `Get-ExpiredLeases`
+- `.felix/core/worktree-manager.ps1` — `New-WorktreeForRun`, `Remove-WorktreeForRun`, `Merge-WorktreeToBase`, `Get-ActiveWorktrees`, `Remove-StaleWorktrees`, `Get-WorktreeConfig`
+- `.felix/commands/recover.ps1` — `Invoke-Recover`, `Find-OrphanedRuns`
+- `.felix/commands/loop.ps1` — updated with `--parallel`/`--worktrees` flags, `Invoke-LoopParallel`
+
+**Tests:** `tests/Test-PhaseH.ps1` (44 tests).
 
 
 ## Sync Troubleshooting

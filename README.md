@@ -275,6 +275,39 @@ felix skill install <name|./path|https://url.zip> [--scope repo|user] [--channel
 
 The index URL is configured in `.felix/config.json` under `distribution.index_url` (default: `https://nsasto.github.io/felix/plugins.json`). Each install verifies the SHA256 of the downloaded archive.
 
+**`felix loop --parallel N`, `felix recover` — Concurrency & Worktrees** (Phase H)
+
+Run multiple requirements in parallel with isolated git worktrees and atomic lease management:
+
+```powershell
+# Run 4 workers in parallel (isolated directories, no worktrees)
+felix loop --parallel 4
+
+# Run 4 workers each in a separate git worktree (full git isolation)
+felix loop --parallel 4 --worktrees
+
+# Recover from crashed workers (inspect orphaned leases/worktrees)
+felix recover --all               # list all orphaned runs
+felix recover --run <run-id>      # recover a specific run
+felix recover --all --yes         # apply without interactive prompts
+felix recover --all --dry-run     # show plan only, no changes
+
+# Equivalent subcommand form
+felix run recover --all
+```
+
+Configure defaults in `.felix/config.json` under `concurrency`:
+```json
+"concurrency": {
+  "worktrees": false,
+  "parallel": 1,
+  "merge_strategy": "merge",
+  "retention_days": 3
+}
+```
+
+Parallel workers coordinate via atomic lease files at `.felix/.locks/<id>.lock` (30-min TTL, auto-renewed). Worktrees are created at `.felix/worktrees/<run-id>/` and merged back to the base branch after each run. If a worker crashes, `felix recover` detects orphaned leases and worktrees.
+
 **Optional: Enable cloud sync for run artifacts (free)**
 
 Mirror run artifacts to the cloud for team visibility. Sign up at [runfelix.io](https://runfelix.io) - it's free. Then set env vars or add to `.felix/config.json`:

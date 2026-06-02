@@ -166,6 +166,7 @@ if ($DebugMode) {
 switch ($Command) {
     "run" {
         # v2 A7: felix run replay <run-id>
+        # v2 H5: felix run recover [--run <id>] [--all]
         if ($remainingArgs.Count -gt 0 -and $remainingArgs[0] -eq "replay") {
             . "$FelixRoot\commands\run.ps1"
             $runId = if ($remainingArgs.Count -gt 1) { $remainingArgs[1] } else { $null }
@@ -175,6 +176,10 @@ switch ($Command) {
                 exit 1
             }
             Invoke-RunReplay -RunId $runId -RepoRoot $RepoRoot -Iteration $iterArg
+        } elseif ($remainingArgs.Count -gt 0 -and $remainingArgs[0] -eq "recover") {
+            . "$FelixRoot\commands\recover.ps1"
+            $recoverArgs = if ($remainingArgs.Count -gt 1) { $remainingArgs[1..($remainingArgs.Count-1)] } else { @() }
+            Invoke-Recover -CmdArgs $recoverArgs -RepoRoot $RepoRoot
         } else {
             . "$FelixRoot\commands\run.ps1"
             Invoke-Run -Args $remainingArgs
@@ -283,6 +288,11 @@ switch ($Command) {
     "gc" {
         . "$FelixRoot\commands\gc.ps1"
         Invoke-Gc -CmdArgs $remainingArgs
+    }
+    "recover" {
+        # v2 H5: top-level alias for 'felix run recover'
+        . "$FelixRoot\commands\recover.ps1"
+        Invoke-Recover -CmdArgs $remainingArgs -RepoRoot $RepoRoot
     }
     "version" {
         . "$FelixRoot\commands\version.ps1"

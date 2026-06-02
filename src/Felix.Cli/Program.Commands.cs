@@ -48,24 +48,80 @@ partial class Program
 
         // v2 A7: felix run replay <run-id>
         cmd.AddCommand(CreateRunReplaySubcommand(felixPs1));
+        // v2 H5: felix run recover
+        cmd.AddCommand(CreateRunRecoverSubcommand(felixPs1));
+
+        return cmd;
+    }
+
+    static Command CreateRunRecoverSubcommand(string felixPs1)
+    {
+        var runIdOpt = new Option<string?>("--run", "Recover a specific run by run-id");
+        var allOpt   = new Option<bool>("--all", "Recover all orphaned runs");
+        var yesOpt   = new Option<bool>("--yes", "Apply without interactive confirmation");
+        var dryRunOpt = new Option<bool>("--dry-run", "Show plan but make no changes");
+
+        var sub = new Command("recover", "Recover from crashed worker iterations (inspect orphaned leases/worktrees)")
+        {
+            runIdOpt, allOpt, yesOpt, dryRunOpt
+        };
+
+        sub.SetHandler(async (runId, all, yes, dryRun) =>
+        {
+            var args = new List<string> { "run", "recover" };
+            if (!string.IsNullOrEmpty(runId)) args.AddRange(new[] { "--run", runId });
+            if (all)    args.Add("--all");
+            if (yes)    args.Add("--yes");
+            if (dryRun) args.Add("--dry-run");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, runIdOpt, allOpt, yesOpt, dryRunOpt);
+
+        return sub;
+    }
+
+    static Command CreateRecoverCommand(string felixPs1)
+    {
+        var runIdOpt  = new Option<string?>("--run", "Recover a specific run by run-id");
+        var allOpt    = new Option<bool>("--all", "Recover all orphaned runs");
+        var yesOpt    = new Option<bool>("--yes", "Apply without interactive confirmation");
+        var dryRunOpt = new Option<bool>("--dry-run", "Show plan but make no changes");
+
+        var cmd = new Command("recover", "Recover from crashed worker iterations (top-level alias for 'run recover')")
+        {
+            runIdOpt, allOpt, yesOpt, dryRunOpt
+        };
+
+        cmd.SetHandler(async (runId, all, yes, dryRun) =>
+        {
+            var args = new List<string> { "recover" };
+            if (!string.IsNullOrEmpty(runId)) args.AddRange(new[] { "--run", runId });
+            if (all)    args.Add("--all");
+            if (yes)    args.Add("--yes");
+            if (dryRun) args.Add("--dry-run");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, runIdOpt, allOpt, yesOpt, dryRunOpt);
 
         return cmd;
     }
 
     static Command CreateLoopCommand(string felixPs1, Option<string> formatOpt)
     {
-        var maxIterOpt = new Option<int?>("--max-iterations", "Maximum iterations");
+        var maxIterOpt  = new Option<int?>("--max-iterations", "Maximum iterations");
+        var parallelOpt = new Option<int?>("--parallel", "Number of parallel workers (default: 1)");
+        var worktreesOpt = new Option<bool>("--worktrees", "Create isolated git worktrees per worker");
 
         var cmd = new Command("loop", "Run agent in continuous loop mode")
         {
-            maxIterOpt,
+            maxIterOpt, parallelOpt, worktreesOpt
         };
         cmd.AddOption(formatOpt);
 
-        cmd.SetHandler(async (maxIter, format) =>
+        cmd.SetHandler(async (maxIter, parallel, worktrees, format) =>
         {
             var args = new List<string> { "loop" };
-            if (maxIter.HasValue) args.AddRange(new[] { "--max-iterations", maxIter.Value.ToString() });
+            if (maxIter.HasValue)  args.AddRange(new[] { "--max-iterations", maxIter.Value.ToString() });
+            if (parallel.HasValue) args.AddRange(new[] { "--parallel", parallel.Value.ToString() });
+            if (worktrees)         args.Add("--worktrees");
 
             if (string.Equals(format, "rich", StringComparison.OrdinalIgnoreCase))
                 await ExecuteFelixRichCommand(felixPs1, "Continuous Loop", args.ToArray());
@@ -74,7 +130,7 @@ partial class Program
                 args.AddRange(new[] { "--format", format });
                 await ExecutePowerShell(felixPs1, args.ToArray());
             }
-        }, maxIterOpt, formatOpt);
+        }, maxIterOpt, parallelOpt, worktreesOpt, formatOpt);
 
         return cmd;
     }

@@ -1,4 +1,4 @@
-using System.CommandLine;
+﻿using System.CommandLine;
 using Felix.Cli;
 using Xunit;
 
@@ -7,7 +7,7 @@ namespace Felix.Cli.Tests;
 /// <summary>
 /// Tests for v2 CLI commands: migrate, doctor, plugin, event, context inspect, run replay.
 /// These tests verify that commands are registered, have the expected sub-commands,
-/// and that their argument/option shapes are correct — without requiring a live PS environment.
+/// and that their argument/option shapes are correct â€” without requiring a live PS environment.
 /// </summary>
 public sealed class V2CommandsTests
 {
@@ -29,7 +29,7 @@ public sealed class V2CommandsTests
         Assert.Contains("gc",    names);
     }
 
-    // ── migrate ──────────────────────────────────────────────────────────
+    // â”€â”€ migrate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void MigrateCommand_HasExpectedOptionsAndName()
@@ -43,7 +43,7 @@ public sealed class V2CommandsTests
         Assert.Contains("only", optNames);
     }
 
-    // ── doctor ───────────────────────────────────────────────────────────
+    // â”€â”€ doctor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void DoctorCommand_HasExpectedOptions()
@@ -57,7 +57,7 @@ public sealed class V2CommandsTests
         Assert.Contains("json", optNames);
     }
 
-    // ── plugin ───────────────────────────────────────────────────────────
+    // â”€â”€ plugin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void PluginCommand_HasFourSubcommands()
@@ -70,7 +70,7 @@ public sealed class V2CommandsTests
         Assert.Contains("list", subCmds);
         Assert.Contains("remove", subCmds);
         Assert.Contains("info", subCmds);
-        // Note: 'update' added in Phase G — full count tested in PluginCommand_HasFiveSubcommands_IncludingUpdate
+        // Note: 'update' added in Phase G â€” full count tested in PluginCommand_HasFiveSubcommands_IncludingUpdate
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class V2CommandsTests
         Assert.Contains("json", optNames);
     }
 
-    // ── event ────────────────────────────────────────────────────────────
+    // â”€â”€ event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void EventCommand_HasTailAndQuerySubcommands()
@@ -119,7 +119,7 @@ public sealed class V2CommandsTests
         Assert.Contains("since", optNames);
     }
 
-    // ── context inspect ──────────────────────────────────────────────────
+    // â”€â”€ context inspect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void ContextCommand_ExistsInRoot()
@@ -129,7 +129,7 @@ public sealed class V2CommandsTests
         Assert.Contains("context", names);
     }
 
-    // ── run replay ───────────────────────────────────────────────────────
+    // â”€â”€ run replay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void RunCommand_HasReplaySubcommand()
@@ -150,7 +150,7 @@ public sealed class V2CommandsTests
         Assert.Contains("iteration", optNames);
     }
 
-    // ── skill (B4) ───────────────────────────────────────────────────────
+    // â”€â”€ skill (B4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void CreateRootCommand_RegistersSkillCommand()
@@ -197,7 +197,7 @@ public sealed class V2CommandsTests
         Assert.Contains("id", argNames);
     }
 
-    // ── run --explore / --no-explore (Phase C) ────────────────────────────
+    // â”€â”€ run --explore / --no-explore (Phase C) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void RunCommand_HasExploreOption()
@@ -232,7 +232,7 @@ public sealed class V2CommandsTests
         Assert.Equal(typeof(bool), noExplore.ValueType);
     }
 
-    // ── search (Phase D) ─────────────────────────────────────────────────────
+    // â”€â”€ search (Phase D) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SearchCommand_IsRegistered()
@@ -299,7 +299,7 @@ public sealed class V2CommandsTests
         Assert.Equal(typeof(bool), jsonOpt.ValueType);
     }
 
-    // ── review (Phase E2) ─────────────────────────────────────────────────
+    // â”€â”€ review (Phase E2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void ReviewCommand_IsRegistered()
@@ -323,7 +323,7 @@ public sealed class V2CommandsTests
         Assert.Contains("dry-run",      opts);
     }
 
-    // ── memory (Phase E5) ─────────────────────────────────────────────────
+    // â”€â”€ memory (Phase E5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void MemoryCommand_IsRegistered()
@@ -346,7 +346,7 @@ public sealed class V2CommandsTests
         Assert.Contains("prune", subs);
     }
 
-    // ── query (Phase F3) ─────────────────────────────────────────────────
+    // â”€â”€ query (Phase F3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void QueryCommand_IsRegistered()
@@ -379,7 +379,7 @@ public sealed class V2CommandsTests
         Assert.Contains("json",   opts);
     }
 
-    // ── tool (Phase F5) ──────────────────────────────────────────────────
+    // â”€â”€ tool (Phase F5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void ToolCommand_IsRegistered()
@@ -410,7 +410,7 @@ public sealed class V2CommandsTests
         Assert.Contains("dry-run", opts);
     }
 
-    // ── gc (Phase F8) ────────────────────────────────────────────────────
+    // â”€â”€ gc (Phase F8) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void GcCommand_IsRegistered()
@@ -430,7 +430,7 @@ public sealed class V2CommandsTests
         Assert.Contains("yes",     opts);
     }
 
-    // ── plugin update (Phase G3) ─────────────────────────────────────────
+    // â”€â”€ plugin update (Phase G3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void PluginCommand_HasFiveSubcommands_IncludingUpdate()
@@ -508,7 +508,7 @@ public sealed class V2CommandsTests
         Assert.Contains("channel", opts);
     }
 
-    // ── skill install (Phase G5) ─────────────────────────────────────────
+    // â”€â”€ skill install (Phase G5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SkillInstallCommand_HasChannelAndScopeOptions()
@@ -532,4 +532,86 @@ public sealed class V2CommandsTests
         var scopeOpt = install.Options.Single(o => o.Name == "scope");
         Assert.Equal(typeof(string), scopeOpt.ValueType);
     }
+
+    // ── Phase H: loop --parallel / --worktrees ────────────────────────────
+
+    [Fact]
+    public void LoopCommand_HasParallelAndWorktreesOptions()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var loop = root.Subcommands.Single(c => c.Name == "loop");
+        var opts = loop.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("parallel",  opts);
+        Assert.Contains("worktrees", opts);
+        Assert.Contains("max-iterations", opts);
+    }
+
+    [Fact]
+    public void LoopCommand_ParallelOption_IsNullableInt()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var loop = root.Subcommands.Single(c => c.Name == "loop");
+        var parallel = loop.Options.Single(o => o.Name == "parallel");
+
+        Assert.Equal(typeof(int?), parallel.ValueType);
+    }
+
+    [Fact]
+    public void LoopCommand_WorktreesOption_IsBool()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var loop = root.Subcommands.Single(c => c.Name == "loop");
+        var worktrees = loop.Options.Single(o => o.Name == "worktrees");
+
+        Assert.Equal(typeof(bool), worktrees.ValueType);
+    }
+
+    // ── Phase H: recover command ──────────────────────────────────────────
+
+    [Fact]
+    public void RootCommand_ContainsRecoverCommand()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var names = root.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("recover", names);
+    }
+
+    [Fact]
+    public void RecoverCommand_HasExpectedOptions()
+    {
+        var root    = Program.CreateRootCommand(FakeFelixPs1);
+        var recover = root.Subcommands.Single(c => c.Name == "recover");
+        var opts    = recover.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("run",     opts);
+        Assert.Contains("all",     opts);
+        Assert.Contains("yes",     opts);
+        Assert.Contains("dry-run", opts);
+    }
+
+    [Fact]
+    public void RunCommand_HasRecoverSubcommand()
+    {
+        var root    = Program.CreateRootCommand(FakeFelixPs1);
+        var run     = root.Subcommands.Single(c => c.Name == "run");
+        var subCmds = run.Subcommands.Select(c => c.Name).ToHashSet();
+
+        Assert.Contains("recover", subCmds);
+    }
+
+    [Fact]
+    public void RunRecoverSubcommand_HasExpectedOptions()
+    {
+        var root    = Program.CreateRootCommand(FakeFelixPs1);
+        var run     = root.Subcommands.Single(c => c.Name == "run");
+        var recover = run.Subcommands.Single(c => c.Name == "recover");
+        var opts    = recover.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("run",     opts);
+        Assert.Contains("all",     opts);
+        Assert.Contains("yes",     opts);
+        Assert.Contains("dry-run", opts);
+    }
 }
+
