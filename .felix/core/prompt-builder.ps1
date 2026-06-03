@@ -238,8 +238,8 @@ function New-IterationPrompt {
 
     # B3: Skills - load and match skills against current context
     $skillsContent = ""
-    $skillLoaderPath = Join-Path $Paths.FelixDir "core\skill-loader.ps1"
-    if (Test-Path $skillLoaderPath) {
+    $skillLoaderPath = if ($Paths.FelixDir) { Join-Path $Paths.FelixDir "core\skill-loader.ps1" } else { $null }
+    if ($skillLoaderPath -and (Test-Path $skillLoaderPath)) {
         . $skillLoaderPath
         try {
             # Parse spec frontmatter for applyTo, tags (B5)
@@ -320,7 +320,9 @@ function New-IterationPrompt {
     }
 
     # Print budget summary per iteration
-    Emit-Log -Level "info" -Message $budgetResult.Summary -Component "context-budgeter"
+    if (Get-Command Emit-Log -ErrorAction SilentlyContinue) {
+        Emit-Log -Level "info" -Message $budgetResult.Summary -Component "context-budgeter"
+    }
 
     # Fill placeholders in template (unresolved placeholders → empty string)
     $fullPrompt = $promptTemplate `
