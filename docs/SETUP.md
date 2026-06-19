@@ -109,7 +109,15 @@ Interactive configuration for agents and default models. Writes or updates `.fel
 
 The installed CLI presents this as a searchable multi-select with provider status, preselects already-configured profiles, and then prompts for a model for each selected provider. Providers that are not installed are shown but cannot be selected, and the command points you to `felix agent install-help <name>` for installation guidance.
 
-For `copilot`, Felix currently uses a curated static model list instead of querying the CLI dynamically. By default Felix does not pass `--model` for Copilot, and Felix retries without `--model` if a configured Copilot model is no longer available.
+For `copilot`, Felix currently uses a curated static model list instead of querying the CLI dynamically. Direct Copilot runs use `-p` prompt mode plus `--output-format json` so Felix can parse the JSONL event stream for the effective model, session ID, and reported output tokens. On Windows, Felix spills long prompts to a temporary prompt file and passes Copilot a short instruction to read that file, avoiding command-line length limits. Felix retries without `--model` if a configured Copilot model is no longer available.
+
+If Copilot launches but returns blank output, run a direct probe:
+
+```powershell
+copilot -p "Reply exactly HELLO" --yolo --no-ask-user --output-format json
+```
+
+If the probe is also blank, check authentication (`copilot login`) and proxy/network environment variables such as `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `GIT_HTTP_PROXY`, and `GIT_HTTPS_PROXY`. A blocked local proxy, for example `http://127.0.0.1:9`, prevents Copilot from reaching GitHub and Felix can only record `usage_available: false`.
 
 ### `felix agent use <id|name>`
 
@@ -166,6 +174,16 @@ Runs a quick smoke test to verify:
 3. A version probe works, or is skipped safely if unsupported
 
 Use this after installing a new agent executable or updating versions.
+
+For end-to-end usage tracking, run one small requirement and then inspect usage:
+
+```powershell
+felix run S-0000
+felix query usage --run-id <run-id> --json
+felix doctor
+```
+
+The smoke passes when `usage_available` is `true`, the effective model is populated, and `felix doctor` reports `[ok] [usage-artifacts]`.
 
 ### `felix agent register`
 

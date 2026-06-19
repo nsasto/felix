@@ -148,6 +148,13 @@ Cost estimates are local and opt-in. Copy `.felix/model-pricing.json.example` to
 
 Use `felix doctor` to check whether usage artifacts exist and whether observed models have matching pricing rules.
 
+Provider notes:
+
+- Copilot CLI reports output tokens in its JSONL stream, plus session and premium request metadata. It may not report input tokens, so `input_tokens` can be `null` while `output_tokens`, `total_tokens`, and `observed_tokens` are populated.
+- Copilot usage capture requires `--output-format json`, which Felix enables for direct Copilot runs.
+- On Windows, Felix writes long Copilot prompts to a temporary file before launch to avoid command-line length failures.
+- If a live Copilot run produces blank output, verify `copilot login` and clear blocked proxy settings before treating it as a Felix usage parser issue.
+
 ---
 
 ## `backpressure` Block

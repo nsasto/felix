@@ -182,6 +182,8 @@ felix query usage --run-id S-0001-20260619T120000-it1
 
 Usage reads `runs/<run-id>/usage.json`, written by the agent runner after each execution.
 
+For Copilot CLI runs, `felix query usage` reads model, session, and token details from Copilot's JSONL stream. Copilot may report output tokens without input tokens, so `input_tokens` can be `null` for a successful run.
+
 | Flag | Description |
 |---|---|
 | `--since <duration>` | Filter usage records by age or date (for example `24h`, `7d`, `2026-06-01`). |
