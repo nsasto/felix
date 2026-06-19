@@ -560,9 +560,11 @@ function Invoke-Setup {
     Write-Host ""
     Write-Host "Usage tracking" -ForegroundColor White
     Write-Host "   Token/model usage is saved after each run to runs\<run-id>\usage.json" -ForegroundColor Gray
-    Write-Host "   1. Run:     felix doctor" -ForegroundColor Gray
-    Write-Host "   2. Run:     felix run <requirement-id>" -ForegroundColor Gray
-    Write-Host "   3. Inspect: felix query usage --since 7d" -ForegroundColor Gray
+    Write-Host "   1. Check:   felix doctor" -ForegroundColor Gray
+    Write-Host "   2. Preview: felix smoke usage --dry-run" -ForegroundColor Gray
+    Write-Host "   3. Smoke:   felix smoke usage" -ForegroundColor Gray
+    Write-Host "   4. Real run: felix run <requirement-id>" -ForegroundColor Gray
+    Write-Host "   5. Inspect:  felix query usage --since 7d" -ForegroundColor Gray
     Write-Host "   Optional cost estimates: copy .felix\model-pricing.json.example to .felix\model-pricing.json and add current provider prices" -ForegroundColor DarkGray
 
     Write-Host ""

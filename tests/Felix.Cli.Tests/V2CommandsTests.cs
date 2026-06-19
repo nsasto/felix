@@ -27,6 +27,7 @@ public sealed class V2CommandsTests
         Assert.Contains("query", names);
         Assert.Contains("tool",  names);
         Assert.Contains("gc",    names);
+        Assert.Contains("smoke", names);
     }
 
     // â”€â”€ migrate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -392,6 +393,30 @@ public sealed class V2CommandsTests
         Assert.Contains("run-id",      opts);
         Assert.Contains("since",       opts);
         Assert.Contains("json",        opts);
+    }
+
+    // smoke
+
+    [Fact]
+    public void SmokeCommand_HasUsageSubcommand()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var smoke = root.Subcommands.Single(c => c.Name == "smoke");
+        var subs = smoke.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.Contains("usage", subs);
+    }
+
+    [Fact]
+    public void SmokeUsageCommand_HasExpectedOptions()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var smoke = root.Subcommands.Single(c => c.Name == "smoke");
+        var usage = smoke.Subcommands.Single(c => c.Name == "usage");
+        var opts = usage.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("dry-run", opts);
+        Assert.Contains("json", opts);
     }
 
     // â”€â”€ tool (Phase F5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

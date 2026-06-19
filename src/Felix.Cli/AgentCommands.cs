@@ -350,8 +350,10 @@ partial class Program
             .AddColumn(new TableColumn("[yellow]Purpose[/]"));
 
         table.AddRow("1", "[grey]felix doctor[/]", "Check setup and usage readiness");
-        table.AddRow("2", "[grey]felix run <requirement-id>[/]", "Create run artifacts");
-        table.AddRow("3", "[grey]felix query usage --since 7d[/]", "Inspect token and model usage");
+        table.AddRow("2", "[grey]felix smoke usage --dry-run[/]", "Preview the disposable usage smoke test");
+        table.AddRow("3", "[grey]felix smoke usage[/]", "Verify live model and token capture");
+        table.AddRow("4", "[grey]felix run <requirement-id>[/]", "Create real run artifacts");
+        table.AddRow("5", "[grey]felix query usage --since 7d[/]", "Inspect token and model usage");
 
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Panel(table)

@@ -24,6 +24,10 @@ felix setup
 # Run agent on a requirement
 felix run S-0001
 
+# Verify first-run usage tracking without touching real requirements
+felix smoke usage --dry-run
+felix smoke usage
+
 # Run in continuous loop mode
 felix loop
 

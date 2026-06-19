@@ -1,6 +1,6 @@
 # Setup & Configuration
 
-> **Quick links:** [Installation](#installation) · [felix setup](#felix-setup) · [felix agent](#felix-agent) · [felix tool](#felix-tool) · [felix migrate](#felix-migrate) · [felix doctor](#felix-doctor) · [felix gc](#felix-gc) · [felix update](#felix-update)
+> **Quick links:** [Installation](#installation) · [felix setup](#felix-setup) · [felix agent](#felix-agent) · [felix smoke](#felix-smoke) · [felix tool](#felix-tool) · [felix migrate](#felix-migrate) · [felix doctor](#felix-doctor) · [felix gc](#felix-gc) · [felix update](#felix-update)
 
 ---
 
@@ -59,7 +59,7 @@ The installed CLI presents this flow with a richer Spectre.Console interface ins
 7. **Test command** — prompts for backpressure test command
 8. **Mode choice** — local (no server) or remote (server-backed team mode)
 9. **Remote config** — in remote mode, prompts for backend URL and API key, validates key, then offers `spec pull` + `spec fix`
-10. **Usage tracking next steps** — shows the `felix doctor` -> `felix run <requirement-id>` -> `felix query usage --since 7d` workflow
+10. **Usage tracking next steps** — shows the `felix doctor` -> `felix smoke usage` -> `felix query usage --since 7d` workflow
 
 **Note:** Setup now distinguishes between configuring agent profiles (`.felix/agents.json`) and choosing the active profile (`.felix/config.json`) so you are not asked to re-pick providers from a hardcoded list.
 
@@ -175,15 +175,17 @@ Runs a quick smoke test to verify:
 
 Use this after installing a new agent executable or updating versions.
 
-For end-to-end usage tracking, run one small requirement and then inspect usage:
+For end-to-end usage tracking, run the disposable usage smoke test and then inspect usage:
 
 ```powershell
-felix run S-0000
-felix query usage --run-id <run-id> --json
+felix smoke usage --dry-run
+felix smoke usage
+felix run S-0001
+felix query usage --since 7d --json
 felix doctor
 ```
 
-The smoke passes when `usage_available` is `true`, the effective model is populated, and `felix doctor` reports `[ok] [usage-artifacts]`.
+`felix smoke usage` creates a disposable project under `runs/_usage-smoke-*`, runs `S-0000` once with `-NoCommit` and `-NoExplore`, and checks the resulting `usage.json`. The smoke passes when `usage_available` is `true` and the effective model is populated. After a real project run, `felix doctor` reports `[ok] [usage-artifacts]` when usage records are valid.
 
 ### `felix agent register`
 
@@ -217,6 +219,22 @@ felix agent install-help copilot
 ```
 
 Prints install and login guidance for all supported agents, or for one named agent. Use this when `felix agent setup` shows `Agent not installed` and you need concrete steps for that provider.
+
+---
+
+## `felix smoke`
+
+```powershell
+felix smoke usage --dry-run
+felix smoke usage
+felix smoke usage --json
+```
+
+**What it does:** Runs first-run smoke checks without changing the current repository's requirements or source files.
+
+`felix smoke usage` creates a disposable Felix project under `runs/_usage-smoke-*`, copies the active agent profile into it, runs `S-0000` once with `-NoCommit` and `-NoExplore`, and then summarizes `felix query usage`.
+
+Use `--dry-run` first to confirm the selected agent and target path. The live smoke uses the configured provider and may consume a small number of model tokens.
 
 ---
 

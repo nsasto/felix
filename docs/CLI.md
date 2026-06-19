@@ -97,6 +97,7 @@ See [SPECS.md](SPECS.md) for the full registry format, `felix spec` commands, an
 | `felix status` | Show requirement status | [SPECS.md](SPECS.md) |
 | `felix setup` | Interactive project wizard | [SETUP.md](SETUP.md) |
 | `felix agent` | Manage agent profiles | [SETUP.md](SETUP.md) |
+| `felix smoke` | First-run smoke checks | [SETUP.md](SETUP.md) |
 | `felix tool` | Tool allowlist management | [SETUP.md](SETUP.md) |
 | `felix migrate` | Schema migration | [SETUP.md](SETUP.md) |
 | `felix doctor` | Health check | [SETUP.md](SETUP.md) |

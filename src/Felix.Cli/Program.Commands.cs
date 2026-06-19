@@ -322,6 +322,30 @@ partial class Program
         return cmd;
     }
 
+    static Command CreateSmokeCommand(string felixPs1)
+    {
+        var cmd = new Command("smoke", "Run first-run smoke checks");
+
+        var dryRunOpt = new Option<bool>("--dry-run", "Show the resolved smoke plan without running the agent");
+        var jsonOpt = new Option<bool>("--json", "Emit a machine-readable summary");
+        var usageCmd = new Command("usage", "Run a live usage-tracking smoke test")
+        {
+            dryRunOpt,
+            jsonOpt
+        };
+
+        usageCmd.SetHandler(async (dryRun, json) =>
+        {
+            var args = new List<string> { "smoke", "usage" };
+            if (dryRun) args.Add("--dry-run");
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, dryRunOpt, jsonOpt);
+
+        cmd.AddCommand(usageCmd);
+        return cmd;
+    }
+
     static Command CreateUpdateCommand()
     {
         var checkOpt = new Option<bool>("--check", "Check GitHub for a newer Felix release without installing it");

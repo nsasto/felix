@@ -328,7 +328,9 @@ function Show-Help {
                 Write-Host ""
                 Write-Host "After setup:" -ForegroundColor Yellow
                 Write-Host "  felix doctor                       Check setup and usage readiness"
-                Write-Host '  felix run <requirement-id>          Create run artifacts'
+                Write-Host "  felix smoke usage --dry-run         Preview the usage smoke test"
+                Write-Host "  felix smoke usage                   Verify live token/model capture"
+                Write-Host '  felix run <requirement-id>          Create real run artifacts'
                 Write-Host "  felix query usage --since 7d        Inspect token and model usage"
                 Write-Host ""
                 Write-Host "Cost estimates:" -ForegroundColor Yellow
@@ -452,6 +454,25 @@ function Show-Help {
                 Write-Host "  felix query state --json"
                 Write-Host ""
                 Write-Host "Usage cost estimates read .felix/model-pricing.json when present." -ForegroundColor Gray
+                Write-Host ""
+            }
+            "smoke" {
+                Write-Host ""
+                Write-Host "felix smoke usage [options]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Run first-run smoke checks without touching your real requirements."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  usage                  Verify live model and token usage capture"
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --dry-run              Preview the selected agent and disposable project path"
+                Write-Host "  --json                 Machine-readable summary"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix smoke usage --dry-run"
+                Write-Host "  felix smoke usage"
+                Write-Host "  felix smoke usage --json"
                 Write-Host ""
             }
             "recover" {
@@ -589,10 +610,11 @@ function Show-Help {
         Write-Host '  event <subcommand>    Inspect the Felix event stream'
         Write-Host "  migrate               Run schema migrations on project files"
         Write-Host "  gc                    Garbage-collect stale runs and orphaned worktrees"
-        Write-Host "  doctor                Run health checks on the Felix project"
-        Write-Host "  update                Update the installed Felix CLI from GitHub Releases"
-        Write-Host '  agent <subcommand>    Manage and switch agents'
-        Write-Host "  procs [subcommand]    Manage active execution sessions"
+                Write-Host "  doctor                Run health checks on the Felix project"
+                Write-Host "  update                Update the installed Felix CLI from GitHub Releases"
+                Write-Host '  agent <subcommand>    Manage and switch agents'
+                Write-Host "  smoke <subcommand>    Run first-run smoke checks"
+                Write-Host "  procs [subcommand]    Manage active execution sessions"
         Write-Host "  tui                   Launch interactive terminal UI"
         Write-Host "  dashboard             Interactive TUI dashboard"
         Write-Host "  setup                 Scaffold project, configure agents and sync"
@@ -612,8 +634,9 @@ function Show-Help {
         Write-Host '  felix validate S-0001'
         Write-Host '  felix deps S-0001 --check'
         Write-Host '  felix spec create Add user authentication'
-        Write-Host '  felix context build'
-        Write-Host '  felix update --check'
+                Write-Host '  felix context build'
+                Write-Host '  felix smoke usage --dry-run'
+                Write-Host '  felix update --check'
         Write-Host '  felix setup'
         Write-Host '  felix help run'
         Write-Host ""

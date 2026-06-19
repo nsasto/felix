@@ -252,6 +252,10 @@ switch ($Command) {
         . "$FelixRoot\commands\setup.ps1"
         Invoke-Setup -Args $remainingArgs
     }
+    "smoke" {
+        . "$FelixRoot\commands\smoke.ps1"
+        Invoke-Smoke -CmdArgs $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
+    }
     "init" {
         . "$FelixRoot\commands\setup.ps1"
         Invoke-Setup -Args $remainingArgs

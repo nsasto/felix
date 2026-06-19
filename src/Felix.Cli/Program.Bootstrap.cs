@@ -68,6 +68,7 @@ partial class Program
         rootCommand.AddCommand(CreateSpecCommand(felixPs1));
         rootCommand.AddCommand(CreateAgentCommand(felixPs1));
         rootCommand.AddCommand(CreateSetupCommand(felixPs1));
+        rootCommand.AddCommand(CreateSmokeCommand(felixPs1));
         rootCommand.AddCommand(CreateProcsCommand(felixPs1));
         rootCommand.AddCommand(CreateContextCommand(felixPs1, formatOpt));
         rootCommand.AddCommand(CreateUpdateCommand());

@@ -79,11 +79,13 @@ After setup, the shortest usage-tracking loop is:
 
 ```powershell
 felix doctor
+felix smoke usage --dry-run
+felix smoke usage
 felix run S-0001
 felix query usage --since 7d
 ```
 
-Token and model details are recorded in `runs/<run-id>/usage.json` after each run. For cost estimates, copy `.felix/model-pricing.json.example` to `.felix/model-pricing.json` and add current prices from your provider.
+`felix smoke usage` creates a disposable project under `runs/_usage-smoke-*`, runs `S-0000` once with `-NoCommit` and `-NoExplore`, then checks that `usage.json` includes an effective model and provider token data. Token and model details are recorded in `runs/<run-id>/usage.json` after each real run in your project. For cost estimates, copy `.felix/model-pricing.json.example` to `.felix/model-pricing.json` and add current prices from your provider.
 
 For Copilot CLI, Felix runs non-interactively with JSONL output enabled so `felix query usage` can capture the effective model, session ID, and token fields that Copilot reports. On Windows, long prompts are passed through a temporary prompt file to avoid command-line length limits. If Copilot returns blank output, check local proxy/network settings first; blocked proxy values such as `HTTP_PROXY=http://127.0.0.1:9` prevent live usage capture.
 
