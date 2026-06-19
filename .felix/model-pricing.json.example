@@ -1,0 +1,15 @@
+{
+  "_v": 1,
+  "currency": "USD",
+  "prices": [
+    {
+      "provider": "example-provider",
+      "model": "example-model",
+      "input_per_million": 0.0,
+      "output_per_million": 0.0,
+      "cache_read_per_million": 0.0,
+      "cache_creation_per_million": 0.0,
+      "note": "Copy this file to .felix/model-pricing.json and replace with your provider's current prices."
+    }
+  ]
+}

@@ -112,6 +112,44 @@ felix context inspect
 
 ---
 
+## Model Usage and Pricing
+
+Felix records model and token usage for each agent run in:
+
+```text
+runs/<run-id>/usage.json
+```
+
+Inspect usage across runs:
+
+```powershell
+felix query usage --since 7d
+felix query usage --requirement S-0001 --json
+```
+
+Cost estimates are local and opt-in. Copy `.felix/model-pricing.json.example` to `.felix/model-pricing.json`, then add current provider prices:
+
+```json
+{
+  "_v": 1,
+  "currency": "USD",
+  "prices": [
+    {
+      "provider": "codex",
+      "model": "gpt-example",
+      "input_per_million": 0.0,
+      "output_per_million": 0.0,
+      "cache_read_per_million": 0.0,
+      "cache_creation_per_million": 0.0
+    }
+  ]
+}
+```
+
+Use `felix doctor` to check whether usage artifacts exist and whether observed models have matching pricing rules.
+
+---
+
 ## `backpressure` Block
 
 Gates that must pass before the agent considers a task complete.

@@ -28,6 +28,7 @@ public class TuiShellTests
         Assert.Contains(catalog, entry => entry.SlashPath == "context show");
         Assert.Contains(catalog, entry => entry.SlashPath == "agent current");
         Assert.Contains(catalog, entry => entry.SlashPath == "procs list");
+        Assert.Contains(catalog, entry => entry.SlashPath == "query usage");
         Assert.DoesNotContain(catalog, entry => entry.SlashPath == "procs kill");
         Assert.DoesNotContain(catalog, entry => entry.SlashPath == "install");
         Assert.DoesNotContain(catalog, entry => entry.SlashPath == "tui");
@@ -89,6 +90,68 @@ public class TuiShellTests
 
         Assert.Contains(suggestions, suggestion => suggestion.Value == "spec pull");
         Assert.Contains(suggestions, suggestion => suggestion.Value == "spec push");
+    }
+
+    [Fact]
+    public void GetTuiSuggestions_SuggestsUsageQueryOptions()
+    {
+        var catalog = Program.BuildTuiCommandCatalog(Program.CreateRootCommand("felix.ps1"));
+
+        var suggestions = Program.GetTuiSuggestions(catalog, "/query usage --");
+
+        Assert.Contains(suggestions, suggestion => suggestion.Value == "--since");
+        Assert.Contains(suggestions, suggestion => suggestion.Value == "--requirement");
+        Assert.Contains(suggestions, suggestion => suggestion.Value == "--run-id");
+    }
+
+    [Fact]
+    public void LoadTuiUsageSnapshot_SummarizesUsageArtifacts()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var runDir = Path.Combine(tempRoot, "runs", "S-0001-run1");
+        Directory.CreateDirectory(runDir);
+        Directory.CreateDirectory(Path.Combine(tempRoot, ".felix"));
+        File.WriteAllText(Path.Combine(tempRoot, ".felix", "model-pricing.json"), "{\"prices\":[]}");
+        File.WriteAllText(Path.Combine(runDir, "usage.json"), """
+            {
+              "usage_available": true,
+              "model": { "effective": "gpt-test" },
+              "usage": {
+                "input_tokens": 1200,
+                "output_tokens": 300,
+                "total_tokens": 1500,
+                "cache_read_input_tokens": 200
+              }
+            }
+            """);
+
+        try
+        {
+            var snapshot = Program.LoadTuiUsageSnapshot(tempRoot);
+
+            Assert.Equal(1, snapshot.Records);
+            Assert.Equal(1, snapshot.RecordsWithUsage);
+            Assert.Equal(1200, snapshot.InputTokens);
+            Assert.Equal(300, snapshot.OutputTokens);
+            Assert.Equal(1500, snapshot.TotalTokens);
+            Assert.Equal(200, snapshot.CacheReadInputTokens);
+            Assert.Equal(1, snapshot.DistinctModels);
+            Assert.True(snapshot.PricingConfigured);
+            Assert.Contains("1.5K", Program.FormatTuiUsageMarkup(snapshot));
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
+    [Theory]
+    [InlineData(999, "999")]
+    [InlineData(1500, "1.5K")]
+    [InlineData(2500000, "2.5M")]
+    public void FormatTokenCount_UsesCompactLabels(long tokens, string expected)
+    {
+        Assert.Equal(expected, Program.FormatTokenCount(tokens));
     }
 
     [Fact]

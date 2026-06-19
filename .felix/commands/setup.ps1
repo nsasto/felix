@@ -117,6 +117,11 @@ function Invoke-Setup {
     else { $skipped += "config.json.example (template)" }
 
     # policies/ — copy from engine dir; contains allowlist.json and denylist.json
+    if (Copy-EngineFile -FelixRoot $FelixRoot -FelixDir $felixDir -RelPath "model-pricing.json.example") {
+        $scaffolded += "model-pricing.json.example (usage pricing template)"
+    }
+    else { $skipped += "model-pricing.json.example (usage pricing template)" }
+
     foreach ($policyFile in @("policies\allowlist.json", "policies\denylist.json")) {
         if (Copy-EngineFile -FelixRoot $FelixRoot -FelixDir $felixDir -RelPath $policyFile) {
             $scaffolded += $policyFile.Replace('\', '/')
@@ -551,6 +556,14 @@ function Invoke-Setup {
         Write-Host "`nSync disabled - runs will only save locally" -ForegroundColor Yellow
         Write-Host "   Run felix setup again to enable sync" -ForegroundColor Gray
     }
+
+    Write-Host ""
+    Write-Host "Usage tracking" -ForegroundColor White
+    Write-Host "   Token/model usage is saved after each run to runs\<run-id>\usage.json" -ForegroundColor Gray
+    Write-Host "   1. Run:     felix doctor" -ForegroundColor Gray
+    Write-Host "   2. Run:     felix run <requirement-id>" -ForegroundColor Gray
+    Write-Host "   3. Inspect: felix query usage --since 7d" -ForegroundColor Gray
+    Write-Host "   Optional cost estimates: copy .felix\model-pricing.json.example to .felix\model-pricing.json and add current provider prices" -ForegroundColor DarkGray
 
     Write-Host ""
     Write-Output "Setup complete."

@@ -364,6 +364,7 @@ public sealed class V2CommandsTests
         var subs  = query.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         Assert.Contains("requirements", subs);
         Assert.Contains("runs",         subs);
+        Assert.Contains("usage",        subs);
         Assert.Contains("state",        subs);
     }
 
@@ -377,6 +378,20 @@ public sealed class V2CommandsTests
         Assert.Contains("status", opts);
         Assert.Contains("since",  opts);
         Assert.Contains("json",   opts);
+    }
+
+    [Fact]
+    public void QueryCommand_UsageSubcommand_HasUsageFilters()
+    {
+        var root  = Program.CreateRootCommand(FakeFelixPs1);
+        var query = root.Subcommands.Single(c => c.Name == "query");
+        var usage = query.Subcommands.Single(c => c.Name == "usage");
+        var opts  = usage.Options.Select(o => o.Name).ToHashSet();
+
+        Assert.Contains("requirement", opts);
+        Assert.Contains("run-id",      opts);
+        Assert.Contains("since",       opts);
+        Assert.Contains("json",        opts);
     }
 
     // â”€â”€ tool (Phase F5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

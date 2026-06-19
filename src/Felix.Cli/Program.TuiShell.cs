@@ -1,5 +1,6 @@
 ﻿using System.CommandLine;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Spectre.Console;
 
@@ -41,6 +42,7 @@ partial class Program
         "agent current",
         "agent install-help",
         "procs list",
+        "query usage",
         "skill list",
         "skill show",
         "event list",
@@ -62,7 +64,8 @@ partial class Program
         ["spec pull"] = new[] { "--dry-run", "--delete", "--force" },
         ["spec push"] = new[] { "--dry-run", "--force" },
         ["update"] = new[] { "--check", "--yes", "-y" },
-        ["search"] = new[] { "--scope", "--in", "--max", "--json", "--related-to" }
+        ["search"] = new[] { "--scope", "--in", "--max", "--json", "--related-to" },
+        ["query usage"] = new[] { "--since", "--requirement", "--run-id", "--json" }
     };
 
     internal enum TuiCommandExecutionMode
@@ -105,6 +108,22 @@ partial class Program
         public string CurrentAgentLabel { get; init; } = "not set";
         public int ConfiguredAgents { get; init; }
         public string VersionLabel { get; init; } = "unknown";
+        public TuiUsageSnapshot Usage { get; init; } = TuiUsageSnapshot.Empty;
+    }
+
+    internal sealed record TuiUsageSnapshot(
+        int Records,
+        int RecordsWithUsage,
+        long InputTokens,
+        long OutputTokens,
+        long TotalTokens,
+        long CacheReadInputTokens,
+        int DistinctModels,
+        bool PricingConfigured)
+    {
+        public static TuiUsageSnapshot Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, false);
+
+        public bool HasUsage => RecordsWithUsage > 0;
     }
 
     sealed class TuiShellState
@@ -455,8 +474,83 @@ partial class Program
             StatusCounts = statusCounts,
             CurrentAgentLabel = currentAgentLabel,
             ConfiguredAgents = configuredAgents.Count,
-            VersionLabel = versionLabel
+            VersionLabel = versionLabel,
+            Usage = LoadTuiUsageSnapshot(_felixProjectRoot)
         };
+    }
+
+    internal static TuiUsageSnapshot LoadTuiUsageSnapshot(string projectRoot)
+    {
+        if (string.IsNullOrWhiteSpace(projectRoot))
+            return TuiUsageSnapshot.Empty;
+
+        var runsDir = Path.Combine(projectRoot, "runs");
+        if (!Directory.Exists(runsDir))
+            return TuiUsageSnapshot.Empty;
+
+        var records = 0;
+        var recordsWithUsage = 0;
+        long inputTokens = 0;
+        long outputTokens = 0;
+        long totalTokens = 0;
+        long cacheReadInputTokens = 0;
+        var models = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var usagePath in Directory.EnumerateFiles(runsDir, "usage.json", SearchOption.AllDirectories))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(usagePath));
+                var root = document.RootElement;
+                records++;
+
+                if (root.TryGetProperty("model", out var modelElement))
+                {
+                    var effectiveModel = GetJsonString(modelElement, "effective") ?? GetJsonString(modelElement, "configured");
+                    if (!string.IsNullOrWhiteSpace(effectiveModel))
+                        models.Add(effectiveModel);
+                }
+
+                var usageAvailable = root.TryGetProperty("usage_available", out var usageAvailableElement)
+                    && usageAvailableElement.ValueKind is JsonValueKind.True;
+                if (!usageAvailable || !root.TryGetProperty("usage", out var usageElement) || usageElement.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                recordsWithUsage++;
+                inputTokens += GetJsonInt64(usageElement, "input_tokens");
+                outputTokens += GetJsonInt64(usageElement, "output_tokens");
+                totalTokens += GetJsonInt64(usageElement, "total_tokens");
+                cacheReadInputTokens += GetJsonInt64(usageElement, "cache_read_input_tokens");
+            }
+            catch
+            {
+                // Ignore corrupt artifacts in the TUI header; felix doctor reports them in detail.
+            }
+        }
+
+        return new TuiUsageSnapshot(
+            records,
+            recordsWithUsage,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            cacheReadInputTokens,
+            models.Count,
+            File.Exists(Path.Combine(projectRoot, ".felix", "model-pricing.json")));
+    }
+
+    static long GetJsonInt64(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value))
+            return 0;
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number))
+            return number;
+
+        if (value.ValueKind == JsonValueKind.String && long.TryParse(value.GetString(), out var parsed))
+            return parsed;
+
+        return 0;
     }
 
     static Panel CreateTuiWelcomePanel(TuiShellState state)
@@ -467,6 +561,7 @@ partial class Program
         {
             lines.Add($"[grey]project[/] [white]{_felixProjectRoot.EscapeMarkup()}[/]");
             lines.Add($"[grey]agent[/] [white]{header.CurrentAgentLabel.EscapeMarkup()}[/]");
+            lines.Add($"[grey]usage[/] {FormatTuiUsageMarkup(header.Usage)}");
             lines.Add($"[grey]version[/] [white]{header.VersionLabel.EscapeMarkup()}[/]");
         }
         else
@@ -476,6 +571,7 @@ partial class Program
             lines.Add($"[grey]project[/] [white]{_felixProjectRoot.EscapeMarkup()}[/]");
             lines.Add($"[grey]requirements[/] [white]{header.TotalRequirements}[/]  [grey]planned[/] [cyan]{header.StatusCounts.GetValueOrDefault("planned", 0)}[/]  [grey]in progress[/] [yellow]{header.StatusCounts.GetValueOrDefault("in_progress", 0)}[/]  [grey]done[/] [blue]{header.StatusCounts.GetValueOrDefault("done", 0)}[/]  [grey]complete[/] [green]{header.StatusCounts.GetValueOrDefault("complete", 0)}[/]  [grey]blocked[/] [red]{header.StatusCounts.GetValueOrDefault("blocked", 0)}[/]");
             lines.Add($"[grey]active agent[/] [white]{header.CurrentAgentLabel.EscapeMarkup()}[/]  [grey]configured agents[/] [white]{header.ConfiguredAgents}[/]");
+            lines.Add($"[grey]usage[/] {FormatTuiUsageMarkup(header.Usage)}");
             lines.Add($"[grey]version[/] [white]{header.VersionLabel.EscapeMarkup()}[/]");
         }
 
@@ -487,6 +583,33 @@ partial class Program
             Expand = true,
             Padding = new Padding(1, 0, 1, 0)
         };
+    }
+
+    internal static string FormatTuiUsageMarkup(TuiUsageSnapshot usage)
+    {
+        if (usage.Records == 0)
+            return "[grey]no usage artifacts yet[/]";
+
+        if (!usage.HasUsage)
+            return $"[yellow]{usage.Records} artifact(s), no provider token counts[/] [grey]run /doctor[/]";
+
+        var total = usage.TotalTokens > 0
+            ? usage.TotalTokens
+            : usage.InputTokens + usage.OutputTokens;
+        var pricing = usage.PricingConfigured ? "pricing configured" : "pricing missing";
+        var pricingColor = usage.PricingConfigured ? "green" : "yellow";
+        var cache = usage.CacheReadInputTokens > 0 ? $"  [grey]cache read[/] [white]{FormatTokenCount(usage.CacheReadInputTokens)}[/]" : string.Empty;
+
+        return $"[white]{usage.RecordsWithUsage} run(s)[/]  [grey]tokens[/] [white]{FormatTokenCount(total)}[/]  [grey]models[/] [white]{usage.DistinctModels}[/]{cache}  [{pricingColor}]{pricing}[/]";
+    }
+
+    internal static string FormatTokenCount(long tokens)
+    {
+        if (tokens >= 1_000_000)
+            return (tokens / 1_000_000d).ToString("0.##") + "M";
+        if (tokens >= 1_000)
+            return (tokens / 1_000d).ToString("0.#") + "K";
+        return tokens.ToString();
     }
 
     static Layout CreateTuiLayout()
@@ -1330,7 +1453,7 @@ partial class Program
     {
         if (slashPath is "help" or "version" or "status" or "list" or "validate" or "deps" or "context"
             or "agent list" or "agent current" or "agent install-help"
-            or "procs list"
+            or "procs list" or "query usage"
             or "spec list" or "spec fix" or "spec status" or "spec pull" or "spec push"
             or "skill list" or "skill show" or "event list"
             or "search"

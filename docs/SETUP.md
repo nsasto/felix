@@ -51,7 +51,7 @@ The installed CLI presents this flow with a richer Spectre.Console interface ins
 **Steps:**
 
 1. **Confirm project folder** — defaults to current directory; accepts a different path
-2. **Scaffold** — creates missing `policies/`, `specs/`, `config.json`, `requirements.json`, `state.json` and templates (idempotent)
+2. **Scaffold** — creates missing `policies/`, `specs/`, `runs/`, `config.json`, `requirements.json`, `state.json`, and templates including `.felix/model-pricing.json.example` (idempotent)
 3. **AGENTS.md check** — offers to create a starter repository operations guide if one does not exist
 4. **Agent profile setup** — optional searchable multi-select of installed providers plus per-provider model selection; writes `.felix/agents.json`
 5. **Active agent selection** — searchable chooser for which configured profile is active in `.felix/config.json` (`agent.agent_id`)
@@ -59,6 +59,7 @@ The installed CLI presents this flow with a richer Spectre.Console interface ins
 7. **Test command** — prompts for backpressure test command
 8. **Mode choice** — local (no server) or remote (server-backed team mode)
 9. **Remote config** — in remote mode, prompts for backend URL and API key, validates key, then offers `spec pull` + `spec fix`
+10. **Usage tracking next steps** — shows the `felix doctor` -> `felix run <requirement-id>` -> `felix query usage --since 7d` workflow
 
 **Note:** Setup now distinguishes between configuring agent profiles (`.felix/agents.json`) and choosing the active profile (`.felix/config.json`) so you are not asked to re-pick providers from a hardcoded list.
 
@@ -283,8 +284,12 @@ felix doctor --explain publish-out/MyApp.exe
 | `repo-map-stale` | A | New top-level folder without entry in `AGENTS.md ## Map` |
 | `spec-frontmatter` | B | Required frontmatter fields present; gates/skills/applyTo valid |
 | `stale-review` | E | Last `felix review` > 90 days ago |
+| `usage-artifacts` | F | Token/model usage artifacts exist and are readable |
+| `usage-pricing` | F | Observed models have matching local pricing rules when usage exists |
 | `stale-leases` | H | Lease files past their `lease_until` timestamp |
 | `orphaned-worktrees` | H | Worktree directories not tracked in active sessions |
+
+For usage reporting, `felix doctor` warns when existing runs do not have `usage.json`, when provider output lacks token/model data, or when cost estimates need `.felix/model-pricing.json`.
 
 **Exit codes:** `0` all checks passed · `1` one or more checks failed · `2` invalid arguments
 

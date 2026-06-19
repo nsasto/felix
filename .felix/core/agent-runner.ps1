@@ -40,6 +40,304 @@ function Test-CopilotModelUnavailableOutput {
     return $Output -match 'Model\s+"[^"]+"\s+from\s+--model\s+flag\s+is\s+not\s+available'
 }
 
+function Repair-FelixProcessPathEnvironment {
+    <#
+    .SYNOPSIS
+    Collapses duplicate PATH/Path entries in the current process environment on Windows.
+
+    .DESCRIPTION
+    Some launch environments expose both PATH and Path. Windows treats them as the
+    same variable, but PowerShell's environment provider and Start-Process can throw
+    "same key has already been added" before the agent subprocess starts. Preserve
+    the active PATH value, then store it once under canonical Path.
+    #>
+
+    if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
+        return
+    }
+
+    try {
+        $envs = [Environment]::GetEnvironmentVariables("Process")
+        $pathValue = $envs["PATH"]
+        if (-not $pathValue) {
+            $pathValue = $envs["Path"]
+        }
+
+        if ($pathValue) {
+            [Environment]::SetEnvironmentVariable("PATH", $null, "Process")
+            [Environment]::SetEnvironmentVariable("Path", [string]$pathValue, "Process")
+        }
+    }
+    catch {
+        # Environment repair must never block agent execution.
+    }
+}
+
+function Get-FelixObjectPropertyValue {
+    param(
+        [Parameter(Mandatory = $false)]
+        [AllowNull()]
+        $Object,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($null -eq $Object) { return $null }
+
+    if ($Object -is [System.Collections.IDictionary]) {
+        if ($Object.Contains($Name)) { return $Object[$Name] }
+        return $null
+    }
+
+    $prop = $Object.PSObject.Properties[$Name]
+    if ($prop) { return $prop.Value }
+
+    return $null
+}
+
+function ConvertTo-FelixNullableLong {
+    param(
+        [Parameter(Mandatory = $false)]
+        [AllowNull()]
+        $Value
+    )
+
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [string] -and [string]::IsNullOrWhiteSpace($Value)) { return $null }
+
+    try {
+        return [int64]$Value
+    }
+    catch {
+        return $null
+    }
+}
+
+function ConvertTo-FelixTokenUsage {
+    param(
+        [Parameter(Mandatory = $false)]
+        [AllowNull()]
+        $Usage
+    )
+
+    if ($null -eq $Usage) { return $null }
+
+    $inputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "input_tokens")
+    if ($null -eq $inputTokens) {
+        $inputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "prompt_tokens")
+    }
+
+    $outputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "output_tokens")
+    if ($null -eq $outputTokens) {
+        $outputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "completion_tokens")
+    }
+
+    $cacheReadTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "cache_read_input_tokens")
+    if ($null -eq $cacheReadTokens) {
+        $cacheReadTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "cached_input_tokens")
+    }
+
+    $cacheCreationTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "cache_creation_input_tokens")
+
+    $totalTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "total_tokens")
+    if ($null -eq $totalTokens -and ($null -ne $inputTokens -or $null -ne $outputTokens)) {
+        $safeInputTokens = if ($null -eq $inputTokens) { 0 } else { $inputTokens }
+        $safeOutputTokens = if ($null -eq $outputTokens) { 0 } else { $outputTokens }
+        $totalTokens = [int64]($safeInputTokens + $safeOutputTokens)
+    }
+
+    $observedTokens = [int64]0
+    $hasObserved = $false
+    foreach ($value in @($inputTokens, $outputTokens, $cacheReadTokens, $cacheCreationTokens)) {
+        if ($null -ne $value) {
+            $observedTokens += [int64]$value
+            $hasObserved = $true
+        }
+    }
+
+    if (-not $hasObserved -and $null -eq $totalTokens) {
+        return $null
+    }
+
+    return [ordered]@{
+        input_tokens                = $inputTokens
+        output_tokens               = $outputTokens
+        total_tokens                = $totalTokens
+        cache_read_input_tokens     = $cacheReadTokens
+        cache_creation_input_tokens = $cacheCreationTokens
+        observed_tokens             = if ($hasObserved) { $observedTokens } else { $totalTokens }
+    }
+}
+
+function Get-AgentUsageFromOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AdapterType
+    )
+
+    $result = [ordered]@{
+        usage           = $null
+        usage_source    = $null
+        effective_model = $null
+        model_source    = $null
+        session_id      = $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return $result
+    }
+
+    $lines = @($Output -split "`r`n|`n|`r" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+    foreach ($line in $lines) {
+        $event = $null
+        try {
+            $event = $line | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            continue
+        }
+
+        $model = Get-FelixObjectPropertyValue -Object $event -Name "model"
+        if ($model) {
+            $result.effective_model = [string]$model
+            $result.model_source = "$AdapterType.output"
+        }
+
+        $sessionId = Get-FelixObjectPropertyValue -Object $event -Name "session_id"
+        if ($sessionId) {
+            $result.session_id = [string]$sessionId
+        }
+
+        $usage = Get-FelixObjectPropertyValue -Object $event -Name "usage"
+        if ($null -eq $usage) {
+            $data = Get-FelixObjectPropertyValue -Object $event -Name "data"
+            $usage = Get-FelixObjectPropertyValue -Object $data -Name "usage"
+
+            $dataModel = Get-FelixObjectPropertyValue -Object $data -Name "model"
+            if ($dataModel) {
+                $result.effective_model = [string]$dataModel
+                $result.model_source = "$AdapterType.output.data"
+            }
+
+            $dataSessionId = Get-FelixObjectPropertyValue -Object $data -Name "session_id"
+            if ($dataSessionId) {
+                $result.session_id = [string]$dataSessionId
+            }
+        }
+
+        $tokenUsage = ConvertTo-FelixTokenUsage -Usage $usage
+        if ($tokenUsage) {
+            $result.usage = $tokenUsage
+            $result.usage_source = "$AdapterType.output"
+        }
+    }
+
+    return $result
+}
+
+function Write-AgentUsageArtifact {
+    param(
+        [Parameter(Mandatory = $true)]
+        $AgentConfig,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AdapterType,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RunId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RunDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output,
+
+        [Parameter(Mandatory = $true)]
+        [double]$DurationSeconds,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ExitCode,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$Succeeded,
+
+        [Parameter(Mandatory = $false)]
+        [bool]$RetriedWithoutExplicitModel = $false
+    )
+
+    $configuredModel = if ($AgentConfig.PSObject.Properties["model"] -and -not [string]::IsNullOrWhiteSpace([string]$AgentConfig.model)) {
+        [string]$AgentConfig.model
+    }
+    else {
+        $null
+    }
+
+    $usageInfo = Get-AgentUsageFromOutput -Output $Output -AdapterType $AdapterType
+    $effectiveModel = if ($usageInfo.effective_model) { [string]$usageInfo.effective_model } else { $configuredModel }
+    $modelSource = if ($usageInfo.model_source) { [string]$usageInfo.model_source } elseif ($configuredModel) { "configured" } else { "provider_default" }
+
+    if ($RetriedWithoutExplicitModel -and -not $usageInfo.effective_model) {
+        $effectiveModel = $null
+        $modelSource = "provider_default_after_configured_model_rejected"
+    }
+
+    $provider = if ($AgentConfig.PSObject.Properties["provider"] -and $AgentConfig.provider) {
+        [string]$AgentConfig.provider
+    }
+    else {
+        $AdapterType
+    }
+
+    $usageRecord = [ordered]@{
+        _v                = 1
+        run_id            = $RunId
+        timestamp_utc     = (Get-Date).ToUniversalTime().ToString("o")
+        duration_seconds  = [math]::Round($DurationSeconds, 3)
+        exit_code         = $ExitCode
+        succeeded         = $Succeeded
+        usage_available   = ($null -ne $usageInfo.usage)
+        usage_source      = $usageInfo.usage_source
+        session_id        = $usageInfo.session_id
+        agent             = [ordered]@{
+            id         = if ($AgentConfig.PSObject.Properties["key"]) { [string]$AgentConfig.key } else { $null }
+            name       = if ($AgentConfig.PSObject.Properties["name"]) { [string]$AgentConfig.name } else { $null }
+            provider   = $provider
+            adapter    = $AdapterType
+            executable = if ($AgentConfig.PSObject.Properties["executable"]) { [string]$AgentConfig.executable } else { $null }
+        }
+        model             = [ordered]@{
+            configured = $configuredModel
+            effective  = $effectiveModel
+            source     = $modelSource
+        }
+        usage             = $usageInfo.usage
+    }
+
+    try {
+        $usagePath = Join-Path $RunDir "usage.json"
+        $usageRecord | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $usagePath -Encoding UTF8
+
+        $relPath = $usagePath.Replace($ProjectPath + "\", "")
+        Emit-Artifact -Path $relPath -Type "usage" -SizeBytes (Get-Item $usagePath).Length
+        Emit-Event -EventType "llm_usage" -Data $usageRecord
+    }
+    catch {
+        Emit-Log -Level "warn" -Message "Failed to write usage artifact: $($_.Exception.Message)" -Component "agent"
+    }
+
+    return $usageRecord
+}
+
 function Write-AgentPromptArtifacts {
     param(
         [Parameter(Mandatory = $true)]
@@ -129,6 +427,8 @@ function Invoke-AgentSubprocess {
     $stderrPath = [System.IO.Path]::GetTempFileName()
 
     try {
+        Repair-FelixProcessPathEnvironment
+
         if ($PromptMode -eq "stdin") {
             $inputPath = [System.IO.Path]::GetTempFileName()
             $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -281,6 +581,7 @@ function Invoke-AgentExecution {
     
     # Workflow Stage: execute_llm
     Set-WorkflowStage -Stage "execute_llm" -ProjectPath $ProjectPath
+    Repair-FelixProcessPathEnvironment
     
     Emit-AgentExecutionStarted -AgentName $AgentConfig.name -AgentId $AgentConfig.key
     
@@ -338,6 +639,7 @@ function Invoke-AgentExecution {
     $envBackup = @{}
     $exitCode = 0
     $succeeded = $true
+    $retriedWithoutExplicitModel = $false
 
     # Clear CLAUDECODE so the agent subprocess is not blocked by the "nested session" guard.
     # Claude Code sets this env var in the host session; any child claude process sees it and
@@ -390,6 +692,17 @@ function Invoke-AgentExecution {
                 Set-Content $outputPath $output -Encoding UTF8
                 $relPath = $outputPath.Replace($ProjectPath + "\", "")
                 Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
+
+                Write-AgentUsageArtifact `
+                    -AgentConfig $AgentConfig `
+                    -AdapterType $adapterType `
+                    -RunId $RunId `
+                    -RunDir $RunDir `
+                    -ProjectPath $ProjectPath `
+                    -Output $output `
+                    -DurationSeconds $duration.TotalSeconds `
+                    -ExitCode 127 `
+                    -Succeeded $false | Out-Null
 
                 Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
                 Emit-Log -Level "error" -Message "Execution failed: executable not found" -Component "agent"
@@ -448,6 +761,7 @@ function Invoke-AgentExecution {
 
             if ($adapterType -eq "copilot" -and ($processArgs -contains "--model") -and (Test-CopilotModelUnavailableOutput -Output $output)) {
                 Emit-Log -Level "warn" -Message "Copilot rejected configured model '$($AgentConfig.model)'; retrying without --model" -Component "agent"
+                $retriedWithoutExplicitModel = $true
 
                 $retryProcessArgs = Remove-ArgumentPair -Arguments $processArgs -Flag "--model"
                 $retryResult = Invoke-AgentSubprocess `
@@ -542,6 +856,18 @@ function Invoke-AgentExecution {
     Set-Content $outputPath $output -Encoding UTF8
     $relPath = $outputPath.Replace($ProjectPath + "\", "")
     Emit-Artifact -Path $relPath -Type "log" -SizeBytes (Get-Item $outputPath).Length
+
+    $usageRecord = Write-AgentUsageArtifact `
+        -AgentConfig $AgentConfig `
+        -AdapterType $adapterType `
+        -RunId $RunId `
+        -RunDir $RunDir `
+        -ProjectPath $ProjectPath `
+        -Output $output `
+        -DurationSeconds $duration.TotalSeconds `
+        -ExitCode $exitCode `
+        -Succeeded $succeeded `
+        -RetriedWithoutExplicitModel:$retriedWithoutExplicitModel
     
     Emit-AgentExecutionCompleted -DurationSeconds $duration.TotalSeconds
     Emit-Log -Level "info" -Message "Execution complete (Duration: $($duration.TotalSeconds.ToString("F1"))s)" -Component "agent"
@@ -561,6 +887,7 @@ function Invoke-AgentExecution {
         ExitCode           = $exitCode
         Succeeded          = $succeeded
         ResolvedExecutable = $resolvedExecutable
+        Usage              = $usageRecord
     }
 }
 

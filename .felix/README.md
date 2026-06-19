@@ -55,7 +55,7 @@
 │   └── denylist.json        # Forbidden file patterns
 │
 ├── plugins/                 # Plugin system (optional)
-│   ├── metrics-collector/   # Iteration metrics tracking
+│   ├── metrics-collector/   # Legacy metrics plugin (disabled; usage is core)
 │   ├── prompt-enhancer/     # Prompt augmentation
 │   ├── slack-notifier/      # Slack notifications
 │   └── hook-contracts.ps1   # Plugin hook definitions
@@ -107,6 +107,7 @@ When running against a project, the engine needs project-specific data files:
 ├── requirements.json   # requirement status (auto-created by `felix setup`)
 ├── state.json          # ephemeral run state (auto-created by `felix setup`)
 ├── config.json         # project config: agent, model, sync (auto-created by `felix setup`)
+├── model-pricing.json.example # local usage cost template (auto-created by `felix setup`)
 └── outbox/             # sync queue (auto-created at runtime)
 ```
 
@@ -549,7 +550,7 @@ Plugins extend agent behavior at specific hooks:
 
 **Built-in Plugins:**
 
-- **metrics-collector** - Tracks iteration metrics
+- **metrics-collector** - Legacy metrics plugin; token/model usage is tracked by core runner artifacts (`runs/<run-id>/usage.json`)
 - **prompt-enhancer** - Augments prompts with additional context
 - **slack-notifier** - Sends Slack notifications
 

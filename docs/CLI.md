@@ -191,6 +191,7 @@ felix dashboard   # alias
 Launches an interactive terminal UI (built with .NET/Spectre.Console) providing:
 
 - A bordered welcome and status card on initial load
+- Header visibility for captured token/model usage, model count, cache-read tokens, and pricing configuration status
 - A Copilot-style slash-command composer at the bottom while typing
 - Scrollback-first command output so prior content remains visible in the terminal
 - Slash suggestions for commands and common requirement arguments
@@ -205,7 +206,7 @@ Launches an interactive terminal UI (built with .NET/Spectre.Console) providing:
 | `Esc` | Cancel the current prompt or suggestion list |
 | `Backspace` | Delete input, or cancel when the prompt is empty |
 
-**Common commands:** `/help` Â· `/status` Â· `/list` Â· `/run <id>` Â· `/run-next` Â· `/validate <id>` Â· `/deps <id>` Â· `/setup` Â· `/quit`
+**Common commands:** `/help` Â· `/status` Â· `/list` Â· `/run <id>` Â· `/run-next` Â· `/validate <id>` Â· `/deps <id>` Â· `/query usage` Â· `/setup` Â· `/quit`
 
 **Notes:**
 - Output is appended below each command (terminal scrollback is preserved)

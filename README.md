@@ -71,8 +71,19 @@ The setup wizard walks you through:
 - **Supported local agents** - Droid, Claude, Codex, Gemini, and Copilot CLI
 - **Test command** - configure your backpressure command (`pytest`, `npm test`, etc.)
 - **Mode** - local (standalone) or remote (team sync via [runfelix.io](https://runfelix.io)) with backend URL and API key validation
+- **Usage tracking** - seeds `.felix/model-pricing.json.example` so `felix query usage` can summarize token/model usage and optional local cost estimates
 
 If exactly one agent profile is configured, setup auto-selects it and skips the chooser. Setup is idempotent - safe to re-run without overwriting existing config.
+
+After setup, the shortest usage-tracking loop is:
+
+```powershell
+felix doctor
+felix run S-0001
+felix query usage --since 7d
+```
+
+Token and model details are recorded in `runs/<run-id>/usage.json` after each run. For cost estimates, copy `.felix/model-pricing.json.example` to `.felix/model-pricing.json` and add current prices from your provider.
 
 You can also re-run just the agent-profile flow at any time:
 
@@ -242,6 +253,7 @@ Query requirements, lock down tool usage, and reclaim disk space:
 # Query agent state
 felix query requirements [--status planned|done|blocked] [--json]
 felix query runs         [--requirement S-0001] [--json]
+felix query usage        [--since 7d] [--requirement S-0001] [--json]
 felix query state        [--json]
 
 # Tool allowlist (default-allow; audit log always written)

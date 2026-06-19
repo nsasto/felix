@@ -790,6 +790,21 @@ partial class Program
             await ExecutePowerShell(felixPs1, args.ToArray());
         }, runReqOpt, runJsonOpt);
 
+        var usageReqOpt   = new Option<string?>("--requirement", "Filter by requirement ID");
+        var usageRunOpt   = new Option<string?>("--run-id", "Filter by exact run ID");
+        var usageSinceOpt = new Option<string?>("--since", "Filter by age or date (e.g. 24h, 7d, 2026-06-01)");
+        var usageJsonOpt  = new Option<bool>("--json", "Machine-readable output");
+        var usageCmd      = new Command("usage", "Summarize model and token usage") { usageReqOpt, usageRunOpt, usageSinceOpt, usageJsonOpt };
+        usageCmd.SetHandler(async (req, runId, since, json) =>
+        {
+            var args = new List<string> { "query", "usage" };
+            if (!string.IsNullOrEmpty(req)) args.AddRange(new[] { "--requirement", req });
+            if (!string.IsNullOrEmpty(runId)) args.AddRange(new[] { "--run-id", runId });
+            if (!string.IsNullOrEmpty(since)) args.AddRange(new[] { "--since", since });
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, usageReqOpt, usageRunOpt, usageSinceOpt, usageJsonOpt);
+
         var stateJsonOpt = new Option<bool>("--json", "Machine-readable output");
         var stateCmd     = new Command("state", "Show current agent loop state") { stateJsonOpt };
         stateCmd.SetHandler(async (json) =>
@@ -801,6 +816,7 @@ partial class Program
 
         cmd.AddCommand(reqCmd);
         cmd.AddCommand(runsCmd);
+        cmd.AddCommand(usageCmd);
         cmd.AddCommand(stateCmd);
         return cmd;
     }

@@ -18,6 +18,7 @@ public sealed class AgentSetupTests
         Directory.CreateDirectory(installRoot);
         Directory.CreateDirectory(Path.Combine(installRoot, "policies"));
         File.WriteAllText(Path.Combine(installRoot, "config.json.example"), "{\"sync\":{}}\n");
+        File.WriteAllText(Path.Combine(installRoot, "model-pricing.json.example"), "{\"prices\":[]}\n");
         File.WriteAllText(Path.Combine(installRoot, "policies", "allowlist.json"), "[]\n");
         File.WriteAllText(Path.Combine(installRoot, "policies", "denylist.json"), "[]\n");
 
@@ -32,9 +33,12 @@ public sealed class AgentSetupTests
             Assert.True(first.IsNewProject);
             Assert.Contains("requirements.json", first.Created);
             Assert.Contains("runs/", first.Created);
+            Assert.Contains("model-pricing.json.example (usage pricing template)", first.Created);
             Assert.False(second.IsNewProject);
             Assert.Contains("requirements.json", second.Skipped);
+            Assert.Contains("model-pricing.json.example (usage pricing template)", second.Skipped);
             Assert.True(File.Exists(Path.Combine(projectRoot, ".felix", "config.json")));
+            Assert.True(File.Exists(Path.Combine(projectRoot, ".felix", "model-pricing.json.example")));
             Assert.True(File.Exists(Path.Combine(projectRoot, ".gitignore")));
             var gitignore = File.ReadAllText(Path.Combine(projectRoot, ".gitignore"));
             Assert.Contains("# ── Felix local files ─────────────────────────────────────────────────────────", gitignore);

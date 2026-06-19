@@ -502,6 +502,95 @@ if ($json9c) {
 
 Remove-Item $tmp9 -Recurse -Force
 
+# ---------------------------------------------------------------------------
+# SECTION 9b: doctor usage telemetry checks
+# ---------------------------------------------------------------------------
+Write-Host "`n== doctor usage telemetry checks =="
+
+$tmp9d  = New-TempDir
+$proj9d = Join-Path $tmp9d "project"
+$fx9d   = Join-Path $proj9d ".felix"
+$run9d  = Join-Path $proj9d "runs\S-0001-run1"
+New-Item -ItemType Directory $fx9d -Force | Out-Null
+New-Item -ItemType Directory $run9d -Force | Out-Null
+Set-Content (Join-Path $proj9d "AGENTS.md") "# Test" -Encoding UTF8
+
+$out9dMissing = powershell -NoProfile -NonInteractive -Command "
+    `$PSDefaultParameterValues['*:ErrorAction'] = 'Continue'
+    & '$($doctorScript -replace "'","''")'  ``
+        -Json  ``
+        -ProjectPath '$($proj9d -replace "'","''")'
+" 2>&1 | Out-String
+
+$json9dMissing = $out9dMissing | ConvertFrom-Json
+$usageMissing = $json9dMissing.checks | Where-Object { $_.id -eq "usage-artifacts" }
+Assert-Equal "warn" ($usageMissing.status) "doctor: usage-artifacts warns when existing runs have no usage.json"
+
+$usageRecord9d = [ordered]@{
+    _v              = 1
+    run_id          = "S-0001-run1"
+    usage_available = $true
+    agent           = [ordered]@{ provider = "codex"; adapter = "codex"; name = "codex" }
+    model           = [ordered]@{ configured = "gpt-test"; effective = "gpt-test"; source = "codex.output" }
+    usage           = [ordered]@{ input_tokens = 10; output_tokens = 20; total_tokens = 30 }
+}
+$usageRecord9d | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $run9d "usage.json") -Encoding UTF8
+
+$out9dNoPricing = powershell -NoProfile -NonInteractive -Command "
+    `$PSDefaultParameterValues['*:ErrorAction'] = 'Continue'
+    & '$($doctorScript -replace "'","''")'  ``
+        -Json  ``
+        -ProjectPath '$($proj9d -replace "'","''")'
+" 2>&1 | Out-String
+
+$json9dNoPricing = $out9dNoPricing | ConvertFrom-Json
+$usageOk = $json9dNoPricing.checks | Where-Object { $_.id -eq "usage-artifacts" }
+$pricingMissing = $json9dNoPricing.checks | Where-Object { $_.id -eq "usage-pricing" }
+Assert-Equal "ok" ($usageOk.status) "doctor: usage-artifacts ok when usage.json has token and model details"
+Assert-Equal "warn" ($pricingMissing.status) "doctor: usage-pricing warns when pricing file is missing"
+
+$pricing9d = [ordered]@{
+    _v       = 1
+    currency = "USD"
+    prices   = @(
+        [ordered]@{
+            provider           = "codex"
+            model              = "gpt-test"
+            input_per_million  = 1.0
+            output_per_million = 2.0
+        }
+    )
+}
+$pricing9d | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $fx9d "model-pricing.json") -Encoding UTF8
+
+$out9dPriced = powershell -NoProfile -NonInteractive -Command "
+    `$PSDefaultParameterValues['*:ErrorAction'] = 'Continue'
+    & '$($doctorScript -replace "'","''")'  ``
+        -Json  ``
+        -ProjectPath '$($proj9d -replace "'","''")'
+" 2>&1 | Out-String
+
+$json9dPriced = $out9dPriced | ConvertFrom-Json
+$pricingOk = $json9dPriced.checks | Where-Object { $_.id -eq "usage-pricing" }
+Assert-Equal "ok" ($pricingOk.status) "doctor: usage-pricing ok when observed model has pricing"
+
+$usageRecord9d.usage_available = $false
+$usageRecord9d.model.effective = ""
+$usageRecord9d | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $run9d "usage.json") -Encoding UTF8
+
+$out9dUnavailable = powershell -NoProfile -NonInteractive -Command "
+    `$PSDefaultParameterValues['*:ErrorAction'] = 'Continue'
+    & '$($doctorScript -replace "'","''")'  ``
+        -Json  ``
+        -ProjectPath '$($proj9d -replace "'","''")'
+" 2>&1 | Out-String
+
+$json9dUnavailable = $out9dUnavailable | ConvertFrom-Json
+$usageUnavailable = $json9dUnavailable.checks | Where-Object { $_.id -eq "usage-artifacts" }
+Assert-Equal "warn" ($usageUnavailable.status) "doctor: usage-artifacts warns when provider usage/model details are missing"
+
+Remove-Item $tmp9d -Recurse -Force
+
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # SECTION 10: learning-capture with no failure events (no file expected)
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -117,6 +117,7 @@ felix query <kind> [filters] [--json]
 |---|---|
 | `requirements` | Read and filter requirements. |
 | `runs` | Read run history metadata. |
+| `usage` | Summarize model and token usage from run artifacts. |
 | `state` | Read `.felix/state.json` (loop control state). |
 
 For events, plugins, skills, and memory use their dedicated verbs instead (`felix event query`, `felix plugin list`, `felix skill list`, `felix memory view`).
@@ -170,6 +171,25 @@ felix query state --json
 ```
 
 Returns the current contents of `.felix/state.json` in a stable, versioned format.
+
+### `usage` filters
+
+```powershell
+felix query usage --since 7d
+felix query usage --requirement S-0001 --json
+felix query usage --run-id S-0001-20260619T120000-it1
+```
+
+Usage reads `runs/<run-id>/usage.json`, written by the agent runner after each execution.
+
+| Flag | Description |
+|---|---|
+| `--since <duration>` | Filter usage records by age or date (for example `24h`, `7d`, `2026-06-01`). |
+| `--requirement <id>` | Filter usage to runs for a specific requirement. |
+| `--run-id <id>` | Filter usage to one exact run ID. |
+| `--json` | Emit structured JSON including token totals and per-run model details. |
+
+Cost estimates are optional and local. Copy `.felix/model-pricing.json.example` to `.felix/model-pricing.json` and add current provider prices; `felix query usage` then reports estimated cost where model pricing matches.
 
 ---
 

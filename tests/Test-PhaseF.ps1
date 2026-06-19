@@ -155,6 +155,20 @@ New-Item -ItemType Directory -Path $tmpProj -Force | Out-Null
 New-Item -ItemType Directory -Path "$tmpProj\.felix" | Out-Null
 
 @{ requirements = @() } | ConvertTo-Json | Set-Content "$tmpProj\.felix\requirements.json" -Encoding UTF8
+@{
+    _v = 1
+    currency = "USD"
+    prices = @(
+        @{
+            provider = "droid"
+            model = "claude-sonnet-test"
+            input_per_million = 1.0
+            output_per_million = 2.0
+            cache_read_per_million = 0.5
+            cache_creation_per_million = 1.5
+        }
+    )
+} | ConvertTo-Json -Depth 5 | Set-Content "$tmpProj\.felix\model-pricing.json" -Encoding UTF8
 
 Assert-True "Invoke-Query requirements returns _v:1 JSON" {
     $out = Invoke-Query -CmdArgs @("requirements","--json") -ProjectPath $tmpProj 2>&1
@@ -166,6 +180,53 @@ Assert-True "Invoke-Query state returns _v:1 JSON" {
     $out = Invoke-Query -CmdArgs @("state","--json") -ProjectPath $tmpProj 2>&1
     $json = $out | Where-Object { $_ -match '"_v"' } | Select-Object -First 1
     $json -match '"_v"\s*:\s*1'
+}
+
+Assert-True "Invoke-Query usage returns token totals from usage.json" {
+    $runDir = Join-Path $tmpProj "runs\S-0099-20260619-120000-it1"
+    New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+    [ordered]@{
+        _v = 1
+        run_id = "S-0099-20260619-120000-it1"
+        timestamp_utc = "2026-06-19T12:00:00Z"
+        duration_seconds = 12.5
+        exit_code = 0
+        succeeded = $true
+        usage_available = $true
+        usage_source = "droid.output"
+        agent = [ordered]@{
+            id = "ag_test"
+            name = "droid"
+            provider = "droid"
+            adapter = "droid"
+            executable = "droid"
+        }
+        model = [ordered]@{
+            configured = "claude-sonnet-test"
+            effective = "claude-sonnet-test"
+            source = "configured"
+        }
+        usage = [ordered]@{
+            input_tokens = 10
+            output_tokens = 20
+            total_tokens = 30
+            cache_read_input_tokens = 40
+            cache_creation_input_tokens = 50
+            observed_tokens = 120
+        }
+    } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $runDir "usage.json") -Encoding UTF8
+
+    $out = Invoke-Query -CmdArgs @("usage","--requirement","S-0099","--json") -ProjectPath $tmpProj 2>&1
+    $parsed = ($out -join "`n") | ConvertFrom-Json
+    $parsed._v -eq 1 -and
+        $parsed.kind -eq "usage" -and
+        $parsed.total -eq 1 -and
+        $parsed.totals.input_tokens -eq 10 -and
+        $parsed.totals.observed_tokens -eq 120 -and
+        $parsed.pricing.costed_runs -eq 1 -and
+        $parsed.estimated_cost -eq 0.000145 -and
+        $parsed.usage[0].estimated_cost -eq 0.000145 -and
+        $parsed.usage[0].effective_model -eq "claude-sonnet-test"
 }
 
 Assert-True "Invoke-Query invalid kind returns error message" {

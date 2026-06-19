@@ -737,7 +737,8 @@ Felix v2 added eight capability phases on top of the original system. Each phase
 ### Phase F — Targeted Execution & Security
 
 - **Per-path backpressure** — `appliesTo` globs on each gate command; gates are skipped when no file in the iteration diff matches; `always_run` for cross-cutting gates
-- **`felix query`** — versioned JSON interface for `requirements`, `runs`, `state`; schema includes `_v: 1` field; decouples agents from raw JSON schema
+- **`felix query`** — versioned JSON interface for `requirements`, `runs`, `usage`, and `state`; schema includes `_v: 1` field; decouples agents from raw JSON schema
+- **Usage tracking** — agent runner writes `runs/<run-id>/usage.json`; `felix query usage`, `felix doctor`, and the TUI surface model/token usage and optional local cost estimates
 - **Agent tool allowlist** — `tools` config block with `allow`, `deny`, and `default` (`"allow"` or `"deny"`); `felix tool harden` infers allowlist from audit log and flips to deny
 - **Tool audit trail** — every tool call emits a `tool.call` event with `tool`, `args`, `allowed`, `caller`
 - **`felix gc`** — prunes stale runs, event log rotations, and orphaned worktrees; `--dry-run` and `--yes` flags; always retains last-success run per requirement

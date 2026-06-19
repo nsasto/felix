@@ -336,6 +336,31 @@ partial class Program
             AnsiConsole.MarkupLine("[green]Sync enabled.[/] Runs and specs will use the configured backend.");
         else
             AnsiConsole.MarkupLine("[yellow]Sync disabled.[/] Runs will stay local until you re-run setup or use --sync.");
+
+        RenderUsageTrackingNextSteps();
+    }
+
+    static void RenderUsageTrackingNextSteps()
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[yellow]Step[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Command[/]").NoWrap())
+            .AddColumn(new TableColumn("[yellow]Purpose[/]"));
+
+        table.AddRow("1", "[grey]felix doctor[/]", "Check setup and usage readiness");
+        table.AddRow("2", "[grey]felix run <requirement-id>[/]", "Create run artifacts");
+        table.AddRow("3", "[grey]felix query usage --since 7d[/]", "Inspect token and model usage");
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Panel(table)
+        {
+            Header = new PanelHeader("[cyan]Usage Tracking[/]"),
+            Border = BoxBorder.Rounded,
+            BorderStyle = Style.Parse("cyan")
+        });
+        AnsiConsole.MarkupLine("[grey]Cost estimates use .felix/model-pricing.json. Start from .felix/model-pricing.json.example and add current provider prices.[/]");
     }
 
     static Task<string?> PromptAgentModel(ConfiguredAgent agent)
@@ -963,6 +988,7 @@ partial class Program
         }
 
         CopyIfMissing(Path.Combine(installRoot, "config.json.example"), Path.Combine(felixDir, "config.json.example"), "config.json.example (template)", created, skipped);
+        CopyIfMissing(Path.Combine(installRoot, "model-pricing.json.example"), Path.Combine(felixDir, "model-pricing.json.example"), "model-pricing.json.example (usage pricing template)", created, skipped);
         CopyIfMissing(Path.Combine(installRoot, "policies", "allowlist.json"), Path.Combine(felixDir, "policies", "allowlist.json"), "policies/allowlist.json", created, skipped);
         CopyIfMissing(Path.Combine(installRoot, "policies", "denylist.json"), Path.Combine(felixDir, "policies", "denylist.json"), "policies/denylist.json", created, skipped);
 

@@ -238,9 +238,12 @@ Phase F adds per-path backpressure filtering, requirement gate validation, query
 ```powershell
 felix query requirements [--status planned|in-progress|done|blocked] [--since <date>] [--json]
 felix query runs         [--requirement S-0001] [--json]
+felix query usage        [--since <date|7d|24h>] [--requirement S-0001] [--run-id <id>] [--json]
 felix query state        [--json]
 ```
 All outputs use versioned `_v:1` JSON when `--json` is passed.
+
+**Usage tracking:** each agent execution writes `runs/<run-id>/usage.json` with agent, provider, model, session, duration, and token counts when the provider reports them. `felix query usage` totals these records. Optional cost estimates read `.felix/model-pricing.json` (start from `.felix/model-pricing.json.example` and add current provider prices). `felix doctor` reports missing/corrupt usage artifacts and missing pricing coverage.
 
 **`felix tool`:**
 ```powershell

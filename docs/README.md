@@ -52,7 +52,7 @@ Felix v2 shipped eight phases of new capabilities:
 | **C** | Exploration Subagent | Auto-enabled repo explorer that runs before plan/build on large repos |
 | **D** | Search & Navigation | `felix search`, per-run memoization cache, LSP-bridge for symbol navigation |
 | **E** | Learning & Memory | `.felix/memory/` tree, `learning-capture` plugin, `felix memory` CLI |
-| **F** | Targeted Execution & Security | Per-path backpressure, `felix query`, tool allowlist, `felix gc` |
+| **F** | Targeted Execution & Security | Per-path backpressure, `felix query` including usage, tool allowlist, `felix gc` |
 | **G** | Marketplace | Curated `plugins.json` index, `felix plugin update`, `felix skill install` |
 | **H** | Concurrency & Worktrees | `--parallel N`, git worktrees, atomic leases, `felix recover` |
 
