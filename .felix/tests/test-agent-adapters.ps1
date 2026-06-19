@@ -241,7 +241,7 @@ Describe "Get-AgentInvocation" {
         Assert-Contains $invocation.Arguments "exec"
     }
 
-    It "should use stdin prompt transport for copilot" {
+    It "should use argument prompt transport for copilot" {
         $config = [pscustomobject]@{
             adapter                 = "copilot"
             model                   = "gpt-5.4"
@@ -251,13 +251,17 @@ Describe "Get-AgentInvocation" {
             custom_agent            = "general-purpose"
         }
         $invocation = Get-AgentInvocation -AdapterType "copilot" -Config $config -Prompt "test prompt" -VerboseMode $false
-        Assert-Equal "stdin" $invocation.PromptMode
+        Assert-Equal "argument" $invocation.PromptMode
         Assert-Equal "test prompt" $invocation.FormattedPrompt
         Assert-Contains $invocation.Arguments "--autopilot"
         Assert-Contains $invocation.Arguments "--yolo"
         Assert-Contains $invocation.Arguments "--no-ask-user"
+        Assert-Contains $invocation.Arguments "--output-format"
+        Assert-Contains $invocation.Arguments "json"
         Assert-Contains $invocation.Arguments "--agent"
         Assert-Contains $invocation.Arguments "general-purpose"
+        Assert-Contains $invocation.Arguments "-p"
+        Assert-Contains $invocation.Arguments "test prompt"
     }
 }
 
@@ -296,6 +300,22 @@ Describe "CopilotAdapter.ParseResponse" {
         $result = $adapter.ParseResponse("status: <promise>TASK_COMPLETE</promise>")
         Assert-False $result.IsComplete
         Assert-Null $result.NextMode
+    }
+
+    It "should extract final assistant content from JSONL output" {
+        $adapter = [CopilotAdapter]::new()
+        $content = '{"mode":"planning","completion":{"signal":"PLAN_COMPLETE"}}'
+        $output = @(
+            '{"type":"session.tools_updated","data":{"model":"claude-sonnet-4.6"}}',
+            (@{ type = "assistant.message"; data = @{ content = $content } } | ConvertTo-Json -Compress -Depth 5),
+            '{"type":"result","sessionId":"sess-1","exitCode":0,"usage":{"premiumRequests":1}}'
+        ) -join "`n"
+
+        $result = $adapter.ParseResponse($output)
+
+        Assert-True $result.IsComplete
+        Assert-Equal "building" $result.NextMode
+        Assert-Equal $content $result.Output
     }
 }
 

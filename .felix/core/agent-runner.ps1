@@ -34,6 +34,7 @@ function Remove-ArgumentPair {
 function Test-CopilotModelUnavailableOutput {
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
         [string]$Output
     )
 
@@ -127,10 +128,16 @@ function ConvertTo-FelixTokenUsage {
     if ($null -eq $inputTokens) {
         $inputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "prompt_tokens")
     }
+    if ($null -eq $inputTokens) {
+        $inputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "inputTokens")
+    }
 
     $outputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "output_tokens")
     if ($null -eq $outputTokens) {
         $outputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "completion_tokens")
+    }
+    if ($null -eq $outputTokens) {
+        $outputTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "outputTokens")
     }
 
     $cacheReadTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "cache_read_input_tokens")
@@ -141,6 +148,9 @@ function ConvertTo-FelixTokenUsage {
     $cacheCreationTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "cache_creation_input_tokens")
 
     $totalTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "total_tokens")
+    if ($null -eq $totalTokens) {
+        $totalTokens = ConvertTo-FelixNullableLong (Get-FelixObjectPropertyValue -Object $Usage -Name "totalTokens")
+    }
     if ($null -eq $totalTokens -and ($null -ne $inputTokens -or $null -ne $outputTokens)) {
         $safeInputTokens = if ($null -eq $inputTokens) { 0 } else { $inputTokens }
         $safeOutputTokens = if ($null -eq $outputTokens) { 0 } else { $outputTokens }
@@ -210,14 +220,22 @@ function Get-AgentUsageFromOutput {
         }
 
         $sessionId = Get-FelixObjectPropertyValue -Object $event -Name "session_id"
+        if (-not $sessionId) {
+            $sessionId = Get-FelixObjectPropertyValue -Object $event -Name "sessionId"
+        }
         if ($sessionId) {
             $result.session_id = [string]$sessionId
         }
 
         $usage = Get-FelixObjectPropertyValue -Object $event -Name "usage"
+        $usageSource = "$AdapterType.output"
         if ($null -eq $usage) {
             $data = Get-FelixObjectPropertyValue -Object $event -Name "data"
             $usage = Get-FelixObjectPropertyValue -Object $data -Name "usage"
+            $usageSource = "$AdapterType.output.data"
+            if ($null -eq $usage) {
+                $usage = $data
+            }
 
             $dataModel = Get-FelixObjectPropertyValue -Object $data -Name "model"
             if ($dataModel) {
@@ -226,6 +244,9 @@ function Get-AgentUsageFromOutput {
             }
 
             $dataSessionId = Get-FelixObjectPropertyValue -Object $data -Name "session_id"
+            if (-not $dataSessionId) {
+                $dataSessionId = Get-FelixObjectPropertyValue -Object $data -Name "sessionId"
+            }
             if ($dataSessionId) {
                 $result.session_id = [string]$dataSessionId
             }
@@ -234,11 +255,27 @@ function Get-AgentUsageFromOutput {
         $tokenUsage = ConvertTo-FelixTokenUsage -Usage $usage
         if ($tokenUsage) {
             $result.usage = $tokenUsage
-            $result.usage_source = "$AdapterType.output"
+            $result.usage_source = $usageSource
         }
     }
 
     return $result
+}
+
+function Get-AgentParseInput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output
+    )
+
+    # PowerShell class methods with [string] parameters reject [string]::Empty.
+    # Keep raw output artifacts unchanged, but pass a harmless newline to parsers.
+    if ($null -eq $Output -or $Output.Length -eq 0) {
+        return "`n"
+    }
+
+    return $Output
 }
 
 function Write-AgentUsageArtifact {
@@ -423,6 +460,7 @@ function Invoke-AgentSubprocess {
     )
 
     $inputPath = $null
+    $argumentPromptPath = $null
     $stdoutPath = [System.IO.Path]::GetTempFileName()
     $stderrPath = [System.IO.Path]::GetTempFileName()
 
@@ -433,6 +471,29 @@ function Invoke-AgentSubprocess {
             $inputPath = [System.IO.Path]::GetTempFileName()
             $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
             [System.IO.File]::WriteAllText($inputPath, $Prompt, $utf8NoBom)
+        }
+        elseif ($PromptMode -eq "argument") {
+            $promptFlagIndex = -1
+            for ($i = 0; $i -lt $ProcessArgs.Count; $i++) {
+                if ($ProcessArgs[$i] -in @("-p", "--prompt")) {
+                    $promptFlagIndex = $i
+                    break
+                }
+            }
+
+            if ($promptFlagIndex -ge 0 -and ($promptFlagIndex + 1) -lt $ProcessArgs.Count) {
+                $promptArg = [string]$ProcessArgs[$promptFlagIndex + 1]
+                if ($promptArg.Length -gt 6000) {
+                    $argumentPromptPath = [System.IO.Path]::GetTempFileName()
+                    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                    [System.IO.File]::WriteAllText($argumentPromptPath, $promptArg, $utf8NoBom)
+
+                    $shortPrompt = "Read the Felix prompt from this file and follow it exactly: $argumentPromptPath"
+                    $updatedArgs = @($ProcessArgs)
+                    $updatedArgs[$promptFlagIndex + 1] = $shortPrompt
+                    $ProcessArgs = [string[]]$updatedArgs
+                }
+            }
         }
 
         $argString = (@($ProcessArgs) | ForEach-Object {
@@ -545,7 +606,7 @@ function Invoke-AgentSubprocess {
         }
     }
     finally {
-        foreach ($path in @($inputPath, $stdoutPath, $stderrPath)) {
+        foreach ($path in @($inputPath, $argumentPromptPath, $stdoutPath, $stderrPath)) {
             try { if ($path -and (Test-Path $path)) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } } catch { }
         }
     }
@@ -813,7 +874,7 @@ function Invoke-AgentExecution {
     
     # Parse normalized response using adapter while preserving raw output for artifacts.
     $normalizedOutput = Normalize-AgentOutput -Output $output -AdapterType $adapterType
-    $parsedResponse = $adapter.ParseResponse($normalizedOutput)
+    $parsedResponse = $adapter.ParseResponse((Get-AgentParseInput -Output $normalizedOutput))
     if (-not $parsedResponse.Output) {
         $parsedResponse.Output = $normalizedOutput
     }

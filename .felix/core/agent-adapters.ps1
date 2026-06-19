@@ -672,9 +672,27 @@ class CopilotAdapter {
             return $result
         }
 
-        $finalJson = Get-FinalJsonResponseText -Output $output
+        $assistantContent = $null
+        foreach ($line in @($output -split "`r`n|`n|`r" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+            try {
+                $event = $line | ConvertFrom-Json -ErrorAction Stop
+                $data = if ($event.PSObject.Properties["data"]) { $event.data } else { $null }
+                if ($event.type -eq "assistant.message" -and $data -and $data.PSObject.Properties["content"]) {
+                    $assistantContent = [string]$data.content
+                }
+            }
+            catch {
+                continue
+            }
+        }
+
+        if ($assistantContent) {
+            $result.Output = $assistantContent
+        }
+
+        $finalJson = Get-FinalJsonResponseText -Output $result.Output
         if ($finalJson) {
-            if ($finalJson -ne $output) {
+            if ($finalJson -ne $result.Output) {
                 Emit-Log -Level "info" -Message "Using extracted final JSON payload from mixed stream output" -Component "agent"
             }
             $result.Output = $finalJson
@@ -697,7 +715,7 @@ class CopilotAdapter {
     }
 
     [string[]] BuildArgs([object]$config, [bool]$verbose) {
-        $args = @("--autopilot", "-s", "--no-color")
+        $args = @("--autopilot", "-s", "--no-color", "--output-format", "json")
 
         $allowAll = $true
         if ($config.PSObject.Properties["allow_all"]) {
@@ -856,8 +874,12 @@ function Get-AgentInvocation {
     $arguments = @($adapter.BuildArgs($Config, $VerboseMode))
     $promptMode = "stdin"
 
-    # Use stdin prompt transport for all adapters, including Copilot.
-    # This avoids Windows command-line length limits when prompts are large.
+    if ($AdapterType.ToLower() -eq "copilot") {
+        # GitHub Copilot CLI does not consume the task prompt from stdin in
+        # non-interactive mode. Use -p/--prompt for direct CLI execution.
+        $arguments += @("-p", $formattedPrompt)
+        $promptMode = "argument"
+    }
 
     return @{
         Adapter         = $adapter

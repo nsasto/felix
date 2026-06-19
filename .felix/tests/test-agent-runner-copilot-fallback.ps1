@@ -22,6 +22,7 @@ Describe "Copilot runner fallback helpers" {
     It "should detect Copilot unavailable-model output" {
         Assert-True (Test-CopilotModelUnavailableOutput -Output 'Error: Model "gpt-5.4" from --model flag is not available.')
         Assert-False (Test-CopilotModelUnavailableOutput -Output 'Some other Copilot failure')
+        Assert-False (Test-CopilotModelUnavailableOutput -Output '')
     }
 
     It "should extract normalized usage from provider JSON output" {
@@ -38,6 +39,24 @@ Describe "Copilot runner fallback helpers" {
         Assert-Equal 20 $usage.usage.output_tokens
         Assert-Equal 30 $usage.usage.total_tokens
         Assert-Equal 100 $usage.usage.observed_tokens
+    }
+
+    It "should extract Copilot JSON stream model and output tokens" {
+        $output = @(
+            '{"type":"session.tools_updated","data":{"model":"claude-sonnet-4.6"},"id":"tools-1"}',
+            '{"type":"assistant.message","data":{"messageId":"msg-1","content":"HELLO","outputTokens":5},"id":"msg-1"}',
+            '{"type":"result","sessionId":"sess-copilot","exitCode":0,"usage":{"premiumRequests":1}}'
+        ) -join "`n"
+
+        $usage = Get-AgentUsageFromOutput -Output $output -AdapterType "copilot"
+
+        Assert-Equal "claude-sonnet-4.6" $usage.effective_model
+        Assert-Equal "sess-copilot" $usage.session_id
+        Assert-Equal $null $usage.usage.input_tokens
+        Assert-Equal 5 $usage.usage.output_tokens
+        Assert-Equal 5 $usage.usage.total_tokens
+        Assert-Equal 5 $usage.usage.observed_tokens
+        Assert-Equal "copilot.output.data" $usage.usage_source
     }
 
     It "should write usage.json with model and token details" {
