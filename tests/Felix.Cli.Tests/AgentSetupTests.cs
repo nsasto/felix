@@ -70,6 +70,9 @@ public sealed class AgentSetupTests
         Assert.Equal("specs", config["paths"]!["specs"]!.GetValue<string>());
         Assert.Equal("CONTEXT.md", config["paths"]!["context"]![0]!.GetValue<string>());
         Assert.NotNull(config["plugins"]);
+        Assert.NotNull(config["graphify"]);
+        Assert.False(config["graphify"]!["enabled"]!.GetValue<bool>());
+        Assert.Equal("local", config["graphify"]!["mode"]!.GetValue<string>());
     }
 
     [Fact]
@@ -83,6 +86,8 @@ public sealed class AgentSetupTests
         Assert.Equal("AGENTS.md", config["paths"]!["agents"]!.GetValue<string>());
         Assert.Equal("CONTEXT.md", config["paths"]!["context"]![0]!.GetValue<string>());
         Assert.Single(config["paths"]!["context"]!.AsArray());
+        Assert.Equal(".felix/graphify", config["graphify"]!["out_dir"]!.GetValue<string>());
+        Assert.Equal("graphify-out", config["graphify"]!["team_out_dir"]!.GetValue<string>());
     }
 
     [Fact]

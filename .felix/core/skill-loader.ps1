@@ -225,7 +225,7 @@ function Invoke-SkillLoader {
     #>
     param(
         [string]$RepoRoot,
-        [hashtable]$Config = @{},
+        $Config = @{},
         [string]$CurrentCommand = "",
         [string[]]$RequirementApplyTo = @(),
         [string[]]$RequirementTags = @(),
@@ -236,6 +236,10 @@ function Invoke-SkillLoader {
     $disabled = @()
     if ($Config.skills -and $Config.skills.disabled) {
         $disabled = @($Config.skills.disabled)
+    }
+
+    if (-not $Config.graphify -or $Config.graphify.enabled -ne $true -or $Config.graphify.skill_enabled -eq $false) {
+        $disabled += "graphify-investigator"
     }
 
     $skillMap = Get-SkillDirectories -RepoRoot $RepoRoot -Disabled $disabled

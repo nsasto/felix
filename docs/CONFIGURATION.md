@@ -1,6 +1,6 @@
 # Configuration Reference
 
-> **Quick links:** [Overview](#overview) · [executor](#executor-block) · [sync](#sync-block) · [tools](#tools-block-v2-phase-f) · [gc](#gc-block-v2-phase-f) · [distribution](#distribution-block-v2-phase-g) · [concurrency](#concurrency-block-v2-phase-h) · [context](#context-block-v2-phase-a) · [backpressure](#backpressure-block) · [plugins](#plugins-block) · [Environment Variables](#environment-variable-overrides) · [Examples](#examples)
+> **Quick links:** [Overview](#overview) · [executor](#executor-block) · [sync](#sync-block) · [tools](#tools-block-v2-phase-f) · [gc](#gc-block-v2-phase-f) · [distribution](#distribution-block-v2-phase-g) · [concurrency](#concurrency-block-v2-phase-h) · [context](#context-block-v2-phase-a) · [backpressure](#backpressure-block) · [plugins](#plugins-block) · [graphify](#graphify-block) · [Environment Variables](#environment-variable-overrides) · [Examples](#examples)
 
 ---
 
@@ -367,6 +367,40 @@ Parallel worker and git worktree settings.
 | `parallel` | `integer` | `1` | Number of worker processes to spawn in `felix loop`. Overridden by `--parallel N`. |
 | `merge_strategy` | `string` | `"merge"` | How completed worktrees are merged back: `"merge"` or `"ff"` (fast-forward). |
 | `retention_days` | `integer` | `3` | Days to keep abandoned/failed worktrees before `felix gc` removes them. |
+
+---
+
+## `graphify` Block
+
+Controls optional Graphify integration. Graphify remains an external dependency; Felix uses this block for skill loading, wrapper commands, and optional team graph refresh commits.
+
+```json
+"graphify": {
+  "enabled": false,
+  "skill_enabled": true,
+  "mode": "local",
+  "out_dir": ".felix/graphify",
+  "team_out_dir": "graphify-out",
+  "native_install": false,
+  "post_commit_hook": false,
+  "auto_commit_refresh": false,
+  "cache_policy": "ignore"
+}
+```
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `false` | Enables Felix Graphify skill guidance and wrapper behavior. |
+| `skill_enabled` | `boolean` | `true` | Loads the small `graphify-investigator` skill when Graphify is enabled. |
+| `mode` | `string` | `local` | `local` uses ignored graph output; `team` uses committed `graphify-out/`. |
+| `out_dir` | `string` | `.felix/graphify` | Local-mode output directory passed to Graphify. |
+| `team_out_dir` | `string` | `graphify-out` | Team-mode graph directory intended to be committed. |
+| `native_install` | `boolean` | `false` | Records whether native assistant setup was requested. |
+| `post_commit_hook` | `boolean` | `false` | Records whether team setup should use Graphify's post-commit hook. |
+| `auto_commit_refresh` | `boolean` | `false` | Lets Felix create a separate `chore(graphify): refresh graph` commit when only graph files changed after a requirement commit. |
+| `cache_policy` | `string` | `ignore` | `ignore` excludes `graphify-out/cache/`; `commit` allows committing it. |
+
+See [GRAPHIFY.md](GRAPHIFY.md) for setup and team workflow details.
 
 ---
 

@@ -1,0 +1,15 @@
+﻿{
+  "id": "graphify-investigator",
+  "name": "Graphify Investigator",
+  "description": "Use Graphify as an optional query-first codebase investigation tool.",
+  "version": "1.0.0",
+  "prompt": "prompt.md",
+  "always": true,
+  "triggers": {
+    "commands": ["run", "run-next", "loop", "explore"],
+    "applyTo": [],
+    "tags": ["architecture", "graphify", "investigation"],
+    "keywords": ["architecture", "call flow", "dependency", "dependencies", "trace", "symbol", "Graphify", "graphify"]
+  }
+}
+

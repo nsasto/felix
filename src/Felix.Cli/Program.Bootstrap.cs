@@ -82,6 +82,7 @@ partial class Program
         rootCommand.AddCommand(CreatePluginCommand(felixPs1));
         rootCommand.AddCommand(CreateEventCommand(felixPs1));
         rootCommand.AddCommand(CreateSkillCommand(felixPs1));
+        rootCommand.AddCommand(CreateGraphifyCommand(felixPs1));
         rootCommand.AddCommand(CreateSearchCommand(felixPs1));
         rootCommand.AddCommand(CreateReviewCommand(felixPs1));
         rootCommand.AddCommand(CreateMemoryCommand(felixPs1));

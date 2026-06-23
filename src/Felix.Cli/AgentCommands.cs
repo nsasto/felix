@@ -1080,6 +1080,18 @@ partial class Program
                 ["circuit_breaker_max_failures"] = 3,
                 ["commands"] = new JsonArray()
             },
+            ["graphify"] = new JsonObject
+            {
+                ["enabled"] = false,
+                ["skill_enabled"] = true,
+                ["mode"] = "local",
+                ["out_dir"] = ".felix/graphify",
+                ["team_out_dir"] = "graphify-out",
+                ["native_install"] = false,
+                ["post_commit_hook"] = false,
+                ["auto_commit_refresh"] = false,
+                ["cache_policy"] = "ignore"
+            },
             ["sync"] = new JsonObject
             {
                 ["enabled"] = false,
@@ -1142,6 +1154,16 @@ partial class Program
         if (!executor.ContainsKey("default_mode")) executor["default_mode"] = "planning";
         if (!executor.ContainsKey("commit_on_complete")) executor["commit_on_complete"] = true;
 
+        var graphify = EnsureObject(config, "graphify");
+        if (!graphify.ContainsKey("enabled")) graphify["enabled"] = false;
+        if (!graphify.ContainsKey("skill_enabled")) graphify["skill_enabled"] = true;
+        if (!graphify.ContainsKey("mode")) graphify["mode"] = "local";
+        if (!graphify.ContainsKey("out_dir")) graphify["out_dir"] = ".felix/graphify";
+        if (!graphify.ContainsKey("team_out_dir")) graphify["team_out_dir"] = "graphify-out";
+        if (!graphify.ContainsKey("native_install")) graphify["native_install"] = false;
+        if (!graphify.ContainsKey("post_commit_hook")) graphify["post_commit_hook"] = false;
+        if (!graphify.ContainsKey("auto_commit_refresh")) graphify["auto_commit_refresh"] = false;
+        if (!graphify.ContainsKey("cache_policy")) graphify["cache_policy"] = "ignore";
         var plugins = EnsureObject(config, "plugins");
         if (!plugins.ContainsKey("enabled")) plugins["enabled"] = true;
         if (!plugins.ContainsKey("discovery_path")) plugins["discovery_path"] = ".felix/plugins";

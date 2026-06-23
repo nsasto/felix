@@ -15,6 +15,7 @@ backpressure validation, git operations, and plugin hooks.
 . "$PSScriptRoot\prompt-builder.ps1"
 . "$PSScriptRoot\agent-runner.ps1"
 . "$PSScriptRoot\artifact-validator.ps1"
+. "$PSScriptRoot\graphify.ps1"
 . "$PSScriptRoot\task-handler.ps1"
 
 # C: Load explore phase (graceful — v1 envs won't have it)
@@ -420,4 +421,3 @@ function Invoke-FelixIteration {
     
     return @{ Continue = $true; ExitCode = 0 }
 }
-

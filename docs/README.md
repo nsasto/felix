@@ -29,6 +29,7 @@ This hub covers everything you need to run, configure, and extend Felix — the 
 | [SPECS.md](SPECS.md) | Developers | Spec and requirement lifecycle management |
 | [CONTEXT.md](CONTEXT.md) | Developers | Run artifacts, context inspection, event stream, replay |
 | [SEARCH.md](SEARCH.md) | Developers | Full-text search, dependency graph, structured queries |
+| [GRAPHIFY.md](GRAPHIFY.md) | Developers, teams | Optional Graphify knowledge graph setup, querying, and team refresh workflow |
 | [MEMORY.md](MEMORY.md) | Developers | Persistent agent memory, CLI, budget, learning proposals |
 | [SKILLS.md](SKILLS.md) | Developers | Skills system — manifest, triggers, install, authoring |
 

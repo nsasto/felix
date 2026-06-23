@@ -1,4 +1,4 @@
-﻿using System.CommandLine;
+using System.CommandLine;
 using Felix.Cli;
 using Xunit;
 
@@ -28,9 +28,34 @@ public sealed class V2CommandsTests
         Assert.Contains("tool",  names);
         Assert.Contains("gc",    names);
         Assert.Contains("smoke", names);
+        Assert.Contains("graphify", names);
     }
 
     // â”€â”€ migrate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    [Fact]
+    public void GraphifyCommand_HasExpectedSubcommandsAndOptions()
+    {
+        var root = Program.CreateRootCommand(FakeFelixPs1);
+        var graphify = root.Subcommands.Single(c => c.Name == "graphify");
+        var subCmds = graphify.Subcommands.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.Contains("status", subCmds);
+        Assert.Contains("setup", subCmds);
+        Assert.Contains("build", subCmds);
+        Assert.Contains("update", subCmds);
+        Assert.Contains("query", subCmds);
+        Assert.Contains("path", subCmds);
+        Assert.Contains("explain", subCmds);
+
+        var setup = graphify.Subcommands.Single(c => c.Name == "setup");
+        var setupOptions = setup.Options.Select(o => o.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("local", setupOptions);
+        Assert.Contains("team", setupOptions);
+        Assert.Contains("auto-commit-refresh", setupOptions);
+        Assert.Contains("commit-cache", setupOptions);
+        Assert.Contains("ignore-cache", setupOptions);
+    }
 
     [Fact]
     public void MigrateCommand_HasExpectedOptionsAndName()
@@ -654,4 +679,3 @@ public sealed class V2CommandsTests
         Assert.Contains("dry-run", opts);
     }
 }
-

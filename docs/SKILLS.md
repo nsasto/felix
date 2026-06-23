@@ -210,3 +210,11 @@ This means **repo skills take precedence over user skills** — team-level conve
 ---
 
 *See also: [MARKETPLACE.md](MARKETPLACE.md) for remote skill install · [CONFIGURATION.md](CONFIGURATION.md) for `skills.disabled` config key · [CLI.md](CLI.md) for the full `felix skill` command reference*
+
+## Graphify Investigator
+
+`felix graphify setup --local` and `felix graphify setup --team` install `.felix/skills/graphify-investigator/`. The skill is loaded only when `graphify.enabled` is true and `graphify.skill_enabled` is not false.
+
+The skill tells agents to query Graphify for architecture, call-flow, dependency, symbol, and cross-file investigation using `felix graphify query`, `felix graphify path`, and `felix graphify explain`. It also tells agents not to read or inject `GRAPH_REPORT.md` wholesale.
+
+See [GRAPHIFY.md](GRAPHIFY.md) for setup and team workflow details.

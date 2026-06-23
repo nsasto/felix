@@ -245,3 +245,9 @@ felix query requirements --status planned --json | ConvertFrom-Json | ...
 ---
 
 *See also: [CONTEXT.md](CONTEXT.md) for run artifacts · [CLI.md](CLI.md) for the full command reference · [CONFIGURATION.md](CONFIGURATION.md) for `.felixignore` setup*
+
+## Graphify Queries
+
+`felix search` remains the fastest text search path. Use `felix graphify query`, `felix graphify path`, or `felix graphify explain` when the question is about architecture, call flow, dependencies, symbols, or relationships across files.
+
+Graphify is optional and external. Felix passes through to the native Graphify executable and does not inject graph reports into every prompt. See [GRAPHIFY.md](GRAPHIFY.md) for setup and team workflow details.

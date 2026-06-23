@@ -1,4 +1,4 @@
-﻿using System.CommandLine;
+using System.CommandLine;
 
 namespace Felix.Cli;
 
@@ -689,6 +689,101 @@ partial class Program
         return cmd;
     }
 
+    // -- Graphify: optional graph-backed investigation ---------------------
+
+    static Command CreateGraphifyCommand(string felixPs1)
+    {
+        var cmd = new Command("graphify", "Manage optional Graphify codebase graph integration");
+        cmd.AddAlias("graph");
+
+        var statusJsonOpt = new Option<bool>("--json", "Machine-readable output");
+        var statusCmd = new Command("status", "Show Graphify setup and graph status") { statusJsonOpt };
+        statusCmd.SetHandler(async (json) =>
+        {
+            var args = new List<string> { "graphify", "status" };
+            if (json) args.Add("--json");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, statusJsonOpt);
+
+        var setupLocalOpt = new Option<bool>("--local", "Use local ignored graph output");
+        var setupTeamOpt = new Option<bool>("--team", "Use committed team graph output");
+        var setupNativeOpt = new Option<bool>("--native", "Also run Graphify native assistant installer");
+        var setupHarnessOpt = new Option<string?>("--harness", "Native harness: codex, claude, droid, gemini, copilot, or all");
+        var setupAutoCommitOpt = new Option<bool>("--auto-commit-refresh", "Let Felix create separate graph refresh commits when safe");
+        var setupCommitCacheOpt = new Option<bool>("--commit-cache", "Commit graphify-out/cache for faster first checkout");
+        var setupIgnoreCacheOpt = new Option<bool>("--ignore-cache", "Ignore graphify-out/cache to keep the repo smaller");
+        var setupCmd = new Command("setup", "Configure Felix Graphify integration")
+        {
+            setupLocalOpt,
+            setupTeamOpt,
+            setupNativeOpt,
+            setupHarnessOpt,
+            setupAutoCommitOpt,
+            setupCommitCacheOpt,
+            setupIgnoreCacheOpt
+        };
+        setupCmd.SetHandler(async (local, team, native, harness, autoCommit, commitCache, ignoreCache) =>
+        {
+            var args = new List<string> { "graphify", "setup" };
+            if (local) args.Add("--local");
+            if (team) args.Add("--team");
+            if (native) args.Add("--native");
+            if (!string.IsNullOrWhiteSpace(harness)) args.AddRange(new[] { "--harness", harness! });
+            if (autoCommit) args.Add("--auto-commit-refresh");
+            if (commitCache) args.Add("--commit-cache");
+            if (ignoreCache) args.Add("--ignore-cache");
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, setupLocalOpt, setupTeamOpt, setupNativeOpt, setupHarnessOpt, setupAutoCommitOpt, setupCommitCacheOpt, setupIgnoreCacheOpt);
+
+        var targetArg = new Argument<string?>("target", () => null, "Path to graph (default: current directory)") { Arity = ArgumentArity.ZeroOrOne };
+        var buildCmd = new Command("build", "Build a Graphify graph") { targetArg };
+        buildCmd.SetHandler(async (target) =>
+        {
+            var args = new List<string> { "graphify", "build" };
+            if (!string.IsNullOrWhiteSpace(target)) args.Add(target!);
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, targetArg);
+
+        var updateTargetArg = new Argument<string?>("target", () => null, "Path to update (default: current directory)") { Arity = ArgumentArity.ZeroOrOne };
+        var updateCmd = new Command("update", "Update a Graphify graph incrementally") { updateTargetArg };
+        updateCmd.SetHandler(async (target) =>
+        {
+            var args = new List<string> { "graphify", "update" };
+            if (!string.IsNullOrWhiteSpace(target)) args.Add(target!);
+            await ExecutePowerShell(felixPs1, args.ToArray());
+        }, updateTargetArg);
+
+        var questionArg = new Argument<string>("question", "Natural-language graph question");
+        var queryCmd = new Command("query", "Query the Graphify graph") { questionArg };
+        queryCmd.SetHandler(async (question) =>
+        {
+            await ExecutePowerShell(felixPs1, "graphify", "query", question);
+        }, questionArg);
+
+        var fromArg = new Argument<string>("from", "Start node or concept");
+        var toArg = new Argument<string>("to", "End node or concept");
+        var pathCmd = new Command("path", "Find a path between two graph concepts") { fromArg, toArg };
+        pathCmd.SetHandler(async (from, to) =>
+        {
+            await ExecutePowerShell(felixPs1, "graphify", "path", from, to);
+        }, fromArg, toArg);
+
+        var symbolArg = new Argument<string>("symbol", "Node, symbol, or concept to explain");
+        var explainCmd = new Command("explain", "Explain a graph node or symbol") { symbolArg };
+        explainCmd.SetHandler(async (symbol) =>
+        {
+            await ExecutePowerShell(felixPs1, "graphify", "explain", symbol);
+        }, symbolArg);
+
+        cmd.AddCommand(statusCmd);
+        cmd.AddCommand(setupCmd);
+        cmd.AddCommand(buildCmd);
+        cmd.AddCommand(updateCmd);
+        cmd.AddCommand(queryCmd);
+        cmd.AddCommand(pathCmd);
+        cmd.AddCommand(explainCmd);
+        return cmd;
+    }
     // ── v2: felix review (E2) ────────────────────────────────────────────
 
     static Command CreateReviewCommand(string felixPs1)

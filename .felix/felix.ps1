@@ -236,6 +236,10 @@ switch ($Command) {
         . "$FelixRoot\commands\skill.ps1"
         Invoke-Skill -CmdArgs $remainingArgs -RepoRoot $RepoRoot
     }
+    { $_ -in @("graphify", "graph") } {
+        . "$FelixRoot\commands\graphify.ps1"
+        Invoke-Graphify -CmdArgs $remainingArgs -RepoRoot $RepoRoot -FelixRoot $FelixRoot
+    }
     "tui" {
         . "$FelixRoot\commands\tui.ps1"
         Invoke-Tui

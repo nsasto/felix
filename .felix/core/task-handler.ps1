@@ -336,6 +336,9 @@ function Save-TaskChanges {
         Set-Content $diffPath $diffOutput -Encoding UTF8
         $relDiffPath = $diffPath.Replace($ProjectPath + "\", "")
         Emit-Artifact -Path $relDiffPath -Type "diff" -SizeBytes (Get-Item $diffPath).Length
+        if (-not $NoCommit -and (Get-Command Invoke-GraphifyAutoRefreshCommit -ErrorAction SilentlyContinue)) {
+            Invoke-GraphifyAutoRefreshCommit -RepoRoot $ProjectPath -Config $Config | Out-Null
+        }
     }
     else {
         # PowerShell handles staging and commit
@@ -381,6 +384,9 @@ function Save-TaskChanges {
                 if ($success) {
                     $commitHash = git rev-parse --short HEAD 2>$null
                     Emit-Log -Level "info" -Message "Changes committed: $commitHash - $commitMsg" -Component "commit"
+                    if (Get-Command Invoke-GraphifyAutoRefreshCommit -ErrorAction SilentlyContinue) {
+                        Invoke-GraphifyAutoRefreshCommit -RepoRoot $ProjectPath -Config $Config | Out-Null
+                    }
                 }
                 else {
                     # $false means no changes to commit (not a failure)

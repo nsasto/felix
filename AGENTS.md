@@ -77,6 +77,9 @@ dotnet test tests\Felix.Cli.Tests\
 # Run Phase H PowerShell unit tests (concurrency: lease-manager, worktree-manager, recover, parallel loop)
 .\tests\Test-PhaseH.ps1
 
+# Run Graphify integration tests
+.\tests\Test-Graphify.ps1
+
 # Run Felix CLI integration test against a live felix installation
 .\run-test-spec.ps1
 ```
@@ -144,6 +147,25 @@ Specs should include testable validation criteria with commands and expected out
 - Configuration values (use plain text or **bold**)
 
 The validation script executes anything in backticks as a shell command. If it's not meant to be executed, don't use backticks.
+
+## Graphify (Optional)
+
+```powershell
+# Check Graphify setup
+felix graphify status
+
+# Local graph for agent investigation
+felix graphify setup --local
+felix graphify build
+
+# Team graph workflow
+felix graphify setup --team
+felix graphify build
+git add graphify-out .gitignore .felix/skills/graphify-investigator
+git commit -m "chore(graphify): add team graph"
+```
+
+Team mode commits **graphify-out/**, ignores **graphify-out/cost.json**, and can ignore **graphify-out/cache/** to keep the repo small. After code commits, commit graph refreshes separately as `chore(graphify): refresh graph`. Docs/papers require `felix graphify update`.
 
 ## Sync Configuration (Optional)
 
