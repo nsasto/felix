@@ -57,7 +57,7 @@ $helpDetailCmds = $helpDetailMatches | ForEach-Object { $_.Groups[1].Value } |
 Where-Object { $_ -ne "default" } | Sort-Object -Unique
 
 # Summary listing: Write-Host "  name " or "  name <arg>"
-$helpSummaryMatches = [regex]::Matches($helpContent, 'Write-Host "  ([a-z][a-z0-9-]+)[\s<]')
+$helpSummaryMatches = [regex]::Matches($helpContent, 'Write-Host [''"]  ([a-z][a-z0-9-]+)[\s<]')
 $helpSummaryCmds = $helpSummaryMatches | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
 
 # ── Excluded from checks (internal/alias/special) ───────────────────────────

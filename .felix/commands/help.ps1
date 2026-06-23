@@ -354,6 +354,35 @@ function Show-Help {
                 Write-Host "  felix event query --run-id S-0001-20260601 --since 1h"
                 Write-Host ""
             }
+            "graphify" {
+                Write-Host ""
+                Write-Host 'felix graphify <subcommand> [options]' -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Manage optional Graphify codebase graph integration."
+                Write-Host ""
+                Write-Host "Subcommands:" -ForegroundColor Yellow
+                Write-Host "  status [--json]                       Show Graphify setup and graph status"
+                Write-Host "  setup [--local|--team] [options]      Configure Felix Graphify integration"
+                Write-Host "  build [target]                        Build a Graphify graph"
+                Write-Host "  update [target]                       Update a Graphify graph incrementally"
+                Write-Host '  query <question>                      Query the Graphify graph'
+                Write-Host '  path <from> <to>                      Find a path between graph concepts'
+                Write-Host '  explain <symbol>                      Explain a graph node or symbol'
+                Write-Host ""
+                Write-Host "Setup options:" -ForegroundColor Yellow
+                Write-Host "  --local                 Use local ignored graph output"
+                Write-Host "  --team                  Use committed team graph output"
+                Write-Host "  --auto-commit-refresh   Create safe graph refresh chore commits"
+                Write-Host "  --commit-cache          Allow committing graphify-out/cache"
+                Write-Host "  --ignore-cache          Ignore graphify-out/cache (default)"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix graphify status"
+                Write-Host "  felix graphify setup --local"
+                Write-Host "  felix graphify setup --team --auto-commit-refresh"
+                Write-Host '  felix graphify query "what owns validation?"'
+                Write-Host ""
+            }
             "gc" {
                 Write-Host ""
                 Write-Host "felix gc [options]" -ForegroundColor Cyan
@@ -602,6 +631,7 @@ function Show-Help {
         Write-Host '  context <subcommand>  Generate/view project context documentation'
         Write-Host '  search <pattern>      Full-text search across specs, runs, and project code'
         Write-Host '  query <target>        Structured query over Felix state'
+        Write-Host '  graphify <subcommand> Optional Graphify code graph integration'
         Write-Host '  memory <subcommand>   Manage persistent agent memory'
         Write-Host '  skill <subcommand>    Manage Felix skills (reusable agent capabilities)'
         Write-Host '  plugin <subcommand>   Manage Felix plugins'
