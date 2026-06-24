@@ -118,9 +118,14 @@ felix loop
 # Launch interactive TUI shell
 felix tui
 
+# Generate a read-only local browser report
+felix dashboard --html
+
 # View active agent sessions
 felix procs
 ```
+
+`felix dashboard --html` is local-only and advisory: it opens a static report with requirement progress, recent runs, usage/model summaries, active agents, settings, health, and recommended next steps such as enabling Graphify or adding local pricing.
 
 When sync is disabled, local runs do not probe git or backend repo state for projects that are not inside a git repository. That keeps Felix usable against plain directories and unpacked source drops.
 

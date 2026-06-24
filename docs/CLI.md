@@ -1,6 +1,6 @@
 ﻿# The Felix CLI
 
-> **Quick links:** [Command Index](#command-index) Â· [Global Options](#global-options) Â· [felix tui](#felix-tui) Â· [Operating Modes](#operating-modes) Â· [Best Practices](#best-practices)
+> **Quick links:** [Command Index](#command-index) Â· [Global Options](#global-options) Â· [felix tui / dashboard](#felix-tui-and-felix-dashboard-html) Â· [Operating Modes](#operating-modes) Â· [Best Practices](#best-practices)
 
 ---
 
@@ -114,6 +114,7 @@ See [SPECS.md](SPECS.md) for the full registry format, `felix spec` commands, an
 | `felix loop --parallel` | Parallel workers | [CONCURRENCY.md](CONCURRENCY.md) |
 | `felix recover` | Crash recovery | [CONCURRENCY.md](CONCURRENCY.md) |
 | `felix tui` | Interactive terminal shell | *(below)* |
+| `felix dashboard --html` | Static local browser report | *(below)* |
 | `felix version` | Show version | [SETUP.md](SETUP.md) |
 | `felix help` | Command reference | [SETUP.md](SETUP.md) |
 
@@ -182,12 +183,16 @@ Used with `felix spec create` â€” skips interactive prompts, defaults every
 
 ---
 
-## `felix tui`
+## `felix tui` and `felix dashboard --html`
 
 ```bash
 felix tui
 felix dashboard   # alias
+felix dashboard --html
+felix dashboard --html --no-open
 ```
+
+`felix dashboard --html` generates a read-only local HTML report with progress, recent runs, usage, agents, settings, health, and recommended next steps. The report is advisory only; it shows setup commands but never changes config or runs them.
 
 Launches an interactive terminal UI (built with .NET/Spectre.Console) providing:
 

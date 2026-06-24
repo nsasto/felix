@@ -1,31 +1,36 @@
-﻿{
-    "agents":  [
-                   {
-                       "name":  "droid",
-                       "provider":  "droid",
-                       "adapter":  "droid",
-                       "model":  "claude-sonnet-4-6",
-                       "id":  "ag_30c800eb8"
-                   },
-                   {
-                       "name":  "claude",
-                       "provider":  "claude",
-                       "adapter":  "claude",
-                       "model":  "sonnet",
-                       "key":  "ag_6783cb179"
-                   },
-                   {
-                       "name":  "codex",
-                       "provider":  "codex",
-                       "adapter":  "codex",
-                       "key":  "ag_c45dc52b0"
-                   },
-                   {
-                       "name":  "copilot",
-                       "provider":  "copilot",
-                       "adapter":  "copilot",
-                       "model":  "gpt-5.4",
-                       "key":  "ag_61a011bca"
-                   }
-               ]
+{
+  "agents": [
+    {
+      "name": "droid",
+      "provider": "droid",
+      "adapter": "droid",
+      "model": "claude-sonnet-4-6",
+      "key": "ag_30c800eb8",
+      "id": "ag_30c800eb8"
+    },
+    {
+      "name": "claude",
+      "provider": "claude",
+      "adapter": "claude",
+      "model": "sonnet",
+      "key": "ag_6783cb179",
+      "id": null
+    },
+    {
+      "name": "codex",
+      "provider": "codex",
+      "adapter": "codex",
+      "model": null,
+      "key": "ag_c45dc52b0",
+      "id": null
+    },
+    {
+      "name": "copilot",
+      "provider": "copilot",
+      "adapter": "copilot",
+      "model": "gpt-5.4",
+      "key": "ag_86be02804",
+      "id": "ag_86be02804"
+    }
+  ]
 }

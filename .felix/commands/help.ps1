@@ -248,6 +248,26 @@ function Show-Help {
                 Write-Host "  register can continue non-interactively with configured sync values." -ForegroundColor Gray
                 Write-Host ""
             }
+            "dashboard" {
+                Write-Host ""
+                Write-Host "felix dashboard [--html] [--no-open]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Launch the local Felix dashboard."
+                Write-Host ""
+                Write-Host "Modes:" -ForegroundColor Yellow
+                Write-Host "  felix dashboard            Interactive terminal UI dashboard"
+                Write-Host "  felix dashboard --html     Generate a read-only local HTML report"
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Yellow
+                Write-Host "  --html                     Generate browser-friendly local report"
+                Write-Host "  --no-open                  Do not open the generated report automatically"
+                Write-Host ""
+                Write-Host "Examples:"
+                Write-Host "  felix dashboard"
+                Write-Host "  felix dashboard --html"
+                Write-Host "  felix dashboard --html --no-open"
+                Write-Host ""
+            }
             "tui" {
                 Write-Host ""
                 Write-Host "felix tui" -ForegroundColor Cyan
@@ -646,7 +666,7 @@ function Show-Help {
                 Write-Host "  smoke <subcommand>    Run first-run smoke checks"
                 Write-Host "  procs [subcommand]    Manage active execution sessions"
         Write-Host "  tui                   Launch interactive terminal UI"
-        Write-Host "  dashboard             Interactive TUI dashboard"
+        Write-Host "  dashboard             Interactive TUI dashboard; add --html for local report"
         Write-Host "  setup                 Scaffold project, configure agents and sync"
         Write-Host "  version               Show version information"
         Write-Host "  help [command]        Show help for a command"

@@ -20,6 +20,7 @@ Optional PATH install: `.\scripts\install-cli.ps1` → then use `felix run S-000
 .\scripts\install-cli-csharp.ps1   # One-time build + PATH install
 Felix.Cli.exe run S-0001
 Felix.Cli.exe dashboard            # Interactive status overview
+Felix.Cli.exe dashboard --html     # Read-only local browser report
 ```
 
 Both CLIs share the same backend: `Felix.Cli.exe` → `.felix/felix.ps1` → `scripts/*.ps1`. No logic duplication.
@@ -62,6 +63,8 @@ The installed CLI presents this flow with a richer Spectre.Console interface ins
 10. **Usage tracking next steps** — shows the `felix doctor` -> `felix smoke usage` -> `felix query usage --since 7d` workflow
 
 **Note:** Setup now distinguishes between configuring agent profiles (`.felix/agents.json`) and choosing the active profile (`.felix/config.json`) so you are not asked to re-pick providers from a hardcoded list.
+
+After setup, run `felix dashboard --html` for a local browser report. It summarizes progress, recent runs, usage, configured agents, settings, health, and advisory next steps such as Graphify setup, pricing configuration, stale review cleanup, sync, backpressure, and explore recommendations.
 
 **When to use:**
 

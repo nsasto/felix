@@ -33,6 +33,9 @@ felix loop
 
 # Launch interactive TUI dashboard
 felix tui
+
+# Generate read-only local browser report
+felix dashboard --html --no-open
 ```
 
 ### Running the Agent Directly (PowerShell)

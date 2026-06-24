@@ -101,6 +101,19 @@ felix loop --no-commit
 
 ---
 
+## `felix dashboard --html`
+
+**What it does:** Generates a read-only local browser report for the current repository.
+
+```bash
+felix dashboard --html
+felix dashboard --html --no-open
+```
+
+The report summarizes progress, current/next work, recent runs, usage and models, agents, settings, health, and recommended next steps. Recommendations are advisory only; the report never changes config or runs setup commands.
+
+---
+
 ## `felix run-next`
 
 **What it does:** Finds the next available requirement and runs it immediately — server-assigned in team mode, locally-picked in solo mode.

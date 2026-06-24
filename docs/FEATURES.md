@@ -235,6 +235,14 @@ See **[Writing Plugins](PLUGINS.md)** for the full authoring guide.
 - Built with .NET Spectre.Console
 - Rich formatting and colors
 
+**`felix dashboard --html`**
+
+- Generates a static, read-only local browser report
+- Shows requirement progress, current/next work, recent runs, usage and model summaries
+- Shows local agents, settings, health, and recommended next steps
+- Recommends commands for optional improvements such as Graphify, model pricing, sync, backpressure, reviews, and explore
+- Does not start a server, mutate config, or run setup commands
+
 ---
 
 ## 🌐 Web Application

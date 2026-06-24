@@ -25,7 +25,7 @@ This hub covers everything you need to run, configure, and extend Felix — the 
 
 | Document | Audience | Covers |
 |---|---|---|
-| [RUNNING.md](RUNNING.md) | Developers | Executing requirements, loop, procs, exit codes |
+| [RUNNING.md](RUNNING.md) | Developers | Executing requirements, loop, local dashboard report, procs, exit codes |
 | [SPECS.md](SPECS.md) | Developers | Spec and requirement lifecycle management |
 | [CONTEXT.md](CONTEXT.md) | Developers | Run artifacts, context inspection, event stream, replay |
 | [SEARCH.md](SEARCH.md) | Developers | Full-text search, dependency graph, structured queries |

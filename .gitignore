@@ -78,3 +78,9 @@ Enhancements/REPO_SPLIT.md
 # Temp scripts
 clean_droid_and_ignore.ps1
 sync-to-cloud.ps1
+# ── Felix local files ─────────────────────────────────────────────────────────
+runs/
+.felix/
+# Felix .meta.json sidecars (server-generated cache, gitignored)
+specs/*.meta.json
+requirements/*.meta.json

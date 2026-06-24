@@ -379,12 +379,24 @@ partial class Program
 
     static Command CreateDashboardCommand(string felixPs1)
     {
-        var cmd = new Command("dashboard", "Interactive TUI dashboard");
-
-        cmd.SetHandler(async () =>
+        var htmlOpt = new Option<bool>("--html", "Generate a read-only local HTML report");
+        var noOpenOpt = new Option<bool>("--no-open", "Generate the HTML report without opening a browser");
+        var cmd = new Command("dashboard", "Interactive TUI dashboard")
         {
+            htmlOpt,
+            noOpenOpt
+        };
+
+        cmd.SetHandler(async (html, noOpen) =>
+        {
+            if (html)
+            {
+                await GenerateDashboardHtmlReport(noOpen);
+                return;
+            }
+
             await RunInteractiveDashboard(felixPs1);
-        });
+        }, htmlOpt, noOpenOpt);
 
         return cmd;
     }
