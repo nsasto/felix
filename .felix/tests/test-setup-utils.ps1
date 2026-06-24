@@ -222,7 +222,7 @@ Describe "ConvertTo-ConfiguredAgentList" {
                     id       = 2
                     name     = "codex"
                     provider = "openai"
-                    model    = "gpt-5.3-codex"
+                    model    = "gpt-5.5"
                 }
             )
         }

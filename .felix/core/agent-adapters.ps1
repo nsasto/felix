@@ -764,7 +764,7 @@ function Get-AgentDefaults {
             return @{
                 adapter           = "droid"
                 executable        = "droid"
-                model             = "claude-opus-4-5-20251101"
+                model             = "claude-opus-4-6"
                 working_directory = "."
                 environment       = @{}
             }
@@ -782,7 +782,7 @@ function Get-AgentDefaults {
             return @{
                 adapter           = "codex"
                 executable        = "codex"
-                model             = "gpt-5.2-codex"
+                model             = "gpt-5.5"
                 working_directory = "."
                 environment       = @{}
             }

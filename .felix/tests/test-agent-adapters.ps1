@@ -234,7 +234,7 @@ Describe "Completion signal helpers" {
 Describe "Get-AgentInvocation" {
 
     It "should use stdin prompt transport for droid" {
-        $config = [pscustomobject]@{ adapter = "droid"; model = "claude-opus-4-5-20251101" }
+        $config = [pscustomobject]@{ adapter = "droid"; model = "claude-opus-4-6" }
         $invocation = Get-AgentInvocation -AdapterType "droid" -Config $config -Prompt "test prompt" -VerboseMode $false
         Assert-Equal "stdin" $invocation.PromptMode
         Assert-Equal "test prompt" $invocation.FormattedPrompt

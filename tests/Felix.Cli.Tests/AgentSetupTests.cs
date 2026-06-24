@@ -221,7 +221,7 @@ public sealed class AgentSetupTests
         var selected = new List<Program.AgentProfileDocument>
         {
             new() { Name = "copilot", Provider = "copilot", Adapter = "copilot", Model = "gpt-5.3-codex", Key = "ag_newcopilot", Id = "ag_newcopilot" },
-            new() { Name = "codex", Provider = "codex", Adapter = "codex", Model = "gpt-5.4-codex", Key = "ag_newcodex", Id = "ag_newcodex" }
+            new() { Name = "codex", Provider = "codex", Adapter = "codex", Model = "gpt-5.5", Key = "ag_newcodex", Id = "ag_newcodex" }
         };
 
         var merged = Program.UpsertAgentProfiles(existing, selected);

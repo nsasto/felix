@@ -644,9 +644,9 @@ partial class Program
     {
         return adapterType.ToLowerInvariant() switch
         {
-            "droid" => new AgentDefaults("droid", "droid", "claude-opus-4-5-20251101", ".", new Dictionary<string, object?>()),
+            "droid" => new AgentDefaults("droid", "droid", "claude-opus-4-6", ".", new Dictionary<string, object?>()),
             "claude" => new AgentDefaults("claude", "claude", "sonnet", ".", new Dictionary<string, object?>()),
-            "codex" => new AgentDefaults("codex", "codex", "gpt-5.2-codex", ".", new Dictionary<string, object?>()),
+            "codex" => new AgentDefaults("codex", "codex", "gpt-5.5", ".", new Dictionary<string, object?>()),
             "gemini" => new AgentDefaults("gemini", "gemini", "auto", ".", new Dictionary<string, object?>()),
             "copilot" => new AgentDefaults(
                 "copilot",

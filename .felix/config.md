@@ -34,7 +34,7 @@ Each preset is an entry under `agents`:
       "id": "ag_123456789",
       "name": "codex",
       "adapter": "codex",
-      "model": "gpt-5.2-codex",
+      "model": "gpt-5.5",
       "working_directory": ".",
       "environment": {}
     }
@@ -69,7 +69,7 @@ Install:
   "id": "ag_123456789",
   "name": "codex",
   "adapter": "codex",
-  "model": "gpt-5.2-codex",
+  "model": "gpt-5.5",
   "working_directory": "."
 }
 ```
