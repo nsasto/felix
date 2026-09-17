@@ -324,6 +324,8 @@ function New-IterationPrompt {
         Emit-Log -Level "info" -Message $budgetResult.Summary -Component "context-budgeter"
     }
 
+    $reviewOutputPath = (Join-Path $RunDir "code-review.md") -replace '\\', '/'
+
     # Fill placeholders in template (unresolved placeholders → empty string)
     $fullPrompt = $promptTemplate `
         -replace '\{\{LAYERED_AGENTS\}\}', $budgetResult.Sources.layered_agents `
@@ -332,11 +334,24 @@ function New-IterationPrompt {
         -replace '\{\{PLAN\}\}',           $budgetResult.Sources.plan `
         -replace '\{\{CONTEXT_MAP\}\}',    $budgetResult.Sources.context_map `
         -replace '\{\{SKILLS\}\}',         $budgetResult.Sources.skills `
-        -replace '\{\{MEMORY\}\}',         $budgetResult.Sources.memory
+        -replace '\{\{MEMORY\}\}',         $budgetResult.Sources.memory `
+        -replace '\{\{REVIEW_OUTPUT_PATH\}\}', $reviewOutputPath `
+        -replace '\{\{REQUIREMENT_ID\}\}', [string]$CurrentRequirement.id
 
     # Append legacy-style context block for templates that don't use placeholders
     $context = $budgetResult.Sources.extras
     $fullPrompt = "$fullPrompt`n`n---`n`n# Project Context`n`n$context"
+
+    # After REVIEW_CHANGES_REQUESTED, feed remediation notes into the next building prompt
+    if ($Mode -eq "building" -and $State.review_changes_requested -and $State.last_review_path -and (Test-Path $State.last_review_path)) {
+        try {
+            $reviewNotes = Get-Content $State.last_review_path -Raw -Encoding UTF8
+            $fullPrompt += "`n`n---`n`n# Architecture Review Remediation`n`nPrevious review requested changes. Address these remediations in this building iteration:`n`n$reviewNotes"
+        }
+        catch {
+            Emit-Log -Level "warn" -Message "Could not load review remediation notes from $($State.last_review_path): $_" -Component "prompt-builder"
+        }
+    }
     
     # Hook: OnContextGathering
     $gitDiff = ""

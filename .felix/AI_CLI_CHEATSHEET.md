@@ -1,4 +1,4 @@
-# AI Coding Assistants CLI Cheat Sheet
+﻿# AI Coding Assistants CLI Cheat Sheet
 
 Covers practical terminal usage for:
 
@@ -230,7 +230,7 @@ droid -p "run tests and summarize" --output stream-json
 | Claude Code | Tight tool control, system prompt shaping, structured output  | Careful refactors, controlled edits, CI scripting   |
 | Codex CLI   | Strong approvals and sandboxing, great TUI flow               | Safe autonomous fixes inside repos                  |
 | Gemini CLI  | Excellent headless and JSON streaming, rich built-in commands | Automation and pipeline friendly workflows          |
-| Droid       | Plan → diff → approve → commit loop, repo aware               | Test driven refactors and clean, reviewable patches |
+| Droid       | Plan â†’ diff â†’ approve â†’ commit loop, repo aware               | Test driven refactors and clean, reviewable patches |
 
 ---
 
@@ -262,3 +262,28 @@ cat test-output.txt | <tool> -p "summarize failures and likely root causes"
 ```
 
 ---
+
+---
+
+## OpenCode
+
+### Install
+
+```bash
+npm install -g opencode-ai
+opencode --version
+```
+
+### Headless (Felix)
+
+```bash
+# Prompt via stdin; auto-approve; JSON event stream
+echo "your prompt" | opencode run --auto --format json -m deepseek/deepseek-v4-pro
+```
+
+### Auth
+
+```bash
+opencode providers
+# or inside TUI: /connect deepseek
+```

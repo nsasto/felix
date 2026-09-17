@@ -233,3 +233,97 @@ Describe "Get-AgentConfig" {
     }
 }
 
+
+Describe "Get-PhaseAgentId" {
+
+    It "should read agent.by_phase for planning" {
+        $config = [PSCustomObject]@{
+            agent = [PSCustomObject]@{
+                agent_id = "ag_default"
+                by_phase = [PSCustomObject]@{
+                    planning = "ag_plan"
+                    building = "ag_build"
+                }
+            }
+        }
+
+        Assert-equal "ag_plan" (Get-PhaseAgentId -Config $config -Phase "planning")
+        Assert-equal "ag_build" (Get-PhaseAgentId -Config $config -Phase "building")
+    }
+
+    It "should fall back to explore.agent_override for explore" {
+        $config = [PSCustomObject]@{
+            agent = [PSCustomObject]@{ agent_id = "ag_default" }
+            explore = [PSCustomObject]@{ agent_override = "ag_explore" }
+        }
+
+        Assert-equal "ag_explore" (Get-PhaseAgentId -Config $config -Phase "explore")
+    }
+
+    It "should prefer by_phase.explore over explore.agent_override" {
+        $config = [PSCustomObject]@{
+            agent = [PSCustomObject]@{
+                by_phase = [PSCustomObject]@{ explore = "ag_by_phase" }
+            }
+            explore = [PSCustomObject]@{ agent_override = "ag_legacy" }
+        }
+
+        Assert-equal "ag_by_phase" (Get-PhaseAgentId -Config $config -Phase "explore")
+    }
+}
+
+Describe "Resolve-AgentForPhase" {
+
+    It "should return default when by_phase is unset" {
+        $config = [PSCustomObject]@{ agent = [PSCustomObject]@{ agent_id = "ag_default" } }
+        $default = [PSCustomObject]@{ key = "ag_default"; name = "default"; adapter = "codex" }
+
+        $resolved = Resolve-AgentForPhase -Config $config -Phase "planning" -DefaultAgentConfig $default
+        Assert-equal "ag_default" $resolved.key
+    }
+
+    It "should resolve planning and building to different agents by key" {
+        $agentsData = [PSCustomObject]@{
+            agents = @(
+                [PSCustomObject]@{ key = "ag_plan"; name = "codex"; adapter = "codex"; model = "gpt-6-astra" }
+                [PSCustomObject]@{ key = "ag_build"; name = "opencode"; adapter = "opencode"; model = "deepseek/deepseek-v4-pro" }
+            )
+        }
+        $config = [PSCustomObject]@{
+            agent = [PSCustomObject]@{
+                agent_id = "ag_plan"
+                by_phase = [PSCustomObject]@{
+                    planning = "ag_plan"
+                    building = "ag_build"
+                }
+            }
+        }
+        $default = Get-AgentConfig -AgentsData $agentsData -AgentId "ag_plan"
+
+        $planAgent = Resolve-AgentForPhase -Config $config -Phase "planning" -DefaultAgentConfig $default -AgentsData $agentsData
+        $buildAgent = Resolve-AgentForPhase -Config $config -Phase "building" -DefaultAgentConfig $default -AgentsData $agentsData
+
+        Assert-equal "ag_plan" $planAgent.key
+        Assert-equal "ag_build" $buildAgent.key
+        Assert-equal "opencode" $buildAgent.adapter
+    }
+
+    It "should resolve phase agent by profile name" {
+        $agentsData = [PSCustomObject]@{
+            agents = @(
+                [PSCustomObject]@{ key = "ag_a"; name = "codex"; adapter = "codex" }
+                [PSCustomObject]@{ key = "ag_b"; name = "opencode"; adapter = "opencode" }
+            )
+        }
+        $config = [PSCustomObject]@{
+            agent = [PSCustomObject]@{
+                agent_id = "ag_a"
+                by_phase = [PSCustomObject]@{ building = "opencode" }
+            }
+        }
+        $default = Get-AgentConfig -AgentsData $agentsData -AgentId "ag_a"
+
+        $buildAgent = Resolve-AgentForPhase -Config $config -Phase "building" -DefaultAgentConfig $default -AgentsData $agentsData
+        Assert-equal "ag_b" $buildAgent.key
+    }
+}

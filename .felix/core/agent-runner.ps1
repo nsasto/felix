@@ -955,7 +955,7 @@ function Invoke-AgentExecution {
 function Test-AndEnforcePlanningGuardrails {
     <#
     .SYNOPSIS
-    Tests and enforces planning mode guardrails
+    Tests and enforces planning/reviewing mode guardrails
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -975,24 +975,30 @@ function Test-AndEnforcePlanningGuardrails {
         [hashtable]$State,
         
         [Parameter(Mandatory = $true)]
-        [string]$StateFile
+        [string]$StateFile,
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$ExtraAllowedPatterns = @(),
+
+        [Parameter(Mandatory = $false)]
+        [string]$ModeLabel = "Planning"
     )
     
     # Workflow Stage: check_guardrails
     Set-WorkflowStage -Stage "check_guardrails" -ProjectPath $ProjectPath
 
     if (-not $BeforeState -or -not (Test-GitRepository -WorkingDir $ProjectPath)) {
-        Emit-Log -Level "debug" -Message "Skipping planning guardrails: project is not a git repository" -Component "guardrail"
+        Emit-Log -Level "debug" -Message "Skipping $ModeLabel guardrails: project is not a git repository" -Component "guardrail"
         return @{ Passed = $true }
     }
     
-    $violations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $BeforeState -RunId $RunId
+    $violations = Test-PlanningModeGuardrails -WorkingDir $ProjectPath -BeforeState $BeforeState -RunId $RunId -ExtraAllowedPatterns $ExtraAllowedPatterns
     if ($violations.HasViolations) {
         Undo-PlanningViolations -WorkingDir $ProjectPath -BeforeState $BeforeState -Violations $violations
         
         # Document guardrail violations
         $violationReport = @"
-# Planning Mode Guardrail Violation
+# $ModeLabel Mode Guardrail Violation
 
 **Timestamp:** $(Get-Date -Format "o")
 

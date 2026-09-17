@@ -660,6 +660,7 @@ partial class Program
                     ["max_autopilot_continues"] = 10,
                     ["no_ask_user"] = true
                 }),
+            "opencode" => new AgentDefaults("opencode", "opencode", "opencode-go/deepseek-v4-pro", ".", new Dictionary<string, object?>()),
             _ => new AgentDefaults(adapterType, adapterType, "", ".", new Dictionary<string, object?>())
         };
     }
@@ -783,6 +784,14 @@ partial class Program
                 "Install the GitHub Copilot Chat extension in VS Code and allow it to install the Copilot CLI when prompted.",
                 "Or run 'copilot' once in a terminal to trigger the CLI install flow.",
                 "Then run: copilot login"
+            },
+            "opencode" => new[]
+            {
+                "Install with: npm install -g opencode-ai",
+                "For OpenCode Go (Zen): /connect -> OpenCode Go -> paste opencode.ai API key",
+                "Model IDs use opencode-go/<id>, e.g. opencode-go/deepseek-v4-pro",
+                "Or connect DeepSeek BYOK via /connect deepseek",
+                "Then verify with: opencode --version && opencode providers list"
             },
             _ => new[] { "Install via your package manager and ensure the executable is on PATH." }
         };
@@ -1905,7 +1914,8 @@ partial class Program
                 new("claude", "claude", "claude", null, null),
                 new("codex", "codex", "codex", null, null),
                 new("gemini", "gemini", "gemini", null, null),
-                new("copilot", "copilot", "copilot", null, null)
+                new("copilot", "copilot", "copilot", null, null),
+                new("opencode", "opencode", "opencode", null, null)
             };
 
         if (!string.IsNullOrWhiteSpace(target))

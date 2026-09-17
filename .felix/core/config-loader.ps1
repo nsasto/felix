@@ -273,6 +273,14 @@ function Get-AgentsConfiguration {
                     working_directory = "."
                     environment       = @{}
                 }
+                @{
+                    id                = 5
+                    name              = "opencode"
+                    adapter           = "opencode"
+                    executable        = "opencode"
+                    working_directory = "."
+                    environment       = @{}
+                }
             )
         }
         
@@ -380,4 +388,135 @@ function Get-AgentConfig {
     Emit-Log -Level "info" -Message "Executable: $($agentConfig.executable)" -Component "agent"
     
     return $agentConfig
+}
+
+function Get-PhaseAgentId {
+    <#
+    .SYNOPSIS
+    Returns the agent profile key/name configured for a workflow phase, if any.
+
+    .DESCRIPTION
+    Reads config.agent.by_phase.<phase>. Falls back to explore.agent_override when
+    phase is "explore" and by_phase.explore is unset (legacy).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $Config,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("explore", "planning", "building", "reviewing")]
+        [string]$Phase
+    )
+
+    if (-not $Config) { return $null }
+
+    $agentSection = if ($Config -is [hashtable]) { $Config["agent"] } else { $Config.agent }
+    if ($agentSection) {
+        $byPhase = if ($agentSection -is [hashtable]) { $agentSection["by_phase"] } else { $agentSection.by_phase }
+        if ($byPhase) {
+            $phaseValue = if ($byPhase -is [hashtable]) { $byPhase[$Phase] } else { $byPhase.$Phase }
+            if (-not [string]::IsNullOrWhiteSpace([string]$phaseValue)) {
+                return [string]$phaseValue
+            }
+        }
+    }
+
+    # Legacy explore override
+    if ($Phase -eq "explore") {
+        $exploreSection = if ($Config -is [hashtable]) { $Config["explore"] } else { $Config.explore }
+        if ($exploreSection) {
+            $override = if ($exploreSection -is [hashtable]) { $exploreSection["agent_override"] } else { $exploreSection.agent_override }
+            if (-not [string]::IsNullOrWhiteSpace([string]$override)) {
+                return [string]$override
+            }
+        }
+    }
+
+    return $null
+}
+
+function Resolve-AgentForPhase {
+    <#
+    .SYNOPSIS
+    Resolves the agent profile for a workflow phase.
+
+    .DESCRIPTION
+    Prefer config.agent.by_phase.<phase>, then explore.agent_override (explore only),
+    otherwise return DefaultAgentConfig (typically config.agent.agent_id).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $Config,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("explore", "planning", "building", "reviewing")]
+        [string]$Phase,
+
+        [Parameter(Mandatory = $true)]
+        $DefaultAgentConfig,
+
+        [Parameter(Mandatory = $false)]
+        $AgentsData = $null,
+
+        [Parameter(Mandatory = $false)]
+        [string]$AgentsJsonFile = $null,
+
+        [Parameter(Mandatory = $false)]
+        [string]$ConfigFile = $null
+    )
+
+    $phaseAgentId = Get-PhaseAgentId -Config $Config -Phase $Phase
+    if ([string]::IsNullOrWhiteSpace($phaseAgentId)) {
+        return $DefaultAgentConfig
+    }
+
+    # Same profile as default — avoid re-resolving / noisy logs
+    $defaultKey = $null
+    if ($DefaultAgentConfig) {
+        if ($DefaultAgentConfig.PSObject.Properties["key"] -and $DefaultAgentConfig.key) {
+            $defaultKey = [string]$DefaultAgentConfig.key
+        }
+        elseif ($DefaultAgentConfig.PSObject.Properties["name"] -and $DefaultAgentConfig.name) {
+            $defaultKey = [string]$DefaultAgentConfig.name
+        }
+    }
+    if ($defaultKey -and (
+            [string]::Equals($phaseAgentId, $defaultKey, [System.StringComparison]::OrdinalIgnoreCase) -or
+            ($DefaultAgentConfig.PSObject.Properties["name"] -and
+                [string]::Equals($phaseAgentId, [string]$DefaultAgentConfig.name, [System.StringComparison]::OrdinalIgnoreCase))
+        )) {
+        return $DefaultAgentConfig
+    }
+
+    if (-not $AgentsData) {
+        if ([string]::IsNullOrWhiteSpace($AgentsJsonFile) -or -not (Test-Path $AgentsJsonFile)) {
+            Emit-Log -Level "warn" -Message "Phase agent '$phaseAgentId' requested for $Phase but agents.json was not available; using default agent." -Component "agent"
+            return $DefaultAgentConfig
+        }
+        $AgentsData = Get-AgentsConfiguration -AgentsJsonFile $AgentsJsonFile
+        if (-not $AgentsData) {
+            return $DefaultAgentConfig
+        }
+    }
+
+    $match = $AgentsData.agents | Where-Object {
+        ($_.key -and [string]::Equals([string]$_.key, $phaseAgentId, [System.StringComparison]::OrdinalIgnoreCase)) -or
+        ($_.id -and [string]::Equals([string]$_.id, $phaseAgentId, [System.StringComparison]::OrdinalIgnoreCase)) -or
+        ($_.name -and [string]::Equals([string]$_.name, $phaseAgentId, [System.StringComparison]::OrdinalIgnoreCase))
+    } | Select-Object -First 1
+
+    if (-not $match) {
+        Emit-Log -Level "warn" -Message "Phase agent '$phaseAgentId' for $Phase not found in agents.json; using default agent." -Component "agent"
+        return $DefaultAgentConfig
+    }
+
+    $resolveId = if ($match.key) { [string]$match.key } elseif ($match.id) { [string]$match.id } else { $phaseAgentId }
+    $resolved = Get-AgentConfig -AgentsData $AgentsData -AgentId $resolveId -ConfigFile $null
+    if ($resolved) {
+        Emit-Log -Level "info" -Message "Phase '$Phase' using agent: $($resolved.name) (Key: $($resolved.key))" -Component "agent"
+        return $resolved
+    }
+
+    Emit-Log -Level "warn" -Message "Phase agent '$phaseAgentId' for $Phase could not be loaded; using default agent." -Component "agent"
+    return $DefaultAgentConfig
 }

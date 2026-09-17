@@ -1,5 +1,5 @@
 # Agent Adapters - Multi-Agent Support for Felix
-# Provides adapter pattern for different LLM CLIs (Droid, Claude, Codex, Gemini, Copilot)
+# Provides adapter pattern for different LLM CLIs (Droid, Claude, Codex, Gemini, Copilot, OpenCode)
 
 $ErrorActionPreference = "Stop"
 
@@ -18,7 +18,7 @@ Each adapter handles agent-specific:
 #>
 
 function Get-CompletionSignalPattern {
-    return '(?m)^[ \t]*<promise>(PLAN_COMPLETE|PLANNING_COMPLETE|TASK_COMPLETE|ALL_COMPLETE)</promise>[ \t]*$'
+    return '(?m)^[ \t]*<promise>(PLAN_COMPLETE|PLANNING_COMPLETE|TASK_COMPLETE|ALL_COMPLETE|REVIEW_COMPLETE|REVIEW_CHANGES_REQUESTED)</promise>[ \t]*$'
 }
 
 function Resolve-LegacyCompletionSignal {
@@ -33,6 +33,8 @@ function Resolve-LegacyCompletionSignal {
         "PLANNING_COMPLETE" { return "PLAN_COMPLETE" }
         "TASK_COMPLETE" { return "TASK_COMPLETE" }
         "ALL_COMPLETE" { return "ALL_COMPLETE" }
+        "REVIEW_COMPLETE" { return "REVIEW_COMPLETE" }
+        "REVIEW_CHANGES_REQUESTED" { return "REVIEW_CHANGES_REQUESTED" }
         default { return $null }
     }
 }
@@ -244,6 +246,14 @@ function Get-CompletionSignal {
         return "ALL_COMPLETE"
     }
 
+    if ($signals -contains "REVIEW_CHANGES_REQUESTED") {
+        return "REVIEW_CHANGES_REQUESTED"
+    }
+
+    if ($signals -contains "REVIEW_COMPLETE") {
+        return "REVIEW_COMPLETE"
+    }
+
     if ($signals -contains "TASK_COMPLETE") {
         return "TASK_COMPLETE"
     }
@@ -277,7 +287,14 @@ function Set-CompletionResult {
             $Result.NextMode = "continue"
         }
         "ALL_COMPLETE" {
+            # Task-handler may schedule reviewing when review.enabled; adapter NextMode stays complete for compat
             $Result.NextMode = "complete"
+        }
+        "REVIEW_COMPLETE" {
+            $Result.NextMode = "complete"
+        }
+        "REVIEW_CHANGES_REQUESTED" {
+            $Result.NextMode = "building"
         }
     }
 }
@@ -582,20 +599,119 @@ class CodexAdapter {
     }
 
     [string[]] BuildArgs([object]$config, [bool]$verbose) {
-        # Modern: Adapter builds args
-        # NOTE: danger-full-access is required because v0.98.0 research preview ignores workspace-write config/flags
-        # See .felix/README.md - Codex Sandbox Configuration for details
-        # CRITICAL: exec subcommand MUST come AFTER other flags (at start), not at end
+        # exec first; then flags; "-" reads prompt from stdin.
+        # Bypass approvals+sandbox - non-interactive Felix cannot answer approval prompts,
+        # and -s danger-full-access alone still leaves approval=on-request on current Codex CLIs.
         $args = @(
             "exec",
             "-C", ".",
-            "-s", "danger-full-access",
-            "--color", "never",
-            "-"
+            "--dangerously-bypass-approvals-and-sandbox",
+            "--skip-git-repo-check",
+            "--color", "never"
         )
+
+        if ($config.model -and -not [string]::IsNullOrWhiteSpace([string]$config.model)) {
+            $args += @("-m", [string]$config.model)
+        }
+
+        $args += "-"
         
         return $args
     }
+}
+
+# ============================================================================
+# OPENCODE ADAPTER (OpenCode CLI / DeepSeek and other providers)
+# ============================================================================
+
+class OpenCodeAdapter {
+    [string] FormatPrompt([string]$prompt) {
+        return $prompt
+    }
+
+    [hashtable] ParseResponse([string]$output) {
+        $result = @{
+            Output     = $output
+            IsComplete = $false
+            NextMode   = $null
+            Error      = $null
+        }
+
+        $textBlob = Get-OpenCodeTextFromOutput -Output $output
+        if (-not [string]::IsNullOrWhiteSpace($textBlob)) {
+            $result.Output = $textBlob
+        }
+
+        $signalSource = if (-not [string]::IsNullOrWhiteSpace($textBlob)) { $textBlob } else { $output }
+        $signal = Get-CompletionSignal -Output $signalSource -AllowPlanningAlias
+        if ($signal) {
+            Set-CompletionResult -Result $result -Signal $signal
+        }
+
+        return $result
+    }
+
+    [bool] DetectCompletion([string]$output) {
+        $textBlob = Get-OpenCodeTextFromOutput -Output $output
+        $signalSource = if (-not [string]::IsNullOrWhiteSpace($textBlob)) { $textBlob } else { $output }
+        return [bool](Get-CompletionSignal -Output $signalSource -AllowPlanningAlias)
+    }
+
+    [string[]] BuildArgs([object]$config) {
+        return $this.BuildArgs($config, $false)
+    }
+
+    [string[]] BuildArgs([object]$config, [bool]$verbose) {
+        # Headless: opencode run --auto -m provider/model --format json
+        # Prompt is delivered via stdin (avoids Windows argv length limits).
+        $args = @("run", "--auto", "--format", "json")
+
+        if ($config.model -and -not [string]::IsNullOrWhiteSpace([string]$config.model)) {
+            $args += @("-m", [string]$config.model)
+        }
+
+        if ($verbose) {
+            $args += @("--print-logs")
+        }
+
+        return $args
+    }
+}
+
+function Get-OpenCodeTextFromOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return ""
+    }
+
+    $texts = [System.Collections.ArrayList]@()
+    foreach ($line in ($Output -split "`r?`n")) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed.StartsWith("{")) { continue }
+        try {
+            $json = $trimmed | ConvertFrom-Json -ErrorAction Stop
+            if ($json.type -eq "text" -and $json.part -and $json.part.text) {
+                [void]$texts.Add([string]$json.part.text)
+            }
+            elseif ($json.part -and $json.part.type -eq "text" -and $json.part.text) {
+                [void]$texts.Add([string]$json.part.text)
+            }
+        }
+        catch {
+            # ignore non-JSON lines
+        }
+    }
+
+    if ($texts.Count -gt 0) {
+        return ($texts -join "`n")
+    }
+
+    return $Output
 }
 
 # ============================================================================
@@ -809,6 +925,16 @@ function Get-AgentDefaults {
                 custom_agent            = ""
             }
         }
+        "opencode" {
+            return @{
+                adapter           = "opencode"
+                executable        = "opencode"
+                # Default: OpenCode Go (Zen subscription) DeepSeek V4 Pro
+                model             = "opencode-go/deepseek-v4-pro"
+                working_directory = "."
+                environment       = @{}
+            }
+        }
         default {
             return @{
                 adapter           = $AdapterType
@@ -843,8 +969,11 @@ function Get-AgentAdapter {
         "copilot" {
             return [CopilotAdapter]::new()
         }
+        "opencode" {
+            return [OpenCodeAdapter]::new()
+        }
         default {
-            Write-Error "Unknown adapter type: $AdapterType. Supported: droid, claude, codex, gemini, copilot"
+            Write-Error "Unknown adapter type: $AdapterType. Supported: droid, claude, codex, gemini, copilot, opencode"
             return $null
         }
     }

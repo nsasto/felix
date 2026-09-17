@@ -22,7 +22,8 @@ class AgentState {
         return @{
             'Planning'   = @('Building', 'Blocked', 'Complete')
             'Building'   = @('Validating', 'Blocked')
-            'Validating' = @('Complete', 'Building', 'Blocked')
+            'Validating' = @('Reviewing', 'Complete', 'Building', 'Blocked')
+            'Reviewing'  = @('Complete', 'Building', 'Blocked')
             'Blocked'    = @('Planning')
             'Complete'   = @()  # Terminal state
         }

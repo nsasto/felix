@@ -296,9 +296,17 @@ function Invoke-ExplorePhase {
         -MaxTokens      $exploreConfig.max_tokens `
         -Config         $Config
 
-    # Determine agent to use (agent_override or default)
+    # Determine agent to use: agent.by_phase.explore, then explore.agent_override, then default
     $exploreAgentConfig = $AgentConfig
-    if ($exploreConfig.agent_override) {
+    if (Get-Command Resolve-AgentForPhase -ErrorAction SilentlyContinue) {
+        $exploreAgentConfig = Resolve-AgentForPhase `
+            -Config $Config `
+            -Phase "explore" `
+            -DefaultAgentConfig $AgentConfig `
+            -AgentsJsonFile $Paths.AgentsJsonFile `
+            -ConfigFile $Paths.ConfigFile
+    }
+    elseif ($exploreConfig.agent_override) {
         $agentsData = Get-AgentsConfiguration -AgentsJsonFile $Paths.AgentsJsonFile -ErrorAction SilentlyContinue
         if ($agentsData) {
             $overrideAgent = Get-AgentConfig -AgentsData $agentsData -AgentId $exploreConfig.agent_override -ConfigFile $Paths.ConfigFile -ErrorAction SilentlyContinue

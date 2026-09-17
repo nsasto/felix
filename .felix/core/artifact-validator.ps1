@@ -185,6 +185,26 @@ function Test-IterationArtifacts {
         }
     }
 
+    if ($Mode -eq "reviewing" -and $signal -in @("REVIEW_COMPLETE", "REVIEW_CHANGES_REQUESTED")) {
+        $reviewPath = Join-Path $RunDir "code-review.md"
+        if (-not (Test-Path $reviewPath)) {
+            return @{
+                IsRequired = $true
+                IsValid    = $false
+                Reason     = "Review completion was signaled without writing code-review.md."
+                Signal     = $signal
+                PlanPath   = (Get-RunPlanPath -RunDir $RunDir -RequirementId $RequirementId)
+            }
+        }
+        return @{
+            IsRequired = $true
+            IsValid    = $true
+            Reason     = $null
+            Signal     = $signal
+            PlanPath   = (Get-RunPlanPath -RunDir $RunDir -RequirementId $RequirementId)
+        }
+    }
+
     return @{
         IsRequired = $false
         IsValid    = $true
@@ -270,6 +290,17 @@ function Test-IterationContract {
         return @{
             IsValid  = $false
             Reason   = "Missing completion.signal=TASK_COMPLETE or completion.signal=ALL_COMPLETE in JSON response for building completion."
+            Signal   = $signal
+            PlanPath = $planPath
+        }
+    }
+
+    if ($Mode -eq "reviewing" -and $signal -notin @("REVIEW_COMPLETE", "REVIEW_CHANGES_REQUESTED")) {
+        # Do not infer REVIEW_COMPLETE from a leftover code-review.md - that would
+        # skip REVIEW_CHANGES_REQUESTED and weaken the remediation gate.
+        return @{
+            IsValid  = $false
+            Reason   = "Missing completion.signal=REVIEW_COMPLETE or REVIEW_CHANGES_REQUESTED for reviewing completion."
             Signal   = $signal
             PlanPath = $planPath
         }

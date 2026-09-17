@@ -8,7 +8,7 @@
 
 Memory gives Felix **persistent knowledge that survives across runs**. Without memory, the agent starts each iteration with no recollection of past mistakes or conventions it has learned. With memory, it carries durable insights forward — e.g., "always run `dotnet build` before `dotnet test`", or "the `Program.Commands.cs` file registers commands via reflection."
 
-Memory entries live in `.felix/memory/` as plain markdown files with YAML frontmatter. They are never modified by the agent loop automatically — only by CLI commands you run or via `felix review --learnings`.
+Memory entries live in `.felix/memory/` as plain markdown files with YAML frontmatter. Humans edit them via `felix memory` / `felix review --learnings`. The architecture **reviewing** phase may also create `requirement/<id>/review-*.md` after validation (durable learnings for that requirement). Memory files are never auto-deleted.
 
 ---
 
@@ -35,7 +35,7 @@ Three scopes:
 | `repo` | `.felix\memory\repo\` | Yes | Repo-specific architecture notes, team conventions |
 | `requirement` | `.felix\memory\requirement\<id>\` | Yes | Per-requirement context, decisions, known traps |
 
-**Memory files are never auto-deleted.** Only `runs/*/agents-md-suggestions.md` proposal files are pruned — see [Learning Proposals](#learning-proposals).
+**Memory files are never auto-deleted.** The reviewing phase may *create* `review-*.md` under requirement scope; it does not delete or rewrite other memory files. Only `runs/*/agents-md-suggestions.md` proposal files are pruned — see [Learning Proposals](#learning-proposals).
 
 ### Entry frontmatter
 

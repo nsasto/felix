@@ -246,7 +246,7 @@ Felix captures learnings from run events and exposes them for curation via `feli
 - `repo` — `.felix/memory/repo/` — applies to this repo
 - `requirement` — `.felix/memory/requirement/<req-id>/` — requirement-specific notes
 
-Memory files use YAML frontmatter: `title`, `scope`, `created`, `tags`. They are NEVER auto-deleted; only proposal files in `runs/*/agents-md-suggestions.md` are pruned.
+Memory files use YAML frontmatter: `title`, `scope`, `created`, `tags`. They are NEVER auto-deleted; only proposal files in `runs/*/agents-md-suggestions.md` are pruned. The architecture **reviewing** phase may create `review-*.md` under requirement scope after validation.
 
 **`felix doctor` stale-review check:** warns when `last_review` is missing or older than 90 days. Run `felix review --acknowledge` to clear.
 

@@ -38,5 +38,9 @@
     "provider": "http",
     "base_url": "https://api.runfelix.io",
     "api_key": "fsk_your_api_key_here"
+  },
+  "review": {
+    "enabled": true,
+    "_note": "After ALL_COMPLETE + validation, run an architecture review iteration. REVIEW_CHANGES_REQUESTED returns to building; REVIEW_COMPLETE marks the requirement done. Prefer agent.by_phase.reviewing for the review agent (e.g. Codex)."
   }
 }

@@ -27,9 +27,13 @@ tags: []
 
 Memory is evicted **after** layered AGENTS.md but **before** spec/plan. Use `context.budget_tokens` in `.felix/config.json` to control total budget.
 
-## Never auto-modified
+## Auto-written by reviewing phase
 
-Files in `.felix/memory/` are **never** modified or deleted by the Felix loop.
+The architecture **reviewing** phase may create files under
+`.felix/memory/requirement/<S-NNNN>/review-*.md` after a successful build/validation.
+Those files are durable learnings for that requirement (loaded via `Get-MemoryContext`).
+Humans can still edit or prune them. The loop never deletes memory files.
+
 Only `runs/*/agents-md-suggestions.md` proposal files are auto-pruned (30 days default).
 
 ## Promoting proposals

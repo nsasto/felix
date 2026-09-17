@@ -2,7 +2,7 @@
 
 ## Overview
 
-Felix supports multiple LLM coding agents through an **adapter pattern** that normalizes differences in CLI interfaces, output formats, prompt transport, and completion signals. This allows seamless switching between Droid, Claude Code, Codex CLI, Gemini CLI, and GitHub Copilot CLI while maintaining Felix's Planning -> Building -> Validating workflow.
+Felix supports multiple LLM coding agents through an **adapter pattern** that normalizes differences in CLI interfaces, output formats, prompt transport, and completion signals. This allows seamless switching between Droid, Claude Code, Codex CLI, Gemini CLI, GitHub Copilot CLI, and OpenCode while maintaining Felix's Planning -> Building -> Validating workflow.
 
 **Note:** Agent IDs are content-addressed keys (`ag_XXXXXXXXX`), and CLI arguments are built by the adapter. The `args` field is no longer used in `.felix/agents.json`.
 
@@ -14,7 +14,7 @@ Felix supports multiple LLM coding agents through an **adapter pattern** that no
    - Registry of available agents with metadata
    - Each profile specifies: ID, name, adapter type, and optional overrides
 
-- Current configuration: 5 agents (Droid, Claude, Codex, Gemini, Copilot)
+- Current configuration: 6 agents (Droid, Claude, Codex, Gemini, Copilot, OpenCode)
 
 2. **Agent Adapters** (`.felix/core/agent-adapters.ps1`)
    - PowerShell classes that handle agent-specific behavior
@@ -30,30 +30,31 @@ Felix supports multiple LLM coding agents through an **adapter pattern** that no
    - Returns structured data for workflow decisions
 
 4. **Configuration** (`.felix/config.json`)
-   - `agent.agent_id` field selects active agent (content-addressed key)
-   - Modified by `felix agent use <id|name>` command
+   - `agent.agent_id` selects the default agent (content-addressed key)
+   - Optional `agent.by_phase` maps explore/planning/building/reviewing to other profiles
+   - Modified by `felix agent use <id|name>` (default); edit `by_phase` for multi-agent pipelines
    - Persistent across Felix runs
 
 ### Data Flow
 
 ```
 User Command (felix run S-0001)
-    ↓
-felix.ps1 → felix-cli.ps1 → agent-state.ps1
-    ↓
+    â†“
+felix.ps1 â†’ felix-cli.ps1 â†’ agent-state.ps1
+    â†“
 executor.ps1: Invoke-AgentExecution
-    ↓
+    â†“
 1. Load agent profile from agents.json
 2. Get-AgentAdapter (loads correct adapter class)
-3. adapter.FormatPrompt(prompt) → formatted prompt
-4. adapter.BuildArgs(config) → CLI arguments
+3. adapter.FormatPrompt(prompt) â†’ formatted prompt
+4. adapter.BuildArgs(config) â†’ CLI arguments
 5. Execute via adapter invocation plan: stdin piping or prompt argument mode
-6. adapter.ParseResponse(output) → structured result
+6. adapter.ParseResponse(output) â†’ structured result
 7. Return { Output, Duration, Parsed }
-    ↓
+    â†“
 agent-state.ps1: Check Parsed.IsComplete, Parsed.NextMode
-    ↓
-Transition: planning → building OR building → complete
+    â†“
+Transition: planning â†’ building OR building â†’ complete
 ```
 
 ## Agent Profiles
@@ -351,31 +352,31 @@ Agent test passed!
 
 ### Use **Droid** when:
 
-- ✅ You need **maximum speed** (lowest latency)
-- ✅ You have **FACTORY_API_KEY** set up
-- ✅ You want **reliable XML-based completion detection**
-- ✅ You're working on **well-scoped requirements** (planning → building works well)
+- âœ… You need **maximum speed** (lowest latency)
+- âœ… You have **FACTORY_API_KEY** set up
+- âœ… You want **reliable XML-based completion detection**
+- âœ… You're working on **well-scoped requirements** (planning â†’ building works well)
 
 ### Use **Claude** when:
 
-- ✅ You need **superior reasoning** and code quality
-- ✅ You prefer **OAuth** (no API key management)
-- ✅ You're tackling **complex requirements** that need deeper analysis
-- ✅ You value **strong documentation** generation
+- âœ… You need **superior reasoning** and code quality
+- âœ… You prefer **OAuth** (no API key management)
+- âœ… You're tackling **complex requirements** that need deeper analysis
+- âœ… You value **strong documentation** generation
 
 ### Use **Codex** when:
 
-- ✅ You need **diff-based workflow** (explicit change tracking)
-- ✅ You prefer **OpenAI models** (GPT-4 based)
-- ✅ You're doing **iterative refactoring** (diffs show exactly what changed)
-- ✅ You want **OAuth** authentication
+- âœ… You need **diff-based workflow** (explicit change tracking)
+- âœ… You prefer **OpenAI models** (GPT-4 based)
+- âœ… You're doing **iterative refactoring** (diffs show exactly what changed)
+- âœ… You want **OAuth** authentication
 
 ### Use **Gemini** when:
 
-- ✅ You need **structured JSON output** for parsing
-- ✅ You prefer **Google Cloud** ecosystem
-- ✅ You're building **integrations** that consume JSON streams
-- ✅ You want **OAuth** authentication
+- âœ… You need **structured JSON output** for parsing
+- âœ… You prefer **Google Cloud** ecosystem
+- âœ… You're building **integrations** that consume JSON streams
+- âœ… You want **OAuth** authentication
 
 ## Troubleshooting
 
@@ -429,7 +430,7 @@ gemini auth login
 ### Completion signals not detected
 
 **Symptom:**
-Felix loops indefinitely, doesn't transition planning → building
+Felix loops indefinitely, doesn't transition planning â†’ building
 
 **Cause:**
 Adapter's `ParseResponse()` isn't matching agent's actual output format
@@ -690,10 +691,10 @@ felix run S-0001
 
 | Agent  | Latency     | Token Speed | Auth Overhead        | Reliability |
 | ------ | ----------- | ----------- | -------------------- | ----------- |
-| Droid  | ⚡⚡⚡ Low  | Fast        | None (after key set) | High        |
-| Claude | ⚡⚡ Medium | Medium      | OAuth (one-time)     | High        |
-| Codex  | ⚡⚡ Medium | Fast        | OAuth (one-time)     | Medium      |
-| Gemini | ⚡⚡ Medium | Medium      | OAuth (one-time)     | Medium      |
+| Droid  | âš¡âš¡âš¡ Low  | Fast        | None (after key set) | High        |
+| Claude | âš¡âš¡ Medium | Medium      | OAuth (one-time)     | High        |
+| Codex  | âš¡âš¡ Medium | Fast        | OAuth (one-time)     | Medium      |
+| Gemini | âš¡âš¡ Medium | Medium      | OAuth (one-time)     | Medium      |
 
 **Notes:**
 
@@ -757,3 +758,32 @@ C:\dev\Felix> felix agent test droid; felix agent test claude; felix agent test 
 - [HOW_TO_USE.md](../HOW_TO_USE.md) - General Felix usage
 - [AGENT_CONFIG_EXPLAINED.md](AGENT_CONFIG_EXPLAINED.md) - Agent configuration deep dive
 - [WORKING_WITH_PS.md](../learnings/WORKING_WITH_PS.md) - PowerShell patterns and gotchas
+
+### OpenCode
+
+```json
+{
+  "name": "opencode",
+  "adapter": "opencode",
+  "model": "deepseek/deepseek-v4-pro"
+}
+```
+
+- **Executable:** `opencode`
+- **Auth:** configure providers via `opencode providers` or `/connect` (e.g. DeepSeek)
+- **Headless:** `opencode run --auto --format json -m provider/model` with prompt on stdin
+- **Install:** `npm install -g opencode-ai`
+
+### Per-phase agents
+
+```json
+"agent": {
+  "agent_id": "ag_codex_astra",
+  "by_phase": {
+    "planning": "ag_codex_astra",
+    "building": "ag_opencode_dsv4"
+  }
+}
+```
+
+Planning and building iterations resolve agents independently via `Resolve-AgentForPhase` in `config-loader.ps1`.

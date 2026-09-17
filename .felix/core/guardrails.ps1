@@ -34,7 +34,10 @@ function Test-PlanningModeGuardrails {
         [hashtable]$BeforeState,
         
         [Parameter(Mandatory = $false)]
-        [string]$RunId
+        [string]$RunId,
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$ExtraAllowedPatterns = @()
     )
     
 
@@ -52,6 +55,10 @@ function Test-PlanningModeGuardrails {
             "^\.felix/state\.json$",           # State file
             "^\.felix/requirements\.json$"     # Requirements file
         )
+
+        if ($PSBoundParameters.ContainsKey("ExtraAllowedPatterns") -and $ExtraAllowedPatterns) {
+            $allowedPatterns = $allowedPatterns + @($ExtraAllowedPatterns)
+        }
         
         # Get current git state
         $afterState = Get-GitState -WorkingDir $WorkingDir

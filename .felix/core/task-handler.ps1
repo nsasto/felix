@@ -425,7 +425,16 @@ function Invoke-CompletionSignals {
         $AgentState,
         
         [Parameter(Mandatory = $true)]
-        [string]$RequirementsFile
+        [string]$RequirementsFile,
+
+        [Parameter(Mandatory = $false)]
+        $Config = $null,
+
+        [Parameter(Mandatory = $false)]
+        [string]$RunDir = "",
+
+        [Parameter(Mandatory = $false)]
+        [hashtable]$Paths = $null
     )
     
     $signal = Get-CompletionSignal -Output $AgentOutput -AllowPlanningAlias
@@ -445,36 +454,262 @@ function Invoke-CompletionSignals {
     
     # Check ALL_COMPLETE first (more specific than TASK_COMPLETE)
     Emit-Log -Level "debug" -Message "Checking for ALL_COMPLETE signal..." -Component "executor"
-    if ($signal -eq "ALL_COMPLETE") {
-        Emit-Log -Level "info" -Message "ALL_COMPLETE signal detected, marking requirement complete" -Component "executor"
+    if ($signal -eq "ALL_COMPLETE" -and $Mode -eq "building") {
+        $reviewHelpersLoaded = $false
+        if (Get-Command Test-ReviewHelpersAvailable -ErrorAction SilentlyContinue) {
+            $reviewHelpersLoaded = [bool](Test-ReviewHelpersAvailable)
+        }
+
+        # Fail-closed: missing review module must NOT mark the requirement complete
+        if (-not $reviewHelpersLoaded) {
+            Emit-Log -Level "error" -Message "ALL_COMPLETE received but review helpers are not loaded - staying in building (fail-closed)" -Component "review"
+            $State.pending_review = $false
+            $State.last_mode = "building"
+            $State.status = "running"
+            $State.last_iteration_outcome = "blocked"
+            $State.updated_at = Get-Date -Format "o"
+            Emit-TaskCompleted -Signal "ALL_COMPLETE" -Mode $Mode
+            return @{ ShouldExit = $false }
+        }
+
+        $reviewEnabled = [bool](Test-ReviewEnabled -Config $Config)
+
+        if ($reviewEnabled) {
+            Emit-Log -Level "info" -Message "ALL_COMPLETE detected - running validation before architecture review" -Component "review"
+            Write-Host "[EXECUTOR] ALL_COMPLETE → validating before review" -ForegroundColor Cyan
+
+            if ($AgentState.Mode -eq "Building" -and $AgentState.CanTransitionTo("Validating")) {
+                $AgentState.TransitionTo("Validating")
+                Emit-StateTransitioned -From "Building" -To "Validating"
+            }
+
+            $validationOk = $true
+            $validationReason = ""
+
+            $backpressureWanted = $false
+            if ($Config -and $Config.backpressure) {
+                $bpSection = $Config.backpressure
+                if ($bpSection -is [hashtable]) {
+                    $backpressureWanted = [bool]$bpSection["enabled"]
+                }
+                else {
+                    $backpressureWanted = [bool]$bpSection.enabled
+                }
+            }
+
+            if ($backpressureWanted) {
+                if (-not (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
+                    $validationOk = $false
+                    $validationReason = "Backpressure enabled but Invoke-BackpressureValidation is not loaded"
+                    Emit-Log -Level "error" -Message $validationReason -Component "review"
+                }
+                elseif ($Paths -and $Config) {
+                    Set-WorkflowStage -Stage "run_backpressure" -ProjectPath $Paths.ProjectPath
+                    $bp = Invoke-BackpressureValidation `
+                        -WorkingDir $Paths.ProjectPath `
+                        -AgentsFilePath $Paths.AgentsFile `
+                        -Config $Config `
+                        -RunDir $RunDir
+                    if (-not $bp.skipped -and -not $bp.success) {
+                        $validationOk = $false
+                        $validationReason = "Backpressure failed before review"
+                        Emit-Log -Level "error" -Message $validationReason -Component "review"
+                    }
+                }
+                else {
+                    $validationOk = $false
+                    $validationReason = "Backpressure enabled but Paths/Config missing for validation"
+                    Emit-Log -Level "error" -Message $validationReason -Component "review"
+                }
+            }
+
+            if ($validationOk -and $Paths) {
+                $projectRoot = $Paths.ProjectPath
+                $pyValidator = Join-Path $projectRoot "scripts\validate-requirement.py"
+                $psValidator = Join-Path $projectRoot "scripts\validate-requirement.ps1"
+                if ((Test-Path $psValidator) -and (Get-Command Invoke-RequirementValidation -ErrorAction SilentlyContinue)) {
+                    Set-WorkflowStage -Stage "validate_requirement" -ProjectPath $projectRoot
+                    $vr = Invoke-RequirementValidation -ValidationScript $psValidator -RequirementId $CurrentRequirement.id
+                    if ($vr.exitCode -ne 0) {
+                        $validationOk = $false
+                        $validationReason = "Requirement validation failed (exit $($vr.exitCode))"
+                        Emit-Log -Level "error" -Message $validationReason -Component "review"
+                    }
+                }
+                elseif (Test-Path $pyValidator) {
+                    Set-WorkflowStage -Stage "validate_requirement" -ProjectPath $projectRoot
+                    $pythonCmd = $null
+                    if (Get-Command "py" -ErrorAction SilentlyContinue) { $pythonCmd = "py"; $pargs = @("-3", $pyValidator, $CurrentRequirement.id) }
+                    elseif (Get-Command "python" -ErrorAction SilentlyContinue) { $pythonCmd = "python"; $pargs = @($pyValidator, $CurrentRequirement.id) }
+                    elseif (Get-Command "python3" -ErrorAction SilentlyContinue) { $pythonCmd = "python3"; $pargs = @($pyValidator, $CurrentRequirement.id) }
+                    if ($pythonCmd) {
+                        $prevEA = $ErrorActionPreference
+                        $ErrorActionPreference = "Continue"
+                        try {
+                            & $pythonCmd @pargs 2>&1 | Out-Null
+                            if ($LASTEXITCODE -ne 0) {
+                                $validationOk = $false
+                                $validationReason = "Requirement validation failed (exit $LASTEXITCODE)"
+                                Emit-Log -Level "error" -Message $validationReason -Component "review"
+                            }
+                        }
+                        catch {
+                            $validationOk = $false
+                            $validationReason = "Requirement validation error: $_"
+                            Emit-Log -Level "error" -Message $validationReason -Component "review"
+                        }
+                        finally { $ErrorActionPreference = $prevEA }
+                    }
+                }
+            }
+
+            if (-not $validationOk) {
+                # Failed gate: stay in / return to building (same idea as backpressure failure)
+                $State.pending_review = $false
+                $State.last_mode = "building"
+                $State.status = "running"
+                $State.last_iteration_outcome = "blocked"
+                $State.updated_at = Get-Date -Format "o"
+                if ($AgentState.Mode -eq "Validating" -and $AgentState.CanTransitionTo("Building")) {
+                    $AgentState.TransitionTo("Building")
+                    Emit-StateTransitioned -From "Validating" -To "Building"
+                }
+                Emit-TaskCompleted -Signal "ALL_COMPLETE" -Mode $Mode
+                Emit-Log -Level "warn" -Message "Validation failed before review - returning to building ($validationReason)" -Component "review"
+                return @{ ShouldExit = $false }
+            }
+
+            # Validation passed → schedule reviewing iteration
+            $State.pending_review = $true
+            $State.last_mode = "reviewing"
+            $State.status = "running"
+            $State.updated_at = Get-Date -Format "o"
+
+            if ($AgentState.Mode -eq "Validating" -and $AgentState.CanTransitionTo("Reviewing")) {
+                $AgentState.TransitionTo("Reviewing")
+                Emit-StateTransitioned -From "Validating" -To "Reviewing"
+            }
+            elseif ($AgentState.Mode -ne "Reviewing" -and $AgentState.CanTransitionTo("Reviewing")) {
+                $AgentState.TransitionTo("Reviewing")
+                Emit-StateTransitioned -From $AgentState.Mode -To "Reviewing"
+            }
+
+            Emit-TaskCompleted -Signal "ALL_COMPLETE" -Mode $Mode
+            if (Get-Command Emit-PhaseCompleted -ErrorAction SilentlyContinue) {
+                Emit-PhaseCompleted -Phase "building" -Signal "ALL_COMPLETE"
+            }
+            Emit-Log -Level "info" -Message "Validation passed - scheduling architecture review" -Component "review"
+            Write-Host "[EXECUTOR] ALL_COMPLETE → pending review" -ForegroundColor Cyan
+            return @{ ShouldExit = $false }
+        }
+
+        # review.enabled explicitly false → complete immediately (legacy behavior)
+        Emit-Log -Level "info" -Message "ALL_COMPLETE signal detected, marking requirement complete (review disabled)" -Component "executor"
         Write-Host "[EXECUTOR] ALL_COMPLETE detected, returning ExitCode=0" -ForegroundColor Green
-        # Workflow Stage: update_status
         Set-WorkflowStage -Stage "update_status" -ProjectPath (Split-Path $RequirementsFile -Parent | Split-Path -Parent)
-        
-        # Transition state machine to Complete
+
+        $State.pending_review = $false
+        $State.last_mode = "building"
+        $State.status = "ready"
+        $State.updated_at = Get-Date -Format "o"
+
         if ($AgentState.Mode -ne "Complete") {
             if ($AgentState.CanTransitionTo('Complete')) {
+                $fromMode = $AgentState.Mode
                 $AgentState.TransitionTo('Complete')
-                Emit-StateTransitioned -From $AgentState.Mode -To "Complete"
-                Emit-Log -Level "debug" -Message "Transitioned to Complete mode" -Component "state-machine"
+                Emit-StateTransitioned -From $fromMode -To "Complete"
             }
             else {
-                # Need to go through Validating first
                 if ($AgentState.Mode -eq "Building") {
                     $AgentState.TransitionTo('Validating')
                     Emit-StateTransitioned -From "Building" -To "Validating"
-                    Emit-Log -Level "debug" -Message "Transitioned to Validating mode" -Component "state-machine"
                 }
-                $AgentState.TransitionTo('Complete')
-                Emit-StateTransitioned -From "Validating" -To "Complete"
-                Emit-Log -Level "debug" -Message "Transitioned to Complete mode" -Component "state-machine"
+                if ($AgentState.CanTransitionTo('Complete')) {
+                    $fromMode = $AgentState.Mode
+                    $AgentState.TransitionTo('Complete')
+                    Emit-StateTransitioned -From $fromMode -To "Complete"
+                }
             }
         }
-        
+
         Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $CurrentRequirement.id -NewStatus "complete"
         Emit-TaskCompleted -Signal "ALL_COMPLETE" -Mode $Mode
-        Emit-Log -Level "debug" -Message "Invoke-CompletionSignals returning: ShouldExit=true, ExitCode=0 (ALL_COMPLETE detected)" -Component "executor"
         return @{ ShouldExit = $true; ExitCode = 0 }
+    }
+
+    # Reviewing phase signals
+    if ($Mode -eq "reviewing" -and $signal -in @("REVIEW_COMPLETE", "REVIEW_CHANGES_REQUESTED")) {
+        $felixDir = Split-Path $RequirementsFile -Parent
+        $learning = $null
+        if (Get-Command Save-ReviewLearningsFromRun -ErrorAction SilentlyContinue) {
+            $learning = Save-ReviewLearningsFromRun `
+                -RunDir $RunDir `
+                -FelixDir $felixDir `
+                -RequirementId $CurrentRequirement.id `
+                -Signal $signal
+        }
+        else {
+            $learning = @{
+                Ok         = $false
+                Reason     = "Save-ReviewLearningsFromRun is not loaded."
+                ReviewPath = $null
+                MemoryPath = $null
+            }
+        }
+
+        if (-not $learning.Ok) {
+            Emit-Log -Level "error" -Message "Review learnings required but failed: $($learning.Reason)" -Component "review"
+            # Stay in reviewing; do not complete or return to building without durable learnings
+            $State.pending_review = $true
+            $State.last_mode = "reviewing"
+            $State.status = "running"
+            $State.updated_at = Get-Date -Format "o"
+            return @{ ShouldExit = $false }
+        }
+
+        $State.last_review_memory = $learning.MemoryPath
+        $State.last_review_path = $learning.ReviewPath
+        Emit-Log -Level "info" -Message "Wrote requirement learning: $($learning.MemoryPath)" -Component "review"
+
+        if ($signal -eq "REVIEW_COMPLETE") {
+            Emit-Log -Level "info" -Message "REVIEW_COMPLETE - marking requirement complete" -Component "review"
+            $State.pending_review = $false
+            $State.last_mode = "building"
+            $State.status = "ready"
+            $State.review_changes_requested = $false
+            $State.updated_at = Get-Date -Format "o"
+
+            if ($AgentState.Mode -ne "Complete" -and $AgentState.CanTransitionTo("Complete")) {
+                $fromMode = $AgentState.Mode
+                $AgentState.TransitionTo("Complete")
+                Emit-StateTransitioned -From $fromMode -To "Complete"
+            }
+
+            Update-RequirementStatus -RequirementsFilePath $RequirementsFile -RequirementId $CurrentRequirement.id -NewStatus "complete"
+            Emit-TaskCompleted -Signal "REVIEW_COMPLETE" -Mode $Mode
+            if (Get-Command Emit-PhaseCompleted -ErrorAction SilentlyContinue) {
+                Emit-PhaseCompleted -Phase "reviewing" -Signal "REVIEW_COMPLETE"
+            }
+            return @{ ShouldExit = $true; ExitCode = 0 }
+        }
+
+        Emit-Log -Level "info" -Message "REVIEW_CHANGES_REQUESTED - returning to building with remediation notes" -Component "review"
+        $State.pending_review = $false
+        $State.last_mode = "building"
+        $State.status = "running"
+        $State.review_changes_requested = $true
+        $State.updated_at = Get-Date -Format "o"
+
+        if ($AgentState.Mode -eq "Reviewing" -and $AgentState.CanTransitionTo("Building")) {
+            $AgentState.TransitionTo("Building")
+            Emit-StateTransitioned -From "Reviewing" -To "Building"
+        }
+
+        Emit-TaskCompleted -Signal "REVIEW_CHANGES_REQUESTED" -Mode $Mode
+        if (Get-Command Emit-PhaseCompleted -ErrorAction SilentlyContinue) {
+            Emit-PhaseCompleted -Phase "reviewing" -Signal "REVIEW_CHANGES_REQUESTED"
+        }
+        return @{ ShouldExit = $false }
     }
     
     # Task complete - continue to next iteration

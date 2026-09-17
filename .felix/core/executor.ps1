@@ -18,7 +18,10 @@ backpressure validation, git operations, and plugin hooks.
 . "$PSScriptRoot\graphify.ps1"
 . "$PSScriptRoot\task-handler.ps1"
 
-# C: Load explore phase (graceful — v1 envs won't have it)
+$reviewScriptPath = Join-Path $PSScriptRoot "review.ps1"
+if (Test-Path $reviewScriptPath) { . $reviewScriptPath }
+
+# C: Load explore phase (graceful - v1 envs won't have it)
 $exploreScriptPath = Join-Path $PSScriptRoot "explore.ps1"
 if (Test-Path $exploreScriptPath) { . $exploreScriptPath }
 
@@ -137,6 +140,18 @@ function Invoke-FelixIteration {
     
     $mode = $modeResult.Mode
     $planContent = $modeResult.PlanContent
+
+    # Resolve per-phase agent (planning/building/reviewing may differ from default agent_id)
+    $phaseAgentConfig = $AgentConfig
+    if (Get-Command Resolve-AgentForPhase -ErrorAction SilentlyContinue) {
+        $phaseName = if ($mode -in @("building", "reviewing", "planning", "explore")) { $mode } else { "planning" }
+        $phaseAgentConfig = Resolve-AgentForPhase `
+            -Config $Config `
+            -Phase $phaseName `
+            -DefaultAgentConfig $AgentConfig `
+            -AgentsJsonFile $Paths.AgentsJsonFile `
+            -ConfigFile $Paths.ConfigFile
+    }
     
     # Update state
     $State.current_iteration = $Iteration
@@ -154,7 +169,7 @@ function Invoke-FelixIteration {
             State              = $State
             Config             = $Config
             Paths              = $Paths
-            AgentConfig        = $AgentConfig
+            AgentConfig        = $phaseAgentConfig
             Requirement        = $CurrentRequirement
         }
     }
@@ -245,8 +260,11 @@ function Invoke-FelixIteration {
         Test-Path (Join-Path $Paths.ProjectPath ".git")
     }
 
-    # Capture state before execution for planning mode guardrails
-    $beforeState = if ($mode -eq "planning" -and $hasGitRepo) { Get-GitState -WorkingDir $Paths.ProjectPath } else { $null }
+    # Capture state before execution for planning/reviewing mode guardrails
+    $beforeState = if (($mode -eq "planning" -or $mode -eq "reviewing") -and $hasGitRepo) {
+        Get-GitState -WorkingDir $Paths.ProjectPath
+    }
+    else { $null }
     
     # Capture commit hash before execution
     if ($hasGitRepo) {
@@ -264,7 +282,7 @@ function Invoke-FelixIteration {
     
     # Execute agent
     $executionResult = Invoke-AgentExecution `
-        -AgentConfig $AgentConfig `
+        -AgentConfig $phaseAgentConfig `
         -Prompt $fullPrompt `
         -ProjectPath $Paths.ProjectPath `
         -RunId $runId `
@@ -304,7 +322,27 @@ function Invoke-FelixIteration {
             -RunId $runId `
             -RunDir $runDir `
             -State $State `
-            -StateFile $Paths.StateFile
+            -StateFile $Paths.StateFile `
+            -ModeLabel "Planning"
+        
+        if (-not $guardrailResult.Passed) {
+            return @{ Continue = $true; ExitCode = 0 }
+        }
+    }
+
+    if ($mode -eq "reviewing" -and $hasGitRepo) {
+        $guardrailResult = Test-AndEnforcePlanningGuardrails `
+            -ProjectPath $Paths.ProjectPath `
+            -BeforeState $beforeState `
+            -RunId $runId `
+            -RunDir $runDir `
+            -State $State `
+            -StateFile $Paths.StateFile `
+            -ModeLabel "Reviewing" `
+            -ExtraAllowedPatterns @(
+                "^\.felix/memory/requirement/",
+                "^runs/.*/code-review\.md$"
+            )
         
         if (-not $guardrailResult.Passed) {
             return @{ Continue = $true; ExitCode = 0 }
@@ -323,7 +361,7 @@ function Invoke-FelixIteration {
         $reasonSuffix = if ($ViolationReason) { " - $ViolationReason" } else { "" }
         Emit-Log -Level "warn" -Message "Contract violation detected, issuing corrective retry (attempt $AttemptNumber)$reasonSuffix" -Component "contract"
         Invoke-AgentExecution `
-            -AgentConfig $AgentConfig `
+            -AgentConfig $phaseAgentConfig `
             -Prompt $RepairPrompt `
             -ProjectPath $Paths.ProjectPath `
             -RunId $runId `
@@ -371,11 +409,15 @@ function Invoke-FelixIteration {
         -NoCommit:$NoCommit
     
     if ($taskResult.ShouldExit) {
+        $State.updated_at = Get-Date -Format "o"
+        $State | ConvertTo-Json -Depth 10 | Set-Content $Paths.StateFile
         Emit-Log -Level "debug" -Message "Invoke-FelixIteration returning: Continue=false, ExitCode=$($taskResult.ExitCode) (from Invoke-TaskCompletion)" -Component "executor"
         return @{ Continue = $false; ExitCode = $taskResult.ExitCode }
     }
     
     if ($taskResult.ShouldContinue -eq $false) {
+        $State.updated_at = Get-Date -Format "o"
+        $State | ConvertTo-Json -Depth 10 | Set-Content $Paths.StateFile
         return @{ Continue = $true; ExitCode = 0 }
     }
     
@@ -386,18 +428,23 @@ function Invoke-FelixIteration {
         -CurrentRequirement $CurrentRequirement `
         -State $State `
         -AgentState $AgentState `
-        -RequirementsFile $Paths.RequirementsFile
+        -RequirementsFile $Paths.RequirementsFile `
+        -Config $Config `
+        -RunDir $runDir `
+        -Paths $Paths
+
+    # Always flush state after signal handling (pending_review, REVIEW_COMPLETE clear, etc.)
+    if (-not $State.last_iteration_outcome) {
+        $State.last_iteration_outcome = "success"
+    }
+    $State.updated_at = Get-Date -Format "o"
+    $State | ConvertTo-Json -Depth 10 | Set-Content $Paths.StateFile
     
     if ($completionResult.ShouldExit) {
         Emit-Log -Level "debug" -Message "Invoke-FelixIteration returning: Continue=false, ExitCode=$($completionResult.ExitCode) (from Invoke-CompletionSignals)" -Component "executor"
         Write-Host "[EXECUTOR] Invoke-FelixIteration returning ExitCode=$($completionResult.ExitCode)" -ForegroundColor Green
         return @{ Continue = $false; ExitCode = $completionResult.ExitCode }
     }
-    
-    # Update state and create report
-    $State.last_iteration_outcome = "success"
-    $State.updated_at = Get-Date -Format "o"
-    $State | ConvertTo-Json | Set-Content $Paths.StateFile
     
     New-IterationReport -RunDir $runDir -Mode $mode -Iteration $Iteration -State $State -AgentOutput $output
     

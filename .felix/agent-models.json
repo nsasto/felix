@@ -21,8 +21,19 @@
       "minimax-m2.7"
     ],
     "claude": ["sonnet", "opus", "fable", "haiku", "claude-fable-5", "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
-    "codex": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark"],
+    "codex": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark", "gpt-6-astra", "gpt-5.3-codex", "gpt-5.2-codex"],
     "gemini": ["auto"],
-    "copilot": ["gpt-5.4", "gpt-5.3-codex", "claude-opus-4.6", "claude-sonnet-4.6", "claude-haiku-4.5", "claude-opus-4.5", "claude-opus-4.6-fast", "claude-sonnet-4", "claude-sonnet-4.5", "gemini-2.5-pro", "gemini-3-flash", "gemini-3-pro", "gemini-3.1-pro"]
+    "copilot": ["gpt-5.4", "gpt-5.3-codex", "claude-opus-4.6", "claude-sonnet-4.6", "claude-haiku-4.5", "claude-opus-4.5", "claude-opus-4.6-fast", "claude-sonnet-4", "claude-sonnet-4.5", "gemini-2.5-pro", "gemini-3-flash", "gemini-3-pro", "gemini-3.1-pro"],
+    "opencode": [
+      "opencode-go/deepseek-v4-pro",
+      "opencode-go/deepseek-v4-flash",
+      "opencode-go/deepseek-v4.1-flash",
+      "opencode-go/kimi-k2.7-code",
+      "opencode-go/glm-5.3-flash",
+      "opencode-go/minimax-m2.7",
+      "opencode-go/mimo-v2.5",
+      "deepseek/deepseek-v4-pro",
+      "deepseek/deepseek-v4-flash"
+    ]
   }
 }

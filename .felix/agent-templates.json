@@ -24,6 +24,11 @@
       "name": "copilot",
       "provider": "copilot",
       "adapter": "copilot"
+    },
+    {
+      "name": "opencode",
+      "provider": "opencode",
+      "adapter": "opencode"
     }
   ]
 }

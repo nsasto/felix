@@ -221,12 +221,13 @@ Automated validation commands (tests, builds, lints) that must pass before any c
 **Parsing AGENTS.md**:
 The agent extracts commands from code blocks under these headings:
 
-````markdown
+````text
 ## Run Tests
 
 ```bash
 .\run-test-spec.ps1
-```
+````
+
 ````
 
 **Execution**:
@@ -241,7 +242,7 @@ foreach ($command in $backpressureCommands) {
         $validationPassed = $false
     }
 }
-```
+````
 
 **Special Cases**:
 

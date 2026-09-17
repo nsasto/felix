@@ -642,6 +642,14 @@ try {
             -ExplicitNoExplore:$NoExplore
     
         if (-not $result.Continue) {
+            # Flush state before exit so pending_review / status survive the process
+            try {
+                $state.updated_at = Get-Date -Format "o"
+                $state | ConvertTo-Json -Depth 10 | Set-Content $StateFile
+            }
+            catch {
+                Emit-Log -Level "warn" -Message "Failed to persist state before exit: $_" -Component "agent"
+            }
             # Build run context for OnRunComplete hook
             $runContext = @{
                 Requirement = $currentReq

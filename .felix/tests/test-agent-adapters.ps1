@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Tests for agent-adapters.ps1 adapter pattern
 #>
@@ -37,6 +37,12 @@ Describe "Get-AgentAdapter" {
         $adapter = Get-AgentAdapter -AdapterType "copilot"
         Assert-NotNull $adapter
         Assert-Equal "CopilotAdapter" $adapter.GetType().Name
+    }
+
+    It "should return OpenCodeAdapter for opencode" {
+        $adapter = Get-AgentAdapter -AdapterType "opencode"
+        Assert-NotNull $adapter
+        Assert-equal "OpenCodeAdapter" $adapter.GetType().Name
     }
 
     It "should be case insensitive" {
@@ -80,6 +86,13 @@ Describe "Get-AgentDefaults" {
         Assert-True $defaults.no_ask_user
     }
 
+    It "should return opencode defaults" {
+        $defaults = Get-AgentDefaults -AdapterType "opencode"
+        Assert-equal "opencode" $defaults.adapter
+        Assert-equal "opencode" $defaults.executable
+        Assert-equal "opencode-go/deepseek-v4-pro" $defaults.model
+    }
+
     It "should handle unknown adapter type" {
         $defaults = Get-AgentDefaults -AdapterType "custom"
         Assert-Equal "custom" $defaults.adapter
@@ -87,6 +100,58 @@ Describe "Get-AgentDefaults" {
     }
 }
 
+
+Describe "CodexAdapter.BuildArgs" {
+
+    It "should include --model when configured" {
+        $adapter = [CodexAdapter]::new()
+        $config = [pscustomobject]@{ model = "gpt-6-astra" }
+        $args = $adapter.BuildArgs($config, $false)
+        Assert-Contains $args "exec"
+        Assert-Contains $args "--dangerously-bypass-approvals-and-sandbox"
+        Assert-Contains $args "-m"
+        Assert-Contains $args "gpt-6-astra"
+        Assert-Contains $args "-"
+    }
+
+    It "should omit -m when model is empty" {
+        $adapter = [CodexAdapter]::new()
+        $config = [pscustomobject]@{ model = "" }
+        $args = $adapter.BuildArgs($config, $false)
+        Assert-False ($args -contains "-m") "Empty model should not pass -m"
+    }
+}
+
+Describe "OpenCodeAdapter.BuildArgs" {
+
+    It "should build non-interactive run args with model" {
+        $adapter = [OpenCodeAdapter]::new()
+        $config = [pscustomobject]@{ model = "opencode-go/deepseek-v4-pro" }
+        $args = $adapter.BuildArgs($config, $false)
+        Assert-Contains $args "run"
+        Assert-Contains $args "--auto"
+        Assert-Contains $args "--format"
+        Assert-Contains $args "json"
+        Assert-Contains $args "-m"
+        Assert-Contains $args "opencode-go/deepseek-v4-pro"
+    }
+}
+
+Describe "OpenCodeAdapter.ParseResponse" {
+
+    It "should extract text events and detect PLAN_COMPLETE" {
+        $adapter = [OpenCodeAdapter]::new()
+        $line1 = '{"type":"step_start","part":{"type":"step-start"}}'
+        $textPayload = "Drafted plan" + [Environment]::NewLine + "<promise>PLAN_COMPLETE</promise>"
+        $line2Obj = @{ type = "text"; part = @{ type = "text"; text = $textPayload } } | ConvertTo-Json -Compress -Depth 5
+        $line3 = '{"type":"step_finish","part":{"type":"step-finish","reason":"stop"}}'
+        $output = @($line1, $line2Obj, $line3) -join "`n"
+        $result = $adapter.ParseResponse($output)
+        Assert-True $result.IsComplete
+        Assert-equal "building" $result.NextMode
+        Assert-True ($result.Output -match "Drafted plan")
+    }
+}
 Describe "DroidAdapter.FormatPrompt" {
 
     It "should return prompt unchanged" {
@@ -262,6 +327,15 @@ Describe "Get-AgentInvocation" {
         Assert-Contains $invocation.Arguments "general-purpose"
         Assert-Contains $invocation.Arguments "-p"
         Assert-Contains $invocation.Arguments "test prompt"
+    }
+
+    It "should use stdin prompt transport for opencode" {
+        $config = [pscustomobject]@{ adapter = "opencode"; model = "opencode-go/deepseek-v4-pro" }
+        $invocation = Get-AgentInvocation -AdapterType "opencode" -Config $config -Prompt "large prompt body" -VerboseMode $false
+        Assert-equal "stdin" $invocation.PromptMode
+        Assert-Contains $invocation.Arguments "run"
+        Assert-Contains $invocation.Arguments "--auto"
+        Assert-Contains $invocation.Arguments "opencode-go/deepseek-v4-pro"
     }
 }
 

@@ -38,17 +38,48 @@ Controls how the agent loop runs requirements.
 
 ## `agent` Block
 
-Identifies the active agent profile used for this repository.
+Identifies the active agent profile used for this repository. Optionally map different profiles to workflow phases.
 
 ```json
 "agent": {
-  "agent_id": "ag_61a011bca"
+  "agent_id": "ag_61a011bca",
+  "by_phase": {
+    "explore": "ag_codex_astra",
+    "planning": "ag_codex_astra",
+    "building": "ag_opencode_dsv4"
+  }
 }
 ```
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `agent_id` | `string` | `null` | Key of the agent profile to load from `.felix/agents.json`. Falls back to the first entry when absent. |
+| `agent_id` | `string` | `null` | Key of the default agent profile to load from `.felix/agents.json`. Falls back to the first entry when absent. |
+| `by_phase` | `object` | unset | Optional per-phase overrides. Values are agent profile keys or names from `agents.json`. Supported phases: `explore`, `planning`, `building`, `reviewing`. Missing phases use `agent_id`. |
+
+`by_phase.explore` takes precedence over legacy `explore.agent_override`.
+
+---
+
+## `review` Block
+
+Post-validation architecture review (after `ALL_COMPLETE`).
+
+```json
+"review": {
+  "enabled": true
+}
+```
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | When true, `ALL_COMPLETE` schedules a **reviewing** iteration instead of marking the requirement complete immediately. |
+
+Review signals:
+
+- `REVIEW_COMPLETE` — write learnings, mark requirement complete
+- `REVIEW_CHANGES_REQUESTED` — write learnings + `runs/<run-id>/code-review.md`, return to **building** with remediation notes
+
+Use `agent.by_phase.reviewing` to pick the review agent (often the same strong planner as `planning`).
 
 ---
 
