@@ -1,0 +1,15 @@
+{
+  "id": "felix-swarm-ship",
+  "name": "Felix Swarm Ship",
+  "description": "Orchestrate Felix setup, cloud publish, by_phase agents (Codex plan/review, OpenCode Go build), and swarm/loop execution",
+  "version": "1.0.0",
+  "prompt": "prompt.md",
+  "always": false,
+  "triggers": {
+    "commands": [],
+    "applyTo": [],
+    "tags": ["swarm", "cloud", "sync"],
+    "keywords": ["swarm", "publish", "cloud", "sync", "opencode", "by_phase", "felix-swarm-ship"]
+  },
+  "assets": ["SKILL.md", "INSTALL.md"]
+}
