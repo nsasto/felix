@@ -8,6 +8,7 @@ $core = Join-Path (Split-Path $here -Parent) "core"
 . (Join-Path $core "emit-event.ps1")
 . (Join-Path $core "agent-adapters.ps1")
 . (Join-Path $core "agent-state.ps1")
+. (Join-Path $core "validator.ps1")
 . (Join-Path $core "review.ps1")
 
 Describe "Get-ReviewConfig / Test-ReviewEnabled" {

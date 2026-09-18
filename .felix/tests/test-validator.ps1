@@ -7,6 +7,19 @@ Tests for backpressure validation system
 . "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/validator.ps1"
 
+Describe "Test-BackpressureEnabled" {
+    It "is false when config or backpressure is missing" {
+        Assert-False (Test-BackpressureEnabled -Config $null)
+        Assert-False (Test-BackpressureEnabled -Config ([PSCustomObject]@{}))
+    }
+
+    It "reads enabled from PSCustomObject and hashtable" {
+        Assert-True (Test-BackpressureEnabled -Config ([PSCustomObject]@{ backpressure = [PSCustomObject]@{ enabled = $true } }))
+        Assert-False (Test-BackpressureEnabled -Config ([PSCustomObject]@{ backpressure = [PSCustomObject]@{ enabled = $false } }))
+        Assert-True (Test-BackpressureEnabled -Config @{ backpressure = @{ enabled = $true } })
+    }
+}
+
 Describe "Get-BackpressureCommands" {
 
     It "should use config commands when provided" {

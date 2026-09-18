@@ -110,17 +110,6 @@ $ReviewContent
     return $path
 }
 
-function Test-BackpressureEnabled {
-    param($Config)
-
-    if (-not $Config -or -not $Config.backpressure) { return $false }
-    $bpSection = $Config.backpressure
-    if ($bpSection -is [hashtable]) {
-        return [bool]$bpSection["enabled"]
-    }
-    return [bool]$bpSection.enabled
-}
-
 function Test-PreReviewValidationAvailable {
     <#
     .SYNOPSIS

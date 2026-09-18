@@ -3,6 +3,21 @@
 Backpressure validation for Felix agent
 #>
 
+function Test-BackpressureEnabled {
+    <#
+    .SYNOPSIS
+    True when config.backpressure.enabled is set (hashtable or PSCustomObject).
+    #>
+    param($Config)
+
+    if (-not $Config -or -not $Config.backpressure) { return $false }
+    $bpSection = $Config.backpressure
+    if ($bpSection -is [hashtable]) {
+        return [bool]$bpSection["enabled"]
+    }
+    return [bool]$bpSection.enabled
+}
+
 function Get-BackpressureCommands {
     <#
     .SYNOPSIS
@@ -186,7 +201,7 @@ function Invoke-BackpressureValidation {
     }
     
     # Check if backpressure is enabled
-    if (-not $Config.backpressure.enabled) {
+    if (-not (Test-BackpressureEnabled -Config $Config)) {
         Emit-Log -Level "info" -Message "Backpressure validation is disabled in config" -Component "backpressure"
         $result.skipped = $true
         return $result
