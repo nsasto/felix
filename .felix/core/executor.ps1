@@ -183,7 +183,7 @@ function Invoke-FelixIteration {
         return @{ Continue = $false; ExitCode = 0 }
     }
 
-    # ── C: Explore phase (explore -> plan -> build -> validate) ──────────
+    # -- C: Explore phase (explore -> plan -> build -> validate) ----------
     if (Get-Command Test-ExploreEnabled -ErrorAction SilentlyContinue) {
         $exploreConfig = Get-ExploreConfig -Config $Config
         $shouldExplore = Test-ExploreEnabled `

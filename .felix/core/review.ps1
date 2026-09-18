@@ -110,6 +110,40 @@ $ReviewContent
     return $path
 }
 
+function Test-PreReviewValidationAvailable {
+    <#
+    .SYNOPSIS
+    True when at least one real validation gate can run before reviewing.
+    #>
+    param(
+        $Config,
+        [hashtable]$Paths = $null
+    )
+
+    $backpressureWanted = $false
+    if ($Config -and $Config.backpressure) {
+        $bpSection = $Config.backpressure
+        if ($bpSection -is [hashtable]) {
+            $backpressureWanted = [bool]$bpSection["enabled"]
+        }
+        else {
+            $backpressureWanted = [bool]$bpSection.enabled
+        }
+    }
+
+    if ($backpressureWanted -and (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
+        return $true
+    }
+
+    if ($Paths -and $Paths.ProjectPath) {
+        $root = $Paths.ProjectPath
+        if (Test-Path (Join-Path $root "scripts\validate-requirement.ps1")) { return $true }
+        if (Test-Path (Join-Path $root "scripts\validate-requirement.py")) { return $true }
+    }
+
+    return $false
+}
+
 function Save-ReviewLearningsFromRun {
     <#
     .SYNOPSIS

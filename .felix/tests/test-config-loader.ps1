@@ -326,4 +326,34 @@ Describe "Resolve-AgentForPhase" {
         $buildAgent = Resolve-AgentForPhase -Config $config -Phase "building" -DefaultAgentConfig $default -AgentsData $agentsData
         Assert-equal "ag_b" $buildAgent.key
     }
+
+    It "should not clobber config.agent.agent_id when resolving a phase agent" {
+        $tmp = Join-Path $env:TEMP ("felix-phase-cfg-" + [guid]::NewGuid().ToString("n"))
+        New-Item -ItemType Directory -Path $tmp | Out-Null
+        $agentsFile = Join-Path $tmp "agents.json"
+        $configFile = Join-Path $tmp "config.json"
+        @'
+{"agents":[{"key":"ag_plan","name":"codex","adapter":"codex","model":"gpt-5.5"},{"key":"ag_build","name":"opencode","adapter":"opencode","model":"opencode-go/deepseek-v4-pro"}]}
+'@ | Set-Content $agentsFile -Encoding UTF8
+        @'
+{"agent":{"agent_id":"ag_plan","by_phase":{"building":"ag_build"}}}
+'@ | Set-Content $configFile -Encoding UTF8
+        try {
+            $agentsData = Get-AgentsConfiguration -AgentsJsonFile $agentsFile
+            $config = Get-Content $configFile -Raw | ConvertFrom-Json
+            $default = Get-AgentConfig -AgentsData $agentsData -AgentId "ag_plan" -ConfigFile $null
+            $resolved = Resolve-AgentForPhase `
+                -Config $config `
+                -Phase "building" `
+                -DefaultAgentConfig $default `
+                -AgentsData $agentsData `
+                -ConfigFile $configFile
+            Assert-equal "ag_build" $resolved.key
+            $written = Get-Content $configFile -Raw | ConvertFrom-Json
+            Assert-equal "ag_plan" $written.agent.agent_id
+        }
+        finally {
+            Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }

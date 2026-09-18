@@ -10,7 +10,7 @@ Review for **deep modules**: substantial behaviour behind a small interface, pla
 2. **Modularity / depth** - Prefer deep modules (small interface, rich implementation) over shallow pass-throughs. Flag leaky seams and god-objects.
 3. **Locality** - Knowledge, change, and bugs should concentrate in one place. Flag cross-cutting edits that should have been one module change.
 4. **Testability** - Dependencies should be accepted, not constructed deep inside. Flag hard-to-test side effects and oversized surfaces.
-5. **Seam discipline** - Do not invent seams without a second adapter. Flag premature interfaces and fake “flexibility”.
+5. **Seam discipline** - Do not invent seams without a second adapter. Flag premature interfaces and fake "flexibility".
 
 ## What you must produce
 
@@ -19,7 +19,7 @@ Review for **deep modules**: substantial behaviour behind a small interface, pla
    - Principle-by-principle findings (simplicity, modularity/depth, locality, testability, seam discipline)
    - Concrete remediation suggestions (file-level, actionable) when issues exist
    - Learnings worth keeping for this requirement
-2. Update requirement learnings by writing the same durable notes into the review report’s **Learnings** section (Felix will copy them into `.felix/memory/requirement/{{REQUIREMENT_ID}}/`).
+2. Update requirement learnings by writing the same durable notes into the review report's **Learnings** section (Felix will copy them into `.felix/memory/requirement/{{REQUIREMENT_ID}}/`).
 3. **Do not implement remediations in reviewing mode.** Suggestions only. Building mode applies fixes on the next iteration when you request changes.
 
 ## Signals (exact standalone line)

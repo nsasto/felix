@@ -247,6 +247,46 @@ Describe "Write-RequirementReviewLearning" {
     }
 }
 
+Describe "Test-PreReviewValidationAvailable" {
+    It "is false when backpressure off and no validate script" {
+        $tmp = Join-Path $env:TEMP ("felix-gate-none-" + [guid]::NewGuid().ToString("n"))
+        New-Item -ItemType Directory -Path $tmp | Out-Null
+        try {
+            $config = [PSCustomObject]@{ backpressure = [PSCustomObject]@{ enabled = $false } }
+            $paths = @{ ProjectPath = $tmp }
+            Assert-False (Test-PreReviewValidationAvailable -Config $config -Paths $paths)
+        }
+        finally {
+            Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "is true when validate-requirement.ps1 exists" {
+        $tmp = Join-Path $env:TEMP ("felix-gate-ps1-" + [guid]::NewGuid().ToString("n"))
+        $scripts = Join-Path $tmp "scripts"
+        New-Item -ItemType Directory -Path $scripts -Force | Out-Null
+        Set-Content (Join-Path $scripts "validate-requirement.ps1") "# stub" -Encoding UTF8
+        try {
+            $config = [PSCustomObject]@{ backpressure = [PSCustomObject]@{ enabled = $false } }
+            $paths = @{ ProjectPath = $tmp }
+            Assert-True (Test-PreReviewValidationAvailable -Config $config -Paths $paths)
+        }
+        finally {
+            Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "is true when backpressure enabled and helper is loaded" {
+        # Invoke-BackpressureValidation may or may not be loaded in this test process;
+        # stub it if missing so the gate can detect availability.
+        if (-not (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
+            function script:Invoke-BackpressureValidation { return @{ success = $true; skipped = $true } }
+        }
+        $config = [PSCustomObject]@{ backpressure = [PSCustomObject]@{ enabled = $true } }
+        Assert-True (Test-PreReviewValidationAvailable -Config $config -Paths @{ ProjectPath = $env:TEMP })
+    }
+}
+
 Describe "Save-ReviewLearningsFromRun" {
     It "fails when code-review.md is missing" {
         $tmp = Join-Path $env:TEMP ("felix-learn-miss-" + [guid]::NewGuid().ToString("n"))

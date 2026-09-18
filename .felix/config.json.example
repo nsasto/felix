@@ -8,7 +8,12 @@
     "_note": "For testing without commits, use -NoCommit flag in felix-agent.ps1"
   },
   "agent": {
-    "agent_id": "your-agent-id"
+    "agent_id": "your-agent-id",
+    "by_phase": {
+      "planning": "your-agent-id",
+      "building": "your-agent-id",
+      "reviewing": "your-agent-id"
+    }
   },
   "requirements": {
     "prefix": "S"

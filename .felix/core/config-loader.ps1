@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
 Configuration loading and agent setup for Felix agent
 
@@ -326,7 +326,7 @@ function Get-AgentConfig {
         [string]$ConfigFile = $null
     )
     
-    # Find agent by ID — accept both 'key' (current) and 'id' (legacy) property names
+    # Find agent by ID - accept both 'key' (current) and 'id' (legacy) property names
     $agentConfig = $AgentsData.agents | Where-Object { $_.key -eq $AgentId -or $_.id -eq $AgentId }
     
     # Normalize: if agent was found via legacy 'id' field, alias it to 'key' so downstream code works
@@ -470,7 +470,7 @@ function Resolve-AgentForPhase {
         return $DefaultAgentConfig
     }
 
-    # Same profile as default — avoid re-resolving / noisy logs
+    # Same profile as default - avoid re-resolving / noisy logs
     $defaultKey = $null
     if ($DefaultAgentConfig) {
         if ($DefaultAgentConfig.PSObject.Properties["key"] -and $DefaultAgentConfig.key) {
@@ -511,6 +511,8 @@ function Resolve-AgentForPhase {
     }
 
     $resolveId = if ($match.key) { [string]$match.key } elseif ($match.id) { [string]$match.id } else { $phaseAgentId }
+    # Intentionally omit ConfigFile: Get-AgentConfig would rewrite config.agent.agent_id to the
+    # phase agent and clobber the default profile used for other phases.
     $resolved = Get-AgentConfig -AgentsData $AgentsData -AgentId $resolveId -ConfigFile $null
     if ($resolved) {
         Emit-Log -Level "info" -Message "Phase '$Phase' using agent: $($resolved.name) (Key: $($resolved.key))" -Component "agent"
