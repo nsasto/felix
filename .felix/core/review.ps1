@@ -110,32 +110,39 @@ $ReviewContent
     return $path
 }
 
+function Test-BackpressureEnabled {
+    param($Config)
+
+    if (-not $Config -or -not $Config.backpressure) { return $false }
+    $bpSection = $Config.backpressure
+    if ($bpSection -is [hashtable]) {
+        return [bool]$bpSection["enabled"]
+    }
+    return [bool]$bpSection.enabled
+}
+
 function Test-PreReviewValidationAvailable {
     <#
     .SYNOPSIS
-    True when at least one real validation gate can run before reviewing.
+    True when at least one real validation gate can actually execute before reviewing.
+
+    Backpressure counts only when enabled, the helper is loaded, AND Paths.ProjectPath is set.
+    Validate-requirement scripts count when present under the project.
     #>
     param(
         $Config,
         [hashtable]$Paths = $null
     )
 
-    $backpressureWanted = $false
-    if ($Config -and $Config.backpressure) {
-        $bpSection = $Config.backpressure
-        if ($bpSection -is [hashtable]) {
-            $backpressureWanted = [bool]$bpSection["enabled"]
-        }
-        else {
-            $backpressureWanted = [bool]$bpSection.enabled
-        }
-    }
+    $hasProject = $Paths -and -not [string]::IsNullOrWhiteSpace([string]$Paths.ProjectPath) -and (Test-Path $Paths.ProjectPath)
 
-    if ($backpressureWanted -and (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
+    if ((Test-BackpressureEnabled -Config $Config) -and
+        (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue) -and
+        $hasProject) {
         return $true
     }
 
-    if ($Paths -and $Paths.ProjectPath) {
+    if ($hasProject) {
         $root = $Paths.ProjectPath
         if (Test-Path (Join-Path $root "scripts\validate-requirement.ps1")) { return $true }
         if (Test-Path (Join-Path $root "scripts\validate-requirement.py")) { return $true }

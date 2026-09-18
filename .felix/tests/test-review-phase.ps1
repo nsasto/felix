@@ -261,6 +261,15 @@ Describe "Test-PreReviewValidationAvailable" {
         }
     }
 
+    It "is false when backpressure enabled but Paths.ProjectPath is missing" {
+        if (-not (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
+            function script:Invoke-BackpressureValidation { return @{ success = $true; skipped = $false } }
+        }
+        $config = [PSCustomObject]@{ backpressure = [PSCustomObject]@{ enabled = $true } }
+        Assert-False (Test-PreReviewValidationAvailable -Config $config -Paths $null)
+        Assert-False (Test-PreReviewValidationAvailable -Config $config -Paths @{ ProjectPath = "" })
+    }
+
     It "is true when validate-requirement.ps1 exists" {
         $tmp = Join-Path $env:TEMP ("felix-gate-ps1-" + [guid]::NewGuid().ToString("n"))
         $scripts = Join-Path $tmp "scripts"
@@ -276,14 +285,70 @@ Describe "Test-PreReviewValidationAvailable" {
         }
     }
 
-    It "is true when backpressure enabled and helper is loaded" {
-        # Invoke-BackpressureValidation may or may not be loaded in this test process;
-        # stub it if missing so the gate can detect availability.
+    It "is true when backpressure enabled, helper loaded, and project path exists" {
         if (-not (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
-            function script:Invoke-BackpressureValidation { return @{ success = $true; skipped = $true } }
+            function script:Invoke-BackpressureValidation { return @{ success = $true; skipped = $false } }
         }
         $config = [PSCustomObject]@{ backpressure = [PSCustomObject]@{ enabled = $true } }
         Assert-True (Test-PreReviewValidationAvailable -Config $config -Paths @{ ProjectPath = $env:TEMP })
+    }
+}
+
+Describe "ALL_COMPLETE rejects vacuous skipped backpressure" {
+    It "does not schedule review when backpressure is skipped and no validate script ran" {
+        . (Join-Path $core "review.ps1")
+        . (Join-Path $core "workflow.ps1") -ErrorAction SilentlyContinue
+        . (Join-Path $core "requirements-utils.ps1")
+        . (Join-Path $core "task-handler.ps1")
+        Assert-True (Test-ReviewHelpersAvailable) "review helpers must be loaded for this test"
+
+        function script:Invoke-BackpressureValidation {
+            param($WorkingDir, $AgentsFilePath, $Config, $RunDir)
+            return @{ success = $true; skipped = $true; failed_commands = @(); output = "" }
+        }
+        function script:Set-WorkflowStage { }
+
+        $tmp = Join-Path $env:TEMP ("felix-vacuous-" + [guid]::NewGuid().ToString("n"))
+        $run = Join-Path $tmp "run"
+        New-Item -ItemType Directory -Path $run -Force | Out-Null
+        $reqFile = Join-Path $tmp "requirements.json"
+        $stateFile = Join-Path $tmp "state.json"
+        '{"requirements":[{"id":"S-0001","title":"t","status":"in-progress"}]}' | Set-Content $reqFile -Encoding UTF8
+        '{"status":"running"}' | Set-Content $stateFile -Encoding UTF8
+
+        $state = @{ pending_review = $false; last_mode = "building"; status = "running"; current_iteration = 1 }
+        $agentState = [AgentState]::new("Building")
+        $req = [PSCustomObject]@{ id = "S-0001" }
+        $config = [PSCustomObject]@{
+            review       = [PSCustomObject]@{ enabled = $true }
+            backpressure = [PSCustomObject]@{ enabled = $true; max_retries = 3 }
+        }
+        $paths = @{
+            ProjectPath      = $tmp
+            AgentsFile       = (Join-Path $tmp "AGENTS.md")
+            RequirementsFile = $reqFile
+            StateFile        = $stateFile
+        }
+
+        $result = Invoke-CompletionSignals `
+            -AgentOutput "<promise>ALL_COMPLETE</promise>" `
+            -Mode "building" `
+            -CurrentRequirement $req `
+            -State $state `
+            -AgentState $agentState `
+            -RequirementsFile $reqFile `
+            -Config $config `
+            -RunDir $run `
+            -Paths $paths
+
+        Assert-False $result.ShouldExit
+        Assert-False ([bool]$state.pending_review)
+        Assert-equal "building" $state.last_mode
+        Assert-True ($null -ne $state.blocked_task)
+
+        Remove-Item Function:\Invoke-BackpressureValidation -ErrorAction SilentlyContinue
+        Remove-Item Function:\Invoke-BackpressureFailure -ErrorAction SilentlyContinue
+        Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 

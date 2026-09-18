@@ -483,95 +483,103 @@ function Invoke-CompletionSignals {
                 Emit-StateTransitioned -From "Building" -To "Validating"
             }
 
-            # Require at least one real gate (backpressure and/or validate-requirement script)
+            # Require at least one executable gate, then require that a gate actually ran
             $hasGate = $false
             if (Get-Command Test-PreReviewValidationAvailable -ErrorAction SilentlyContinue) {
                 $hasGate = [bool](Test-PreReviewValidationAvailable -Config $Config -Paths $Paths)
             }
-            if (-not $hasGate) {
-                Emit-Log -Level "error" -Message "No validation gate available before review (enable backpressure or add scripts/validate-requirement.*)" -Component "review"
-                $State.pending_review = $false
-                $State.last_mode = "building"
-                $State.status = "running"
-                $State.last_iteration_outcome = "blocked"
-                $State.updated_at = Get-Date -Format "o"
-                if ($AgentState.Mode -eq "Validating" -and $AgentState.CanTransitionTo("Building")) {
-                    $AgentState.TransitionTo("Building")
-                    Emit-StateTransitioned -From "Validating" -To "Building"
-                }
-                Emit-TaskCompleted -Signal "ALL_COMPLETE" -Mode $Mode
-                return @{ ShouldExit = $false }
-            }
 
             $bpResult = $null
             $validationFailed = $false
+            $validationRan = $false
             $failedCommands = @()
-
-            $backpressureWanted = $false
-            if ($Config -and $Config.backpressure) {
-                $bpSection = $Config.backpressure
-                if ($bpSection -is [hashtable]) {
-                    $backpressureWanted = [bool]$bpSection["enabled"]
-                }
-                else {
-                    $backpressureWanted = [bool]$bpSection.enabled
-                }
+            $backpressureWanted = if (Get-Command Test-BackpressureEnabled -ErrorAction SilentlyContinue) {
+                [bool](Test-BackpressureEnabled -Config $Config)
             }
+            else { $false }
 
-            if ($backpressureWanted -and $Paths -and $Config -and (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
-                Set-WorkflowStage -Stage "run_backpressure" -ProjectPath $Paths.ProjectPath
-                $bpResult = Invoke-BackpressureValidation `
-                    -WorkingDir $Paths.ProjectPath `
-                    -AgentsFilePath $Paths.AgentsFile `
-                    -Config $Config `
-                    -RunDir $RunDir
-                if (-not $bpResult.skipped -and -not $bpResult.success) {
-                    $validationFailed = $true
-                    $failedCommands = @($bpResult.failed_commands)
-                    Emit-Log -Level "error" -Message "Backpressure failed before review" -Component "review"
+            if (-not $hasGate) {
+                $validationFailed = $true
+                $failedCommands += @{
+                    type      = "validate"
+                    command   = "pre-review-gate"
+                    exit_code = 1
                 }
+                Emit-Log -Level "error" -Message "No validation gate available before review (enable backpressure with project Paths, or add scripts/validate-requirement.*)" -Component "review"
             }
-
-            if (-not $validationFailed -and $Paths) {
-                $projectRoot = $Paths.ProjectPath
-                $pyValidator = Join-Path $projectRoot "scripts\validate-requirement.py"
-                $psValidator = Join-Path $projectRoot "scripts\validate-requirement.ps1"
-                $reqExit = $null
-                if ((Test-Path $psValidator) -and (Get-Command Invoke-RequirementValidation -ErrorAction SilentlyContinue)) {
-                    Set-WorkflowStage -Stage "validate_requirement" -ProjectPath $projectRoot
-                    $vr = Invoke-RequirementValidation -ValidationScript $psValidator -RequirementId $CurrentRequirement.id
-                    $reqExit = $vr.exitCode
-                }
-                elseif (Test-Path $pyValidator) {
-                    Set-WorkflowStage -Stage "validate_requirement" -ProjectPath $projectRoot
-                    $pythonCmd = $null
-                    $pargs = @()
-                    if (Get-Command "py" -ErrorAction SilentlyContinue) { $pythonCmd = "py"; $pargs = @("-3", $pyValidator, $CurrentRequirement.id) }
-                    elseif (Get-Command "python" -ErrorAction SilentlyContinue) { $pythonCmd = "python"; $pargs = @($pyValidator, $CurrentRequirement.id) }
-                    elseif (Get-Command "python3" -ErrorAction SilentlyContinue) { $pythonCmd = "python3"; $pargs = @($pyValidator, $CurrentRequirement.id) }
-                    if ($pythonCmd) {
-                        $prevEA = $ErrorActionPreference
-                        $ErrorActionPreference = "Continue"
-                        try {
-                            & $pythonCmd @pargs 2>&1 | Out-Null
-                            $reqExit = $LASTEXITCODE
+            else {
+                if ($backpressureWanted -and $Paths -and $Config -and (Get-Command Invoke-BackpressureValidation -ErrorAction SilentlyContinue)) {
+                    Set-WorkflowStage -Stage "run_backpressure" -ProjectPath $Paths.ProjectPath
+                    $bpResult = Invoke-BackpressureValidation `
+                        -WorkingDir $Paths.ProjectPath `
+                        -AgentsFilePath $Paths.AgentsFile `
+                        -Config $Config `
+                        -RunDir $RunDir
+                    if (-not $bpResult.skipped) {
+                        $validationRan = $true
+                        if (-not $bpResult.success) {
+                            $validationFailed = $true
+                            $failedCommands = @($bpResult.failed_commands)
+                            Emit-Log -Level "error" -Message "Backpressure failed before review" -Component "review"
                         }
-                        catch {
-                            $reqExit = 1
-                            Emit-Log -Level "error" -Message "Requirement validation error: $_" -Component "review"
-                        }
-                        finally { $ErrorActionPreference = $prevEA }
                     }
                 }
 
-                if ($null -ne $reqExit -and $reqExit -ne 0) {
+                if (-not $validationFailed -and $Paths) {
+                    $projectRoot = $Paths.ProjectPath
+                    $pyValidator = Join-Path $projectRoot "scripts\validate-requirement.py"
+                    $psValidator = Join-Path $projectRoot "scripts\validate-requirement.ps1"
+                    $reqExit = $null
+                    if ((Test-Path $psValidator) -and (Get-Command Invoke-RequirementValidation -ErrorAction SilentlyContinue)) {
+                        Set-WorkflowStage -Stage "validate_requirement" -ProjectPath $projectRoot
+                        $vr = Invoke-RequirementValidation -ValidationScript $psValidator -RequirementId $CurrentRequirement.id
+                        $reqExit = $vr.exitCode
+                        $validationRan = $true
+                    }
+                    elseif (Test-Path $pyValidator) {
+                        Set-WorkflowStage -Stage "validate_requirement" -ProjectPath $projectRoot
+                        $pythonCmd = $null
+                        $pargs = @()
+                        if (Get-Command "py" -ErrorAction SilentlyContinue) { $pythonCmd = "py"; $pargs = @("-3", $pyValidator, $CurrentRequirement.id) }
+                        elseif (Get-Command "python" -ErrorAction SilentlyContinue) { $pythonCmd = "python"; $pargs = @($pyValidator, $CurrentRequirement.id) }
+                        elseif (Get-Command "python3" -ErrorAction SilentlyContinue) { $pythonCmd = "python3"; $pargs = @($pyValidator, $CurrentRequirement.id) }
+                        if ($pythonCmd) {
+                            $prevEA = $ErrorActionPreference
+                            $ErrorActionPreference = "Continue"
+                            try {
+                                & $pythonCmd @pargs 2>&1 | Out-Null
+                                $reqExit = $LASTEXITCODE
+                                $validationRan = $true
+                            }
+                            catch {
+                                $reqExit = 1
+                                $validationRan = $true
+                                Emit-Log -Level "error" -Message "Requirement validation error: $_" -Component "review"
+                            }
+                            finally { $ErrorActionPreference = $prevEA }
+                        }
+                    }
+
+                    if ($null -ne $reqExit -and $reqExit -ne 0) {
+                        $validationFailed = $true
+                        $failedCommands += @{
+                            type      = "validate"
+                            command   = "validate-requirement $($CurrentRequirement.id)"
+                            exit_code = $reqExit
+                        }
+                        Emit-Log -Level "error" -Message "Requirement validation failed before review (exit $reqExit)" -Component "review"
+                    }
+                }
+
+                # Vacuous gate: BP skipped and no validate-requirement executed
+                if (-not $validationFailed -and -not $validationRan) {
                     $validationFailed = $true
                     $failedCommands += @{
                         type      = "validate"
-                        command   = "validate-requirement $($CurrentRequirement.id)"
-                        exit_code = $reqExit
+                        command   = "pre-review-gate"
+                        exit_code = 1
                     }
-                    Emit-Log -Level "error" -Message "Requirement validation failed before review (exit $reqExit)" -Component "review"
+                    Emit-Log -Level "error" -Message "Pre-review validation did not run (backpressure skipped and no validate-requirement executed)" -Component "review"
                 }
             }
 
@@ -579,7 +587,7 @@ function Invoke-CompletionSignals {
                 $State.pending_review = $false
                 Emit-TaskCompleted -Signal "ALL_COMPLETE" -Mode $Mode
 
-                $syntheticBp = if ($bpResult -and -not $bpResult.success) {
+                $syntheticBp = if ($bpResult -and -not $bpResult.skipped -and -not $bpResult.success) {
                     $bpResult
                 }
                 else {
@@ -620,7 +628,7 @@ function Invoke-CompletionSignals {
                 return @{ ShouldExit = $false }
             }
 
-            # Validation passed - schedule reviewing iteration
+            # Validation actually ran and passed - schedule reviewing iteration
             $State.pending_review = $true
             $State.last_mode = "reviewing"
             $State.status = "running"
