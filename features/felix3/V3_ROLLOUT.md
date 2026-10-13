@@ -50,6 +50,8 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 - Use one versioned project config and one durable run directory. Avoid exposing implementation-only PowerShell entry points as the user workflow.
 - Make setup safe for existing repositories: preserve source/spec files, explain the V2-to-V3 config break, and show the migration preview before changing Felix-managed files.
 
+**Current status:** the packaged CLI now exposes an initial `felix v3` bridge for setup, explicit-spec run, Cloud next/loop, resume, stop, and run status. It remains a development namespace until V3 replaces the V2 command surface; local ready-spec looping and migration preview are still outstanding.
+
 **Exit condition:** a clean install can set up a project and run/resume a spec using each supported harness without importing Felix 2 agent-loop configuration.
 
 ### 3. Connect work selection and Cloud
@@ -92,4 +94,4 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 
 ## Immediate next slice
 
-Add the packaged Felix CLI workflow for explicit specs and repeated ready-work cycles, then verify the adapter against a controlled Felix Cloud environment. In parallel, coordinate an agent-owned/idempotent claim recovery API with the Cloud checkout before enabling multi-machine operation. The repository skill should follow the stable CLI and configuration surface.
+Implement local ready-spec selection and migration preview, then verify the Cloud adapter against a controlled Felix Cloud environment. In parallel, coordinate agent-owned claim recovery with the Cloud checkout before enabling multi-machine operation. The repository skill should follow the stable CLI and configuration surface. The full .NET CLI suite passes (136 tests), and the Felix 3 PowerShell contract suite passes. A sandboxed test attempt could not connect to its testhost; running with the required local testhost connection resolved it.

@@ -90,6 +90,7 @@ partial class Program
         rootCommand.AddCommand(CreateToolCommand(felixPs1));
         rootCommand.AddCommand(CreateGcCommand(felixPs1));
         rootCommand.AddCommand(CreateRecoverCommand(felixPs1));
+        rootCommand.AddCommand(CreateFelix3Command());
         return rootCommand;
     }
 

@@ -30,6 +30,56 @@ partial class Program
         Environment.ExitCode = process.ExitCode;
     }
 
+    static async Task ExecuteFelix3PowerShell(params string[] args)
+    {
+        var scriptPath = ResolveFelix3CliScriptPath();
+        if (scriptPath == null)
+        {
+            Console.Error.WriteLine("Felix 3 workflow files are missing from this installation. Run 'felix install' to refresh the embedded scripts.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = FindPowerShell(),
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = false
+        };
+        psi.ArgumentList.Add("-NoProfile");
+        if (OperatingSystem.IsWindows())
+        {
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+        }
+        psi.ArgumentList.Add("-File");
+        psi.ArgumentList.Add(scriptPath);
+        foreach (var arg in args) psi.ArgumentList.Add(arg);
+
+        using var process = new Process { StartInfo = psi };
+        process.OutputDataReceived += (_, e) => { if (e.Data != null) Console.WriteLine(e.Data); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data != null) Console.Error.WriteLine(e.Data); };
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        await process.WaitForExitAsync();
+        Environment.ExitCode = process.ExitCode;
+    }
+
+    static string? ResolveFelix3CliScriptPath()
+    {
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_felixInstallDir))
+        {
+            candidates.Add(Path.Combine(_felixInstallDir, "felix3", "felix3-cli.ps1"));
+            candidates.Add(Path.GetFullPath(Path.Combine(_felixInstallDir, "..", "felix3", "felix3-cli.ps1")));
+            candidates.Add(Path.GetFullPath(Path.Combine(_felixInstallDir, "..", "features", "felix3", "felix3-cli.ps1")));
+        }
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
     static async Task ExecuteFelixRichCommand(string felixPs1, string commandLabel, params string[] args)
     {
         var commandArgs = new List<string>(args) { "--format", "json" };

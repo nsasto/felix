@@ -12,6 +12,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $FelixRoot = (Resolve-Path $FelixRoot).Path
+$Felix3Root = Join-Path (Split-Path -Parent $FelixRoot) "features\felix3"
+$Felix3Root = (Resolve-Path $Felix3Root).Path
 
 # Files to exclude (project-data and runtime artefacts, not engine scripts)
 $excludeDirs = @(
@@ -52,6 +54,13 @@ $files = Get-ChildItem -Path $FelixRoot -Recurse -File | Where-Object {
     return $true
 }
 
+$felix3Files = Get-ChildItem -Path $Felix3Root -Recurse -File | Where-Object {
+    $relativePath = $_.FullName.Substring($Felix3Root.Length).TrimStart([IO.Path]::DirectorySeparatorChar, '/')
+    $segments = $relativePath -split '[\\/]'
+    if ($segments -contains 'tests' -or $segments -contains '.test-run*') { return $false }
+    return $true
+}
+
 # Ensure output directory exists
 $outDir = Split-Path $OutputPath -Parent
 if (-not (Test-Path $outDir)) {
@@ -75,12 +84,17 @@ try {
         $entryName = $relativePath -replace '\\', '/'
         [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $entryName) | Out-Null
     }
+    foreach ($file in $felix3Files) {
+        $relativePath = $file.FullName.Substring($Felix3Root.Length).TrimStart([IO.Path]::DirectorySeparatorChar, '/')
+        $entryName = "felix3/$($relativePath -replace '\\', '/')"
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $entryName) | Out-Null
+    }
 }
 finally {
     $zip.Dispose()
 }
 
-Write-Host "  Bundled $($files.Count) files → $OutputPath"
+Write-Host "  Bundled $($files.Count) Felix engine files and $($felix3Files.Count) Felix 3 files → $OutputPath"
 
 # Warn if any engine file is newer than version.txt (untracked bump)
 $versionFile = Join-Path $FelixRoot "version.txt"

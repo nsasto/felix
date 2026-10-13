@@ -8,6 +8,19 @@ Felix 3 is the active target for the next major Felix release. This directory co
 
 All three adapters support planning, building, and reviewing, session resume, event capture, usage reporting when available, and run artifacts. `Invoke-Felix3Task.ps1` coordinates one manually supplied spec through planning, building, independent validation, and review. `Invoke-Felix3CloudWorkCycle` can claim one ready item from Felix Cloud, run the same workflow, and report completion or release a blocked claim. A successful harness process is only a successful harness run; Felix 3 marks a task complete only when its plan exists, configured validation commands pass, and review approves.
 
+The packaged CLI exposes this prototype under `felix v3` while V3 is being integrated. From a project directory, run `felix v3 setup --harness claude-code` (or `opencode` / `codex`), edit `.felix3/config.json` to add validation commands, then use:
+
+```powershell
+felix v3 run S-0001 --spec specs\S-0001.md
+felix v3 next
+felix v3 loop --max-iterations 5
+felix v3 resume <run-id> --answer "Use the existing API shape."
+felix v3 stop <run-id>
+felix v3 status <run-id>
+```
+
+`next` and `loop` require `work_source.provider` to be `felix-cloud`; `run` works with a local spec. The CLI's current V2 command surface remains during this development bridge and will be replaced for the V3 major release.
+
 Install and authenticate the harness you choose. Claude Code uses the root example config. OpenCode uses `opencode/felix3-opencode.config.example.json` and the provided agent profiles. Codex CLI uses `codex/felix3-codex.config.example.json`; it honors the user's Codex CLI authentication and configuration. Its sample policy uses read-only planning/review and workspace-write building, with approval prompts disabled for non-interactive execution. Sandbox restrictions still apply, and an operation outside policy fails back to the model. Copy the selected config into the target project's `.felix3/config.json`, then add its validation commands:
 
 ```powershell
