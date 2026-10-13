@@ -25,6 +25,15 @@ jobs:
           git config --global user.name "Felix CI"
           git config --global init.defaultBranch main
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run C# CLI tests
+        shell: pwsh
+        run: dotnet test tests/Felix.Cli.Tests/Felix.Cli.Tests.csproj --configuration Release
+
       - name: Run tests
         shell: pwsh
         run: .\run-git-test.ps1

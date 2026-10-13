@@ -7,6 +7,7 @@ Tests for task-handler.ps1 - New-IterationReport
 . "$PSScriptRoot/../core/emit-event.ps1"
 . "$PSScriptRoot/../core/agent-adapters.ps1"
 . "$PSScriptRoot/../core/git-manager.ps1"
+. "$PSScriptRoot/../core/review.ps1"
 . "$PSScriptRoot/../core/task-handler.ps1"
 
 function Set-WorkflowStage {
@@ -179,7 +180,7 @@ Describe "Invoke-CompletionSignals" {
         }
     }
 
-    It "should prefer ALL_COMPLETE over TASK_COMPLETE" {
+    It "should prefer ALL_COMPLETE over TASK_COMPLETE when review is disabled" {
         $script:UpdatedRequirementStatus = $null
         $state = @{ last_mode = "building" }
         $agentState = New-TestAgentState -Mode "Building"
@@ -193,7 +194,8 @@ Describe "Invoke-CompletionSignals" {
                 -CurrentRequirement ([pscustomobject]@{ id = "S-0001" }) `
                 -State $state `
                 -AgentState $agentState `
-                -RequirementsFile $requirementsFile
+                -RequirementsFile $requirementsFile `
+                -Config ([pscustomobject]@{ review = [pscustomobject]@{ enabled = $false } })
 
             Assert-True $result.ShouldExit
             Assert-Equal 0 $result.ExitCode

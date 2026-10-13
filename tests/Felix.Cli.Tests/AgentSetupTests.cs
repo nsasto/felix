@@ -108,7 +108,7 @@ public sealed class AgentSetupTests
         Program.EnsureSetupConfigDefaults(config);
 
         Assert.Equal("SPRINT", Program.GetRequirementPrefix(config));
-        Assert.True(Program.GetRequirementIdRegex(config).IsMatch("SPRINT-0001"));
+        Assert.Matches(Program.GetRequirementIdRegex(config), "SPRINT-0001");
         Assert.Equal("requirements", Program.GetSpecsDirectoryRelativePath(config));
         Assert.Equal("work/runs", Program.GetRunsDirectoryRelativePath(config));
         Assert.Equal("docs/OPERATIONS.md", Program.GetAgentsRelativePath(config));

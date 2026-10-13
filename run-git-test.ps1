@@ -12,6 +12,8 @@ $testFiles = Get-ChildItem $testDir -Filter "test-*.ps1" | Where-Object {
     $_.Name -notmatch "test-droid-flags" -and
     $_.Name -notmatch "test-droid-verbose" -and
     $_.Name -notmatch "test-agent-claude" -and
+    # Live adapter diagnostics call installed Claude/Codex CLIs and can consume provider credits.
+    $_.Name -notmatch "test-agent-io-diagnostics" -and
     $_.Name -notmatch "manual-test-agent-copilot" -and
     $_.Name -notmatch "test-agent-codex" -and
     $_.Name -notmatch "test-agent-droid" -and

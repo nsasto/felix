@@ -320,11 +320,15 @@ internal static class CopilotBridgeCommand
 
         if (extension.Equals(".ps1", StringComparison.OrdinalIgnoreCase))
         {
-            return new LaunchSpec(FindPowerShellHost(), new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", resolvedExecutable }.Concat(arguments).ToList());
+            var forwardedArguments = string.Join(" ", arguments.Select(QuotePowerShellString));
+            var command = $"& {QuotePowerShellString(resolvedExecutable)} -- {forwardedArguments}; exit $LASTEXITCODE";
+            return new LaunchSpec(FindPowerShellHost(), new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command });
         }
 
         return new LaunchSpec(resolvedExecutable, arguments.ToList());
     }
+
+    private static string QuotePowerShellString(string value) => $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
 
     private static async Task<ProcessResult> RunProcessAsync(string resolvedExecutable, string workingDirectory, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string?> environment, bool mirrorOutputToStdErr)
     {

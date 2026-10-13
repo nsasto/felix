@@ -69,7 +69,8 @@ public sealed class CopilotBridgeTests
 
             var result = await CopilotBridgeCommand.RunAsync(request);
 
-            Assert.True(result.RetriedWithoutModel);
+            Assert.True(result.RetriedWithoutModel,
+                $"Expected model retry. Exit={result.ExitCode}; executable={result.ResolvedExecutable}; args={string.Join(' ', result.Arguments)}; stdout={result.StdOut}; stderr={result.StdErr}");
             Assert.True(result.Succeeded);
             Assert.Equal(0, result.ExitCode);
             Assert.Equal("TASK_COMPLETE", result.Signal);
