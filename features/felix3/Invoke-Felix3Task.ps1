@@ -273,7 +273,7 @@ function Invoke-Felix3Task {
             $harnessResult = Invoke-ClaudeHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -PermissionMode $phaseConfig.permission_mode -MaxTurns $phaseConfig.max_turns -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
         }
         elseif ($phaseConfig.provider -eq 'codex') {
-            $harnessResult = Invoke-CodexHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Sandbox $phaseConfig.sandbox -ApprovalPolicy $phaseConfig.approval_policy -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
+            $harnessResult = Invoke-CodexHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Sandbox $phaseConfig.sandbox -ApprovalPolicy $phaseConfig.approval_policy -WindowsSandbox $phaseConfig.windows_sandbox -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
         }
         else {
             $harnessResult = Invoke-OpenCodeHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Agent $phaseConfig.agent -AutoApprove:$phaseConfig.auto_approve -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')

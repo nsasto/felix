@@ -62,6 +62,11 @@ function Import-Felix3Config {
             if ($sandbox -and $sandbox -notin @('read-only', 'workspace-write', 'danger-full-access')) {
                 throw "harness.codex.phases.$key.sandbox must be read-only, workspace-write, or danger-full-access."
             }
+            $baseWindowsSandbox = if ($harnessConfig.PSObject.Properties['windows_sandbox']) { $harnessConfig.windows_sandbox } else { $null }
+            $windowsSandbox = if ($phase.PSObject.Properties['windows_sandbox']) { $phase.windows_sandbox } else { $baseWindowsSandbox }
+            if ($windowsSandbox -and $windowsSandbox -notin @('elevated', 'unelevated')) {
+                throw "harness.codex.phases.$key.windows_sandbox must be elevated or unelevated."
+            }
             $approval = if ($phase.PSObject.Properties['approval_policy']) { $phase.approval_policy } else { $harnessConfig.approval_policy }
             if ($approval -and $approval -notin @('on-request', 'never')) {
                 throw "harness.codex.phases.$key.approval_policy must be on-request or never."
@@ -107,6 +112,7 @@ function Get-Felix3PhaseConfig {
         session_policy = if ($phaseSessionPolicy) { [string]$phaseSessionPolicy } elseif ($baseSessionPolicy) { [string]$baseSessionPolicy } else { 'fresh' }
         sandbox = if ($phaseConfig.PSObject.Properties['sandbox'] -and $phaseConfig.sandbox) { [string]$phaseConfig.sandbox } elseif ($base.PSObject.Properties['sandbox'] -and $base.sandbox) { [string]$base.sandbox } else { 'read-only' }
         approval_policy = if ($phaseConfig.PSObject.Properties['approval_policy'] -and $phaseConfig.approval_policy) { [string]$phaseConfig.approval_policy } elseif ($base.PSObject.Properties['approval_policy'] -and $base.approval_policy) { [string]$base.approval_policy } else { 'on-request' }
+        windows_sandbox = if ($phaseConfig.PSObject.Properties['windows_sandbox'] -and $phaseConfig.windows_sandbox) { [string]$phaseConfig.windows_sandbox } elseif ($base.PSObject.Properties['windows_sandbox'] -and $base.windows_sandbox) { [string]$base.windows_sandbox } else { $null }
     }
 }
 

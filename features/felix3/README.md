@@ -29,6 +29,16 @@ Project setup also installs the Felix 3 `SKILL.md` into the configured harness's
 
 Install and authenticate the harness you choose. Claude Code uses the root example config. OpenCode uses `opencode/felix3-opencode.config.example.json` and the provided agent profiles. Codex CLI uses `codex/felix3-codex.config.example.json`; it honors the user's Codex CLI authentication and configuration. Its sample policy uses read-only planning/review and workspace-write building, with approval prompts disabled for non-interactive execution. Sandbox restrictions still apply, and an operation outside policy fails back to the model. Copy the selected config into the target project's `.felix3/config.json`, then add its validation commands:
 
+On Windows, if Codex reports `helper_unknown_error: setup refresh had errors` and `.codex/.sandbox/sandbox.<date>.log` identifies a locked Codex runtime file (`os error 32`), set `harness.codex.windows_sandbox` to `unelevated` in the project config. This is passed only to Felix-launched Codex processes and does not modify the user's global Codex configuration. The unelevated Windows backend provides weaker OS-level isolation; keep Codex's phase `sandbox` values restrictive. Omit the option to retain the Codex CLI's configured Windows backend.
+
+```json
+"harness": {
+  "codex": {
+    "windows_sandbox": "unelevated"
+  }
+}
+```
+
 ```powershell
 New-Item -ItemType Directory -Force .felix3 | Out-Null
 Copy-Item C:\dev\felix\features\felix3\opencode\felix3-opencode.config.example.json .felix3\config.json

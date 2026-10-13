@@ -49,6 +49,7 @@ function Invoke-CodexHarness {
         [string]$Model,
         [string]$Sandbox = 'read-only',
         [string]$ApprovalPolicy = 'on-request',
+        [ValidateSet('elevated', 'unelevated')][string]$WindowsSandbox,
         [string]$SessionId,
         $Journal,
         [scriptblock]$EventSink,
@@ -69,6 +70,7 @@ function Invoke-CodexHarness {
         $arguments = @('exec', '--json', '-C', (Resolve-Path -LiteralPath $WorkingDirectory).Path, '-s', $Sandbox, '-c', "approval_policy=`"$ApprovalPolicy`"", '-o', $lastMessagePath, '-')
         if ($Model) { $arguments += @('-m', $Model) }
     }
+    if ($WindowsSandbox) { $arguments += @('-c', "windows.sandbox=`"$WindowsSandbox`"") }
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $argumentString = ConvertTo-Felix3ArgumentString -Arguments $arguments
     if ($resolvedExe -match '\.(cmd|bat)$') {

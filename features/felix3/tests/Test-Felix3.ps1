@@ -255,10 +255,11 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
         elseif ($name -eq 'opencode') { $result = Invoke-OpenCodeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -Journal $journal -EventSink $sink }
         else {
             $captureArgsPath = Join-Path $tempRoot 'codex-args.json'; $env:FELIX3_CAPTURE_ARGS = $captureArgsPath
-            try { $result = Invoke-CodexHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -Journal $journal -EventSink $sink }
+            try { $result = Invoke-CodexHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -WindowsSandbox 'unelevated' -Journal $journal -EventSink $sink }
             finally { Remove-Item Env:FELIX3_CAPTURE_ARGS -ErrorAction SilentlyContinue }
             $codexArgs = @(Get-Content -LiteralPath $captureArgsPath -Raw | ConvertFrom-Json)
             Assert-Felix3 ($codexArgs -notcontains '-a' -and $codexArgs -contains '-c' -and ($codexArgs -join ' ') -match 'approval_policy="on-request"') 'Codex adapter uses supported approval config overrides'
+            Assert-Felix3 (($codexArgs -join ' ') -match 'windows\.sandbox="unelevated"') 'Codex adapter forwards the optional Windows sandbox backend override'
         }
         $expectedHarness = @{ claude='claude-code'; opencode='opencode'; codex='codex' }[$name]
         Assert-Felix3 ((Assert-Felix3HarnessResultContract -Result $result -ExpectedHarness $expectedHarness -ExpectedPhase 'building').Harness -eq $expectedHarness) "$name adapter satisfies the common result contract"
@@ -390,7 +391,7 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
         work_source = @{ provider = 'manual-spec'; specs_dir = 'specs'; ready_status = 'ready' }
         artifacts = @{ runs_dir = '.felix3/runs'; local_retention_days = 30 }
         cloud_sync = @{ enabled = $false; agent_key = ''; include_phase_summaries = $true; include_question_text = $false; artifacts = @() }
-        harness = @{ provider = 'codex'; codex = @{ executable = $codexExe; sandbox = 'read-only'; approval_policy = 'never'; session_policy = 'fresh'; phases = @{
+        harness = @{ provider = 'codex'; codex = @{ executable = $codexExe; sandbox = 'read-only'; windows_sandbox = 'unelevated'; approval_policy = 'never'; session_policy = 'fresh'; phases = @{
             planning = @{ sandbox = 'read-only'; approval_policy = 'never' }
             building = @{ sandbox = 'workspace-write'; approval_policy = 'never'; session_policy = 'resume' }
             reviewing = @{ sandbox = 'read-only'; approval_policy = 'never' }
@@ -408,6 +409,7 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     finally { if ($null -eq $savedCaptureArgs) { Remove-Item Env:FELIX3_CAPTURE_ARGS -ErrorAction SilentlyContinue } else { $env:FELIX3_CAPTURE_ARGS = $savedCaptureArgs } }
     Assert-Felix3 ($resumed.Status -eq 'completed') 'answer resumes the same run through validation and review'
     $coordinatorCalls = @(Get-Content -LiteralPath $captureArgsPath | ForEach-Object { $_ | ConvertFrom-Json })
+    Assert-Felix3 (@($coordinatorCalls | Where-Object { ($_.args -join ' ') -notmatch 'windows\.sandbox="unelevated"' }).Count -eq 0) 'coordinator forwards the configured Windows sandbox override to every Codex phase'
     $buildResumeCall = @($coordinatorCalls | Where-Object { $_.prompt -match 'building phase' -and $_.args -contains 'resume' })
     Assert-Felix3 ($buildResumeCall.Count -ge 1) 'building session_policy=resume continues the same session on validation retry'
     $state = Get-Content -LiteralPath $resumed.StatePath -Raw | ConvertFrom-Json
