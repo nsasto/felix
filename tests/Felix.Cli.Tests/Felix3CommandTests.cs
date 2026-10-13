@@ -31,4 +31,11 @@ public sealed class Felix3CommandTests
         Assert.Contains(run.Options, option => option.Name == "spec" && option.IsRequired);
         Assert.Single(run.Arguments);
     }
+
+    [Fact]
+    public void RootInvocation_PreservesPowerShellChildExitCode()
+    {
+        Assert.Equal(1, Program.ResolveCommandExitCode(0, 1));
+        Assert.Equal(2, Program.ResolveCommandExitCode(2, 1));
+    }
 }

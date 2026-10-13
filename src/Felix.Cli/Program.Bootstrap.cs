@@ -47,8 +47,12 @@ partial class Program
             }
         }
 
-        return await rootCommand.InvokeAsync(args);
+        var invocationExitCode = await rootCommand.InvokeAsync(args);
+        return ResolveCommandExitCode(invocationExitCode, Environment.ExitCode);
     }
+
+    internal static int ResolveCommandExitCode(int invocationExitCode, int processExitCode)
+        => invocationExitCode != 0 ? invocationExitCode : processExitCode;
 
     internal static RootCommand CreateRootCommand(string felixPs1)
     {
