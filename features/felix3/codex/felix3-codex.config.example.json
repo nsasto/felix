@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "work_source": {
+    "provider": "manual-spec",
+    "specs_dir": "specs",
+    "ready_status": "ready-for-agent"
+  },
+  "artifacts": {
+    "runs_dir": ".felix3/runs",
+    "local_retention_days": 30
+  },
+  "cloud_sync": {
+    "enabled": false,
+    "base_url": "https://runfelix.io",
+    "agent_key": "",
+    "include_phase_summaries": true,
+    "include_question_text": false,
+    "artifacts": []
+  },
+  "harness": {
+    "provider": "codex",
+    "codex": {
+      "executable": "codex",
+      "sandbox": "read-only",
+      "approval_policy": "never",
+      "session_policy": "fresh",
+      "phases": {
+        "planning": {
+          "sandbox": "read-only",
+          "approval_policy": "never",
+          "session_policy": "fresh"
+        },
+        "building": {
+          "sandbox": "workspace-write",
+          "approval_policy": "never",
+          "session_policy": "resume"
+        },
+        "reviewing": {
+          "sandbox": "read-only",
+          "approval_policy": "never",
+          "session_policy": "fresh"
+        }
+      }
+    }
+  },
+  "workflow": {
+    "require_plan_approval": false,
+    "max_build_attempts": 3,
+    "max_review_cycles": 2,
+    "validation": {
+      "require_at_least_one_command": true,
+      "commands": []
+    }
+  }
+}
