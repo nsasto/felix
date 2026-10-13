@@ -38,6 +38,10 @@ felix tui
 felix dashboard --html --no-open
 ```
 
+### Felix 3 preview
+
+Felix 3 is the breaking-change successor under active development. Start with the provider-neutral skill at **features/felix3/skills/felix/SKILL.md** and canonical workflow docs at **features/felix3/README.md**. In a project, run `felix v3 migrate` for a read-only V2 preview, then `felix v3 migrate --harness <claude-code|opencode|codex> --apply` to add separate V3 config without converting V2 data. New projects use `felix v3 setup --harness <provider>`. Queue local specs with Markdown frontmatter such as `id: S-0001`, `title: Example`, and `status: ready-for-agent`; then use `felix v3 next` or `felix v3 loop`.
+
 ### Running the Agent Directly (PowerShell)
 
 ```powershell

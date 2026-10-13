@@ -25,6 +25,8 @@ felix v3 status <run-id>
 
 `felix v3 migrate` is a preview by default. It reports common V2 files and the V3 config it would create. Add `--apply` to create `.felix3/config.json` from the selected harness example. It does not convert V2 requirements or agent settings, edit specs, or overwrite existing V3 configuration; review the generated config and add readiness metadata yourself.
 
+Project setup also installs the Felix 3 `SKILL.md` into the configured harness's project skill directory (`.claude/skills/felix`, `.opencode/skills/felix`, or `.agents/skills/felix`). Existing skill files and `.felix3/config.json` are preserved, so rerunning setup can install a missing skill without resetting project configuration. The source skill lives at `features/felix3/skills/felix/SKILL.md` and points agents to this README and `AGENTS.md` for repository-specific instructions.
+
 Install and authenticate the harness you choose. Claude Code uses the root example config. OpenCode uses `opencode/felix3-opencode.config.example.json` and the provided agent profiles. Codex CLI uses `codex/felix3-codex.config.example.json`; it honors the user's Codex CLI authentication and configuration. Its sample policy uses read-only planning/review and workspace-write building, with approval prompts disabled for non-interactive execution. Sandbox restrictions still apply, and an operation outside policy fails back to the model. Copy the selected config into the target project's `.felix3/config.json`, then add its validation commands:
 
 ```powershell

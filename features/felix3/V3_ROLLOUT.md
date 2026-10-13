@@ -71,6 +71,8 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 - The skill must explain installation, setup, harness selection/authentication, choosing a spec, looping ready work, plan/spec iteration, questions/resume, validation/review, Cloud setup, troubleshooting, and the V2-to-V3 break.
 - Keep the skill concise, link to canonical detailed docs, and test its commands against the shipped CLI. Do not duplicate stale V2 instructions into a V3 skill.
 
+**Current status:** a provider-neutral skill is in `features/felix3/skills/felix/SKILL.md`, and root `AGENTS.md` points repository agents to it and the canonical V3 docs. Setup and migration apply install it into the configured Claude Code, OpenCode, or Codex project skill directory without overwriting existing skill or config files. Source installer smoke passed for all three paths; the embedded bundle includes the skill and its Codex install path passed. Actual harness discovery remains unverified.
+
 **Exit condition:** an agent starting from the repository can discover the skill and complete the documented setup/run path without a human reconstructing hidden steps.
 
 ### 5. Release and documentation cutover

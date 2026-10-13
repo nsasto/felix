@@ -19,17 +19,41 @@ $configPath = Join-Path (Join-Path $project '.felix3') 'config.json'
 
 function Initialize-Felix3Config {
     param([Parameter(Mandatory)][string]$SelectedHarness)
-    if (Test-Path -LiteralPath $configPath -PathType Leaf) { throw "Felix 3 is already configured at $configPath; edit that file instead of replacing it." }
-    $exampleName = switch ($SelectedHarness) {
+    $created = -not (Test-Path -LiteralPath $configPath -PathType Leaf)
+    $effectiveHarness = $SelectedHarness
+    if ($created) {
+        $exampleName = switch ($SelectedHarness) {
         'opencode' { 'opencode/felix3-opencode.config.example.json' }
         'codex' { 'codex/felix3-codex.config.example.json' }
         default { 'felix3.config.example.json' }
+        }
+        $examplePath = Join-Path $PSScriptRoot $exampleName
+        if (-not (Test-Path -LiteralPath $examplePath -PathType Leaf)) { throw "Felix 3 $SelectedHarness configuration example is unavailable: $examplePath" }
+        New-Item -ItemType Directory -Path (Split-Path -Parent $configPath) -Force | Out-Null
+        Copy-Item -LiteralPath $examplePath -Destination $configPath
     }
-    $examplePath = Join-Path $PSScriptRoot $exampleName
-    if (-not (Test-Path -LiteralPath $examplePath -PathType Leaf)) { throw "Felix 3 $SelectedHarness configuration example is unavailable: $examplePath" }
-    New-Item -ItemType Directory -Path (Split-Path -Parent $configPath) -Force | Out-Null
-    Copy-Item -LiteralPath $examplePath -Destination $configPath
-    if ($SelectedHarness -eq 'opencode') {
+    else {
+        $existingConfig = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $configuredProvider = [string]$existingConfig.harness.provider
+        $effectiveHarness = switch ($configuredProvider) {
+            'claude-code' { 'claude-code' }
+            'opencode' { 'opencode' }
+            'codex' { 'codex' }
+            default { throw "Existing Felix 3 config has unsupported harness '$configuredProvider'." }
+        }
+    }
+    $skillDirectory = switch ($effectiveHarness) {
+        'claude-code' { Join-Path $project '.claude/skills/felix' }
+        'opencode' { Join-Path $project '.opencode/skills/felix' }
+        'codex' { Join-Path $project '.agents/skills/felix' }
+    }
+    $skillTarget = Join-Path $skillDirectory 'SKILL.md'
+    if (-not (Test-Path -LiteralPath $skillTarget -PathType Leaf)) {
+        New-Item -ItemType Directory -Path $skillDirectory -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'skills/felix/SKILL.md') -Destination $skillTarget
+    }
+    else { Write-Host "Preserved existing Felix skill at $skillTarget" }
+    if ($effectiveHarness -eq 'opencode') {
         $sourceAgents = Join-Path $PSScriptRoot 'opencode/agents'
         $targetAgents = Join-Path (Join-Path $project '.opencode') 'agents'
         New-Item -ItemType Directory -Path $targetAgents -Force | Out-Null
@@ -38,13 +62,14 @@ function Initialize-Felix3Config {
             if (-not (Test-Path -LiteralPath $targetFile)) { Copy-Item -LiteralPath $agentFile.FullName -Destination $targetFile }
         }
     }
-    return $configPath
+    return [pscustomobject]@{ Path=$configPath; Harness=$effectiveHarness; Created=$created }
 }
 
 switch ($Action) {
     'setup' {
-        $created = Initialize-Felix3Config -SelectedHarness $Harness
-        Write-Host "Felix 3 configured for $Harness at $created. Add validation commands and provider credentials before running."
+        $setup = Initialize-Felix3Config -SelectedHarness $Harness
+        if ($setup.Created) { Write-Host "Felix 3 configured for $($setup.Harness) at $($setup.Path). Add validation commands and provider credentials before running." }
+        else { Write-Host "Felix 3 is already configured at $($setup.Path); existing config was preserved and the $($setup.Harness) skill was installed if missing." }
     }
     'migrate' {
         $legacy = @(@('.felix/config.json','.felix/requirements.json','.felix/agents.json','requirements.json','specs') | Where-Object { Test-Path -LiteralPath (Join-Path $project $_) })
@@ -60,8 +85,8 @@ switch ($Action) {
         Write-Host 'Existing Felix 2 files, specs, requirements, and agent profiles will be preserved unchanged.'
         Write-Host 'V3 work selection uses Markdown frontmatter status in specs; no V2 requirements or agent config is imported.'
         if (-not $Apply) { Write-Host 'Preview only. Re-run with --apply to create the V3 project config.'; break }
-        $created = Initialize-Felix3Config -SelectedHarness $Harness
-        Write-Host "Felix 3 config created at $created. Review it and set spec statuses before running."
+        $setup = Initialize-Felix3Config -SelectedHarness $Harness
+        Write-Host "Felix 3 config created at $($setup.Path). Review it and set spec statuses before running."
     }
     'run' {
         if ([string]::IsNullOrWhiteSpace($RequirementId) -or [string]::IsNullOrWhiteSpace($SpecPath)) { throw 'Usage: felix v3 run <requirement-id> --spec <project-relative-path>' }
