@@ -6,7 +6,7 @@ Felix 3 is the active target for the next major Felix release. This directory co
 
 `claude/Invoke-ClaudeHarness.ps1` runs Claude Code in headless mode. `opencode/Invoke-OpenCodeHarness.ps1` runs OpenCode's native `opencode run --format json` loop. `codex/Invoke-CodexHarness.ps1` runs Codex CLI's `codex exec --json` loop. Each adapter streams raw output to its phase artifact and returns a normalized run result. Felix 3 appends sequenced normalized events to `events.jsonl` and prints concise phase/tool progress. The selected harness owns its internal tool use, agent turns, and subagents. The caller supplies phase prompts; Felix 3 retains the work item, spec, plan, phase transitions, independent validation, and review decision.
 
-All three adapters support planning, building, and reviewing, session resume, event capture, usage reporting when available, and run artifacts. `Invoke-Felix3Task.ps1` coordinates one manually supplied spec through planning, building, independent validation, and review. It does not select work from or update a tracker yet. A successful harness process is only a successful harness run; Felix 3 marks a task complete only when its plan exists, configured validation commands pass, and review approves.
+All three adapters support planning, building, and reviewing, session resume, event capture, usage reporting when available, and run artifacts. `Invoke-Felix3Task.ps1` coordinates one manually supplied spec through planning, building, independent validation, and review. `Invoke-Felix3CloudWorkCycle` can claim one ready item from Felix Cloud, run the same workflow, and report completion or release a blocked claim. A successful harness process is only a successful harness run; Felix 3 marks a task complete only when its plan exists, configured validation commands pass, and review approves.
 
 Install and authenticate the harness you choose. Claude Code uses the root example config. OpenCode uses `opencode/felix3-opencode.config.example.json` and the provided agent profiles. Codex CLI uses `codex/felix3-codex.config.example.json`; it honors the user's Codex CLI authentication and configuration. Its sample policy uses read-only planning/review and workspace-write building, with approval prompts disabled for non-interactive execution. Sandbox restrictions still apply, and an operation outside policy fails back to the model. Copy the selected config into the target project's `.felix3/config.json`, then add its validation commands:
 
@@ -55,9 +55,18 @@ If the coordinator exits unexpectedly, the saved active phase and the session ID
 
 `usage.json` stores per-invocation provider-reported input/output/total, cached and reasoning token counts, cost when supplied, duration, model, harness, and session. Missing values stay `null`; Felix does not estimate costs. Build retries are separate phase instances, so reported usage is counted once per invocation. Per-phase `session_policy` controls whether build retries and review cycles continue that phase's previous session (`resume`) or start fresh; answering a question or recovering an interrupted phase always resumes the session needed to continue that exact invocation.
 
-### Optional cloud sync
+### Felix Cloud work source and optional run sync
 
-Felix 3 uses Felix's existing HTTP sync transport when cloud sync is enabled. Enable it with `cloud_sync.enabled` or `FELIX_SYNC_ENABLED=true`; set `FELIX_SYNC_URL` and `FELIX_SYNC_KEY` as needed. Felix can infer the agent key from `.felix/agents.json` for the selected harness, or use `FELIX_SYNC_AGENT_KEY` / `cloud_sync.agent_key`. Failed deliveries stay in `.felix3/outbox` for retry.
+To claim ready Cloud work, set `work_source.provider` to `felix-cloud`, set `work_source.cloud.agent_id` to the Cloud agent UUID, and provide a project API key through `FELIX_SYNC_KEY` or `cloud_sync.api_key`. Run one claim cycle with:
+
+```powershell
+. C:\dev\felix\features\felix3\Invoke-Felix3Task.ps1
+Invoke-Felix3CloudWorkCycle -ProjectPath (Get-Location).Path
+```
+
+The cycle materializes a claimed spec under `.felix3/work-items/`, saves claim/run state under `.felix3/work-source/`, and reports complete only after validation and review. Question, approval, and recoverable-interruption states keep the claim so that the same cycle can resume it. Do not remove `cloud-claim.json` to claim different work unless the saved claim has been completed or released. A blocked run releases the Cloud claim; pending server updates are retried on the next cycle.
+
+For run/phase/tool telemetry, separately enable `cloud_sync.enabled` or `FELIX_SYNC_ENABLED=true`; set `FELIX_SYNC_URL` as needed. Felix can infer the telemetry agent key from `.felix/agents.json`, or use `FELIX_SYNC_AGENT_KEY` / `cloud_sync.agent_key`. Failed deliveries stay in `.felix3/outbox` for retry.
 
 Cloud sync sends run/phase/tool milestones and normalized usage. Raw prompts, full transcripts, specs, and question text are not sent by default. Set `cloud_sync.include_question_text=true` to include question wording. Artifact upload is opt-in per file through `cloud_sync.artifacts`, for example `['plan.md','review.json','usage.json']`. Cloud sync metadata and outbox files contain no provider credentials.
 
@@ -82,4 +91,4 @@ Claude Code CLI flags and response fields follow Anthropic's [CLI reference](htt
 
 ## Current scope and completion boundary
 
-This remains an isolated Felix 3 slice. It handles one explicit spec at a time; it does not claim/transition GitHub Issues or Jira work or migrate existing Felix runtime behavior. The current Felix engine remains unchanged. Claude, OpenCode, and Codex adapters should be exercised against the installed CLI versions and target backend before wider rollout.
+This remains an isolated Felix 3 slice. Cloud claim/release has same-checkout recovery; Cloud's current API does not return claim status and does not make `work/start` idempotent, so cross-machine recovery is not yet supported. GitHub Issues and Jira adapters and Felix runtime migration are also out of scope for this slice. The current Felix engine remains unchanged. Claude, OpenCode, and Codex adapters should be exercised against the installed CLI versions and target backend before wider rollout.

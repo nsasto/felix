@@ -19,10 +19,10 @@ The prototype currently runs one explicitly named spec. It is not in the package
 
 The Cloud backend already exposes project-scoped run creation, batched events, run completion, artifact uploads, and work-source endpoints for next/start/complete/release. Its run-event payload accepts arbitrary JSON, which can carry Felix 3 phase, harness, usage, and local-run metadata without an immediate database migration.
 
-V3 integration still needs to settle and verify:
+V3 Cloud integration still needs to settle and verify:
 
-- How V3 registers its harness/model/machine identity and obtains the Cloud agent identity needed for claiming work.
-- Whether Cloud work claims can use the V3 agent identity directly or need a small API extension.
+- How the explicit Cloud agent UUID and harness/model/machine identity are provisioned and connected.
+- Whether Cloud should expose an idempotent, agent-owned claim/start/recovery operation and claim status for cross-machine recovery.
 - Mapping V3 run lifecycle states to Cloud run and requirement states, especially awaiting-input, interruption, and blocked work.
 - Cloud UI presentation of phase events, usage, questions, and review outcomes.
 - A clear client-version policy and cutover so V2 users know when they must upgrade to retain Cloud access.
@@ -40,6 +40,8 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 
 **Exit condition:** contract docs and adapter tests describe identical behavior across Claude, OpenCode, and Codex.
 
+**Current status:** harness, work-item, event, usage, and run-state contracts are defined and covered by the Felix 3 adapter suite. The initial Felix Cloud work-source adapter is implemented against these contracts and the existing API. Its same-checkout lifecycle is tested with a mock transport; live backend and multi-machine behavior remain unverified.
+
 ### 2. Make the coordinator a real Felix CLI workflow
 
 - Package the V3 coordinator and harness adapters with the release artifact.
@@ -54,6 +56,7 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 
 - Implement the local ready-spec loop and explicit-spec path on the same work-item contract.
 - Integrate Cloud claim/start/release/complete with leases and recovery. A claim must not be lost on question/approval waits or process interruption.
+- The current Cloud API omits claim status and has a non-idempotent `work/start`; Felix treats a 409 after a same-agent claim as already started and uses a checkout-local claim record/lock. Cross-machine lease and prior-run recovery need Cloud API support before this exit condition can pass.
 - Add V3 client and harness metadata to Cloud run creation/events; agree on registration and identity with Cloud.
 - Verify offline execution and outbox retry, idempotency, privacy defaults, and the final state reported to Cloud.
 - Update Cloud UI/API behavior only where the verified V3 contract requires it; preserve unrelated working-tree changes.
@@ -89,4 +92,4 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 
 ## Immediate next slice
 
-Implement the Cloud work-source adapter against the contract above, including claim ownership, local spec materialization, and safe start/complete/release behavior. This closes the largest gap between the current single-spec prototype and the requested autonomous plan/build/review cycle. The packaged CLI and agent-facing skill should follow against the now-stable command and configuration surface.
+Add the packaged Felix CLI workflow for explicit specs and repeated ready-work cycles, then verify the adapter against a controlled Felix Cloud environment. In parallel, coordinate an agent-owned/idempotent claim recovery API with the Cloud checkout before enabling multi-machine operation. The repository skill should follow the stable CLI and configuration surface.

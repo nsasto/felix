@@ -3,7 +3,8 @@
   "work_source": {
     "provider": "manual-spec",
     "specs_dir": "specs",
-    "ready_status": "ready-for-agent"
+    "ready_status": "ready-for-agent",
+    "cloud": { "agent_id": "" }
   },
   "artifacts": {
     "runs_dir": ".felix3/runs",
@@ -12,6 +13,7 @@
   "cloud_sync": {
     "enabled": false,
     "base_url": "https://runfelix.io",
+    "api_key": "",
     "agent_key": "",
     "include_phase_summaries": true,
     "include_question_text": false,

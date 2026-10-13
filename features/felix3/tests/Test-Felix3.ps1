@@ -86,6 +86,94 @@ try {
     }
     finally { if ($null -eq $savedSyncUrl) { Remove-Item Env:FELIX_SYNC_URL -ErrorAction SilentlyContinue } else { $env:FELIX_SYNC_URL = $savedSyncUrl } }
 
+    $cloudRequestLog = [System.Collections.ArrayList]::new()
+    $cloudApiRequest = {
+        param($Method, $Uri, $Headers, $Body)
+        [void]$cloudRequestLog.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Headers = $Headers; Body = $Body })
+        if ($Uri -match '/api/sync/work/next\?') { return @{ code='C-42'; title='Cloud requirement'; spec_path='specs/C-42.md'; priority='high'; depends_on=@('C-10') } }
+        if ($Uri -match '/api/sync/specs/file\?') { return "# Cloud spec`n`nAcceptance criteria: retain the source snapshot.`n" }
+        return @{ status='ok' }
+    }.GetNewClosure()
+    $cloudAgentId = '74c9552d-664e-4cf3-a9fb-0b0c0e1ce9e2'
+    $cloudSource = New-Felix3CloudWorkSource -BaseUrl 'https://cloud.example/' -ApiKey 'fsk-test-secret' -AgentId $cloudAgentId -ProjectPath $tempRoot -Request $cloudApiRequest
+    $cloudClaim = ClaimNext-Felix3CloudWorkItem -Source $cloudSource
+    Assert-Felix3 ($cloudClaim.WorkItem.id -eq 'C-42' -and $cloudClaim.WorkItem.source.provider -eq 'felix-cloud') 'Cloud claim normalizes its identity and source'
+    Assert-Felix3 ($cloudClaim.WorkItem.priority -eq 'high' -and $cloudClaim.WorkItem.depends_on[0] -eq 'C-10') 'Cloud claim preserves priority and dependencies'
+    Assert-Felix3 ((Test-Path -LiteralPath $cloudClaim.SpecPath) -and $cloudClaim.WorkItem.spec_sha256 -eq (Get-Felix3Sha256Hex -Text $cloudClaim.SpecText)) 'Cloud claim materializes and hashes its local spec snapshot'
+    Assert-Felix3 ($cloudRequestLog[0].Uri -match [regex]::Escape($cloudAgentId) -and $cloudRequestLog[0].Headers.Authorization -eq 'Bearer fsk-test-secret') 'Cloud claim scopes the request to configured agent and API key'
+    Start-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
+    Complete-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
+    Release-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
+    Assert-Felix3 (($cloudRequestLog | Where-Object { $_.Uri -match '/work/start$' }).Count -eq 1 -and ($cloudRequestLog | Where-Object { $_.Uri -match '/work/complete$' }).Count -eq 1 -and ($cloudRequestLog | Where-Object { $_.Uri -match '/work/release$' }).Count -eq 1) 'Cloud work lifecycle maps start, complete, and release endpoints'
+    $conflictException = [System.Exception]::new('already started')
+    Add-Member -InputObject $conflictException -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 409 })
+    $conflictRequest = { param($Method,$Uri,$Headers,$Body) throw $conflictException }.GetNewClosure()
+    $conflictSource = New-Felix3CloudWorkSource -BaseUrl 'https://cloud.example' -ApiKey 'secret' -AgentId $cloudAgentId -ProjectPath $tempRoot -Request $conflictRequest
+    Assert-Felix3 ((Start-Felix3CloudWorkItem -Source $conflictSource -RequirementId 'C-42').status -eq 'already-started') 'Cloud start conflict after a same-agent claim is treated as a resumed start'
+    $unsafeCloudRequest = { param($Method, $Uri, $Headers, $Body) return @{ code='C-X'; title='unsafe'; spec_path='../outside.md'; depends_on=@() } }.GetNewClosure()
+    $unsafeCloudSource = New-Felix3CloudWorkSource -BaseUrl 'https://cloud.example' -ApiKey 'secret' -AgentId $cloudAgentId -ProjectPath $tempRoot -Request $unsafeCloudRequest
+    $unsafeCloudRejected = $false
+    try { ClaimNext-Felix3CloudWorkItem -Source $unsafeCloudSource | Out-Null } catch { $unsafeCloudRejected = $true }
+    Assert-Felix3 $unsafeCloudRejected 'Cloud claim rejects spec paths that escape the Cloud specs directory'
+    $invalidCloudIdentityRejected = $false
+    try { New-Felix3CloudWorkSource -BaseUrl 'https://cloud.example' -ApiKey 'secret' -AgentId 'felix-v2-profile' -ProjectPath $tempRoot | Out-Null } catch { $invalidCloudIdentityRejected = $true }
+    Assert-Felix3 $invalidCloudIdentityRejected 'Cloud work source requires an explicit Cloud UUID rather than a Felix 2 profile key'
+
+    $cloudProject = Join-Path $tempRoot 'cloud-cycle-project'
+    $cloudConfigPath = Join-Path (Join-Path $cloudProject '.felix3') 'config.json'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $cloudConfigPath) -Force | Out-Null
+    $cloudCycleConfig = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\opencode\felix3-opencode.config.example.json') -Raw | ConvertFrom-Json
+    $cloudCycleConfig.work_source.provider = 'felix-cloud'
+    $cloudCycleConfig.work_source.cloud.agent_id = $cloudAgentId
+    $cloudCycleConfig.cloud_sync.api_key = 'fsk-test-secret'
+    $cloudCycleConfig | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $cloudConfigPath -Encoding UTF8
+    New-Item -ItemType Directory -Path (Join-Path $cloudProject 'specs') -Force | Out-Null
+    $savedCycleApiKey = $env:FELIX_SYNC_KEY
+    $savedTaskFunction = (Get-Command Invoke-Felix3Task -CommandType Function).ScriptBlock
+    $savedResumeFunction = (Get-Command Resume-Felix3Task -CommandType Function).ScriptBlock
+    $cloudCycleApiLog = [System.Collections.ArrayList]::new()
+    $cloudCycleRequest = {
+        param($Method, $Uri, $Headers, $Body)
+        [void]$cloudCycleApiLog.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Body = $Body })
+        if ($Uri -match '/api/sync/work/next\?') { return @{ code=$global:felix3TestCloudCode; title='Cloud cycle test'; spec_path="specs/$global:felix3TestCloudCode.md"; priority='medium'; depends_on=@() } }
+        if ($Uri -match '/api/sync/specs/file\?') { return "# $global:felix3TestCloudCode`n`nAcceptance: exercise the Cloud cycle.`n" }
+        return @{ status='ok' }
+    }.GetNewClosure()
+    try {
+        $env:FELIX_SYNC_KEY = 'fsk-test-secret'
+        Set-Item -Path Function:\Invoke-Felix3Task -Value { param($ProjectPath,$RequirementId,$Title,$SpecPath,$ConfigPath,$WorkItem,$NewRunId,$ResumeRunId,$Answer) return [pscustomobject]@{ Status = $global:felix3TestCloudTaskStatus; RunId = $NewRunId } }
+        Set-Item -Path Function:\Resume-Felix3Task -Value { param($ProjectPath,$RunId,$Answer,$ConfigPath) return [pscustomobject]@{ Status = $global:felix3TestCloudTaskStatus; RunId = $RunId } }
+        $global:felix3TestCloudCode = 'C-100'; $global:felix3TestCloudTaskStatus = 'completed'
+        $completedCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
+        Assert-Felix3 ($completedCloudCycle.Status -eq 'completed' -and ($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/complete$' }).Count -eq 1) 'Cloud cycle completes the source item only after task completion'
+        $global:felix3TestCloudCode = 'C-101'; $global:felix3TestCloudTaskStatus = 'awaiting-input'
+        $waitingCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
+        $nextCountBeforeResume = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/next\?' }).Count
+        $claimExistsWhileWaiting = Test-Path -LiteralPath (Join-Path (Join-Path (Join-Path $cloudProject '.felix3') 'work-source') 'cloud-claim.json')
+        Assert-Felix3 ($waitingCloudCycle.Status -eq 'awaiting-input' -and $claimExistsWhileWaiting) 'Cloud cycle retains claims while awaiting human input'
+        $global:felix3TestCloudTaskStatus = 'completed'
+        $resumedCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Answer 'Proceed' -Request $cloudCycleRequest
+        $nextCountAfterResume = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/next\?' }).Count
+        Assert-Felix3 ($resumedCloudCycle.Status -eq 'completed' -and $nextCountAfterResume -eq $nextCountBeforeResume) 'Cloud cycle resumes its saved claim before polling for more work'
+        $global:felix3TestCloudCode = 'C-102'; $global:felix3TestCloudTaskStatus = 'blocked'
+        $blockedCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
+        Assert-Felix3 ($blockedCloudCycle.Status -eq 'blocked' -and ($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/release$' }).Count -eq 1) 'Cloud cycle releases a blocked source item'
+        $cycleLockPath = Join-Path (Join-Path (Join-Path $cloudProject '.felix3') 'work-source') 'cloud-cycle.lock'
+        $heldCycleLock = [System.IO.File]::Open($cycleLockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+        try {
+            $concurrentCycleRejected = $false
+            try { Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest | Out-Null } catch { $concurrentCycleRejected = $true }
+            Assert-Felix3 $concurrentCycleRejected 'Cloud cycle lock prevents two workers using the same checkout'
+        }
+        finally { $heldCycleLock.Dispose() }
+    }
+    finally {
+        Set-Item -Path Function:\Invoke-Felix3Task -Value $savedTaskFunction
+        Set-Item -Path Function:\Resume-Felix3Task -Value $savedResumeFunction
+        Remove-Variable -Name felix3TestCloudCode,felix3TestCloudTaskStatus -Scope Global -ErrorAction SilentlyContinue
+        if ($null -eq $savedCycleApiKey) { Remove-Item Env:FELIX_SYNC_KEY -ErrorAction SilentlyContinue } else { $env:FELIX_SYNC_KEY = $savedCycleApiKey }
+    }
+
     $savedSyncEnabled = $env:FELIX_SYNC_ENABLED; $savedSyncKey = $env:FELIX_SYNC_KEY; $savedAgentKey = $env:FELIX_SYNC_AGENT_KEY
     try {
         $env:FELIX_SYNC_ENABLED = 'true'; Remove-Item Env:FELIX_SYNC_KEY,Env:FELIX_SYNC_AGENT_KEY -ErrorAction SilentlyContinue
@@ -334,7 +422,7 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     $rejectionEvents = @(Get-Content -LiteralPath (Join-Path $rejectedPlan.RunDirectory 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json } | ForEach-Object { $_.kind })
     Assert-Felix3 ($rejectionEvents -contains 'plan.rejected' -and $rejectionEvents -contains 'run.blocked') 'plan rejection writes terminal lifecycle events'
 
-    Write-Output 'Felix 3 tests passed: three harness adapters, streamed events/usage, native questions, plan approval/rejection, cancellation, cloud privacy/lifecycle, and resumable workflows.'
+    Write-Output 'Felix 3 tests passed: three harness adapters, work-source claim lifecycle and resume, streamed events/usage, native questions, plan approval/rejection, cancellation, cloud privacy, and resumable workflows.'
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

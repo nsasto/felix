@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 
 . (Join-Path $PSScriptRoot 'Load-Felix3Config.ps1')
 . (Join-Path $PSScriptRoot 'contracts.ps1')
+. (Join-Path $PSScriptRoot 'work-sources\cloud-work-source.ps1')
 . (Join-Path $PSScriptRoot 'run-store.ps1')
 . (Join-Path $PSScriptRoot 'cloud-sync.ps1')
 . (Join-Path $PSScriptRoot 'claude\Invoke-ClaudeHarness.ps1')
@@ -143,6 +144,8 @@ function Invoke-Felix3Task {
         [Parameter(Mandatory = $true)][string]$SpecPath,
         [string]$ConfigPath = '.felix3/config.json',
         [string]$Title,
+        $WorkItem,
+        [string]$NewRunId,
         [string]$ResumeRunId,
         [string]$Answer
     )
@@ -160,8 +163,9 @@ function Invoke-Felix3Task {
     $resuming = -not [string]::IsNullOrWhiteSpace($ResumeRunId)
     $safeRequirementId = [regex]::Replace($RequirementId, '[^A-Za-z0-9._-]', '_')
     if ([string]::IsNullOrWhiteSpace($safeRequirementId)) { $safeRequirementId = 'requirement' }
-    $runId = if ($resuming) { $ResumeRunId } else { '{0}-{1}-{2}' -f $safeRequirementId, (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8)) }
+    $runId = if ($resuming) { $ResumeRunId } elseif ($NewRunId) { $NewRunId } else { '{0}-{1}-{2}' -f $safeRequirementId, (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8)) }
     $runDirectory = Resolve-Felix3RunDirectory -RunsRoot $runsRoot -RunId $runId
+    if (-not $resuming -and (Test-Path -LiteralPath $runDirectory)) { throw "Felix 3 run already exists: $runId" }
     if ($resuming -and -not (Test-Path -LiteralPath $runDirectory -PathType Container)) { throw "Felix 3 run not found: $runId" }
     $planPath = Join-Path $runDirectory 'plan.md'
     $reviewPath = Join-Path $runDirectory 'review.json'
@@ -214,7 +218,13 @@ function Invoke-Felix3Task {
         if (-not $state.PSObject.Properties['finished_at']) { Add-Member -InputObject $state -NotePropertyName finished_at -NotePropertyValue $null }
     }
     else {
-        $workItem = New-Felix3WorkItem -ProjectPath $project -Id $RequirementId -Title $Title -SpecPath $specFile
+        if ($WorkItem) {
+            $workItem = $WorkItem
+            if ([string]$workItem.id -ne $RequirementId) { throw 'Supplied Felix 3 work item id does not match RequirementId.' }
+        }
+        else {
+            $workItem = New-Felix3WorkItem -ProjectPath $project -Id $RequirementId -Title $Title -SpecPath $specFile
+        }
         Assert-Felix3WorkItemContract -WorkItem $workItem -SpecText $specText | Out-Null
         Write-Felix3Json -Path $workItemPath -Value $workItem
         [System.IO.File]::WriteAllText((Join-Path $runDirectory 'spec.md'), $specText, [System.Text.UTF8Encoding]::new($false))

@@ -18,6 +18,18 @@ function Import-Felix3Config {
     if ($config.schema_version -ne 1) {
         throw "Unsupported Felix 3 config schema_version '$($config.schema_version)'; expected 1."
     }
+    $workSourceProvider = if ($config.PSObject.Properties['work_source'] -and $config.work_source -and $config.work_source.PSObject.Properties['provider']) { [string]$config.work_source.provider } else { 'manual-spec' }
+    if ($workSourceProvider -notin @('manual-spec', 'felix-cloud')) {
+        throw "Unsupported Felix 3 work source '$workSourceProvider'; supported work sources are 'manual-spec' and 'felix-cloud'."
+    }
+    if ($workSourceProvider -eq 'felix-cloud') {
+        $cloudWorkSource = if ($config.work_source.PSObject.Properties['cloud']) { $config.work_source.cloud } else { $null }
+        if (-not $cloudWorkSource -or [string]::IsNullOrWhiteSpace([string]$cloudWorkSource.agent_id)) {
+            throw 'work_source.cloud.agent_id is required for the Felix Cloud work source.'
+        }
+        $agentUuid = [guid]::Empty
+        if (-not [guid]::TryParse([string]$cloudWorkSource.agent_id, [ref]$agentUuid)) { throw 'work_source.cloud.agent_id must be a Cloud agent UUID.' }
+    }
     $provider = [string]$config.harness.provider
     if ($provider -notin @('claude-code', 'opencode', 'codex')) {
         throw "Unsupported Felix 3 harness '$provider'; supported harnesses are 'claude-code', 'opencode', and 'codex'."
