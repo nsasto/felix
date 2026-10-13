@@ -30,9 +30,18 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
       - name: Run C# CLI tests
         shell: pwsh
         run: dotnet test tests/Felix.Cli.Tests/Felix.Cli.Tests.csproj --configuration Release
+
+      - name: Run Felix 3 contract and workflow tests
+        shell: pwsh
+        run: pwsh -NoProfile -File .\features\felix3\tests\Test-Felix3.ps1
 
       - name: Run tests
         shell: pwsh
