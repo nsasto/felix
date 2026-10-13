@@ -14,6 +14,18 @@ partial class Program
         };
         setup.SetHandler(async (string harness) => await ExecuteFelix3PowerShell("setup", "-Harness", harness), (Option<string>)setup.Options[0]);
 
+        var migrate = new Command("migrate", "Preview or initialize the Felix 3 project config while preserving Felix 2 data")
+        {
+            new Option<string>("--harness", () => "claude-code", "Harness to configure: claude-code, opencode, or codex"),
+            new Option<bool>("--apply", "Create the Felix 3 config after showing the migration preview")
+        };
+        migrate.SetHandler(async (string harness, bool apply) =>
+        {
+            var args = new List<string> { "migrate", "-Harness", harness };
+            if (apply) args.Add("-Apply");
+            await ExecuteFelix3PowerShell(args.ToArray());
+        }, (Option<string>)migrate.Options[0], (Option<bool>)migrate.Options[1]);
+
         var run = new Command("run", "Run one named spec through plan, build, validation, and review")
         {
             new Argument<string>("requirement-id", "Stable work item ID"),
@@ -55,6 +67,7 @@ partial class Program
         status.SetHandler(async (string runId) => await ExecuteFelix3PowerShell("status", "-RunId", runId), (Argument<string>)status.Arguments[0]);
 
         command.AddCommand(setup);
+        command.AddCommand(migrate);
         command.AddCommand(run);
         command.AddCommand(next);
         command.AddCommand(loop);

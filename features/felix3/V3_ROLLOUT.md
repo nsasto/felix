@@ -50,7 +50,7 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 - Use one versioned project config and one durable run directory. Avoid exposing implementation-only PowerShell entry points as the user workflow.
 - Make setup safe for existing repositories: preserve source/spec files, explain the V2-to-V3 config break, and show the migration preview before changing Felix-managed files.
 
-**Current status:** the packaged CLI now exposes an initial `felix v3` bridge for setup, explicit-spec run, Cloud next/loop, resume, stop, and run status. It remains a development namespace until V3 replaces the V2 command surface; local ready-spec looping and migration preview are still outstanding.
+**Current status:** the packaged CLI exposes an initial `felix v3` bridge for setup, migration preview/apply, explicit-spec run, local or Cloud next/loop, resume, stop, and run status. The embedded release bundle includes Felix 3 and passed extracted-install setup, migration preview/apply, and local `next` smoke checks. The full CLI suite passes (136 tests). Local Markdown specs support readiness, dependency gating, an exclusive checkout lock, persisted resume state, and in-progress/completed status. A fake-Codex local cycle passes through planning, build, validation, and review.
 
 **Exit condition:** a clean install can set up a project and run/resume a spec using each supported harness without importing Felix 2 agent-loop configuration.
 
@@ -94,4 +94,4 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 
 ## Immediate next slice
 
-Implement local ready-spec selection and migration preview, then verify the Cloud adapter against a controlled Felix Cloud environment. In parallel, coordinate agent-owned claim recovery with the Cloud checkout before enabling multi-machine operation. The repository skill should follow the stable CLI and configuration surface. The full .NET CLI suite passes (136 tests), and the Felix 3 PowerShell contract suite passes. A sandboxed test attempt could not connect to its testhost; running with the required local testhost connection resolved it.
+Verify the Cloud adapter against a controlled Felix Cloud environment and run the sample-project smoke matrix. Coordinate agent-owned claim recovery with the Cloud checkout before enabling multi-machine operation. Then make the repository skill and documentation the agent-facing entry point. Migration preview/apply preserves legacy project files; the full .NET CLI suite passes (136 tests), the Felix 3 PowerShell suite passes, and the packaged CLI smoke checks pass.

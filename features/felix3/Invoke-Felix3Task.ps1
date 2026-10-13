@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 
 . (Join-Path $PSScriptRoot 'Load-Felix3Config.ps1')
 . (Join-Path $PSScriptRoot 'contracts.ps1')
+. (Join-Path $PSScriptRoot 'work-sources\local-spec-work-source.ps1')
 . (Join-Path $PSScriptRoot 'work-sources\cloud-work-source.ps1')
 . (Join-Path $PSScriptRoot 'run-store.ps1')
 . (Join-Path $PSScriptRoot 'cloud-sync.ps1')

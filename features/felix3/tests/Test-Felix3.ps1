@@ -33,6 +33,15 @@ try {
     $contractProject = Join-Path $tempRoot 'contract-project'
     $contractSpecs = Join-Path $contractProject 'specs'
     New-Item -ItemType Directory -Path $contractSpecs -Force | Out-Null
+    $localSpecA = Join-Path $contractSpecs 'S-READY.md'
+    $localSpecB = Join-Path $contractSpecs 'S-BLOCKED.md'
+    [IO.File]::WriteAllText($localSpecA, "---`nid: S-READY`ntitle: Ready example`nstatus: ready-for-agent`n---`n# Ready spec`n", [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($localSpecB, "---`nid: S-BLOCKED`ntitle: Blocked example`nstatus: ready-for-agent`ndepends_on: [S-DEP]`n---`n# Blocked spec`n", [Text.UTF8Encoding]::new($false))
+    $localSourceConfig = [pscustomobject]@{ work_source = [pscustomobject]@{ specs_dir = 'specs'; ready_status = 'ready-for-agent' } }
+    $selectedLocalSpec = Get-Felix3ReadyLocalSpec -ProjectPath $contractProject -Config $localSourceConfig
+    Assert-Felix3 ($selectedLocalSpec.Id -eq 'S-READY' -and $selectedLocalSpec.Title -eq 'Ready example') 'local work source selects a ready spec and skips unmet dependencies'
+    Set-Felix3LocalSpecStatus -Path $localSpecA -Status 'in-progress'
+    Assert-Felix3 ((Get-Felix3SpecMetadata -Path $localSpecA)['status'] -eq 'in-progress') 'local work source persists spec status changes'
     $contractSpec = Join-Path $contractSpecs 'S-1.md'
     $contractSpecText = "# Contract spec`n`nAcceptance: preserve the supplied requirement snapshot.`n"
     [System.IO.File]::WriteAllText($contractSpec, $contractSpecText, [System.Text.UTF8Encoding]::new($false))
@@ -422,7 +431,16 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     $rejectionEvents = @(Get-Content -LiteralPath (Join-Path $rejectedPlan.RunDirectory 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json } | ForEach-Object { $_.kind })
     Assert-Felix3 ($rejectionEvents -contains 'plan.rejected' -and $rejectionEvents -contains 'run.blocked') 'plan rejection writes terminal lifecycle events'
 
-    Write-Output 'Felix 3 tests passed: three harness adapters, work-source claim lifecycle and resume, streamed events/usage, native questions, plan approval/rejection, cancellation, cloud privacy, and resumable workflows.'
+    $localReadySpec = Join-Path $project 'specs\S-LOCAL.md'
+    [IO.File]::WriteAllText($localReadySpec, "---`nid: S-LOCAL`ntitle: Local queue smoke`nstatus: ready`n---`nLocal ready work source smoke spec.", [Text.UTF8Encoding]::new($false))
+    $config.workflow.require_plan_approval = $false
+    $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $project '.felix3\config.json') -Encoding UTF8
+    $localCycle = Invoke-Felix3LocalWorkCycle -ProjectPath $project
+    Assert-Felix3 ($localCycle.Status -eq 'completed' -and $localCycle.WorkItem.id -eq 'S-LOCAL') 'local ready-spec cycle runs the selected work item through validation and review'
+    Assert-Felix3 ((Get-Felix3SpecMetadata -Path $localReadySpec)['status'] -eq 'completed') 'successful local work marks its spec completed'
+    Assert-Felix3 (-not (Test-Path -LiteralPath (Join-Path $project '.felix3\work-source\local-active.json'))) 'successful local work clears the resumable active claim'
+
+    Write-Output 'Felix 3 tests passed: three harness adapters, local and Cloud work-source lifecycles, streamed events/usage, native questions, plan approval/rejection, cancellation, cloud privacy, and resumable workflows.'
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

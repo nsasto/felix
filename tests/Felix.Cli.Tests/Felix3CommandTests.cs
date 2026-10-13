@@ -13,6 +13,7 @@ public sealed class Felix3CommandTests
         var names = v3.Subcommands.Select(command => command.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         Assert.Contains("setup", names);
+        Assert.Contains("migrate", names);
         Assert.Contains("run", names);
         Assert.Contains("next", names);
         Assert.Contains("loop", names);

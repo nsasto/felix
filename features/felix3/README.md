@@ -14,12 +14,16 @@ The packaged CLI exposes this prototype under `felix v3` while V3 is being integ
 felix v3 run S-0001 --spec specs\S-0001.md
 felix v3 next
 felix v3 loop --max-iterations 5
+felix v3 migrate --harness codex
+felix v3 migrate --harness codex --apply
 felix v3 resume <run-id> --answer "Use the existing API shape."
 felix v3 stop <run-id>
 felix v3 status <run-id>
 ```
 
-`next` and `loop` require `work_source.provider` to be `felix-cloud`; `run` works with a local spec. The CLI's current V2 command surface remains during this development bridge and will be replaced for the V3 major release.
+`next` and `loop` use the configured work source. The default `manual-spec` source scans `work_source.specs_dir` for Markdown specs whose YAML frontmatter has `status: ready-for-agent`; optional `depends_on: [S-0001]` entries wait until each dependency has `status: completed` or `status: done`. Felix marks a selected spec `in-progress`, resumes an interrupted local run from `.felix3/work-source/local-active.json`, and marks it `completed` only after validation and review pass. Set `work_source.provider` to `felix-cloud` to use the Cloud claim flow instead. `run` still accepts an explicit local spec. The CLI's current V2 command surface remains during this development bridge and will be replaced for the V3 major release.
+
+`felix v3 migrate` is a preview by default. It reports common V2 files and the V3 config it would create. Add `--apply` to create `.felix3/config.json` from the selected harness example. It does not convert V2 requirements or agent settings, edit specs, or overwrite existing V3 configuration; review the generated config and add readiness metadata yourself.
 
 Install and authenticate the harness you choose. Claude Code uses the root example config. OpenCode uses `opencode/felix3-opencode.config.example.json` and the provided agent profiles. Codex CLI uses `codex/felix3-codex.config.example.json`; it honors the user's Codex CLI authentication and configuration. Its sample policy uses read-only planning/review and workspace-write building, with approval prompts disabled for non-interactive execution. Sandbox restrictions still apply, and an operation outside policy fails back to the model. Copy the selected config into the target project's `.felix3/config.json`, then add its validation commands:
 
