@@ -29,6 +29,36 @@ function New-FakeCli {
 $tempRoot = Join-Path $PSScriptRoot (".test-run-{0}" -f [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 try {
+    # Stable V3 work-item, harness-result, event, and state-transition contracts.
+    $contractProject = Join-Path $tempRoot 'contract-project'
+    $contractSpecs = Join-Path $contractProject 'specs'
+    New-Item -ItemType Directory -Path $contractSpecs -Force | Out-Null
+    $contractSpec = Join-Path $contractSpecs 'S-1.md'
+    $contractSpecText = "# Contract spec`n`nAcceptance: preserve the supplied requirement snapshot.`n"
+    [System.IO.File]::WriteAllText($contractSpec, $contractSpecText, [System.Text.UTF8Encoding]::new($false))
+    $workItem = New-Felix3WorkItem -ProjectPath $contractProject -Id ' S-1 ' -Title ' Contract example ' -SpecPath 'specs/S-1.md' -DependsOn @('S-0','S-0','')
+    Assert-Felix3 ($workItem.schema -eq 'felix3-work-item-v1' -and $workItem.id -eq 'S-1' -and $workItem.source.provider -eq 'manual-spec') 'work item normalizes IDs and records its source'
+    Assert-Felix3 ($workItem.spec_path -eq 'specs/S-1.md' -and $workItem.depends_on.Count -eq 1) 'work item paths and dependencies are normalized'
+    Assert-Felix3 ($workItem.spec_sha256 -eq (Get-Felix3Sha256Hex -Text $contractSpecText)) 'work item digest binds the exact specification snapshot'
+    Assert-Felix3 ((Assert-Felix3WorkItemContract -WorkItem $workItem -SpecText $contractSpecText).id -eq 'S-1') 'valid work item satisfies the shared source contract'
+    foreach ($badSpecPath in @('../outside.md', [System.IO.Path]::GetFullPath((Join-Path $tempRoot 'outside.md')))) {
+        $rejected = $false
+        try { New-Felix3WorkItem -ProjectPath $contractProject -Id 'S-X' -SpecPath $badSpecPath | Out-Null } catch { $rejected = $true }
+        Assert-Felix3 $rejected 'work item specs cannot escape the project directory'
+    }
+    $tamperedWorkItem = $workItem | ConvertTo-Json -Depth 10 | ConvertFrom-Json
+    $tamperedWorkItem.spec_sha256 = '0' * 64
+    $rejectedDigest = $false
+    try { Assert-Felix3WorkItemContract -WorkItem $tamperedWorkItem -SpecText $contractSpecText | Out-Null } catch { $rejectedDigest = $true }
+    Assert-Felix3 $rejectedDigest 'work item contract rejects spec snapshot mismatch'
+    Assert-Felix3 (Assert-Felix3RunStateTransition -From 'planning' -To 'building') 'planning can advance to building'
+    Assert-Felix3 (Assert-Felix3RunStateTransition -From 'reviewing' -To 'building') 'review findings can route work back to building'
+    foreach ($transition in @(@('completed','building'), @('awaiting-plan-approval','reviewing'), @('blocked','building'))) {
+        $rejected = $false
+        try { Assert-Felix3RunStateTransition -From $transition[0] -To $transition[1] | Out-Null } catch { $rejected = $true }
+        Assert-Felix3 $rejected "invalid run state transition is rejected: $($transition[0]) -> $($transition[1])"
+    }
+
     $runBoundaryRoot = Join-Path $tempRoot 'runs-boundary'
     New-Item -ItemType Directory -Path $runBoundaryRoot -Force | Out-Null
     $safeRunDirectory = Resolve-Felix3RunDirectory -RunsRoot $runBoundaryRoot -RunId 'S-0001-20261013-123456-abcd1234'
@@ -77,6 +107,11 @@ try {
     Assert-Felix3 ($journalLines.Count -eq 2) 'event journal appends one complete JSON record per event'
     $eventTwo = $journalLines[1] | ConvertFrom-Json
     Assert-Felix3 ($eventTwo.seq -eq 2 -and $eventTwo.summary -match '\[REDACTED\]') 'events have stable sequence and redacted summaries'
+    Assert-Felix3 ((Assert-Felix3RunEventContract -Event $eventTwo).event_id -eq 'journal-test:2') 'run events satisfy the durable event contract'
+    $invalidEvent = [pscustomobject]@{ schema='felix3-event-v1'; event_id='wrong'; run_id='journal-test'; seq=3; timestamp=[DateTime]::UtcNow.ToString('o'); kind='phase.started'; phase='building'; harness='codex'; summary=''; payload=$null }
+    $rejectedEvent = $false
+    try { Assert-Felix3RunEventContract -Event $invalidEvent | Out-Null } catch { $rejectedEvent = $true }
+    Assert-Felix3 $rejectedEvent 'run event contract rejects inconsistent event identity'
     $knownTokenLeak = Protect-Felix3Text -Text 'Provider returned key sk-or-v1-0123456789abcdefghijklmnop and github_pat_abcdefghijklmnopqrstuvwxyz123456'
     Assert-Felix3 ($knownTokenLeak -notmatch 'sk-or-v1-|github_pat_') 'common provider and source-control tokens are redacted from summaries'
     $question = Get-Felix3QuestionFromText '<felix3-question>{"question":"Choose?","choices":["A","B"],"context":"Public API choice"}</felix3-question>'
@@ -128,6 +163,14 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
             $codexArgs = @(Get-Content -LiteralPath $captureArgsPath -Raw | ConvertFrom-Json)
             Assert-Felix3 ($codexArgs -notcontains '-a' -and $codexArgs -contains '-c' -and ($codexArgs -join ' ') -match 'approval_policy="on-request"') 'Codex adapter uses supported approval config overrides'
         }
+        $expectedHarness = @{ claude='claude-code'; opencode='opencode'; codex='codex' }[$name]
+        Assert-Felix3 ((Assert-Felix3HarnessResultContract -Result $result -ExpectedHarness $expectedHarness -ExpectedPhase 'building').Harness -eq $expectedHarness) "$name adapter satisfies the common result contract"
+        $invalidResult = $result | ConvertTo-Json -Depth 10 | ConvertFrom-Json
+        $invalidResult.Succeeded = $true
+        $invalidResult.Interrupted = $true
+        $rejectedResult = $false
+        try { Assert-Felix3HarnessResultContract -Result $invalidResult -ExpectedHarness $expectedHarness -ExpectedPhase 'building' | Out-Null } catch { $rejectedResult = $true }
+        Assert-Felix3 $rejectedResult "$name result contract rejects contradictory outcome flags"
         Assert-Felix3 $result.Succeeded "$name adapter succeeds on its JSONL protocol"
         Assert-Felix3 (Test-Path -LiteralPath $result.RawOutputPath) "$name raw output is written while streaming"
         Assert-Felix3 ([string]$result.SessionId -eq "$name-session") "$name session ID is normalized"

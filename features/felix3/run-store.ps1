@@ -58,9 +58,11 @@ function global:Write-Felix3RunEvent {
         summary = Protect-Felix3Text -Text $Summary
         payload = $Payload
     }
-    $line = $event | ConvertTo-Json -Depth 30 -Compress
+    $eventObject = [pscustomobject]$event
+    Assert-Felix3RunEventContract -Event $eventObject | Out-Null
+    $line = $eventObject | ConvertTo-Json -Depth 30 -Compress
     [System.IO.File]::AppendAllText($Journal.EventPath, $line + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
-    return [pscustomobject]$event
+    return $eventObject
 }
 
 function global:New-Felix3EventSink {

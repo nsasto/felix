@@ -1,6 +1,6 @@
 # Felix 3 — Harness Coordinator
 
-Felix 3 is an isolated design and implementation area. Work here must not change the current Felix runtime until a migration is deliberately approved.
+Felix 3 is the active target for the next major Felix release. This directory contains the harness/coordinator prototype; it is not yet the packaged CLI workflow. Follow [V3_ROLLOUT.md](V3_ROLLOUT.md) for the migration sequence and release acceptance gates.
 
 ## Harness adapters and task coordinator
 
