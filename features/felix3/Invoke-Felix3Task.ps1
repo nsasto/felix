@@ -303,10 +303,8 @@ function Invoke-Felix3Task {
         }
         else {
         $planningPrompt = Read-Felix3Template -Path (Join-Path $templates 'planning.md') -Values $sharedValues
-        if ($config.harness.provider -in @('opencode', 'codex')) {
-            $planningPrompt = $planningPrompt.Replace('Write the plan to the exact required path. Include:', 'Return the complete plan as Markdown in your final response. Felix 3 will persist that response to the required plan path. Include:')
-            $planningPrompt += "`n`nDo not attempt to modify files. Your final answer must contain the complete plan and nothing outside it."
-        }
+        $planningPrompt = $planningPrompt.Replace('Write the plan to the exact required path. Include:', 'Return the complete plan as Markdown in your final response. Felix 3 will persist that response to the required plan path. Include:')
+        $planningPrompt += "`n`nDo not attempt to modify files. Your final answer must contain the complete plan and nothing outside it."
         Set-Felix3RunStatus -State $state -Status 'planning'; $state.active_phase = 'planning'
         Write-Felix3AtomicJson -Path $statePath -Value $state
         $planResult = & $invokePhase 'planning' $planningPrompt (Join-Path $runDirectory $(if ($resuming -and $resumeSession) { 'planning-resume' } else { 'planning' })) $(if ($resumePhase -eq 'planning') { $resumeSession } else { $null })
@@ -314,7 +312,7 @@ function Invoke-Felix3Task {
         if (Suspend-Felix3ForQuestion -Result $planResult -Phase planning -State $state -StatePath $statePath -RunDirectory $runDirectory -Journal $journal -Cloud $cloud) { return [pscustomobject]@{ Status = 'awaiting-input'; RunId = $runId; RunDirectory = $runDirectory; StatePath = $statePath; PlanPath = $planPath; Outcome = 'Agent needs human input.' } }
         $state.phases += [pscustomobject]@{ name = 'planning'; status = if ($planResult.Succeeded) { 'succeeded' } else { 'failed' }; result = $planResult.ResultPath }
         if (-not $planResult.Succeeded) { throw "Planning harness failed: $($planResult.Error)" }
-        if ($config.harness.provider -in @('opencode', 'codex') -and -not (Test-Path -LiteralPath $planPath -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $planPath -PathType Leaf)) {
             Set-Content -LiteralPath $planPath -Value $planResult.ResultText -Encoding UTF8
         }
         if (-not (Test-Path -LiteralPath $planPath -PathType Leaf)) { throw "Planning phase did not create the required plan: $planPath" }
@@ -379,10 +377,8 @@ function Invoke-Felix3Task {
             $reviewValues = @{} + $sharedValues
             $reviewValues['VALIDATION_EVIDENCE'] = $validation.Path
             $reviewPrompt = Read-Felix3Template -Path (Join-Path $templates 'reviewing.md') -Values $reviewValues
-            if ($config.harness.provider -in @('opencode', 'codex')) {
-                $reviewPrompt = $reviewPrompt.Replace('Write one JSON object to the exact review output path:', 'Return one JSON object as your complete final response. Felix 3 will persist it to the required review output path:')
-                $reviewPrompt += "`n`nDo not modify any files. Return only the JSON object without Markdown fences or surrounding commentary."
-            }
+            $reviewPrompt = $reviewPrompt.Replace('Write one JSON object to the exact review output path:', 'Return one JSON object as your complete final response. Felix 3 will persist it to the required review output path:')
+            $reviewPrompt += "`n`nDo not modify any files. Return only the JSON object without Markdown fences or surrounding commentary."
             Remove-Item -LiteralPath $reviewPath -Force -ErrorAction SilentlyContinue
             $reviewSession = if ($resuming -and $resumePhase -eq 'reviewing' -and $cycle -eq $firstReviewCycle) { $resumeSession } elseif ($reviewSessionPolicy -eq 'resume' -and $cycle -gt 1 -and $latestReview) { $latestReview.SessionId } else { $null }
             $reviewFolder = if ($reviewSession) { "reviewing-$cycle-resume" } else { "reviewing-$cycle" }
@@ -392,7 +388,7 @@ function Invoke-Felix3Task {
             $latestReview = $reviewResult
             $state.phases += [pscustomobject]@{ name = "reviewing-$cycle"; status = if ($reviewResult.Succeeded) { 'succeeded' } else { 'failed' }; result = $reviewResult.ResultPath }
             if (-not $reviewResult.Succeeded) { throw "Review harness failed: $($reviewResult.Error)" }
-            if ($config.harness.provider -in @('opencode', 'codex') -and $reviewResult.ResultText) {
+            if (-not (Test-Path -LiteralPath $reviewPath -PathType Leaf) -and $reviewResult.ResultText) {
                 $reviewJsonText = ConvertTo-Felix3ReviewJsonText -Text $reviewResult.ResultText
                 Set-Content -LiteralPath $reviewPath -Value $reviewJsonText -Encoding UTF8
             }

@@ -431,6 +431,41 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     $rejectionEvents = @(Get-Content -LiteralPath (Join-Path $rejectedPlan.RunDirectory 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json } | ForEach-Object { $_.kind })
     Assert-Felix3 ($rejectionEvents -contains 'plan.rejected' -and $rejectionEvents -contains 'run.blocked') 'plan rejection writes terminal lifecycle events'
 
+    $claudeCoordinatorSource = @'
+import json,pathlib,sys
+counter=pathlib.Path('fake-claude-phase-count')
+phase=int(counter.read_text())+1 if counter.exists() else 1
+counter.write_text(str(phase))
+if phase == 1:
+ text='''# Plan\n\n## Acceptance Coverage\n| Criterion | Task | Check |\n|---|---|---|\n| Smoke output | Task 1 | Validate |\n\n## Tasks\n- [ ] Create the smoke output.\n\n## Validation\n- Run configured validation.'''
+elif phase == 3:
+ text='{"schema":"felix3-review-v1","decision":"approved","summary":"Approved","findings":[]}'
+else:
+ pathlib.Path('harness-smoke.txt').write_text('Felix 3 harness smoke\n',encoding='utf-8')
+ text='Implementation complete.'
+print(json.dumps({'type':'result','session_id':'claude-coordinator-session','result':text,'usage':{'input_tokens':10,'output_tokens':5},'total_cost_usd':0.001}),flush=True)
+'@
+    $claudeCoordinatorExe = New-FakeCli -Root $tempRoot -Name 'fake-claude-coordinator' -Source $claudeCoordinatorSource
+    $claudeSpec = Join-Path $project 'specs\S-CLAUDE.md'
+    Set-Content -LiteralPath $claudeSpec -Value 'Claude coordinator smoke spec.' -Encoding UTF8
+    $config.workflow.require_plan_approval = $false
+    $config.harness.provider = 'claude-code'
+    $config.harness['claude-code'] = @{
+        executable = $claudeCoordinatorExe; model = 'test'; permission_mode = 'default'; max_turns = 10; session_policy = 'fresh'
+        phases = @{
+            planning = @{ permission_mode = 'plan'; max_turns = 10; session_policy = 'fresh' }
+            building = @{ permission_mode = 'acceptEdits'; max_turns = 10; session_policy = 'resume' }
+            reviewing = @{ permission_mode = 'plan'; max_turns = 10; session_policy = 'fresh' }
+        }
+    }
+    $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $project '.felix3\config.json') -Encoding UTF8
+    $claudeCoordinatorRun = Invoke-Felix3Task -ProjectPath $project -RequirementId 'S-CLAUDE' -SpecPath 'specs/S-CLAUDE.md'
+    Assert-Felix3 (Test-Path -LiteralPath (Join-Path $claudeCoordinatorRun.RunDirectory 'plan.md')) 'Claude final plan response is persisted by Felix before build'
+    Assert-Felix3 ($claudeCoordinatorRun.Status -eq 'completed') "Claude coordinator completes planning, build, validation, and review (status=$($claudeCoordinatorRun.Status), outcome=$($claudeCoordinatorRun.Outcome))"
+    Assert-Felix3 ((Get-Content (Join-Path $project 'harness-smoke.txt') -Raw).Trim() -eq 'Felix 3 harness smoke') 'Claude coordinator completes build, validation, and review'
+    $config.harness.provider = 'codex'
+    $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $project '.felix3\config.json') -Encoding UTF8
+
     $localReadySpec = Join-Path $project 'specs\S-LOCAL.md'
     [IO.File]::WriteAllText($localReadySpec, "---`nid: S-LOCAL`ntitle: Local queue smoke`nstatus: ready`n---`nLocal ready work source smoke spec.", [Text.UTF8Encoding]::new($false))
     $config.workflow.require_plan_approval = $false
