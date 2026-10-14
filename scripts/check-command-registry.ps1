@@ -64,7 +64,9 @@ $helpSummaryCmds = $helpSummaryMatches | ForEach-Object { $_.Groups[1].Value } |
 # 'help' and 'tui' don't need detail switch cases (tui is trivial, help IS the command)
 # 'dashboard' is a C#-only alias for tui
 # 'install' is a hidden C#-only bootstrap command
-$csOnlyCommands = @("dashboard", "install", "update")
+# 'felix3' is the registration method name for the public 'v3' command; it dispatches
+# to the Felix 3 CLI bundled under features/felix3, not a legacy .felix command script.
+$csOnlyCommands = @("dashboard", "install", "update", "felix3")
 $noDetailRequired = @("help", "tui", "setup", "version", "agent")
 Write-Host ""
 Write-Host "Command Registry Check" -ForegroundColor Cyan
