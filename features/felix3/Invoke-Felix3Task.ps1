@@ -47,6 +47,46 @@ function ConvertTo-Felix3ReviewJsonText {
     return $Text
 }
 
+function Repair-Felix3JsonBackslashEscapes {
+    <# Models commonly emit Windows paths with bare backslashes in JSON strings. Escape only
+       backslashes that are not already valid JSON escape sequences, preserving all other text. #>
+    param([Parameter(Mandatory = $true)][string]$Text)
+    $builder = [System.Text.StringBuilder]::new($Text.Length + 16)
+    $inString = $false
+    for ($i = 0; $i -lt $Text.Length; $i++) {
+        $char = $Text[$i]
+        if (-not $inString) {
+            if ($char -eq '"') { $inString = $true }
+            [void]$builder.Append($char)
+            continue
+        }
+        if ($char -eq '"') {
+            $inString = $false
+            [void]$builder.Append($char)
+            continue
+        }
+        if ($char -eq [char]92) {
+            $next = if ($i + 1 -lt $Text.Length) { $Text[$i + 1] } else { [char]0 }
+            if ($next -in @('"', [char]92, '/', 'b', 'f', 'n', 'r', 't')) {
+                [void]$builder.Append($char)
+                [void]$builder.Append($next)
+                $i++
+                continue
+            }
+            if ($next -eq 'u' -and $i + 5 -lt $Text.Length -and $Text.Substring($i + 2, 4) -match '^[0-9a-fA-F]{4}$') {
+                [void]$builder.Append($Text.Substring($i, 6))
+                $i += 5
+                continue
+            }
+            [void]$builder.Append([char]92)
+            [void]$builder.Append([char]92)
+            continue
+        }
+        [void]$builder.Append($char)
+    }
+    return $builder.ToString()
+}
+
 function Invoke-Felix3Validation {
     param($Config, [string]$ProjectPath, [string]$RunDirectory, $Journal, [string]$CancelTokenPath)
     $commands = @($Config.workflow.validation.commands)
@@ -410,8 +450,19 @@ function Invoke-Felix3Task {
                 Set-Content -LiteralPath $reviewPath -Value $reviewJsonText -Encoding UTF8
             }
             if (-not (Test-Path -LiteralPath $reviewPath -PathType Leaf)) { throw "Review phase did not create required JSON: $reviewPath" }
-            try { $review = Get-Content -LiteralPath $reviewPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop }
-            catch { throw "Review JSON is invalid: $($_.Exception.Message)" }
+            $reviewJsonText = Get-Content -LiteralPath $reviewPath -Raw -Encoding UTF8
+            try { $review = $reviewJsonText | ConvertFrom-Json -ErrorAction Stop }
+            catch {
+                $originalError = $_.Exception.Message
+                $repairedReviewJson = Repair-Felix3JsonBackslashEscapes -Text $reviewJsonText
+                if ($repairedReviewJson -eq $reviewJsonText) { throw "Review JSON is invalid: $originalError" }
+                try {
+                    $review = $repairedReviewJson | ConvertFrom-Json -ErrorAction Stop
+                    Set-Content -LiteralPath $reviewPath -Value $repairedReviewJson -Encoding UTF8
+                    Write-Warning 'Review JSON contained unescaped backslashes in a string; Felix repaired the JSON before continuing.'
+                }
+                catch { throw "Review JSON is invalid after repairing unescaped backslashes: $($_.Exception.Message)" }
+            }
             if ($review.decision -eq 'approved') { $approved = $true; break }
             if ($review.decision -ne 'changes_requested') { throw "Unknown review decision '$($review.decision)'." }
             if ($cycle -lt [int]$config.workflow.max_review_cycles) {

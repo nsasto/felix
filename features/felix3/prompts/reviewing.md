@@ -25,3 +25,5 @@ Write one JSON object to the exact review output path:
 ```
 
 Use `decision: "changes_requested"` when a material defect or missing acceptance criterion must be fixed. Each finding must include `severity`, `file`, `line`, `problem`, and `suggested_fix`. Use `approved` only when no material changes are required. Do not edit source files, plan files, or run state. Felix 3 validates the review artifact and makes the workflow decision.
+
+Return syntactically valid JSON. Escape quotes, backslashes, and control characters inside JSON strings; in particular, write Windows paths with doubled backslashes (for example, `scripts\\check.ps1`) or use forward slashes.
