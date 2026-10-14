@@ -16,7 +16,7 @@ partial class Program
         var installDir = GetInstallDirectory();
         var installedVersion = GetInstalledVersion(installDir);
         var embeddedVersion = ReadEmbeddedVersion();
-        var currentVersion = installedVersion ?? embeddedVersion;
+        var currentVersion = embeddedVersion;
 
         string branch = "-";
         string commit = "-";

@@ -464,7 +464,7 @@ partial class Program
         var currentAgentLabel = currentAgent == null
             ? "not set"
             : $"{currentAgent.Name} ({currentAgent.ModelDisplay})";
-        var versionLabel = GetInstalledVersion(_felixInstallDir)
+        var versionLabel = ReadEmbeddedVersion()
             ?? typeof(Program).Assembly.GetName().Version?.ToString()
             ?? "unknown";
 
