@@ -50,6 +50,12 @@ function Import-Felix3Config {
 
     foreach ($key in @('planning', 'building', 'reviewing')) {
         $phase = $harnessConfig.phases.$key
+        if ($provider -eq 'claude-code') {
+            $allowedTools = if ($phase.PSObject.Properties['allowed_tools']) { @($phase.allowed_tools) } elseif ($harnessConfig.PSObject.Properties['allowed_tools']) { @($harnessConfig.allowed_tools) } else { @() }
+            if (@($allowedTools | Where-Object { $_ -isnot [string] -or [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
+                throw "harness.claude-code.phases.$key.allowed_tools must contain non-empty Claude Code tool names."
+            }
+        }
         if ($provider -eq 'claude-code' -and $phase.max_turns -and ([int]$phase.max_turns -lt 1 -or [int]$phase.max_turns -gt 500)) {
             throw "harness.claude-code.phases.$key.max_turns must be between 1 and 500."
         }
@@ -99,6 +105,8 @@ function Get-Felix3PhaseConfig {
     $baseAgent = if ($base.PSObject.Properties['agent']) { $base.agent } else { $null }
     $phaseAutoApprove = if ($phaseConfig.PSObject.Properties['auto_approve']) { $phaseConfig.auto_approve } else { $null }
     $baseAutoApprove = if ($base.PSObject.Properties['auto_approve']) { $base.auto_approve } else { $null }
+    $phaseAllowedTools = if ($phaseConfig.PSObject.Properties['allowed_tools']) { @($phaseConfig.allowed_tools) } else { $null }
+    $baseAllowedTools = if ($base.PSObject.Properties['allowed_tools']) { @($base.allowed_tools) } else { @() }
     $phaseSessionPolicy = if ($phaseConfig.PSObject.Properties['session_policy']) { $phaseConfig.session_policy } else { $null }
     $baseSessionPolicy = if ($base.PSObject.Properties['session_policy']) { $base.session_policy } else { $null }
     return [pscustomobject]@{
@@ -109,6 +117,7 @@ function Get-Felix3PhaseConfig {
         max_turns = if ($phaseMaxTurns) { [int]$phaseMaxTurns } elseif ($baseMaxTurns) { [int]$baseMaxTurns } else { $null }
         agent = if ($phaseAgent) { [string]$phaseAgent } elseif ($baseAgent) { [string]$baseAgent } else { $null }
         auto_approve = if ($null -ne $phaseAutoApprove) { [bool]$phaseAutoApprove } elseif ($null -ne $baseAutoApprove) { [bool]$baseAutoApprove } else { $false }
+        allowed_tools = if ($null -ne $phaseAllowedTools) { $phaseAllowedTools } else { $baseAllowedTools }
         session_policy = if ($phaseSessionPolicy) { [string]$phaseSessionPolicy } elseif ($baseSessionPolicy) { [string]$baseSessionPolicy } else { 'fresh' }
         sandbox = if ($phaseConfig.PSObject.Properties['sandbox'] -and $phaseConfig.sandbox) { [string]$phaseConfig.sandbox } elseif ($base.PSObject.Properties['sandbox'] -and $base.sandbox) { [string]$base.sandbox } else { 'read-only' }
         approval_policy = if ($phaseConfig.PSObject.Properties['approval_policy'] -and $phaseConfig.approval_policy) { [string]$phaseConfig.approval_policy } elseif ($base.PSObject.Properties['approval_policy'] -and $base.approval_policy) { [string]$base.approval_policy } else { 'on-request' }

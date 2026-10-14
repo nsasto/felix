@@ -117,9 +117,9 @@ function Assert-Felix3RunStateTransition {
 
     $allowed = @{
         'new' = @('planning')
-        'planning' = @('building','awaiting-input','awaiting-plan-approval','interrupted','blocked')
-        'building' = @('building','reviewing','awaiting-input','interrupted','blocked')
-        'reviewing' = @('building','completed','awaiting-input','interrupted','blocked')
+        'planning' = @('building','awaiting-input','awaiting-plan-approval','stop-requested','interrupted','blocked')
+        'building' = @('building','reviewing','awaiting-input','stop-requested','interrupted','blocked')
+        'reviewing' = @('building','completed','awaiting-input','stop-requested','interrupted','blocked')
         'awaiting-input' = @('planning','building','reviewing','blocked')
         'awaiting-plan-approval' = @('building','blocked')
         'interrupted' = @('planning','building','reviewing','blocked')

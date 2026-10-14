@@ -5,7 +5,8 @@ class Fel3TestCloudClient {
     [object[]]$Events = @()
     [int]$FinishCount = 0
     [int]$FlushCount = 0
-    [void] AppendEvents([string]$RunId, [array]$Events) { $this.Events = @($Events) }
+    [bool]$FailAppend = $false
+    [void] AppendEvents([string]$RunId, [array]$Events) { if ($this.FailAppend) { throw 'simulated offline upload' }; $this.Events = @($Events) }
     [void] Flush() { $this.FlushCount++ }
     [void] FinishRun([string]$RunId, [hashtable]$Result) { $this.FinishCount++ }
     [void] UploadArtifact([string]$RunId, [string]$RelativePath, [string]$LocalPath) { }
@@ -85,10 +86,20 @@ try {
         $loadedConfig = Import-Felix3Config -Path (Resolve-Path -LiteralPath $configPath).Path
         Assert-Felix3 ($loadedConfig.harness.provider -in @('claude-code','opencode','codex')) "example config validates: $(Split-Path $configPath -Leaf)"
     }
+    $allowedToolsConfig = Import-Felix3Config -Path (Join-Path $PSScriptRoot '..\felix3.config.example.json')
+    $claudeConfigBlock = $allowedToolsConfig.harness.'claude-code'
+    $claudeConfigBlock | Add-Member -NotePropertyName allowed_tools -NotePropertyValue @('Read')
+    $claudeConfigBlock.phases.building | Add-Member -NotePropertyName allowed_tools -NotePropertyValue @('Bash(python -m unittest:*)')
+    $allowedToolsPhase = Get-Felix3PhaseConfig -Config $allowedToolsConfig -Phase building
+    $allowedBuildTools = @($allowedToolsPhase.allowed_tools)
+    Assert-Felix3 ($allowedBuildTools.Count -eq 1 -and $allowedBuildTools[0] -eq 'Bash(python -m unittest:*)') 'Claude phase config can narrow inherited allowed tools to a build-phase list'
+    $allowedToolsPlan = Get-Felix3PhaseConfig -Config $allowedToolsConfig -Phase planning
+    $allowedPlanningTools = @($allowedToolsPlan.allowed_tools)
+    Assert-Felix3 ($allowedPlanningTools.Count -eq 1 -and $allowedPlanningTools[0] -eq 'Read') 'Claude phase config inherits base allowed tools when no phase override exists'
     $savedSyncUrl = $env:FELIX_SYNC_URL
     try {
         Remove-Item Env:FELIX_SYNC_URL -ErrorAction SilentlyContinue
-        Assert-Felix3 ((Resolve-Felix3CloudBaseUrl -Settings ([pscustomobject]@{})) -eq 'https://runfelix.io') 'cloud sync defaults to the documented Felix endpoint'
+        Assert-Felix3 ((Resolve-Felix3CloudBaseUrl -Settings ([pscustomobject]@{})) -eq 'https://api.runfelix.io') 'cloud sync defaults to the Felix Cloud API endpoint'
         Assert-Felix3 ((Resolve-Felix3CloudBaseUrl -Settings ([pscustomobject]@{ base_url = 'https://custom.example' })) -eq 'https://custom.example') 'cloud sync honors its configured endpoint'
         $env:FELIX_SYNC_URL = 'https://env.example'
         Assert-Felix3 ((Resolve-Felix3CloudBaseUrl -Settings ([pscustomobject]@{ base_url = 'https://custom.example' })) -eq 'https://env.example') 'cloud sync environment URL overrides configuration'
@@ -193,6 +204,17 @@ try {
         $startsAfterStickyRecovery = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/start$' }).Count
         Assert-Felix3 ($stickyRecoveryTriggered -and $startsAfterStickyRecovery -eq $startsBeforeStickyRecovery -and $stickyClaim.recovery_required) 'Cloud in-progress sticky claim blocks execution without calling start'
         Remove-Item -LiteralPath $guardClaimPath -Force
+        $global:felix3TestCloudCode = 'C-105'; $global:felix3TestCloudClaimStatus = $null
+        $startsBeforeUnknownStatus = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/start$' }).Count
+        $releasesBeforeUnknownStatus = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/release$' }).Count
+        $tasksBeforeUnknownStatus = $global:felix3CloudTaskCalls
+        $unknownStatusRejected = $false
+        try { Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest | Out-Null } catch { $unknownStatusRejected = $_.Exception.Message -match 'recognized claim status' }
+        $unknownStatusClaim = Get-Content -LiteralPath $guardClaimPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $startsAfterUnknownStatus = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/start$' }).Count
+        $releasesAfterUnknownStatus = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/release$' }).Count
+        Assert-Felix3 ($unknownStatusRejected -and $startsAfterUnknownStatus -eq $startsBeforeUnknownStatus -and $releasesAfterUnknownStatus -eq $releasesBeforeUnknownStatus -and $global:felix3CloudTaskCalls -eq $tasksBeforeUnknownStatus -and $unknownStatusClaim.recovery_required -eq $true) 'Cloud response with missing claim status preserves recovery state and blocks start, release, and harness execution'
+        Remove-Item -LiteralPath $guardClaimPath -Force
         $global:felix3TestCloudClaimStatus = 'reserved'
         $cycleLockPath = Join-Path (Join-Path (Join-Path $cloudProject '.felix3') 'work-source') 'cloud-cycle.lock'
         $heldCycleLock = [System.IO.File]::Open($cycleLockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
@@ -258,8 +280,9 @@ try {
     # Each native CLI adapter streams its JSONL events and normalizes final usage.
     $fixtureSources = @{
         claude = @'
-import json
+import json,sys,os
 print(json.dumps({'type':'result','session_id':'claude-session','result':'claude done','usage':{'input_tokens':12,'output_tokens':3},'total_cost_usd':0.001}),flush=True)
+if os.environ.get('FELIX3_CAPTURE_CLAUDE_ARGS'): open(os.environ['FELIX3_CAPTURE_CLAUDE_ARGS'],'w',encoding='utf-8').write(json.dumps(sys.argv[1:]))
 '@
         opencode = @'
 import json
@@ -279,7 +302,14 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
         New-Item -ItemType Directory -Path $phaseDirectory -Force | Out-Null
         $executable = New-FakeCli -Root $tempRoot -Name "fake-$name" -Source $fixtureSources[$name]
         $sink = New-Felix3EventSink -Journal $journal -Phase "adapter-$name" -Harness $name
-        if ($name -eq 'claude') { $result = Invoke-ClaudeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -Journal $journal -EventSink $sink }
+        if ($name -eq 'claude') {
+            $captureClaudeArgsPath = Join-Path $tempRoot 'claude-args.json'; $env:FELIX3_CAPTURE_CLAUDE_ARGS = $captureClaudeArgsPath
+            try { $result = Invoke-ClaudeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -AllowedTools @('Bash(python -m unittest:*)','Read') -Journal $journal -EventSink $sink }
+            finally { Remove-Item Env:FELIX3_CAPTURE_CLAUDE_ARGS -ErrorAction SilentlyContinue }
+            $claudeArgs = @(Get-Content -LiteralPath $captureClaudeArgsPath -Raw | ConvertFrom-Json)
+            $allowedToolsIndex = [Array]::IndexOf($claudeArgs, '--allowedTools')
+            Assert-Felix3 ($allowedToolsIndex -ge 0 -and $claudeArgs[$allowedToolsIndex + 1] -eq 'Bash(python -m unittest:*)' -and $claudeArgs[$allowedToolsIndex + 2] -eq 'Read') 'Claude adapter forwards scoped allowed tools without widening the default policy'
+        }
         elseif ($name -eq 'opencode') { $result = Invoke-OpenCodeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -Journal $journal -EventSink $sink }
         else {
             $captureArgsPath = Join-Path $tempRoot 'codex-args.json'; $env:FELIX3_CAPTURE_ARGS = $captureArgsPath
@@ -368,7 +398,7 @@ time.sleep(15)
 
     # Cloud event payloads omit streamed content and redact question text unless explicitly opted in.
     $cloudStatePath = Join-Path $tempRoot 'cloud-state.json'
-    @{ last_event_seq = 0 } | ConvertTo-Json | Set-Content -LiteralPath $cloudStatePath -Encoding UTF8
+    @{ last_event_seq = 0; updated_at = [DateTime]::UtcNow.ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cloudStatePath -Encoding UTF8
     $fakeCloudClient = [Fel3TestCloudClient]::new()
     $cloud = [pscustomobject]@{ Client = $fakeCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; include_question_text = $false; artifacts = @() } }
     Add-Felix3CloudEvent -Cloud $cloud -Event ([pscustomobject]@{ kind = 'output.delta'; event_id = 'e1'; run_id = 'local'; seq = 1; phase = 'building'; harness = 'codex'; summary = 'private source text'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{} })
@@ -376,6 +406,45 @@ time.sleep(15)
     Add-Felix3CloudEvent -Cloud $cloud -Event ([pscustomobject]@{ kind = 'question.requested'; event_id = 'e2'; run_id = 'local'; seq = 2; phase = 'planning'; harness = 'codex'; summary = 'Sensitive project question?'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{ question = 'Sensitive project question?' } })
     $sentQuestion = $fakeCloudClient.Events[0]
     Assert-Felix3 ($sentQuestion.message -eq 'Human input requested.' -and ($sentQuestion | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Sensitive project question') 'cloud question summaries contain no question text by default'
+    $retryCloudClient = [Fel3TestCloudClient]::new()
+    $retryCloudClient.FailAppend = $true
+    $retryCloud = [pscustomobject]@{ Client = $retryCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = $cloud.Settings }
+    Add-Felix3CloudEvent -Cloud $retryCloud -Event ([pscustomobject]@{ kind = 'phase.completed'; event_id = 'e-retry'; run_id = 'local'; seq = 3; phase = 'planning'; harness = 'codex'; summary = 'Planning done'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{} })
+    Assert-Felix3 ($retryCloud.Buffer.Count -eq 1) 'failed Cloud event upload retains the batch for retry'
+    $retryCloudClient.FailAppend = $false
+    Send-Felix3CloudEvents -Cloud $retryCloud
+    $retriedSequence = (Get-Content -LiteralPath $cloudStatePath -Raw | ConvertFrom-Json).last_event_seq
+    Assert-Felix3 ($retryCloud.Buffer.Count -eq 0 -and $retryCloudClient.Events.Count -eq 1 -and $retriedSequence -eq 2) 'Cloud event retry clears the buffer and advances the durable sequence only after success'
+    . (Join-Path $PSScriptRoot '..\..\..\.felix\core\sync-interface.ps1')
+    . (Join-Path $PSScriptRoot '..\..\..\.felix\plugins\sync-http\http-client.ps1')
+    $savedRestFunction = Get-Item Function:\global:Invoke-RestMethod -ErrorAction SilentlyContinue
+    $global:felix3OutboxOffline = $true
+    $global:felix3OutboxRequests = [System.Collections.ArrayList]::new()
+    Set-Item Function:\global:Invoke-RestMethod -Value {
+        [CmdletBinding()]
+        param([string]$Method, [string]$Uri, [hashtable]$Headers, [object]$Body, [int]$TimeoutSec, [string]$ContentType)
+        if ($global:felix3OutboxOffline) { throw 'Unable to connect (simulated offline).' }
+        [void]$global:felix3OutboxRequests.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Body = $Body })
+        return @{ ok = $true }
+    }
+    $syncOutboxDirectory = Join-Path $tempRoot 'sync-http-outbox'
+    New-Item -ItemType Directory -Path $syncOutboxDirectory -Force | Out-Null
+    try {
+        $syncClient = [HttpSync]::new(@{ base_url = 'http://localhost:12345'; api_key = 'fsk-test' }, $syncOutboxDirectory)
+        $syncClient.AppendEvents('felix3-outbox-smoke', @(@{ type = 'felix3.phase.completed'; level = 'info'; message = 'phase done'; run_id = 'cloud-run'; data = @{ sequence = 1 } }))
+        $runOutboxPath = Join-Path (Join-Path $syncOutboxDirectory 'outbox') 'run-felix3-outbox-smoke.jsonl'
+        Assert-Felix3 (Test-Path -LiteralPath $runOutboxPath) 'offline sync-http event upload is persisted in its JSONL disk outbox'
+        Assert-Felix3 (@(Get-Content -LiteralPath $runOutboxPath).Count -eq 1) 'disk outbox contains one event record'
+        $global:felix3OutboxOffline = $false
+        $syncClient.FinishRun('felix3-outbox-smoke', @{ status = 'completed' })
+        Assert-Felix3 ((-not (Test-Path -LiteralPath $runOutboxPath)) -and $global:felix3OutboxRequests.Count -ge 1) 'sync-http reconnect retries queued events and removes the run-event outbox file'
+        Assert-Felix3 (($global:felix3OutboxRequests | Where-Object { $_.Uri -match '/api/runs/felix3-outbox-smoke/events$' }).Count -eq 1) 'disk outbox retry sends the queued event batch to the run events endpoint'
+    }
+    finally {
+        if ($savedRestFunction) { Set-Item Function:\global:Invoke-RestMethod -Value $savedRestFunction.ScriptBlock }
+        else { Remove-Item Function:\global:Invoke-RestMethod -ErrorAction SilentlyContinue }
+        Remove-Variable felix3OutboxOffline, felix3OutboxRequests -Scope Global -ErrorAction SilentlyContinue
+    }
     $optInCloudClient = [Fel3TestCloudClient]::new()
     $optInCloud = [pscustomobject]@{ Client = $optInCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; include_question_text = $true; artifacts = @() } }
     Add-Felix3CloudEvent -Cloud $optInCloud -Event ([pscustomobject]@{ kind = 'question.requested'; event_id = 'e3'; run_id = 'local'; seq = 3; phase = 'planning'; harness = 'codex'; summary = 'Sensitive project question?'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{ question = 'Sensitive project question?' } })
@@ -390,6 +459,18 @@ time.sleep(15)
     $interruptResult = [pscustomobject]@{ Interrupted = $true; Harness = 'codex'; SessionId = 'session' }
     Assert-Felix3 (Suspend-Felix3ForStop -Result $interruptResult -Phase building -State $interruptState -StatePath $interruptStatePath -RunDirectory $interruptRun -Journal $interruptJournal -Cloud $interruptCloud) 'coordinator records an interrupted run'
     Assert-Felix3 ($fakeCloudClient.FinishCount -eq 0 -and $fakeCloudClient.FlushCount -gt 0) 'resumable interruption flushes cloud events without finishing the cloud run'
+
+    $stopProject = Join-Path $tempRoot 'stop-request-project'
+    $stopRun = Join-Path $stopProject '.felix3\runs\stop-request'
+    New-Item -ItemType Directory -Path $stopRun -Force | Out-Null
+    $stopConfig = Import-Felix3Config -Path (Join-Path $PSScriptRoot '..\felix3.config.example.json')
+    Write-Felix3Json -Path (Join-Path $stopProject '.felix3\config.json') -Value $stopConfig
+    $stopState = [ordered]@{ schema = 'felix3-task-state-v2'; id = 'stop-request'; run_id = 'stop-request'; status = 'building'; active_phase = 'building'; phases = @(); validation = $null; outcome = $null; pending_question = $null; process = $null }
+    Write-Felix3AtomicJson -Path (Join-Path $stopRun 'state.json') -Value $stopState
+    $stopResult = Stop-Felix3Task -ProjectPath $stopProject -RunId 'stop-request'
+    $savedStopState = Get-Content (Join-Path $stopRun 'state.json') -Raw | ConvertFrom-Json
+    Assert-Felix3 ($stopResult.Status -eq 'stop-requested' -and $savedStopState.status -eq 'stop-requested') 'Stop-Felix3Task accepts and records a stop request from an active build'
+    Assert-Felix3 (Test-Path (Join-Path $stopRun 'cancel.requested')) 'Stop-Felix3Task writes the cooperative cancellation token'
 
     # The coordinator pauses on a human question, resumes the same session, and finishes its gates.
     $project = Join-Path $tempRoot 'resume-project'
@@ -444,6 +525,13 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     Assert-Felix3 ($state.run_id -eq $first.RunId -and $state.status -eq 'completed') 'resumption preserves run identity and terminal state'
     Assert-Felix3 (Test-Path -LiteralPath (Join-Path $resumed.RunDirectory 'usage.json')) 'resumed run retains aggregated usage'
 
+    $config.harness.codex.Remove('windows_sandbox') | Out-Null
+    $config.workflow.require_plan_approval = $false
+    $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $project '.felix3\config.json') -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $project 'specs\S-DEFAULT-SANDBOX.md') -Value 'Default Codex sandbox setting smoke.' -Encoding UTF8
+    $defaultSandboxRun = Invoke-Felix3Task -ProjectPath $project -RequirementId 'S-DEFAULT-SANDBOX' -SpecPath 'specs/S-DEFAULT-SANDBOX.md'
+    Assert-Felix3 ($defaultSandboxRun.Status -eq 'completed') 'Codex coordinator runs with the optional Windows sandbox override omitted'
+
     Set-Content -LiteralPath (Join-Path $project 'specs\S-2.md') -Value 'Approval workflow smoke spec.' -Encoding UTF8
     $config.workflow.require_plan_approval = $true
     $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $project '.felix3\config.json') -Encoding UTF8
@@ -490,7 +578,7 @@ print(json.dumps({'type':'result','session_id':'claude-coordinator-session','res
     }
     $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $project '.felix3\config.json') -Encoding UTF8
     $claudeCoordinatorRun = Invoke-Felix3Task -ProjectPath $project -RequirementId 'S-CLAUDE' -SpecPath 'specs/S-CLAUDE.md'
-    Assert-Felix3 (Test-Path -LiteralPath (Join-Path $claudeCoordinatorRun.RunDirectory 'plan.md')) 'Claude final plan response is persisted by Felix before build'
+    Assert-Felix3 (Test-Path -LiteralPath (Join-Path $claudeCoordinatorRun.RunDirectory 'plan.md')) "Claude final plan response is persisted by Felix before build (status=$($claudeCoordinatorRun.Status), outcome=$($claudeCoordinatorRun.Outcome))"
     Assert-Felix3 ($claudeCoordinatorRun.Status -eq 'completed') "Claude coordinator completes planning, build, validation, and review (status=$($claudeCoordinatorRun.Status), outcome=$($claudeCoordinatorRun.Outcome))"
     Assert-Felix3 ((Get-Content (Join-Path $project 'harness-smoke.txt') -Raw).Trim() -eq 'Felix 3 harness smoke') 'Claude coordinator completes build, validation, and review'
     $config.harness.provider = 'codex'
@@ -505,7 +593,7 @@ print(json.dumps({'type':'result','session_id':'claude-coordinator-session','res
     Assert-Felix3 ((Get-Felix3SpecMetadata -Path $localReadySpec)['status'] -eq 'completed') 'successful local work marks its spec completed'
     Assert-Felix3 (-not (Test-Path -LiteralPath (Join-Path $project '.felix3\work-source\local-active.json'))) 'successful local work clears the resumable active claim'
 
-    Write-Output 'Felix 3 tests passed: three harness adapters, local and Cloud work-source lifecycles, streamed events/usage, native questions, plan approval/rejection, cancellation, cloud privacy, and resumable workflows.'
+    Write-Output 'Felix 3 tests passed: three harness adapters, local and Cloud work-source lifecycles, streamed events/usage, native questions, plan approval/rejection, cancellation, Cloud privacy, in-memory retry, disk outbox persistence/retry, and resumable workflows.'
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

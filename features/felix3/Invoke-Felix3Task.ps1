@@ -270,10 +270,27 @@ function Invoke-Felix3Task {
         if ($resuming -and $Phase -eq $resumePhase -and $Answer) { $Prompt += "`n`n## Human answer to your pending question`n$Answer`nContinue the same phase and complete its requested output." }
         $eventSink = New-Felix3EventSink -Journal $journal -Phase $Phase -Harness $phaseConfig.provider -CloudSink $cloudSink
         if ($phaseConfig.provider -eq 'claude-code') {
-            $harnessResult = Invoke-ClaudeHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -PermissionMode $phaseConfig.permission_mode -MaxTurns $phaseConfig.max_turns -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
+            $harnessResult = Invoke-ClaudeHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -PermissionMode $phaseConfig.permission_mode -AllowedTools $phaseConfig.allowed_tools -MaxTurns $phaseConfig.max_turns -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
         }
         elseif ($phaseConfig.provider -eq 'codex') {
-            $harnessResult = Invoke-CodexHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Sandbox $phaseConfig.sandbox -ApprovalPolicy $phaseConfig.approval_policy -WindowsSandbox $phaseConfig.windows_sandbox -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
+            $codexArguments = @{
+                Phase = $Phase
+                WorkingDirectory = $project
+                Prompt = $Prompt
+                RunDirectory = $PhaseDirectory
+                Executable = $phaseConfig.executable
+                Model = $phaseConfig.model
+                Sandbox = $phaseConfig.sandbox
+                ApprovalPolicy = $phaseConfig.approval_policy
+                SessionId = $session
+                Journal = $journal
+                EventSink = $eventSink
+                CancelTokenPath = (Join-Path $runDirectory 'cancel.requested')
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$phaseConfig.windows_sandbox)) {
+                $codexArguments.WindowsSandbox = $phaseConfig.windows_sandbox
+            }
+            $harnessResult = Invoke-CodexHarness @codexArguments
         }
         else {
             $harnessResult = Invoke-OpenCodeHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Agent $phaseConfig.agent -AutoApprove:$phaseConfig.auto_approve -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')

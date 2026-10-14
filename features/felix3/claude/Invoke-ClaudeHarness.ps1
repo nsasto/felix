@@ -68,6 +68,7 @@ function Invoke-ClaudeHarness {
         [string]$Executable = 'claude',
         [string]$Model,
         [string]$PermissionMode = 'default',
+        [string[]]$AllowedTools = @(),
         [string]$SessionId,
         [ValidateRange(1, 500)][int]$MaxTurns = 100,
         $Journal,
@@ -93,6 +94,8 @@ function Invoke-ClaudeHarness {
     $arguments = @('-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose', '--max-turns', [string]$MaxTurns)
     if ($Model) { $arguments += @('--model', $Model) }
     if ($PermissionMode) { $arguments += @('--permission-mode', $PermissionMode) }
+    $allowedToolList = @($AllowedTools | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($allowedToolList.Count -gt 0) { $arguments += @('--allowedTools') + $allowedToolList }
     if ($SessionId) { $arguments += @('--resume', $SessionId) }
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo

@@ -12,7 +12,7 @@ function global:Resolve-Felix3CloudBaseUrl {
     if ($env:FELIX_SYNC_URL) { return [string]$env:FELIX_SYNC_URL }
     $configuredBaseUrl = Get-Felix3PropertyValue $Settings 'base_url'
     if ($configuredBaseUrl) { return [string]$configuredBaseUrl }
-    return 'https://runfelix.io'
+    return 'https://api.runfelix.io'
 }
 
 function global:Initialize-Felix3CloudSync {

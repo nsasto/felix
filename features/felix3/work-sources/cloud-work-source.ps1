@@ -224,6 +224,14 @@ function Invoke-Felix3CloudWorkCycle {
     $record = [ordered]@{ schema = 'felix3-cloud-claim-v1'; agent_id = $source.AgentId; work_item = $claimed.WorkItem; remote_spec_path = $claimed.RemoteSpecPath; run_id = $runId; started = $false; pending_action = $null }
     try {
         Write-Felix3CloudClaimRecord -Path $claimPath -Record $record
+        if ($claimed.CloudStatus -notin @('reserved', 'in_progress')) {
+            # Without the server's claim state, Felix cannot know whether this
+            # is new work or an active run whose local state was lost.
+            $record.recovery_required = $true
+            $record.cloud_status = $claimed.CloudStatus
+            Write-Felix3CloudClaimRecord -Path $claimPath -Record $record
+            throw "Cloud work '$($claimed.WorkItem.id)' did not include a recognized claim status. No harness was started; preserve the claim and verify that Felix Cloud's V3 claim API is deployed before recovering it."
+        }
         if ($claimed.CloudStatus -eq 'in_progress') {
             # Cloud sticky-recovery returned an active item, but this checkout
             # has no durable local run record to resume. Preserve it for recovery.

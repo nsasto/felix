@@ -52,6 +52,8 @@ Assert-Equal $reqId $lease1.requirement_id "Lease has correct requirement_id"
 Assert-Equal $CurrentWorkerId $lease1.worker_id "Lease worker_id matches Get-WorkerId"
 Assert-True  ($null -ne $lease1.claimed_at)  "Lease has claimed_at"
 Assert-True  ($null -ne $lease1.lease_until) "Lease has lease_until"
+$leaseFromDisk = Get-LeaseContent -LeasePath (Get-LeasePath -ProjectPath $TmpRepo -RequirementId $reqId)
+Assert-True (Test-LeaseValid -Lease $leaseFromDisk) "Lease parsed from JSON remains valid with locale-converted DateTime values"
 
 $lease2 = New-RequirementLease -ProjectPath $TmpRepo -RequirementId $reqId
 Assert-Null $lease2 "Second claim for same requirement returns null (atomic exclusion)"

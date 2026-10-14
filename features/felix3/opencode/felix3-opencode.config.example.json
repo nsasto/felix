@@ -12,7 +12,7 @@
   },
   "cloud_sync": {
     "enabled": false,
-    "base_url": "https://runfelix.io",
+    "base_url": "https://api.runfelix.io",
     "api_key": "",
     "agent_key": "",
     "include_phase_summaries": true,

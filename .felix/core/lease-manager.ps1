@@ -149,8 +149,15 @@ function Test-LeaseValid {
 
     if (-not $Lease) { return $false }
     try {
-        $until = [DateTime]::Parse($Lease.lease_until)
-        return ((Get-Date).ToUniversalTime() -lt $until)
+        $rawUntil = $Lease.lease_until
+        if ($rawUntil -is [DateTimeOffset]) {
+            $untilUtc = $rawUntil.UtcDateTime
+        } elseif ($rawUntil -is [DateTime]) {
+            $untilUtc = if ($rawUntil.Kind -eq [DateTimeKind]::Unspecified) { [DateTime]::SpecifyKind($rawUntil, [DateTimeKind]::Utc) } else { $rawUntil.ToUniversalTime() }
+        } else {
+            $untilUtc = [DateTimeOffset]::Parse([string]$rawUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::None).UtcDateTime
+        }
+        return ([DateTime]::UtcNow -lt $untilUtc)
     } catch {
         return $false
     }
