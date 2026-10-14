@@ -100,9 +100,16 @@ partial class Program
 
     static string? ResolveFelixScriptPath()
     {
+        // An installed Felix carries its matching engine beside the executable. Prefer that
+        // over walking into a parent user's legacy .felix directory, which may be V2.
+        var executableDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var installedScript = Path.Combine(executableDirectory, "felix.ps1");
+        if (File.Exists(installedScript))
+            return Path.GetFullPath(installedScript);
+
         string? felixPs1 = null;
 
-        var searchDir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        var searchDir = new DirectoryInfo(executableDirectory);
         while (searchDir != null && !File.Exists(Path.Combine(searchDir.FullName, ".felix", "felix.ps1")))
             searchDir = searchDir.Parent;
 

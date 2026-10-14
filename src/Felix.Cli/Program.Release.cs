@@ -643,7 +643,19 @@ rm -rf "$STAGE_ROOT"
                 var selfPath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule!.FileName;
                 var destExeName = OperatingSystem.IsWindows() ? "felix.exe" : "felix";
                 var destExe = Path.Combine(installDir, destExeName);
-                File.Copy(selfPath!, destExe, overwrite: true);
+                var sourceDir = Path.GetDirectoryName(selfPath!)!;
+                // Framework-dependent builds need the managed entry assembly and runtime
+                // metadata beside the apphost. Copy them together so an older installed
+                // felix.dll cannot silently run behind the newly copied executable.
+                foreach (var sourceFile in Directory.EnumerateFiles(sourceDir)
+                             .Where(path => Path.GetFileName(path).Equals(destExeName, StringComparison.OrdinalIgnoreCase)
+                                 || Path.GetExtension(path).Equals(".dll", StringComparison.OrdinalIgnoreCase)
+                                 || Path.GetFileName(path).EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase)
+                                 || Path.GetFileName(path).EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var destination = Path.Combine(installDir, Path.GetFileName(sourceFile));
+                    File.Copy(sourceFile, destination, overwrite: true);
+                }
 
                 if (!OperatingSystem.IsWindows())
                 {
