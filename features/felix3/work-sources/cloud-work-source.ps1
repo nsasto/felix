@@ -99,7 +99,7 @@ function ClaimNext-Felix3CloudWorkItem {
         spec_sha256 = $digest
     }
     Assert-Felix3WorkItemContract -WorkItem $item -SpecText $specText | Out-Null
-    return [pscustomobject]@{ WorkItem = $item; SpecPath = $localSpecPath; SpecText = $specText; RemoteSpecPath = $remoteSpecPath }
+    return [pscustomobject]@{ WorkItem = $item; SpecPath = $localSpecPath; SpecText = $specText; RemoteSpecPath = $remoteSpecPath; CloudStatus = [string](Get-Felix3PropertyValue $claim 'status') }
     }
     catch {
         $claimError = $_
@@ -112,7 +112,7 @@ function ClaimNext-Felix3CloudWorkItem {
 function Start-Felix3CloudWorkItem {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Source, [Parameter(Mandatory)][string]$RequirementId)
-    try { return Invoke-Felix3CloudWorkRequest -Source $Source -Method POST -Path '/api/sync/work/start' -Body @{ code = $RequirementId } }
+    try { return Invoke-Felix3CloudWorkRequest -Source $Source -Method POST -Path '/api/sync/work/start' -Body @{ code = $RequirementId; agent_id = $Source.AgentId } }
     catch {
         $statusCode = $null
         try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { }
@@ -124,13 +124,13 @@ function Start-Felix3CloudWorkItem {
 function Complete-Felix3CloudWorkItem {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Source, [Parameter(Mandatory)][string]$RequirementId)
-    return Invoke-Felix3CloudWorkRequest -Source $Source -Method POST -Path '/api/sync/work/complete' -Body @{ code = $RequirementId }
+    return Invoke-Felix3CloudWorkRequest -Source $Source -Method POST -Path '/api/sync/work/complete' -Body @{ code = $RequirementId; agent_id = $Source.AgentId }
 }
 
 function Release-Felix3CloudWorkItem {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Source, [Parameter(Mandatory)][string]$RequirementId)
-    return Invoke-Felix3CloudWorkRequest -Source $Source -Method POST -Path '/api/sync/work/release' -Body @{ code = $RequirementId }
+    return Invoke-Felix3CloudWorkRequest -Source $Source -Method POST -Path '/api/sync/work/release' -Body @{ code = $RequirementId; agent_id = $Source.AgentId }
 }
 
 function Invoke-Felix3CloudWorkCycle {
@@ -173,8 +173,10 @@ function Invoke-Felix3CloudWorkCycle {
             Remove-Item -LiteralPath $claimPath -Force
         }
         elseif ($savedClaim.work_item) {
+            $startConflict = $false
             if (-not $savedClaim.started) {
-                Start-Felix3CloudWorkItem -Source $source -RequirementId ([string]$savedClaim.work_item.id) | Out-Null
+                $savedStart = Start-Felix3CloudWorkItem -Source $source -RequirementId ([string]$savedClaim.work_item.id)
+                $startConflict = [string]$savedStart.status -eq 'already-started'
                 $savedClaim.started = $true
                 Write-Felix3CloudClaimRecord -Path $claimPath -Record $savedClaim
             }
@@ -190,6 +192,11 @@ function Invoke-Felix3CloudWorkCycle {
                 $run = Resume-Felix3Task -ProjectPath $project -RunId ([string]$savedClaim.run_id) -Answer $Answer -ConfigPath $ConfigPath
             }
             else {
+                if ($startConflict) {
+                    $savedClaim.recovery_required = $true
+                    Write-Felix3CloudClaimRecord -Path $claimPath -Record $savedClaim
+                    throw "Cloud work '$($savedClaim.work_item.id)' is already in progress, but the saved run state is missing. Preserve the claim record and recover the original run artifacts before retrying."
+                }
                 $run = Invoke-Felix3Task -ProjectPath $project -RequirementId $savedClaim.work_item.id -Title $savedClaim.work_item.title -SpecPath $savedSpec -ConfigPath $ConfigPath -WorkItem $savedClaim.work_item -NewRunId $savedClaim.run_id
                 $savedClaim.started = $true
             }
@@ -217,6 +224,13 @@ function Invoke-Felix3CloudWorkCycle {
     $record = [ordered]@{ schema = 'felix3-cloud-claim-v1'; agent_id = $source.AgentId; work_item = $claimed.WorkItem; remote_spec_path = $claimed.RemoteSpecPath; run_id = $runId; started = $false; pending_action = $null }
     try {
         Write-Felix3CloudClaimRecord -Path $claimPath -Record $record
+        if ($claimed.CloudStatus -eq 'in_progress') {
+            # Cloud sticky-recovery returned an active item, but this checkout
+            # has no durable local run record to resume. Preserve it for recovery.
+            $record.recovery_required = $true
+            Write-Felix3CloudClaimRecord -Path $claimPath -Record $record
+            throw "Cloud work '$($claimed.WorkItem.id)' is already in progress for this agent, but no resumable local run was found. Recover the original checkout before retrying."
+        }
         $startResult = Start-Felix3CloudWorkItem -Source $source -RequirementId $claimed.WorkItem.id
         if ([string]$startResult.status -eq 'already-started') {
             # A fresh local claim record means this checkout cannot prove it owns

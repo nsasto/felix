@@ -111,6 +111,8 @@ try {
     Assert-Felix3 ((Test-Path -LiteralPath $cloudClaim.SpecPath) -and $cloudClaim.WorkItem.spec_sha256 -eq (Get-Felix3Sha256Hex -Text $cloudClaim.SpecText)) 'Cloud claim materializes and hashes its local spec snapshot'
     Assert-Felix3 ($cloudRequestLog[0].Uri -match [regex]::Escape($cloudAgentId) -and $cloudRequestLog[0].Headers.Authorization -eq 'Bearer fsk-test-secret') 'Cloud claim scopes the request to configured agent and API key'
     Start-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
+    $cloudStartRequest = $cloudRequestLog | Where-Object { $_.Uri -match '/work/start$' } | Select-Object -First 1
+    Assert-Felix3 ($cloudStartRequest.Body.agent_id -eq $cloudAgentId) 'Cloud lifecycle requests carry the owning agent UUID'
     Complete-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
     Release-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
     Assert-Felix3 (($cloudRequestLog | Where-Object { $_.Uri -match '/work/start$' }).Count -eq 1 -and ($cloudRequestLog | Where-Object { $_.Uri -match '/work/complete$' }).Count -eq 1 -and ($cloudRequestLog | Where-Object { $_.Uri -match '/work/release$' }).Count -eq 1) 'Cloud work lifecycle maps start, complete, and release endpoints'
@@ -142,11 +144,12 @@ try {
     $savedResumeFunction = (Get-Command Resume-Felix3Task -CommandType Function).ScriptBlock
     $savedCloudStartFunction = (Get-Command Start-Felix3CloudWorkItem -CommandType Function).ScriptBlock
     $global:felix3CloudTaskCalls = 0
+    $global:felix3TestCloudClaimStatus = 'reserved'
     $cloudCycleApiLog = [System.Collections.ArrayList]::new()
     $cloudCycleRequest = {
         param($Method, $Uri, $Headers, $Body)
         [void]$cloudCycleApiLog.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Body = $Body })
-        if ($Uri -match '/api/sync/work/next\?') { return @{ code=$global:felix3TestCloudCode; title='Cloud cycle test'; spec_path="specs/$global:felix3TestCloudCode.md"; priority='medium'; depends_on=@() } }
+        if ($Uri -match '/api/sync/work/next\?') { return @{ code=$global:felix3TestCloudCode; title='Cloud cycle test'; spec_path="specs/$global:felix3TestCloudCode.md"; priority='medium'; depends_on=@(); status=$global:felix3TestCloudClaimStatus } }
         if ($Uri -match '/api/sync/specs/file\?') { return "# $global:felix3TestCloudCode`n`nAcceptance: exercise the Cloud cycle.`n" }
         return @{ status='ok' }
     }.GetNewClosure()
@@ -182,6 +185,15 @@ try {
         Assert-Felix3 $retryRecoveryGuardTriggered 'Cloud recovery-required claim cannot be retried as a fresh run'
         Remove-Item -LiteralPath $guardClaimPath -Force
         Set-Item -Path Function:\Start-Felix3CloudWorkItem -Value $savedCloudStartFunction
+        $global:felix3TestCloudCode = 'C-104'; $global:felix3TestCloudClaimStatus = 'in_progress'
+        $startsBeforeStickyRecovery = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/start$' }).Count
+        $stickyRecoveryTriggered = $false
+        try { Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest | Out-Null } catch { $stickyRecoveryTriggered = $_.Exception.Message -match 'Recover the original checkout' }
+        $stickyClaim = Get-Content -LiteralPath $guardClaimPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $startsAfterStickyRecovery = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/start$' }).Count
+        Assert-Felix3 ($stickyRecoveryTriggered -and $startsAfterStickyRecovery -eq $startsBeforeStickyRecovery -and $stickyClaim.recovery_required) 'Cloud in-progress sticky claim blocks execution without calling start'
+        Remove-Item -LiteralPath $guardClaimPath -Force
+        $global:felix3TestCloudClaimStatus = 'reserved'
         $cycleLockPath = Join-Path (Join-Path (Join-Path $cloudProject '.felix3') 'work-source') 'cloud-cycle.lock'
         $heldCycleLock = [System.IO.File]::Open($cycleLockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
         try {
@@ -195,7 +207,7 @@ try {
         Set-Item -Path Function:\Invoke-Felix3Task -Value $savedTaskFunction
         Set-Item -Path Function:\Resume-Felix3Task -Value $savedResumeFunction
         Set-Item -Path Function:\Start-Felix3CloudWorkItem -Value $savedCloudStartFunction
-        Remove-Variable -Name felix3TestCloudCode,felix3TestCloudTaskStatus,felix3CloudTaskCalls -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name felix3TestCloudCode,felix3TestCloudTaskStatus,felix3CloudTaskCalls,felix3TestCloudClaimStatus -Scope Global -ErrorAction SilentlyContinue
         if ($null -eq $savedCycleApiKey) { Remove-Item Env:FELIX_SYNC_KEY -ErrorAction SilentlyContinue } else { $env:FELIX_SYNC_KEY = $savedCycleApiKey }
     }
 
