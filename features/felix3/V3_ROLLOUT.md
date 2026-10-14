@@ -22,12 +22,12 @@ The Cloud backend already exposes project-scoped run creation, batched events, r
 V3 Cloud integration still needs to settle and verify:
 
 - How the explicit Cloud agent UUID and harness/model/machine identity are provisioned and connected.
-- Whether Cloud should expose an idempotent, agent-owned claim/start/recovery operation and claim status for cross-machine recovery.
 - Mapping V3 run lifecycle states to Cloud run and requirement states, especially awaiting-input, interruption, and blocked work.
 - Cloud UI presentation of phase events, usage, questions, and review outcomes.
 - A clear client-version policy and cutover so V2 users know when they must upgrade to retain Cloud access.
+- Cross-machine recovery still needs a shared resumable run state or an explicit takeover protocol; agent ownership and claim status alone cannot move a local harness session or working tree.
 
-The Felix Cloud working tree currently has extensive uncommitted changes. It was inspected read-only; preserve those changes and coordinate Cloud edits with that checkout's owner/workflow.
+The Felix Cloud working tree has extensive pre-existing uncommitted changes. The V3 work has touched only `app/backend/routers/sync.py`, its focused `test_work_allocation.py` tests, and `docs/SYNC_OPERATIONS.md`; do not stage or commit the unrelated Cloud changes.
 
 ## Implementation sequence
 
@@ -42,7 +42,7 @@ The Felix Cloud working tree currently has extensive uncommitted changes. It was
 
 **Current status:** harness, work-item, event, usage, and run-state contracts are defined and covered by the Felix 3 adapter suite. The initial Felix Cloud work-source adapter is implemented against these contracts and the existing API. Its same-checkout lifecycle is tested with a mock transport; live backend and multi-machine behavior remain unverified.
 
-Inspection of the Felix Cloud backend confirms the adapter's `next`, `start`, `complete`, and `release` routes. The Cloud API now returns current claim status and accepts optional agent ownership on lifecycle calls; Felix 3 sends that owner ID and stops on a sticky in-progress claim when its local resumable state is missing. The Cloud checkout has extensive pre-existing uncommitted work; changes were limited to the work-allocation route and its focused tests. Cloud tests still need to run in an environment with its Python dependencies.
+Inspection of the Felix Cloud backend confirms the adapter's `next`, `start`, `complete`, and `release` routes. The Cloud API now returns current claim status and accepts optional agent ownership on lifecycle calls; Felix 3 sends that owner ID and stops on a sticky in-progress claim when its local resumable state is missing. The focused Cloud work-allocation suite passes (40 tests) in a temporary Python environment. Live Cloud behavior remains unverified: the sample project has no Cloud agent UUID/API key configured, so no live claim was issued.
 
 ### 2. Make the coordinator a real Felix CLI workflow
 
@@ -98,4 +98,4 @@ Inspection of the Felix Cloud backend confirms the adapter's `next`, `start`, `c
 
 ## Immediate next slice
 
-Verify the Cloud adapter against a controlled Felix Cloud environment and validate cross-machine claim recovery requirements. The existing `C:\dev\felix-test\sample-taskbox` fixture has two completed OpenCode runs, and its documented Python acceptance suite passes (10 tests); its existing uncommitted fixture changes were preserved. An isolated network-enabled Claude run completed successfully after fixing plan and review artifact persistence. Codex CLI 0.162.1 completed a full Felix-driven `gpt-6-luna` plan/build/validation/review cycle in an isolated project when the project config set `harness.codex.windows_sandbox` to `unelevated`; the elevated backend still encounters the host's locked runtime file. A new regression test verifies that a fresh Cloud claim receiving `already-started` is preserved and blocked without launching a second harness run. Coordinate agent-owned claim recovery with the Cloud checkout before enabling multi-machine operation. Migration preview/apply preserves legacy project files; the full .NET CLI suite passes (137 tests), the Felix 3 PowerShell suite passes, and packaged CLI/skill smoke checks pass.
+Verify the adapter against a controlled live Felix Cloud project and decide the shared-state or takeover design for cross-machine recovery. Cloud now reports claim status and scopes V3 lifecycle mutations by the optional agent UUID. Felix refuses to run a sticky in-progress claim without local resumable state and preserves the claim for recovery. The focused Cloud work-allocation suite passes (40 tests), the Felix 3 PowerShell suite passes, and the CLI build succeeds. Live Cloud verification remains pending because no Cloud agent UUID/API key is configured in the sample project. The existing `C:\dev\felix-test\sample-taskbox` fixture has two completed OpenCode runs, and its documented Python acceptance suite passes (10 tests); its existing uncommitted fixture changes were preserved. An isolated network-enabled Claude run completed successfully after fixing plan and review artifact persistence. Codex CLI 0.162.1 completed a full Felix-driven `gpt-6-luna` plan/build/validation/review cycle in an isolated project when the project config set `harness.codex.windows_sandbox` to `unelevated`; the elevated backend still encounters the host's locked runtime file. Migration preview/apply preserves legacy project files; the full .NET CLI suite passes (137 tests), and packaged CLI/skill smoke checks pass.
