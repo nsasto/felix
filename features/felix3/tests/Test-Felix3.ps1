@@ -140,6 +140,8 @@ try {
     $savedCycleApiKey = $env:FELIX_SYNC_KEY
     $savedTaskFunction = (Get-Command Invoke-Felix3Task -CommandType Function).ScriptBlock
     $savedResumeFunction = (Get-Command Resume-Felix3Task -CommandType Function).ScriptBlock
+    $savedCloudStartFunction = (Get-Command Start-Felix3CloudWorkItem -CommandType Function).ScriptBlock
+    $global:felix3CloudTaskCalls = 0
     $cloudCycleApiLog = [System.Collections.ArrayList]::new()
     $cloudCycleRequest = {
         param($Method, $Uri, $Headers, $Body)
@@ -150,7 +152,7 @@ try {
     }.GetNewClosure()
     try {
         $env:FELIX_SYNC_KEY = 'fsk-test-secret'
-        Set-Item -Path Function:\Invoke-Felix3Task -Value { param($ProjectPath,$RequirementId,$Title,$SpecPath,$ConfigPath,$WorkItem,$NewRunId,$ResumeRunId,$Answer) return [pscustomobject]@{ Status = $global:felix3TestCloudTaskStatus; RunId = $NewRunId } }
+        Set-Item -Path Function:\Invoke-Felix3Task -Value { param($ProjectPath,$RequirementId,$Title,$SpecPath,$ConfigPath,$WorkItem,$NewRunId,$ResumeRunId,$Answer) $global:felix3CloudTaskCalls++; return [pscustomobject]@{ Status = $global:felix3TestCloudTaskStatus; RunId = $NewRunId } }
         Set-Item -Path Function:\Resume-Felix3Task -Value { param($ProjectPath,$RunId,$Answer,$ConfigPath) return [pscustomobject]@{ Status = $global:felix3TestCloudTaskStatus; RunId = $RunId } }
         $global:felix3TestCloudCode = 'C-100'; $global:felix3TestCloudTaskStatus = 'completed'
         $completedCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
@@ -167,6 +169,19 @@ try {
         $global:felix3TestCloudCode = 'C-102'; $global:felix3TestCloudTaskStatus = 'blocked'
         $blockedCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
         Assert-Felix3 ($blockedCloudCycle.Status -eq 'blocked' -and ($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/release$' }).Count -eq 1) 'Cloud cycle releases a blocked source item'
+        Set-Item -Path Function:\Start-Felix3CloudWorkItem -Value { param($Source,$RequirementId) return @{ status='already-started'; code=$RequirementId } }
+        $global:felix3TestCloudCode = 'C-103'; $global:felix3TestCloudTaskStatus = 'completed'
+        $callsBeforeRecoveryGuard = $global:felix3CloudTaskCalls
+        $recoveryGuardTriggered = $false
+        try { Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest | Out-Null } catch { $recoveryGuardTriggered = $_.Exception.Message -match 'Recover the original checkout' }
+        $guardClaimPath = Join-Path (Join-Path (Join-Path $cloudProject '.felix3') 'work-source') 'cloud-claim.json'
+        $guardClaim = Get-Content -LiteralPath $guardClaimPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-Felix3 ($recoveryGuardTriggered -and $global:felix3CloudTaskCalls -eq $callsBeforeRecoveryGuard -and $guardClaim.recovery_required -eq $true) 'Cloud start conflict without a saved run preserves the claim and blocks duplicate execution'
+        $retryRecoveryGuardTriggered = $false
+        try { Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest | Out-Null } catch { $retryRecoveryGuardTriggered = $_.Exception.Message -match 'Preserve the claim record' }
+        Assert-Felix3 $retryRecoveryGuardTriggered 'Cloud recovery-required claim cannot be retried as a fresh run'
+        Remove-Item -LiteralPath $guardClaimPath -Force
+        Set-Item -Path Function:\Start-Felix3CloudWorkItem -Value $savedCloudStartFunction
         $cycleLockPath = Join-Path (Join-Path (Join-Path $cloudProject '.felix3') 'work-source') 'cloud-cycle.lock'
         $heldCycleLock = [System.IO.File]::Open($cycleLockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
         try {
@@ -179,7 +194,8 @@ try {
     finally {
         Set-Item -Path Function:\Invoke-Felix3Task -Value $savedTaskFunction
         Set-Item -Path Function:\Resume-Felix3Task -Value $savedResumeFunction
-        Remove-Variable -Name felix3TestCloudCode,felix3TestCloudTaskStatus -Scope Global -ErrorAction SilentlyContinue
+        Set-Item -Path Function:\Start-Felix3CloudWorkItem -Value $savedCloudStartFunction
+        Remove-Variable -Name felix3TestCloudCode,felix3TestCloudTaskStatus,felix3CloudTaskCalls -Scope Global -ErrorAction SilentlyContinue
         if ($null -eq $savedCycleApiKey) { Remove-Item Env:FELIX_SYNC_KEY -ErrorAction SilentlyContinue } else { $env:FELIX_SYNC_KEY = $savedCycleApiKey }
     }
 

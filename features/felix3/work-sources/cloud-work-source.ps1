@@ -162,6 +162,7 @@ function Invoke-Felix3CloudWorkCycle {
         }
         if ([string]$savedClaim.agent_id -ne [string]$source.AgentId) { throw 'The saved Cloud claim belongs to a different Cloud agent UUID.' }
         if ([string]::IsNullOrWhiteSpace([string]$savedClaim.run_id)) { throw 'The saved Cloud claim does not contain a run ID.' }
+        if ((Get-Felix3PropertyValue $savedClaim 'recovery_required') -eq $true) { throw "Cloud work '$($savedClaim.work_item.id)' is already in progress, but this checkout has no confirmed resumable run. Preserve the claim record and recover the original checkout before retrying." }
         if ($savedClaim.pending_action -and $savedClaim.pending_action -notin @('complete','release')) { throw "Unknown pending Cloud claim action '$($savedClaim.pending_action)' in the local claim record." }
         if ($savedClaim.pending_action -eq 'complete') {
             Complete-Felix3CloudWorkItem -Source $source -RequirementId ([string]$savedClaim.work_item.id) | Out-Null
@@ -216,7 +217,15 @@ function Invoke-Felix3CloudWorkCycle {
     $record = [ordered]@{ schema = 'felix3-cloud-claim-v1'; agent_id = $source.AgentId; work_item = $claimed.WorkItem; remote_spec_path = $claimed.RemoteSpecPath; run_id = $runId; started = $false; pending_action = $null }
     try {
         Write-Felix3CloudClaimRecord -Path $claimPath -Record $record
-        Start-Felix3CloudWorkItem -Source $source -RequirementId $claimed.WorkItem.id | Out-Null
+        $startResult = Start-Felix3CloudWorkItem -Source $source -RequirementId $claimed.WorkItem.id
+        if ([string]$startResult.status -eq 'already-started') {
+            # A fresh local claim record means this checkout cannot prove it owns
+            # the existing Cloud run. Do not start a duplicate run or release the
+            # sticky claim, which may still be active on another machine.
+            $record.recovery_required = $true
+            Write-Felix3CloudClaimRecord -Path $claimPath -Record $record
+            throw "Cloud work '$($claimed.WorkItem.id)' is already in progress for this agent, but no resumable local run was found. Recover the original checkout before retrying."
+        }
         $record.started = $true
         Write-Felix3CloudClaimRecord -Path $claimPath -Record $record
         $run = Invoke-Felix3Task -ProjectPath $project -RequirementId $claimed.WorkItem.id -Title $claimed.WorkItem.title -SpecPath $claimed.SpecPath -ConfigPath $ConfigPath -WorkItem $claimed.WorkItem -NewRunId $runId
@@ -235,7 +244,7 @@ function Invoke-Felix3CloudWorkCycle {
         return [pscustomobject]@{ Status = $run.Status; WorkItem = $claimed.WorkItem; Run = $run }
     }
     catch {
-        if (-not $record.started) {
+        if (-not $record.started -and -not $record.recovery_required) {
             try { Release-Felix3CloudWorkItem -Source $source -RequirementId $claimed.WorkItem.id | Out-Null; Remove-Item -LiteralPath $claimPath -Force } catch { }
         }
         throw
