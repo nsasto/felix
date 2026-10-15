@@ -310,6 +310,22 @@ class HttpSync : IRunReporter {
         }
     }
 
+    # Transient activity is best-effort and must never be written to the
+    # durable disk outbox when delivery fails.
+    [bool] PublishRunActivity([string]$runId, [hashtable]$activity) {
+        try {
+            $sent = $this.SendJsonRequest("POST", "/api/runs/$runId/activity", $activity)
+            if (-not $sent) {
+                $this.WriteLog("DEBUG", "Transient run activity was not delivered; dropped.")
+            }
+            return $sent
+        }
+        catch {
+            $this.WriteLog("DEBUG", "Transient run activity delivery failed; dropped.")
+            return $false
+        }
+    }
+
     [void] UpdateAgentStatus([string]$agentId, [string]$status) {
         # Best-effort - does not block run execution if this fails
         try {
@@ -644,16 +660,16 @@ class HttpSync : IRunReporter {
         # List all .jsonl files in outbox sorted by name (oldest first)
         $outboxFiles = $null
         try {
-            $outboxFiles = Get-ChildItem -Path $this.OutboxPath -Filter "*.jsonl" -File -ErrorAction SilentlyContinue | 
+            $outboxFiles = @(Get-ChildItem -Path $this.OutboxPath -Filter "*.jsonl" -File -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -notlike "run-*.jsonl" } |  # Skip run event files (handled by FlushRunEvents)
-            Sort-Object Name
+            Sort-Object Name)
         }
         catch {
             $this.WriteLog("WARNING", "Failed to list outbox files: $_")
             return
         }
         
-        if (-not $outboxFiles -or $outboxFiles.Count -eq 0) {
+        if ($outboxFiles.Count -eq 0) {
             return
         }
         
@@ -695,9 +711,10 @@ class HttpSync : IRunReporter {
                         break
                     }
                     
-                    # Detect batch upload requests by checking for files property
+                    # Detect batch uploads without probing a missing property
+                    # under StrictMode (ordinary sync requests have no files field).
                     $result = $null
-                    if ($request.files) {
+                    if ($request.PSObject.Properties['files'] -and $request.files) {
                         $result = $this.UploadBatchWithStatus($request.run_id, $request.files)
                     }
                     else {

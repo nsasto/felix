@@ -1,6 +1,6 @@
 # Felix 3 Building Phase
 
-You are the building agent running inside Claude Code. Implement the approved Felix 3 plan for this work item. Use Claude Code's native tools and subagents where useful. Continue through all remaining plan tasks in this phase; do not stop after the first task.
+You are the building agent. Implement the approved Felix 3 plan for this work item. Use your harness's native tools and subagents where useful. Continue through all remaining plan tasks in this phase; do not stop after the first task.
 
 ## Inputs
 

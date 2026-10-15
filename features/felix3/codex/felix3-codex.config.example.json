@@ -10,13 +10,14 @@
     "runs_dir": ".felix3/runs",
     "local_retention_days": 30
   },
+  "execution": { "worktree": { "enabled": true } },
   "cloud_sync": {
     "enabled": false,
     "base_url": "https://api.runfelix.io",
     "api_key": "",
     "agent_key": "",
+    "live_activity": false,
     "include_phase_summaries": true,
-    "include_question_text": false,
     "artifacts": []
   },
   "harness": {

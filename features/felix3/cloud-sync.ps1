@@ -18,7 +18,7 @@ function global:Resolve-Felix3CloudBaseUrl {
 function global:Initialize-Felix3CloudSync {
     param($Config, [string]$ProjectPath, [string]$RunId, [string]$RequirementId, [switch]$Resume)
     $settings = Get-Felix3PropertyValue $Config 'cloud_sync'
-    if (-not $settings) { $settings = [pscustomobject]@{ enabled = $false; artifacts = @(); include_phase_summaries = $true } }
+    if (-not $settings) { $settings = [pscustomobject]@{ enabled = $false; live_activity = $false; artifacts = @(); include_phase_summaries = $true } }
     $configuredEnabled = Get-Felix3PropertyValue $settings 'enabled'
     $enabled = if ($env:FELIX_SYNC_ENABLED -eq 'false' -or $env:FELIX_SYNC_ENABLED -eq '0') { $false } elseif ($env:FELIX_SYNC_ENABLED -eq 'true' -or $env:FELIX_SYNC_ENABLED -eq '1') { $true } else { [bool]$configuredEnabled }
     if (-not $enabled) { return $null }
@@ -41,10 +41,24 @@ function global:Initialize-Felix3CloudSync {
     if (-not $apiKey) { Write-Warning 'Felix 3 cloud sync is enabled but no API key is configured; continuing with local execution only.'; return $null }
     if (-not $agentKey) { Write-Warning 'Felix 3 cloud sync is enabled but no agent key is configured; continuing with local execution only.'; return $null }
     $sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-    $pluginPath = Join-Path $sourceRoot '.felix\plugins\sync-http\http-client.ps1'
-    if (-not (Test-Path -LiteralPath $pluginPath -PathType Leaf)) { Write-Warning "Felix HTTP sync transport is unavailable at $pluginPath; continuing with local execution only."; return $null }
+    $pluginCandidates = @(
+        (Join-Path $PSScriptRoot '..\plugins\sync-http\http-client.ps1'),
+        (Join-Path $sourceRoot '.felix\plugins\sync-http\http-client.ps1')
+    )
+    $pluginPath = $pluginCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if (-not $pluginPath) { Write-Warning "Felix HTTP sync transport is unavailable; checked $($pluginCandidates -join ', '); continuing with local execution only."; return $null }
+    $interfaceCandidates = @(
+        (Join-Path $PSScriptRoot '..\core\sync-interface.ps1'),
+        (Join-Path $sourceRoot '.felix\core\sync-interface.ps1')
+    )
+    $interfacePath = $interfaceCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if (-not $interfacePath) { Write-Warning "Felix HTTP sync interface is unavailable; checked $($interfaceCandidates -join ', '); continuing with local execution only."; return $null }
     $loadedFlag = Get-Variable -Name Felix3HttpSyncLoaded -Scope Global -ErrorAction SilentlyContinue
-    if (-not $loadedFlag -or -not $loadedFlag.Value) { . $pluginPath; $global:Felix3HttpSyncLoaded = $true }
+    if (-not $loadedFlag -or -not $loadedFlag.Value) {
+        . $interfacePath
+        . $pluginPath
+        $global:Felix3HttpSyncLoaded = $true
+    }
     $felix3Dir = Join-Path $ProjectPath '.felix3'
     New-Item -ItemType Directory -Path $felix3Dir -Force | Out-Null
     $client = [HttpSync]::new(@{ base_url = $baseUrl; api_key = $apiKey }, $felix3Dir)
@@ -73,22 +87,46 @@ function global:Add-Felix3CloudEvent {
     if (-not $Cloud) { return }
     if ($Event.kind -in @('output.delta','assistant.message','harness.event','harness.stderr','harness.process.started','harness.process.exited','validation.output')) { return }
     $eventPayload = if ($Event.payload) { $Event.payload } else { @{} }
-    $allowedSummary = @('run.started','run.resumed','phase.started','phase.completed','phase.failed','validation.completed','turn.completed','tool.started','tool.completed','question.requested','question.answered','plan.approval_requested','plan.approved','plan.rejected','run.completed','run.blocked','run.interrupted')
-    $summary = if ($Event.kind -eq 'question.requested') { 'Human input requested.' } elseif ($Event.kind -eq 'question.answered') { 'Human input recorded.' } elseif ($Event.kind -eq 'plan.approval_requested') { 'Plan is waiting for human approval.' } elseif ($Event.kind -eq 'plan.approved') { 'Plan approved by human.' } elseif ($Event.kind -eq 'plan.rejected') { 'Plan rejected by human.' } elseif ($Event.kind -eq 'phase.failed') { 'Harness phase failed.' } elseif ($Event.kind -eq 'run.blocked') { 'Run is blocked.' } elseif ($Event.kind -eq 'run.interrupted') { 'Run was interrupted.' } elseif ($Event.kind -in $allowedSummary -and $Cloud.Settings.include_phase_summaries -ne $false) { Protect-Felix3Text -Text $Event.summary -MaxLength 300 } else { $Event.kind }
+    # Cloud events are durable. Keep them to a small, non-content-bearing
+    # activity record; full provider output and run artifacts remain on disk.
+    # Live, transient activity belongs on a separate non-persisting transport.
+    $summary = switch ([string]$Event.kind) {
+        'run.started' { 'Run started.' }
+        'run.resumed' { 'Run resumed.' }
+        'phase.started' { 'Phase started.' }
+        'phase.completed' { 'Phase completed.' }
+        'phase.failed' { 'Phase failed.' }
+        'validation.completed' { 'Validation completed.' }
+        'turn.completed' { 'Agent turn completed.' }
+        'tool.started' { 'Tool started.' }
+        'tool.completed' { 'Tool completed.' }
+        'question.requested' { 'Human input requested.' }
+        'question.answered' { 'Human input recorded.' }
+        'plan.approval_requested' { 'Plan is waiting for human approval.' }
+        'plan.approved' { 'Plan approved by human.' }
+        'plan.rejected' { 'Plan rejected by human.' }
+        'run.completed' { 'Run completed.' }
+        'run.blocked' { 'Run is blocked.' }
+        'run.interrupted' { 'Run was interrupted.' }
+        default { 'Run activity.' }
+    }
     $payload = @{
         event_id = $Event.event_id; local_run_id = $Event.run_id; sequence = $Event.seq
-        phase = $Event.phase; harness = $Event.harness; summary = $summary
-        provider_event = Get-Felix3PropertyValue $eventPayload 'provider_event'
+        phase = $Event.phase; summary = $summary
     }
-    if (Get-Felix3PropertyValue $eventPayload 'session_id') { $payload.session_id = Get-Felix3PropertyValue $eventPayload 'session_id' }
-    if (Get-Felix3PropertyValue $eventPayload 'tool') { $payload.tool = Get-Felix3PropertyValue $eventPayload 'tool' }
-    if (Get-Felix3PropertyValue $eventPayload 'usage') { $payload.usage = Get-Felix3PropertyValue $eventPayload 'usage' }
-    if ($null -ne (Get-Felix3PropertyValue $eventPayload 'cost_usd')) { $payload.cost_usd = Get-Felix3PropertyValue $eventPayload 'cost_usd' }
-    if (Get-Felix3PropertyValue $eventPayload 'model') { $payload.model = Get-Felix3PropertyValue $eventPayload 'model' }
-    if (Get-Felix3PropertyValue $eventPayload 'status') { $payload.status = Get-Felix3PropertyValue $eventPayload 'status' }
-    if ($Event.kind -eq 'question.requested' -and $Cloud.Settings.include_question_text -eq $true) {
-        $question = ConvertFrom-Felix3QuestionData -Data (Get-Felix3PropertyValue $eventPayload 'question')
-        if ($question) { $payload.question = Protect-Felix3Text -Text $question.question -MaxLength 1000 }
+    if ($Event.phase -in @('exploring','planning','building','validating','reviewing')) { $payload.phase = [string]$Event.phase }
+    $toolName = Get-Felix3PropertyValue $eventPayload 'tool'
+    if ($toolName -and [string]$toolName -match '^[A-Za-z0-9_.-]{1,80}$') { $payload.tool = [string]$toolName }
+    $status = Get-Felix3PropertyValue $eventPayload 'status'
+    if ($status -in @('started','completed','failed','blocked','interrupted','approved','rejected','waiting')) { $payload.status = [string]$status }
+    if ($Cloud.Settings.live_activity -eq $true) {
+        $activity = @{
+            event_id = [string]$Event.event_id; sequence = [int]$Event.seq
+            kind = [string]$Event.kind; timestamp = [string]$Event.timestamp
+            phase = $payload['phase']; tool = $payload['tool']; status = $payload['status']
+            summary = $summary
+        }
+        try { $Cloud.Client.PublishRunActivity($Cloud.CloudRunId, $activity) | Out-Null } catch { }
     }
     $level = if ($Event.kind -match 'failed|error|blocked|interrupted') { 'error' } else { 'info' }
     $Cloud.Buffer.Add(@{ type = "felix3.$($Event.kind)"; timestamp = $Event.timestamp; level = $level; message = $summary; run_id = $Cloud.CloudRunId; data = $payload }) | Out-Null

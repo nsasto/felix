@@ -5,6 +5,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'work-sources\local-spec-work-source.ps1')
 . (Join-Path $PSScriptRoot 'work-sources\cloud-work-source.ps1')
 . (Join-Path $PSScriptRoot 'run-store.ps1')
+. (Join-Path $PSScriptRoot 'worktree-manager.ps1')
 . (Join-Path $PSScriptRoot 'cloud-sync.ps1')
 . (Join-Path $PSScriptRoot 'claude\Invoke-ClaudeHarness.ps1')
 . (Join-Path $PSScriptRoot 'opencode\Invoke-OpenCodeHarness.ps1')
@@ -208,8 +209,31 @@ function Invoke-Felix3Task {
     $runDirectory = Resolve-Felix3RunDirectory -RunsRoot $runsRoot -RunId $runId
     if (-not $resuming -and (Test-Path -LiteralPath $runDirectory)) { throw "Felix 3 run already exists: $runId" }
     if ($resuming -and -not (Test-Path -LiteralPath $runDirectory -PathType Container)) { throw "Felix 3 run not found: $runId" }
+    $worktreeEnabled = $true
+    if ($config.PSObject.Properties['execution'] -and $config.execution -and $config.execution.PSObject.Properties['worktree'] -and $config.execution.worktree -and $null -ne $config.execution.worktree.enabled) { $worktreeEnabled = [bool]$config.execution.worktree.enabled }
+    $executionProject = $project
+    $worktreeMetadataPath = Join-Path $runDirectory 'worktree.json'
+    $savedWorktree = $null
+    if ($resuming -and (Test-Path -LiteralPath $worktreeMetadataPath -PathType Leaf)) { $savedWorktree = [string](Get-Content -LiteralPath $worktreeMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json).path }
+    if ($savedWorktree) {
+        $executionProject = New-Felix3Worktree -ProjectPath $project -RunId $runId -ExistingPath $savedWorktree
+    }
+    elseif (-not $resuming -and $worktreeEnabled) {
+        $executionProject = New-Felix3Worktree -ProjectPath $project -RunId $runId
+    }
+    New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
+    if (-not $resuming -and $worktreeEnabled) { Write-Felix3Json -Path $worktreeMetadataPath -Value @{ path = $executionProject; branch = ('felix3/' + ($runId -replace '[^A-Za-z0-9._/-]', '-')); created_at = [DateTime]::UtcNow.ToString('o') } }
     $planPath = Join-Path $runDirectory 'plan.md'
     $reviewPath = Join-Path $runDirectory 'review.json'
+    $harnessRunDirectory = $runDirectory
+    if (-not [string]::Equals([IO.Path]::GetFullPath($executionProject), [IO.Path]::GetFullPath($project), [StringComparison]::OrdinalIgnoreCase)) {
+        $harnessRunDirectory = Join-Path (Join-Path $executionProject '.felix3/run-context') $runId
+    }
+    $harnessPlanPath = Join-Path $harnessRunDirectory 'plan.md'
+    New-Item -ItemType Directory -Path $harnessRunDirectory -Force | Out-Null
+    if ($resuming -and (Test-Path -LiteralPath $planPath -PathType Leaf) -and $harnessPlanPath -ne $planPath) {
+        Copy-Item -LiteralPath $planPath -Destination $harnessPlanPath -Force
+    }
     New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
 
     $workItemPath = Join-Path $runDirectory 'work-item.json'
@@ -272,6 +296,8 @@ function Invoke-Felix3Task {
         $state = [ordered]@{ schema = 'felix3-task-state-v2'; id = $RequirementId; run_id = $runId; status = 'new'; active_phase = 'planning'; started_at = [DateTime]::UtcNow.ToString('o'); phases = @(); validation = $null; outcome = $null; pending_question = $null; process = $null }
         Set-Felix3RunStatus -State $state -Status 'planning'
     }
+    if ($state -is [System.Collections.IDictionary]) { $state['working_directory'] = $executionProject }
+    elseif (-not $state.PSObject.Properties['working_directory']) { Add-Member -InputObject $state -NotePropertyName working_directory -NotePropertyValue $executionProject }
     $journal = Initialize-Felix3RunJournal -RunDirectory $runDirectory -RunId $runId
     Remove-Item -LiteralPath (Join-Path $runDirectory 'cancel.requested') -Force -ErrorAction SilentlyContinue
     Write-Felix3AtomicJson -Path $statePath -Value $state
@@ -310,12 +336,12 @@ function Invoke-Felix3Task {
         if ($resuming -and $Phase -eq $resumePhase -and $Answer) { $Prompt += "`n`n## Human answer to your pending question`n$Answer`nContinue the same phase and complete its requested output." }
         $eventSink = New-Felix3EventSink -Journal $journal -Phase $Phase -Harness $phaseConfig.provider -CloudSink $cloudSink
         if ($phaseConfig.provider -eq 'claude-code') {
-            $harnessResult = Invoke-ClaudeHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -PermissionMode $phaseConfig.permission_mode -AllowedTools $phaseConfig.allowed_tools -MaxTurns $phaseConfig.max_turns -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
+            $harnessResult = Invoke-ClaudeHarness -Phase $Phase -WorkingDirectory $executionProject -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -PermissionMode $phaseConfig.permission_mode -AllowedTools $phaseConfig.allowed_tools -MaxTurns $phaseConfig.max_turns -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
         }
         elseif ($phaseConfig.provider -eq 'codex') {
             $codexArguments = @{
                 Phase = $Phase
-                WorkingDirectory = $project
+                WorkingDirectory = $executionProject
                 Prompt = $Prompt
                 RunDirectory = $PhaseDirectory
                 Executable = $phaseConfig.executable
@@ -333,7 +359,7 @@ function Invoke-Felix3Task {
             $harnessResult = Invoke-CodexHarness @codexArguments
         }
         else {
-            $harnessResult = Invoke-OpenCodeHarness -Phase $Phase -WorkingDirectory $project -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Agent $phaseConfig.agent -AutoApprove:$phaseConfig.auto_approve -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
+            $harnessResult = Invoke-OpenCodeHarness -Phase $Phase -WorkingDirectory $executionProject -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Agent $phaseConfig.agent -AutoApprove:$phaseConfig.auto_approve -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
         }
         return Assert-Felix3HarnessResultContract -Result $harnessResult -ExpectedHarness $phaseConfig.provider -ExpectedPhase $Phase
     }
@@ -343,9 +369,9 @@ function Invoke-Felix3Task {
         WORK_ITEM_ID = $RequirementId
         WORK_ITEM_TITLE = $Title
         SPEC_TEXT = $specText
-        PROJECT_PATH = $project
-        PLAN_PATH = $planPath
-        REVIEW_PATH = $reviewPath
+        PROJECT_PATH = $executionProject
+        PLAN_PATH = 'Felix persists the phase response to its local run record.'
+        REVIEW_PATH = 'Felix persists the review response to its local run record.'
         VALIDATION_PATH = (Join-Path $runDirectory 'validation.json')
         VALIDATION_EVIDENCE = (Join-Path $runDirectory 'validation.json')
         VALIDATION_FAILURES = 'None. This is the first build attempt.'
@@ -395,7 +421,9 @@ function Invoke-Felix3Task {
         Write-Felix3AtomicJson -Path $statePath -Value $state
         $buildSessionPolicy = (Get-Felix3PhaseConfig -Config $config -Phase building).session_policy
         $reviewSessionPolicy = (Get-Felix3PhaseConfig -Config $config -Phase reviewing).session_policy
-        $buildPromptBase = Read-Felix3Template -Path (Join-Path $templates 'building.md') -Values $sharedValues
+        $buildValues = @{} + $sharedValues
+        $buildValues['PLAN_PATH'] = $harnessPlanPath
+        $buildPromptBase = Read-Felix3Template -Path (Join-Path $templates 'building.md') -Values $buildValues
         $latestBuild = $null
         $validation = $null
         $firstBuildAttempt = if ($resuming -and $resumePhase -eq 'building') { $resumeAttempt } else { 1 }
@@ -408,12 +436,17 @@ function Invoke-Felix3Task {
             if ($latestBuild -and -not $latestBuild.Succeeded) { $buildPrompt += "`nPrevious harness error: $($latestBuild.Error)" }
             $buildSession = if ($resuming -and $resumePhase -eq 'building' -and $attempt -eq $firstBuildAttempt) { $resumeSession } elseif ($buildSessionPolicy -eq 'resume' -and $attempt -gt 1 -and $latestBuild) { $latestBuild.SessionId } else { $null }
             $phaseFolder = if ($resuming -and $resumePhase -eq 'building' -and $attempt -eq $firstBuildAttempt) { "building-$attempt-resume" } else { "building-$attempt" }
+            if ($harnessPlanPath -ne $planPath) { Copy-Item -LiteralPath $planPath -Destination $harnessPlanPath -Force }
             $latestBuild = & $invokePhase 'building' $buildPrompt (Join-Path $runDirectory $phaseFolder) $buildSession
+            if ($harnessPlanPath -ne $planPath -and (Test-Path -LiteralPath $harnessPlanPath -PathType Leaf)) {
+                Copy-Item -LiteralPath $harnessPlanPath -Destination $planPath -Force
+                $planText = Get-Content -LiteralPath $planPath -Raw -Encoding UTF8
+            }
             if (Suspend-Felix3ForStop -Result $latestBuild -Phase building -State $state -StatePath $statePath -RunDirectory $runDirectory -Journal $journal -Cloud $cloud) { return [pscustomobject]@{ Status = 'interrupted'; RunId = $runId; RunDirectory = $runDirectory; StatePath = $statePath; Outcome = $state.outcome } }
             if (Suspend-Felix3ForQuestion -Result $latestBuild -Phase building -State $state -StatePath $statePath -RunDirectory $runDirectory -Journal $journal -Attempt $attempt -Cloud $cloud) { return [pscustomobject]@{ Status = 'awaiting-input'; RunId = $runId; RunDirectory = $runDirectory; StatePath = $statePath; Outcome = 'Agent needs human input.' } }
             $state.phases += [pscustomobject]@{ name = "building-$attempt"; status = if ($latestBuild.Succeeded) { 'succeeded' } else { 'failed' }; result = $latestBuild.ResultPath }
             if (-not $latestBuild.Succeeded) { continue }
-            $validation = Invoke-Felix3Validation -Config $config -ProjectPath $project -RunDirectory $runDirectory -Journal $journal -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
+            $validation = Invoke-Felix3Validation -Config $config -ProjectPath $executionProject -RunDirectory $runDirectory -Journal $journal -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
             if (Suspend-Felix3ForStop -Result $validation -Phase building -State $state -StatePath $statePath -RunDirectory $runDirectory -Journal $journal -Cloud $cloud) { return [pscustomobject]@{ Status = 'interrupted'; RunId = $runId; RunDirectory = $runDirectory; StatePath = $statePath; Outcome = $state.outcome } }
             $validationEvent = Write-Felix3RunEvent -Journal $journal -Kind 'validation.completed' -Phase 'validation' -Harness 'felix3' -Payload @{ passed = $validation.Passed; commands = $validation.Results.Count } -Summary $(if ($validation.Passed) { 'Independent validation passed.' } else { 'Independent validation failed.' })
             Add-Felix3CloudEvent -Cloud $cloud -Event $validationEvent
@@ -432,9 +465,10 @@ function Invoke-Felix3Task {
         $firstReviewCycle = if ($resuming -and $resumePhase -eq 'reviewing') { $resumeCycle } else { 1 }
         for ($cycle = $firstReviewCycle; $cycle -le [int]$config.workflow.max_review_cycles; $cycle++) {
             $reviewValues = @{} + $sharedValues
-            $reviewValues['VALIDATION_EVIDENCE'] = $validation.Path
+            $reviewValues['PLAN_TEXT'] = Get-Content -LiteralPath $planPath -Raw -Encoding UTF8
+            $reviewValues['VALIDATION_EVIDENCE'] = Get-Content -LiteralPath $validation.Path -Raw -Encoding UTF8
             $reviewPrompt = Read-Felix3Template -Path (Join-Path $templates 'reviewing.md') -Values $reviewValues
-            $reviewPrompt = $reviewPrompt.Replace('Write one JSON object to the exact review output path:', 'Return one JSON object as your complete final response. Felix 3 will persist it to the required review output path:')
+            $reviewPrompt = $reviewPrompt.Replace('Return one JSON object as your complete final response.', 'Return one JSON object as your complete final response. Felix 3 will persist it to the local run record.')
             $reviewPrompt += "`n`nDo not modify any files. Return only the JSON object without Markdown fences or surrounding commentary."
             Remove-Item -LiteralPath $reviewPath -Force -ErrorAction SilentlyContinue
             $reviewSession = if ($resuming -and $resumePhase -eq 'reviewing' -and $cycle -eq $firstReviewCycle) { $resumeSession } elseif ($reviewSessionPolicy -eq 'resume' -and $cycle -gt 1 -and $latestReview) { $latestReview.SessionId } else { $null }
@@ -476,7 +510,7 @@ function Invoke-Felix3Task {
                 $state.phases += [pscustomobject]@{ name = "review-fixes-$cycle"; status = if ($fixResult.Succeeded) { 'succeeded' } else { 'failed' }; result = $fixResult.ResultPath }
                 if (-not $fixResult.Succeeded) { throw "Review fix harness failed: $($fixResult.Error)" }
                 $latestBuild = $fixResult
-                $validation = Invoke-Felix3Validation -Config $config -ProjectPath $project -RunDirectory $runDirectory -Journal $journal -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
+                $validation = Invoke-Felix3Validation -Config $config -ProjectPath $executionProject -RunDirectory $runDirectory -Journal $journal -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
                 if (Suspend-Felix3ForStop -Result $validation -Phase building -State $state -StatePath $statePath -RunDirectory $runDirectory -Journal $journal -Cloud $cloud) { return [pscustomobject]@{ Status = 'interrupted'; RunId = $runId; RunDirectory = $runDirectory; StatePath = $statePath; Outcome = $state.outcome } }
                 $validationEvent = Write-Felix3RunEvent -Journal $journal -Kind 'validation.completed' -Phase 'validation' -Harness 'felix3' -Payload @{ passed = $validation.Passed; commands = $validation.Results.Count } -Summary $(if ($validation.Passed) { 'Independent validation passed.' } else { 'Independent validation failed.' })
                 Add-Felix3CloudEvent -Cloud $cloud -Event $validationEvent

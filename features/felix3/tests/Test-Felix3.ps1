@@ -3,10 +3,12 @@ $ErrorActionPreference = 'Stop'
 
 class Fel3TestCloudClient {
     [object[]]$Events = @()
+    [object[]]$Activity = @()
     [int]$FinishCount = 0
     [int]$FlushCount = 0
     [bool]$FailAppend = $false
     [void] AppendEvents([string]$RunId, [array]$Events) { if ($this.FailAppend) { throw 'simulated offline upload' }; $this.Events = @($Events) }
+    [bool] PublishRunActivity([string]$RunId, [hashtable]$Activity) { $this.Activity += [pscustomobject]$Activity; return $true }
     [void] Flush() { $this.FlushCount++ }
     [void] FinishRun([string]$RunId, [hashtable]$Result) { $this.FinishCount++ }
     [void] UploadArtifact([string]$RunId, [string]$RelativePath, [string]$LocalPath) { }
@@ -396,16 +398,22 @@ time.sleep(15)
     Wait-Job $cancelJob | Out-Null; Remove-Job $cancelJob
     Assert-Felix3 $stopResult.Interrupted 'cancel token terminates the active harness process'
 
-    # Cloud event payloads omit streamed content and redact question text unless explicitly opted in.
+    # Durable Cloud event payloads contain lifecycle metadata only; question text always stays local.
     $cloudStatePath = Join-Path $tempRoot 'cloud-state.json'
     @{ last_event_seq = 0; updated_at = [DateTime]::UtcNow.ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cloudStatePath -Encoding UTF8
     $fakeCloudClient = [Fel3TestCloudClient]::new()
-    $cloud = [pscustomobject]@{ Client = $fakeCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; include_question_text = $false; artifacts = @() } }
+    $cloud = [pscustomobject]@{ Client = $fakeCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; live_activity = $false; artifacts = @() } }
     Add-Felix3CloudEvent -Cloud $cloud -Event ([pscustomobject]@{ kind = 'output.delta'; event_id = 'e1'; run_id = 'local'; seq = 1; phase = 'building'; harness = 'codex'; summary = 'private source text'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{} })
     Assert-Felix3 ($fakeCloudClient.Events.Count -eq 0 -and $cloud.Buffer.Count -eq 0) 'cloud never receives streamed assistant text'
     Add-Felix3CloudEvent -Cloud $cloud -Event ([pscustomobject]@{ kind = 'question.requested'; event_id = 'e2'; run_id = 'local'; seq = 2; phase = 'planning'; harness = 'codex'; summary = 'Sensitive project question?'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{ question = 'Sensitive project question?' } })
     $sentQuestion = $fakeCloudClient.Events[0]
-    Assert-Felix3 ($sentQuestion.message -eq 'Human input requested.' -and ($sentQuestion | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Sensitive project question') 'cloud question summaries contain no question text by default'
+    Assert-Felix3 ($sentQuestion.message -eq 'Human input requested.' -and ($sentQuestion | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Sensitive project question') 'durable cloud question summaries never contain question text'
+    $liveCloudClient = [Fel3TestCloudClient]::new()
+    $liveCloud = [pscustomobject]@{ Client = $liveCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; live_activity = $true; artifacts = @() } }
+    Add-Felix3CloudEvent -Cloud $liveCloud -Event ([pscustomobject]@{ kind = 'tool.started'; event_id = 'e-live'; run_id = 'local'; seq = 4; phase = 'building'; harness = 'opencode'; summary = 'Sensitive command and model reasoning'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{ tool = 'shell'; status = 'started'; provider_event = 'private provider payload'; usage = @{ output_tokens = 99 } } })
+    $liveActivity = $liveCloudClient.Activity[0]
+    Assert-Felix3 ($liveActivity.kind -eq 'tool.started' -and $liveActivity.phase -eq 'building' -and $liveActivity.tool -eq 'shell' -and $liveActivity.status -eq 'started') 'opt-in live activity sends only the allowlisted action metadata'
+    Assert-Felix3 (($liveActivity | ConvertTo-Json -Depth 10 -Compress) -notmatch 'Sensitive command|private provider|output_tokens|harness') 'live activity does not carry provider output, reasoning, usage, or harness internals'
     $retryCloudClient = [Fel3TestCloudClient]::new()
     $retryCloudClient.FailAppend = $true
     $retryCloud = [pscustomobject]@{ Client = $retryCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = $cloud.Settings }
@@ -439,17 +447,14 @@ time.sleep(15)
         $syncClient.FinishRun('felix3-outbox-smoke', @{ status = 'completed' })
         Assert-Felix3 ((-not (Test-Path -LiteralPath $runOutboxPath)) -and $global:felix3OutboxRequests.Count -ge 1) 'sync-http reconnect retries queued events and removes the run-event outbox file'
         Assert-Felix3 (($global:felix3OutboxRequests | Where-Object { $_.Uri -match '/api/runs/felix3-outbox-smoke/events$' }).Count -eq 1) 'disk outbox retry sends the queued event batch to the run events endpoint'
+        $startedCloudRun = $syncClient.StartRun(@{ agent_key = 'ag-test'; project_id = 'project-test' })
+        Assert-Felix3 ([bool]$startedCloudRun -and @($global:felix3OutboxRequests | Where-Object { $_.Uri -match '/api/runs$' }).Count -eq 1) 'a single queued run-start request flushes through the outbox'
     }
     finally {
         if ($savedRestFunction) { Set-Item Function:\global:Invoke-RestMethod -Value $savedRestFunction.ScriptBlock }
         else { Remove-Item Function:\global:Invoke-RestMethod -ErrorAction SilentlyContinue }
         Remove-Variable felix3OutboxOffline, felix3OutboxRequests -Scope Global -ErrorAction SilentlyContinue
     }
-    $optInCloudClient = [Fel3TestCloudClient]::new()
-    $optInCloud = [pscustomobject]@{ Client = $optInCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; include_question_text = $true; artifacts = @() } }
-    Add-Felix3CloudEvent -Cloud $optInCloud -Event ([pscustomobject]@{ kind = 'question.requested'; event_id = 'e3'; run_id = 'local'; seq = 3; phase = 'planning'; harness = 'codex'; summary = 'Sensitive project question?'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{ question = 'Sensitive project question?' } })
-    $optInQuestion = $optInCloudClient.Events[0]
-    Assert-Felix3 ($optInQuestion.data.question -eq 'Sensitive project question?' -and $optInQuestion.message -eq 'Human input requested.') 'cloud includes question wording only when explicitly enabled'
     $interruptRun = Join-Path $tempRoot 'interrupted-cloud-run'; New-Item -ItemType Directory -Path $interruptRun -Force | Out-Null
     $interruptJournal = Initialize-Felix3RunJournal -RunDirectory $interruptRun -RunId 'interrupt-cloud'
     $interruptStatePath = Join-Path $interruptRun 'state.json'
@@ -492,11 +497,12 @@ else: text='Implementation complete.'
 events=[{'type':'thread.started','thread_id':'coordinator-session'},{'type':'item.completed','thread_id':'coordinator-session','item':{'type':'agent_message','text':text}},{'type':'turn.completed','thread_id':'coordinator-session','usage':{'input_tokens':9,'output_tokens':2,'total_tokens':11}}]
 for e in events: print(json.dumps(e),flush=True)
 if '-o' in a: open(a[a.index('-o')+1],'w',encoding='utf-8').write(text)
-if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS'],'a',encoding='utf-8').write(json.dumps({'args':a,'prompt':p})+'\n')
+if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS'],'a',encoding='utf-8').write(json.dumps({'args':a,'prompt':p,'working_directory':os.getcwd()})+'\n')
 '@
     $codexExe = New-FakeCli -Root $tempRoot -Name 'fake-coordinator' -Source $coordinatorSource
     $config = @{
         schema_version = 1
+        execution = @{ worktree = @{ enabled = $false } }
         work_source = @{ provider = 'manual-spec'; specs_dir = 'specs'; ready_status = 'ready' }
         artifacts = @{ runs_dir = '.felix3/runs'; local_retention_days = 30 }
         cloud_sync = @{ enabled = $false; agent_key = ''; include_phase_summaries = $true; include_question_text = $false; artifacts = @() }
@@ -524,6 +530,57 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     $state = Get-Content -LiteralPath $resumed.StatePath -Raw | ConvertFrom-Json
     Assert-Felix3 ($state.run_id -eq $first.RunId -and $state.status -eq 'completed') 'resumption preserves run identity and terminal state'
     Assert-Felix3 (Test-Path -LiteralPath (Join-Path $resumed.RunDirectory 'usage.json')) 'resumed run retains aggregated usage'
+
+    # New configs default to a per-run worktree, and resume returns to that exact checkout.
+    $worktreeRepo = Join-Path $tempRoot 'worktree-repo'
+    $worktreeProject = Join-Path $worktreeRepo 'project'
+    New-Item -ItemType Directory -Path (Join-Path $worktreeProject 'specs') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $worktreeProject '.felix3') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $worktreeProject 'specs/S-WORKTREE.md') -Value 'HUMAN_CHOICE_REQUIRED' -Encoding UTF8
+    $worktreeConfig = $config | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+    $worktreeConfig.PSObject.Properties.Remove('execution')
+    $worktreeConfig.workflow.require_plan_approval = $false
+    $worktreeConfig.workflow.validation.require_at_least_one_command = $false
+    $worktreeConfig.workflow.validation.commands = @()
+    $worktreeConfig | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $worktreeProject '.felix3/config.json') -Encoding UTF8
+    & git -C $worktreeRepo init -b main | Out-Null
+    & git -C $worktreeRepo -c user.name='Felix Test' -c user.email='felix-test@example.invalid' add .
+    & git -C $worktreeRepo -c user.name='Felix Test' -c user.email='felix-test@example.invalid' commit -m 'test fixture' | Out-Null
+    $projectAgentProfile = Join-Path $worktreeProject '.opencode/agents/felix3-review.md'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $projectAgentProfile) -Force | Out-Null
+    Set-Content -LiteralPath $projectAgentProfile -Value 'description: disposable review profile' -Encoding UTF8
+    $projectSkillFile = Join-Path $worktreeProject '.opencode/skills/project-guide/SKILL.md'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $projectSkillFile) -Force | Out-Null
+    Set-Content -LiteralPath $projectSkillFile -Value 'Project-specific harness skill.' -Encoding UTF8
+    $worktreeCapturePath = Join-Path $tempRoot 'worktree-calls.jsonl'
+    $savedCaptureArgs = $env:FELIX3_CAPTURE_ARGS; $env:FELIX3_CAPTURE_ARGS = $worktreeCapturePath
+    try {
+        $worktreeFirst = Invoke-Felix3Task -ProjectPath $worktreeProject -RequirementId 'S-WORKTREE' -SpecPath 'specs/S-WORKTREE.md'
+        Assert-Felix3 ($worktreeFirst.Status -eq 'awaiting-input') 'worktree-enabled default starts the task in an isolated checkout'
+        $worktreeMetadata = Get-Content -LiteralPath (Join-Path $worktreeFirst.RunDirectory 'worktree.json') -Raw | ConvertFrom-Json
+        Assert-Felix3 ((Test-Path -LiteralPath $worktreeMetadata.path -PathType Container) -and $worktreeMetadata.path -ne $worktreeProject) 'default run records a distinct existing worktree path'
+        Assert-Felix3 (Test-Path -LiteralPath (Join-Path $worktreeMetadata.path '.opencode/agents/felix3-review.md')) 'worktree includes ignored project OpenCode agent profiles'
+        Assert-Felix3 (Test-Path -LiteralPath (Join-Path $worktreeMetadata.path '.opencode/skills/project-guide/SKILL.md')) 'worktree includes ignored project OpenCode skills'
+        $worktreeResumed = Resume-Felix3Task -ProjectPath $worktreeProject -RunId $worktreeFirst.RunId -Answer 'Use beta.'
+    }
+    finally { if ($null -eq $savedCaptureArgs) { Remove-Item Env:FELIX3_CAPTURE_ARGS -ErrorAction SilentlyContinue } else { $env:FELIX3_CAPTURE_ARGS = $savedCaptureArgs } }
+    Assert-Felix3 ($worktreeResumed.Status -eq 'completed') 'resumed run continues successfully in its saved worktree'
+    Assert-Felix3 ((Get-Content -LiteralPath (Join-Path $worktreeFirst.RunDirectory 'worktree.json') -Raw | ConvertFrom-Json).path -eq $worktreeMetadata.path) 'resume preserves the original worktree assignment'
+    Assert-Felix3 ((Get-Content -LiteralPath $worktreeResumed.StatePath -Raw | ConvertFrom-Json).working_directory -eq $worktreeMetadata.path) 'run state records the active worktree directory'
+    $worktreeCalls = @(Get-Content -LiteralPath $worktreeCapturePath | ForEach-Object { $_ | ConvertFrom-Json })
+    $wrongWorktreeCalls = @($worktreeCalls | Where-Object { $_.working_directory -ne $worktreeMetadata.path })
+    $wrongWorktreeDirectories = @($wrongWorktreeCalls | ForEach-Object { $_.working_directory }) -join '; '
+    Assert-Felix3 (($worktreeCalls.Count -gt 0) -and $wrongWorktreeCalls.Count -eq 0) "harness phases, including resume, run inside the recorded worktree (expected '$($worktreeMetadata.path)', received '$wrongWorktreeDirectories')"
+    $worktreeBuildPrompt = @($worktreeCalls | Where-Object { $_.prompt -match '# Felix 3 Building Phase' }) | Select-Object -Last 1
+    $expectedHarnessPlanPath = Join-Path $worktreeMetadata.path ('.felix3/run-context/' + $worktreeFirst.RunId + '/plan.md')
+    $approvedPlanLine = @($worktreeBuildPrompt.prompt -split "`r?`n" | Where-Object { $_ -match 'Approved plan' }) -join '; '
+    Assert-Felix3 ($worktreeBuildPrompt.prompt -match [regex]::Escape($expectedHarnessPlanPath)) "build prompt points to the plan copy inside the worktree (expected '$expectedHarnessPlanPath', prompt '$approvedPlanLine')"
+    Assert-Felix3 ($worktreeBuildPrompt.prompt -notmatch [regex]::Escape($worktreeFirst.RunDirectory)) 'build prompt does not expose the parent checkout run directory'
+    $worktreeReviewPrompt = @($worktreeCalls | Where-Object { $_.prompt -match '# Felix 3 Review Phase' }) | Select-Object -Last 1
+    Assert-Felix3 ($worktreeReviewPrompt.prompt -match '## Acceptance Coverage' -and $worktreeReviewPrompt.prompt -match '"passed"\s*:\s*true') 'review prompt embeds the plan and validation evidence'
+    Assert-Felix3 ($worktreeReviewPrompt.prompt -notmatch [regex]::Escape($worktreeFirst.RunDirectory)) 'review prompt does not require access outside the worktree'
+    $worktreeSecond = Invoke-Felix3Task -ProjectPath $worktreeProject -RequirementId 'S-WORKTREE-2' -SpecPath 'specs/S-WORKTREE.md'
+    Assert-Felix3 ((Get-Content -LiteralPath (Join-Path $worktreeSecond.RunDirectory 'worktree.json') -Raw | ConvertFrom-Json).path -ne $worktreeMetadata.path) 'separate task runs receive separate worktrees'
 
     $config.harness.codex.Remove('windows_sandbox') | Out-Null
     $config.workflow.require_plan_approval = $false
