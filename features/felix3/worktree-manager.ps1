@@ -12,14 +12,14 @@ function Sync-Felix3WorktreeHarnessFiles {
         if (-not (Test-Path -LiteralPath $sourceDirectory -PathType Container)) { continue }
         foreach ($sourceFile in Get-ChildItem -LiteralPath $sourceDirectory -File -Recurse -Force) {
             if (($sourceFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
-            $relativeToRepository = [IO.Path]::GetRelativePath($RepositoryRoot, $sourceFile.FullName)
+            $relativeToRepository = Get-Felix3RelativePath -BasePath $RepositoryRoot -TargetPath $sourceFile.FullName
             if ($relativeToRepository -eq '..' -or $relativeToRepository.StartsWith('..' + [IO.Path]::DirectorySeparatorChar, [StringComparison]::Ordinal)) { continue }
             $repositoryPath = $relativeToRepository.Replace('\', '/')
             $null = & git -C $RepositoryRoot ls-files --error-unmatch -- $repositoryPath 2>$null
             $isTracked = $LASTEXITCODE -eq 0
             if ($isTracked) { continue }
 
-            $relativeToProject = [IO.Path]::GetRelativePath($ProjectPath, $sourceFile.FullName)
+            $relativeToProject = Get-Felix3RelativePath -BasePath $ProjectPath -TargetPath $sourceFile.FullName
             $destination = Join-Path $WorktreeProjectPath $relativeToProject
             $destinationDirectory = Split-Path -Parent $destination
             New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
@@ -49,7 +49,7 @@ function New-Felix3Worktree {
     if ($LASTEXITCODE -ne 0 -or -not $repoRootResult) { throw 'Felix 3 worktree execution requires ProjectPath to be inside a Git repository. Set execution.worktree.enabled to false to use the current checkout.' }
     $repoRoot = [IO.Path]::GetFullPath([string]$repoRootResult)
     $projectFullPath = [IO.Path]::GetFullPath($ProjectPath)
-    $projectRelativePath = [IO.Path]::GetRelativePath($repoRoot, $projectFullPath)
+    $projectRelativePath = Get-Felix3RelativePath -BasePath $repoRoot -TargetPath $projectFullPath
     if ($projectRelativePath -eq '..' -or $projectRelativePath.StartsWith('..' + [IO.Path]::DirectorySeparatorChar, [StringComparison]::Ordinal)) { throw 'ProjectPath must be inside the Git repository root.' }
     $sha256 = [Security.Cryptography.SHA256]::Create()
     try { $pathHash = ([BitConverter]::ToString($sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($repoRoot))) -replace '-', '').Substring(0, 10).ToLowerInvariant() }

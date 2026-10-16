@@ -10,6 +10,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'claude\Invoke-ClaudeHarness.ps1')
 . (Join-Path $PSScriptRoot 'opencode\Invoke-OpenCodeHarness.ps1')
 . (Join-Path $PSScriptRoot 'codex\Invoke-CodexHarness.ps1')
+. (Join-Path $PSScriptRoot 'grok\Invoke-GrokBuildHarness.ps1')
 
 function Read-Felix3Template {
     param([string]$Path, [hashtable]$Values)
@@ -88,12 +89,29 @@ function Repair-Felix3JsonBackslashEscapes {
     return $builder.ToString()
 }
 
+function Assert-Felix3ValidationConfiguration {
+    param($Config)
+    $validation = if ($Config.workflow -and $Config.workflow.PSObject.Properties['validation']) { $Config.workflow.validation } else { $null }
+    if (-not $validation) { throw 'workflow.validation must be configured before a Felix 3 run. Add validation commands before starting an agent.' }
+    $commands = @()
+    if ($validation.PSObject.Properties['commands']) { $commands = @($validation.commands) }
+    if ($validation.require_at_least_one_command -and $commands.Count -eq 0) {
+        throw 'Validation is configured to require at least one command, but workflow.validation.commands is empty. Add a validation command before starting an agent; no harness phases were run.'
+    }
+    foreach ($command in $commands) {
+        if (-not $command -or -not $command.PSObject.Properties['executable'] -or [string]::IsNullOrWhiteSpace([string]$command.executable)) {
+            throw 'Every validation command needs a non-empty executable. Fix workflow.validation.commands before starting an agent; no harness phases were run.'
+        }
+        if ($command.PSObject.Properties['args'] -and ($command.args -isnot [array] -or @($command.args | Where-Object { $_ -isnot [string] }).Count -gt 0)) {
+            throw "Validation command '$($command.executable)' args must be an array of strings. Fix workflow.validation.commands before starting an agent; no harness phases were run."
+        }
+    }
+}
+
 function Invoke-Felix3Validation {
     param($Config, [string]$ProjectPath, [string]$RunDirectory, $Journal, [string]$CancelTokenPath)
+    Assert-Felix3ValidationConfiguration -Config $Config
     $commands = @($Config.workflow.validation.commands)
-    if ($Config.workflow.validation.require_at_least_one_command -and $commands.Count -eq 0) {
-        throw 'Validation is configured to require at least one command, but workflow.validation.commands is empty.'
-    }
     $results = @()
     foreach ($command in $commands) {
         if (-not $command.executable) { throw 'Every validation command needs an executable.' }
@@ -201,7 +219,6 @@ function Invoke-Felix3Task {
     if (-not $Title) { $Title = $RequirementId }
     $runsRoot = Resolve-Felix3Path -Path ([string]$config.artifacts.runs_dir) -BasePath $project
     $retentionDays = if ($config.artifacts.PSObject.Properties['local_retention_days'] -and $config.artifacts.local_retention_days) { [int]$config.artifacts.local_retention_days } else { 30 }
-    if ($retentionDays -gt 0) { Remove-ExpiredFelix3Runs -RunsRoot $runsRoot -RetentionDays $retentionDays | Out-Null }
     $resuming = -not [string]::IsNullOrWhiteSpace($ResumeRunId)
     $safeRequirementId = [regex]::Replace($RequirementId, '[^A-Za-z0-9._-]', '_')
     if ([string]::IsNullOrWhiteSpace($safeRequirementId)) { $safeRequirementId = 'requirement' }
@@ -209,6 +226,11 @@ function Invoke-Felix3Task {
     $runDirectory = Resolve-Felix3RunDirectory -RunsRoot $runsRoot -RunId $runId
     if (-not $resuming -and (Test-Path -LiteralPath $runDirectory)) { throw "Felix 3 run already exists: $runId" }
     if ($resuming -and -not (Test-Path -LiteralPath $runDirectory -PathType Container)) { throw "Felix 3 run not found: $runId" }
+    $savedValidationPath = Join-Path $runDirectory 'validation.json'
+    if (-not $resuming -or -not (Test-Path -LiteralPath $savedValidationPath -PathType Leaf)) {
+        Assert-Felix3ValidationConfiguration -Config $config
+    }
+    if ($retentionDays -gt 0) { Remove-ExpiredFelix3Runs -RunsRoot $runsRoot -RetentionDays $retentionDays | Out-Null }
     $worktreeEnabled = $true
     if ($config.PSObject.Properties['execution'] -and $config.execution -and $config.execution.PSObject.Properties['worktree'] -and $config.execution.worktree -and $null -ne $config.execution.worktree.enabled) { $worktreeEnabled = [bool]$config.execution.worktree.enabled }
     $executionProject = $project
@@ -302,7 +324,7 @@ function Invoke-Felix3Task {
     Remove-Item -LiteralPath (Join-Path $runDirectory 'cancel.requested') -Force -ErrorAction SilentlyContinue
     Write-Felix3AtomicJson -Path $statePath -Value $state
     $cloud = $null
-    try { $cloud = Initialize-Felix3CloudSync -Config $config -ProjectPath $project -RunId $runId -RequirementId $RequirementId -Resume:$resuming }
+    try { $cloud = Initialize-Felix3CloudSync -Config $config -ProjectPath $project -RunId $runId -RequirementId $RequirementId -SpecPath $specFile -Resume:$resuming }
     catch { Write-Warning 'Felix 3 cloud sync could not initialize; continuing with local execution only.'; $cloud = $null }
     $cloudSink = if ($cloud) { { param($event) Add-Felix3CloudEvent -Cloud $cloud -Event $event }.GetNewClosure() } else { $null }
     $runStartedEvent = Write-Felix3RunEvent -Journal $journal -Kind $(if ($resuming) { 'run.resumed' } else { 'run.started' }) -Payload @{ requirement_id = $RequirementId; resume_phase = $resumePhase } -Summary $(if ($resuming) { "Run resumed in $resumePhase." } else { "Run started for $RequirementId." })
@@ -333,6 +355,9 @@ function Invoke-Felix3Task {
         $phaseConfig = Get-Felix3PhaseConfig -Config $config -Phase $Phase
         $session = if ($ResumeSession) { $ResumeSession } else { $null }
         $Prompt = Add-Felix3QuestionProtocol -Prompt $Prompt
+        if ($phaseConfig.provider -eq 'grok-build' -and $Phase -eq 'building') {
+            $Prompt += "`n`n## Grok Build terminal commands`nUse one terminal command per tool call. Do not chain commands with PowerShell ';' or append Write-Host/echo commands to print exit codes. Felix runs configured validation commands after the build and records their exit codes, so do not wrap or duplicate those validations. When a sequence is needed, run each command separately and inspect its result before proceeding."
+        }
         if ($resuming -and $Phase -eq $resumePhase -and $Answer) { $Prompt += "`n`n## Human answer to your pending question`n$Answer`nContinue the same phase and complete its requested output." }
         $eventSink = New-Felix3EventSink -Journal $journal -Phase $Phase -Harness $phaseConfig.provider -CloudSink $cloudSink
         if ($phaseConfig.provider -eq 'claude-code') {
@@ -357,6 +382,9 @@ function Invoke-Felix3Task {
                 $codexArguments.WindowsSandbox = $phaseConfig.windows_sandbox
             }
             $harnessResult = Invoke-CodexHarness @codexArguments
+        }
+        elseif ($phaseConfig.provider -eq 'grok-build') {
+            $harnessResult = Invoke-GrokBuildHarness -Phase $Phase -WorkingDirectory $executionProject -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -MaxTurns $(if ($phaseConfig.max_turns) { $phaseConfig.max_turns } else { 100 }) -PermissionMode $phaseConfig.permission_mode -SandboxProfile $phaseConfig.sandbox_profile -Tools $phaseConfig.tools -DisallowedTools $phaseConfig.disallowed_tools -AllowRules $phaseConfig.allow_rules -DenyRules $phaseConfig.deny_rules -AlwaysApprove:$phaseConfig.always_approve -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
         }
         else {
             $harnessResult = Invoke-OpenCodeHarness -Phase $Phase -WorkingDirectory $executionProject -Prompt $Prompt -RunDirectory $PhaseDirectory -Executable $phaseConfig.executable -Model $phaseConfig.model -Agent $phaseConfig.agent -AutoApprove:$phaseConfig.auto_approve -SessionId $session -Journal $journal -EventSink $eventSink -CancelTokenPath (Join-Path $runDirectory 'cancel.requested')
@@ -456,7 +484,15 @@ function Invoke-Felix3Task {
             $buildPromptBase += "`n`n## Validation failures to fix`n$failureSummary"
             $sharedValues['VALIDATION_FAILURES'] = $failureSummary
         } }
-        if (-not $validation -or -not $validation.Passed) { throw 'Independent validation did not pass within the configured build attempts.' }
+        if (-not $validation) {
+            if ($latestBuild -and -not $latestBuild.Succeeded) {
+                $failedBuildAttempts = @($state.phases | Where-Object { $_.name -like 'building-*' }).Count
+                $attemptWord = if ($failedBuildAttempts -eq 1) { 'attempt' } else { 'attempts' }
+                throw "Build harness failed after $failedBuildAttempts ${attemptWord}: $($latestBuild.Error)"
+            }
+            throw 'The build phase ended without producing an independent validation result.'
+        }
+        if (-not $validation.Passed) { throw 'Independent validation did not pass within the configured build attempts.' }
 
         Set-Felix3RunStatus -State $state -Status 'reviewing'; $state.active_phase = 'reviewing'
         Write-Felix3AtomicJson -Path $statePath -Value $state

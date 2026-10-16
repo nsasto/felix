@@ -35,7 +35,7 @@ Each adapter returns these fields, even when the provider has no value for one o
 
 | Field | Meaning |
 |---|---|
-| `Harness` | Canonical provider id: `claude-code`, `opencode`, or `codex` |
+| `Harness` | Canonical provider id: `claude-code`, `opencode`, `codex`, or `grok-build` |
 | `Phase` | Requested workflow phase |
 | `Succeeded` | Harness completed the requested turn successfully |
 | `Interrupted` | Felix cancellation stopped the process |

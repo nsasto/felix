@@ -17,6 +17,7 @@
     "api_key": "",
     "agent_key": "",
     "live_activity": false,
+    "live_output": false,
     "include_phase_summaries": true,
     "artifacts": []
   },

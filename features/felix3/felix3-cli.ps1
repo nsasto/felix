@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory)][ValidateSet('setup','migrate','run','next','loop','resume','stop','status')][string]$Action,
     [string]$ProjectPath = (Get-Location).Path,
-    [ValidateSet('claude-code','opencode','codex')][string]$Harness = 'claude-code',
+    [ValidateSet('claude-code','opencode','codex','grok-build')][string]$Harness = 'claude-code',
     [string]$RequirementId,
     [string]$SpecPath,
     [string]$RunId,
@@ -25,6 +25,7 @@ function Initialize-Felix3Config {
         $exampleName = switch ($SelectedHarness) {
         'opencode' { 'opencode/felix3-opencode.config.example.json' }
         'codex' { 'codex/felix3-codex.config.example.json' }
+        'grok-build' { 'grok/felix3-grok.config.example.json' }
         default { 'felix3.config.example.json' }
         }
         $examplePath = Join-Path $PSScriptRoot $exampleName
@@ -39,6 +40,7 @@ function Initialize-Felix3Config {
             'claude-code' { 'claude-code' }
             'opencode' { 'opencode' }
             'codex' { 'codex' }
+            'grok-build' { 'grok-build' }
             default { throw "Existing Felix 3 config has unsupported harness '$configuredProvider'." }
         }
     }
@@ -46,6 +48,7 @@ function Initialize-Felix3Config {
         'claude-code' { Join-Path $project '.claude/skills/felix' }
         'opencode' { Join-Path $project '.opencode/skills/felix' }
         'codex' { Join-Path $project '.agents/skills/felix' }
+        'grok-build' { Join-Path $project '.grok/skills/felix' }
     }
     $skillTarget = Join-Path $skillDirectory 'SKILL.md'
     if (-not (Test-Path -LiteralPath $skillTarget -PathType Leaf)) {

@@ -1,5 +1,31 @@
 Set-StrictMode -Version Latest
 
+function Get-Felix3RelativePath {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$BasePath,
+        [Parameter(Mandatory)][string]$TargetPath
+    )
+
+    $baseFullPath = [IO.Path]::GetFullPath($BasePath)
+    $targetFullPath = [IO.Path]::GetFullPath($TargetPath)
+    $trimCharacters = [char[]]@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    if ([string]::Equals($baseFullPath.TrimEnd($trimCharacters), $targetFullPath.TrimEnd($trimCharacters), [StringComparison]::OrdinalIgnoreCase)) {
+        return '.'
+    }
+
+    $baseUriPath = $baseFullPath
+    if (-not $baseUriPath.EndsWith([string][IO.Path]::DirectorySeparatorChar) -and
+        -not $baseUriPath.EndsWith([string][IO.Path]::AltDirectorySeparatorChar)) {
+        $baseUriPath += [IO.Path]::DirectorySeparatorChar
+    }
+    $baseUri = New-Object -TypeName System.Uri -ArgumentList $baseUriPath
+    $targetUri = New-Object -TypeName System.Uri -ArgumentList $targetFullPath
+    $relativeUri = $baseUri.MakeRelativeUri($targetUri)
+    if ($relativeUri.IsAbsoluteUri) { return $targetFullPath }
+    return [Uri]::UnescapeDataString($relativeUri.ToString()).Replace('/', [IO.Path]::DirectorySeparatorChar)
+}
+
 function Get-Felix3Sha256Hex {
     [CmdletBinding()]
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Text)
@@ -12,7 +38,7 @@ function Assert-Felix3HarnessResultContract {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]$Result,
-        [Parameter(Mandatory)][ValidateSet('claude-code','opencode','codex')][string]$ExpectedHarness,
+        [Parameter(Mandatory)][ValidateSet('claude-code','opencode','codex','grok-build')][string]$ExpectedHarness,
         [Parameter(Mandatory)][ValidateSet('planning','building','reviewing')][string]$ExpectedPhase
     )
 

@@ -60,6 +60,40 @@ function Get-ContentType {
     }
 }
 
+function New-FelixSyncSpecUploadRequest {
+    param([string]$RelativePath, [string]$Content)
+    $RelativePath = $RelativePath.Replace('\','/')
+    if ($RelativePath -notmatch '^specs/(?!.*\.\.)[^:]+\.md$') {
+        throw 'Spec path must be a relative Markdown path under specs/.'
+    }
+    if ($null -eq $Content) { throw 'Spec content is required.' }
+    return @{
+        create_missing = $true
+        files = @(@{
+            path = $RelativePath
+            content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Content))
+        })
+    }
+}
+
+function Resolve-FelixSyncSpecUploadResponse {
+    param($Response, [string]$RelativePath)
+    $expectedPath = $RelativePath.Replace('\','/')
+    if ($null -eq $Response) { return @{ Success = $false; Error = 'Cloud returned no spec upload result.' } }
+    if ($Response -is [System.Collections.IDictionary]) { $results = $Response.results }
+    else {
+        $resultsProperty = $Response.PSObject.Properties['results']
+        if (-not $resultsProperty) { return @{ Success = $false; Error = 'Cloud returned no spec upload result.' } }
+        $results = $resultsProperty.Value
+    }
+    $matchingResult = @($results | Where-Object { $_.path -eq $expectedPath } | Select-Object -First 1)
+    if ($matchingResult.Count -eq 0 -or -not $matchingResult[0].uploaded) {
+        $errorMessage = if ($matchingResult.Count -gt 0 -and $matchingResult[0].error) { [string]$matchingResult[0].error } else { 'Cloud did not confirm the spec upload.' }
+        return @{ Success = $false; Error = $errorMessage }
+    }
+    return @{ Success = $true; Error = $null }
+}
+
 #endregion
 
 #region HTTP Sync Implementation
@@ -221,6 +255,14 @@ class HttpSync : IRunReporter {
         }
         
         return $runId
+    }
+
+    [hashtable] UploadSpec([string]$relativePath, [string]$content) {
+        try { $body = New-FelixSyncSpecUploadRequest -RelativePath $relativePath -Content $content }
+        catch { return @{ Success = $false; Error = $_.Exception.Message } }
+        $response = $this.SendJsonRequestWithStatus('POST', '/api/sync/specs/upload', $body)
+        if (-not $response.Success) { return @{ Success = $false; Error = $response.Error } }
+        return Resolve-FelixSyncSpecUploadResponse -Response $response.Response -RelativePath $relativePath
     }
     
     [void] AppendEvent([hashtable]$eventData) {
@@ -851,6 +893,7 @@ class HttpSync : IRunReporter {
                 Success    = $true
                 StatusCode = 200
                 Error      = $null
+                Response   = $response
             }
         }
         catch {
@@ -858,12 +901,14 @@ class HttpSync : IRunReporter {
             $statusCode = 0
             
             # Try to extract HTTP status code from WebException
-            if ($_.Exception.Response) {
+            $responseProperty = $_.Exception.PSObject.Properties['Response']
+            $exceptionResponse = if ($responseProperty) { $responseProperty.Value } else { $null }
+            if ($exceptionResponse) {
                 try {
-                    $statusCode = [int]$_.Exception.Response.StatusCode
+                    $statusCode = [int]$exceptionResponse.StatusCode
                     
                     # Try to read response body for detailed error message
-                    $responseStream = $_.Exception.Response.GetResponseStream()
+                    $responseStream = $exceptionResponse.GetResponseStream()
                     if ($responseStream) {
                         $reader = New-Object System.IO.StreamReader($responseStream)
                         $responseBody = $reader.ReadToEnd()
@@ -908,6 +953,7 @@ class HttpSync : IRunReporter {
                 Success    = $false
                 StatusCode = $statusCode
                 Error      = $errorMsg
+                Response   = $null
             }
         }
     }
@@ -1009,9 +1055,11 @@ class HttpSync : IRunReporter {
             $statusCode = 0
             
             # Try to extract HTTP status code from WebException
-            if ($_.Exception.Response) {
+            $responseProperty = $_.Exception.PSObject.Properties['Response']
+            $exceptionResponse = if ($responseProperty) { $responseProperty.Value } else { $null }
+            if ($exceptionResponse) {
                 try {
-                    $statusCode = [int]$_.Exception.Response.StatusCode
+                    $statusCode = [int]$exceptionResponse.StatusCode
                 }
                 catch {
                     # Ignore status code extraction failures

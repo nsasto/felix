@@ -48,7 +48,7 @@ $files = Get-ChildItem -Path $FelixRoot -Recurse -File | Where-Object {
         return $false
     }
     # Skip lock files and other runtime-only artefacts anywhere in the tree
-    if ($_.Extension -eq ".lock" -or $_.Name -eq "run.lock") {
+    if ($_.Extension -in @(".lock", ".log") -or $_.Name -eq "run.lock") {
         return $false
     }
     return $true

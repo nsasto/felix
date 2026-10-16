@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-function Get-Felix3ProcessProperty {
+function global:Get-Felix3ProcessProperty {
     param($Object, [string]$Name)
     if ($null -eq $Object) { return $null }
     if ($Object -is [System.Collections.IDictionary]) { if ($Object.Contains($Name)) { return $Object[$Name] }; return $null }
@@ -41,6 +41,11 @@ function Invoke-Felix3Process {
         [scriptblock]$OnProcessStart,
         [scriptblock]$OnProcessExit
     )
+    # Cloud credentials and the coordinator's private event pipe are scoped to
+    # Felix. Harnesses must never inherit them from the PowerShell coordinator.
+    foreach ($secretName in @('FELIX_SYNC_KEY','FELIX_SYNC_AGENT_KEY','FELIX3_LIVE_PIPE')) {
+        try { [void]$Process.StartInfo.EnvironmentVariables.Remove($secretName) } catch { }
+    }
     if (-not $Process.Start()) { throw 'Harness process did not start.' }
     if ($OnProcessStart) { & $OnProcessStart $Process.Id }
     $encoding = New-Object System.Text.UTF8Encoding($false)
@@ -66,9 +71,11 @@ function Invoke-Felix3Process {
                     [void]$stdout.AppendLine($line); $outWriter.WriteLine($line); $outWriter.Flush()
                     if ($OnOutputLine) {
                         $control = & $OnOutputLine $line
-                        if ($control -eq 'question.requested' -and -not $Process.HasExited) {
+                        if ($control -eq 'question.requested') {
                             $questionRequested = $true
-                            try { $Process.Kill($true) } catch { try { & taskkill.exe /PID $Process.Id /T /F 2>$null | Out-Null } catch { try { $Process.Kill() } catch { } } }
+                            if (-not $Process.HasExited) {
+                                try { $Process.Kill($true) } catch { try { & taskkill.exe /PID $Process.Id /T /F 2>$null | Out-Null } catch { try { $Process.Kill() } catch { } } }
+                            }
                         }
                     }
                     $outTask = $Process.StandardOutput.ReadLineAsync()

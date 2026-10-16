@@ -114,6 +114,10 @@ function Invoke-CodexHarness {
                 }
                 $summary = if ($type -eq 'item.completed' -and $e.item.type -eq 'agent_message') { [string]$e.item.text } elseif ($type -eq 'item.started') { "Codex item started: $($e.item.type)" } elseif ($type -eq 'turn.completed') { 'Codex turn completed.' } else { "Codex event: $type" }
                 $payload = @{ provider_event = $type; session_id = [string]$e.thread_id; item_type = [string]$e.item.type }
+                if ($kind -like 'tool.*') {
+                    $payload.tool = [string]$e.item.type
+                    $payload.status = if ($kind -eq 'tool.started') { 'started' } else { 'completed' }
+                }
                 if ($type -eq 'turn.completed') { $payload.usage = $e.usage }
                 return (& $EventSink $kind $payload $summary)
             } catch { }

@@ -10,13 +10,13 @@ partial class Program
 
         var setup = new Command("setup", "Create a Felix 3 project config")
         {
-            new Option<string>("--harness", () => "claude-code", "Harness to configure: claude-code, opencode, or codex")
+            new Option<string>("--harness", () => "claude-code", "Harness to configure: claude-code, opencode, codex, or grok-build")
         };
         setup.SetHandler(async (string harness) => await ExecuteFelix3PowerShell("setup", "-Harness", harness), (Option<string>)setup.Options[0]);
 
         var migrate = new Command("migrate", "Preview or initialize the Felix 3 project config while preserving Felix 2 data")
         {
-            new Option<string>("--harness", () => "claude-code", "Harness to configure: claude-code, opencode, or codex"),
+            new Option<string>("--harness", () => "claude-code", "Harness to configure: claude-code, opencode, codex, or grok-build"),
             new Option<bool>("--apply", "Create the Felix 3 config after showing the migration preview")
         };
         migrate.SetHandler(async (string harness, bool apply) =>

@@ -32,12 +32,45 @@ function New-FakeCli {
 $tempRoot = Join-Path $PSScriptRoot (".test-run-{0}" -f [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 try {
+    $planningTemplate = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\prompts\planning.md') -Raw -Encoding UTF8
+    Assert-Felix3 ($planningTemplate -match 'Discover repository instruction files first' -and $planningTemplate -match 'never try to open a guessed or missing path') 'planning prompt requires discovering optional guidance files before reading'
+
+    # Claude Code plan mode writes the plan to its native plans folder and returns a pointer.
+    # Felix must capture that file only from the configured Claude plan root.
+    $claudePlansRoot = Join-Path $tempRoot 'plans'
+    New-Item -ItemType Directory -Path $claudePlansRoot -Force | Out-Null
+    $claudeNativePlanPath = Join-Path $claudePlansRoot 'native-plan.md'
+    $claudeNativePlanText = @'
+# Plan: S-PLAN - Native plan capture
+
+## Acceptance Coverage
+| Criterion | Planned task(s) | Verification |
+|---|---|---|
+| Smoke | Task 1 | Run check |
+'@
+    [System.IO.File]::WriteAllText($claudeNativePlanPath, $claudeNativePlanText, [Text.UTF8Encoding]::new($false))
+    $claudePointerResponse = @{ type = 'result'; result = "Plan written to ``$claudeNativePlanPath``."; session_id = 'claude-plan-session' } | ConvertTo-Json -Compress
+    $claudeCapturedPlan = ConvertFrom-ClaudeHarnessResponse -Output $claudePointerResponse -PlanRoots @($claudePlansRoot) -CaptureNativePlan
+    Assert-Felix3 ($claudeCapturedPlan.IsValid -and $claudeCapturedPlan.Text -eq $claudeNativePlanText -and $claudeCapturedPlan.NativePlanPath -eq $claudeNativePlanPath) 'Claude native plan pointer is captured into Felix as plan content'
+    $outsidePlanPath = Join-Path $tempRoot 'outside-plan.md'
+    [System.IO.File]::WriteAllText($outsidePlanPath, $claudeNativePlanText, [Text.UTF8Encoding]::new($false))
+    $outsidePlan = ConvertFrom-ClaudeHarnessResponse -Output (@{ type = 'result'; result = "Plan written to ``$outsidePlanPath``." } | ConvertTo-Json -Compress) -PlanRoots @($claudePlansRoot) -CaptureNativePlan
+    Assert-Felix3 (-not $outsidePlan.IsValid -and $outsidePlan.Error -match 'outside the allowed Claude plans directory') 'Claude native plan capture rejects paths outside the user plans directory'
+    $nativeHarnessDirectory = Join-Path $tempRoot 'claude-native-harness'
+    New-Item -ItemType Directory -Path $nativeHarnessDirectory -Force | Out-Null
+    $capturedArtifact = Save-ClaudeNativePlanArtifact -Text $claudeCapturedPlan.Text -RunDirectory $nativeHarnessDirectory -NativePlanPath $claudeCapturedPlan.NativePlanPath
+    Assert-Felix3 ($capturedArtifact -and (Test-Path -LiteralPath $capturedArtifact) -and (Get-Content -LiteralPath $capturedArtifact -Raw -Encoding UTF8) -eq $claudeNativePlanText) 'Claude native plan is copied into the local Felix run artifact'
+
     # Stable V3 work-item, harness-result, event, and state-transition contracts.
     $contractProject = Join-Path $tempRoot 'contract-project'
     $contractSpecs = Join-Path $contractProject 'specs'
     New-Item -ItemType Directory -Path $contractSpecs -Force | Out-Null
     $localSpecA = Join-Path $contractSpecs 'S-READY.md'
     $localSpecB = Join-Path $contractSpecs 'S-BLOCKED.md'
+    $relativeSpecPath = Get-Felix3RelativePath -BasePath $contractProject -TargetPath $localSpecA
+    Assert-Felix3 ($relativeSpecPath -eq 'specs\S-READY.md') 'relative path helper works without .NET Core Path.GetRelativePath'
+    $sameDirectoryPath = Get-Felix3RelativePath -BasePath $contractProject -TargetPath $contractProject
+    Assert-Felix3 ($sameDirectoryPath -eq '.') 'relative path helper returns dot for identical directory paths'
     [IO.File]::WriteAllText($localSpecA, "---`nid: S-READY`ntitle: Ready example`nstatus: ready-for-agent`n---`n# Ready spec`n", [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText($localSpecB, "---`nid: S-BLOCKED`ntitle: Blocked example`nstatus: ready-for-agent`ndepends_on: [S-DEP]`n---`n# Blocked spec`n", [Text.UTF8Encoding]::new($false))
     $localSourceConfig = [pscustomobject]@{ work_source = [pscustomobject]@{ specs_dir = 'specs'; ready_status = 'ready-for-agent' } }
@@ -83,11 +116,17 @@ try {
     foreach ($configPath in @(
         (Join-Path $PSScriptRoot '..\felix3.config.example.json'),
         (Join-Path $PSScriptRoot '..\opencode\felix3-opencode.config.example.json'),
-        (Join-Path $PSScriptRoot '..\codex\felix3-codex.config.example.json')
+        (Join-Path $PSScriptRoot '..\codex\felix3-codex.config.example.json'),
+        (Join-Path $PSScriptRoot '..\grok\felix3-grok.config.example.json')
     )) {
         $loadedConfig = Import-Felix3Config -Path (Resolve-Path -LiteralPath $configPath).Path
-        Assert-Felix3 ($loadedConfig.harness.provider -in @('claude-code','opencode','codex')) "example config validates: $(Split-Path $configPath -Leaf)"
+        Assert-Felix3 ($loadedConfig.harness.provider -in @('claude-code','opencode','codex','grok-build')) "example config validates: $(Split-Path $configPath -Leaf)"
     }
+    $grokSetupProject = Join-Path $tempRoot 'grok-setup-project'
+    New-Item -ItemType Directory -Path $grokSetupProject -Force | Out-Null
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\felix3-cli.ps1') -Action setup -ProjectPath $grokSetupProject -Harness grok-build | Out-Null
+    $grokSetupConfig = Get-Content -LiteralPath (Join-Path $grokSetupProject '.felix3\config.json') -Raw | ConvertFrom-Json
+    Assert-Felix3 ($LASTEXITCODE -eq 0 -and $grokSetupConfig.harness.provider -eq 'grok-build' -and (Test-Path -LiteralPath (Join-Path $grokSetupProject '.grok\skills\felix\SKILL.md'))) 'Grok setup creates its config and installs the Felix skill in the Grok project skill directory'
     $allowedToolsConfig = Import-Felix3Config -Path (Join-Path $PSScriptRoot '..\felix3.config.example.json')
     $claudeConfigBlock = $allowedToolsConfig.harness.'claude-code'
     $claudeConfigBlock | Add-Member -NotePropertyName allowed_tools -NotePropertyValue @('Read')
@@ -98,6 +137,14 @@ try {
     $allowedToolsPlan = Get-Felix3PhaseConfig -Config $allowedToolsConfig -Phase planning
     $allowedPlanningTools = @($allowedToolsPlan.allowed_tools)
     Assert-Felix3 ($allowedPlanningTools.Count -eq 1 -and $allowedPlanningTools[0] -eq 'Read') 'Claude phase config inherits base allowed tools when no phase override exists'
+    $grokConfig = Import-Felix3Config -Path (Join-Path $PSScriptRoot '..\grok\felix3-grok.config.example.json')
+    $grokPlanningPhase = Get-Felix3PhaseConfig -Config $grokConfig -Phase planning
+    Assert-Felix3 (@($grokPlanningPhase.deny_rules) -contains 'Bash') 'Grok planning phase denies native shell while Felix owns validation'
+    $grokBuildPhase = Get-Felix3PhaseConfig -Config $grokConfig -Phase building
+    Assert-Felix3 ($grokBuildPhase.permission_mode -eq 'dontAsk' -and @($grokBuildPhase.allow_rules) -contains 'Bash' -and @($grokBuildPhase.allow_rules) -contains 'Edit') 'Grok build phase explicitly allows native shell and edits for build commands'
+    $grokReviewPhase = Get-Felix3PhaseConfig -Config $grokConfig -Phase reviewing
+    $grokReviewRules = @($grokReviewPhase.allow_rules)
+    Assert-Felix3 (@($grokReviewRules) -contains 'Bash(git status *)' -and @($grokReviewRules) -contains 'Bash(git diff *)' -and @($grokReviewRules) -contains 'Bash(git log *)' -and @($grokReviewRules) -notcontains 'Bash' -and @($grokReviewPhase.deny_rules).Count -eq 0) 'Grok review phase allows only scoped read-only Git inspection commands'
     $savedSyncUrl = $env:FELIX_SYNC_URL
     try {
         Remove-Item Env:FELIX_SYNC_URL -ErrorAction SilentlyContinue
@@ -128,7 +175,10 @@ try {
     Assert-Felix3 ($cloudStartRequest.Body.agent_id -eq $cloudAgentId) 'Cloud lifecycle requests carry the owning agent UUID'
     Complete-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
     Release-Felix3CloudWorkItem -Source $cloudSource -RequirementId 'C-42' | Out-Null
-    Assert-Felix3 (($cloudRequestLog | Where-Object { $_.Uri -match '/work/start$' }).Count -eq 1 -and ($cloudRequestLog | Where-Object { $_.Uri -match '/work/complete$' }).Count -eq 1 -and ($cloudRequestLog | Where-Object { $_.Uri -match '/work/release$' }).Count -eq 1) 'Cloud work lifecycle maps start, complete, and release endpoints'
+    $cloudStartRequests = @($cloudRequestLog | Where-Object { $_.Uri -match '/work/start$' })
+    $cloudCompleteRequests = @($cloudRequestLog | Where-Object { $_.Uri -match '/work/complete$' })
+    $cloudReleaseRequests = @($cloudRequestLog | Where-Object { $_.Uri -match '/work/release$' })
+    Assert-Felix3 ($cloudStartRequests.Count -eq 1 -and $cloudCompleteRequests.Count -eq 1 -and $cloudReleaseRequests.Count -eq 1) 'Cloud work lifecycle maps start, complete, and release endpoints'
     $conflictException = [System.Exception]::new('already started')
     Add-Member -InputObject $conflictException -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 409 })
     $conflictRequest = { param($Method,$Uri,$Headers,$Body) throw $conflictException }.GetNewClosure()
@@ -172,7 +222,7 @@ try {
         Set-Item -Path Function:\Resume-Felix3Task -Value { param($ProjectPath,$RunId,$Answer,$ConfigPath) return [pscustomobject]@{ Status = $global:felix3TestCloudTaskStatus; RunId = $RunId } }
         $global:felix3TestCloudCode = 'C-100'; $global:felix3TestCloudTaskStatus = 'completed'
         $completedCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
-        Assert-Felix3 ($completedCloudCycle.Status -eq 'completed' -and ($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/complete$' }).Count -eq 1) 'Cloud cycle completes the source item only after task completion'
+        Assert-Felix3 ($completedCloudCycle.Status -eq 'completed' -and @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/complete$' }).Count -eq 1) 'Cloud cycle completes the source item only after task completion'
         $global:felix3TestCloudCode = 'C-101'; $global:felix3TestCloudTaskStatus = 'awaiting-input'
         $waitingCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
         $nextCountBeforeResume = @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/next\?' }).Count
@@ -184,7 +234,7 @@ try {
         Assert-Felix3 ($resumedCloudCycle.Status -eq 'completed' -and $nextCountAfterResume -eq $nextCountBeforeResume) 'Cloud cycle resumes its saved claim before polling for more work'
         $global:felix3TestCloudCode = 'C-102'; $global:felix3TestCloudTaskStatus = 'blocked'
         $blockedCloudCycle = Invoke-Felix3CloudWorkCycle -ProjectPath $cloudProject -ConfigPath $cloudConfigPath -Request $cloudCycleRequest
-        Assert-Felix3 ($blockedCloudCycle.Status -eq 'blocked' -and ($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/release$' }).Count -eq 1) 'Cloud cycle releases a blocked source item'
+        Assert-Felix3 ($blockedCloudCycle.Status -eq 'blocked' -and @($cloudCycleApiLog | Where-Object { $_.Uri -match '/work/release$' }).Count -eq 1) 'Cloud cycle releases a blocked source item'
         Set-Item -Path Function:\Start-Felix3CloudWorkItem -Value { param($Source,$RequirementId) return @{ status='already-started'; code=$RequirementId } }
         $global:felix3TestCloudCode = 'C-103'; $global:felix3TestCloudTaskStatus = 'completed'
         $callsBeforeRecoveryGuard = $global:felix3CloudTaskCalls
@@ -283,7 +333,13 @@ try {
     $fixtureSources = @{
         claude = @'
 import json,sys,os
-print(json.dumps({'type':'result','session_id':'claude-session','result':'claude done','usage':{'input_tokens':12,'output_tokens':3},'total_cost_usd':0.001}),flush=True)
+events=[
+ {'type':'stream_event','session_id':'claude-session','event':{'type':'content_block_delta','delta':{'type':'thinking_delta','thinking':'PRIVATE_CLAUDE_THOUGHT_SENTINEL'}}},
+ {'type':'stream_event','session_id':'claude-session','event':{'type':'content_block_delta','delta':{'type':'text_delta','text':'Claude surfaced delta'}}},
+ {'type':'assistant','session_id':'claude-session','message':{'content':[{'type':'tool_use','name':'Read','input':{'file_path':'PRIVATE_CLAUDE_TOOL_INPUT_SENTINEL'}}]}},
+ {'type':'result','session_id':'claude-session','result':'claude done','usage':{'input_tokens':12,'output_tokens':3},'total_cost_usd':0.001}
+]
+for event in events: print(json.dumps(event),flush=True)
 if os.environ.get('FELIX3_CAPTURE_CLAUDE_ARGS'): open(os.environ['FELIX3_CAPTURE_CLAUDE_ARGS'],'w',encoding='utf-8').write(json.dumps(sys.argv[1:]))
 '@
         opencode = @'
@@ -298,8 +354,21 @@ a=sys.argv[1:]
 if '-o' in a: open(a[a.index('-o')+1],'w',encoding='utf-8').write('codex done')
 if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS'],'w',encoding='utf-8').write(json.dumps(a))
 '@
+        grok = @'
+import json,sys,os
+events=[
+ {'type':'available_commands','tools':[],'commands':[]},
+ {'method':'session/update','params':{'sessionId':'grok-session','update':{'sessionUpdate':'agent_thought_chunk','content':{'type':'text','text':'PRIVATE_GROK_THOUGHT_SENTINEL'}}}},
+ {'method':'session/update','params':{'sessionId':'grok-session','update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':'Grok surfaced response'}}}},
+ {'method':'session/update','params':{'sessionId':'grok-session','update':{'sessionUpdate':'tool_call','toolCallId':'t1','title':'shell'}}},
+ {'method':'session/update','params':{'sessionId':'grok-session','update':{'sessionUpdate':'tool_call_update','toolCallId':'t1','status':'completed','content':'PRIVATE_TOOL_OUTPUT_SENTINEL'}}},
+ {'method':'session/update','params':{'sessionId':'grok-session','update':{'sessionUpdate':'usage_update','usage':{'input_tokens':11,'output_tokens':7}}}},
+ {'jsonrpc':'2.0','id':2,'result':{'sessionId':'grok-session','usage':{'input_tokens':11,'output_tokens':7},'total_cost_usd':0.004,'num_turns':2,'stopReason':'end_turn'}}]
+for e in events: print(json.dumps(e),flush=True)
+if os.environ.get('FELIX3_CAPTURE_GROK_ARGS'): open(os.environ['FELIX3_CAPTURE_GROK_ARGS'],'w',encoding='utf-8').write(json.dumps(sys.argv[1:]))
+'@
     }
-    foreach ($name in @('claude','opencode','codex')) {
+    foreach ($name in @('claude','opencode','codex','grok')) {
         $phaseDirectory = Join-Path $tempRoot "adapter-$name"
         New-Item -ItemType Directory -Path $phaseDirectory -Force | Out-Null
         $executable = New-FakeCli -Root $tempRoot -Name "fake-$name" -Source $fixtureSources[$name]
@@ -308,20 +377,27 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
             $captureClaudeArgsPath = Join-Path $tempRoot 'claude-args.json'; $env:FELIX3_CAPTURE_CLAUDE_ARGS = $captureClaudeArgsPath
             try { $result = Invoke-ClaudeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -AllowedTools @('Bash(python -m unittest:*)','Read') -Journal $journal -EventSink $sink }
             finally { Remove-Item Env:FELIX3_CAPTURE_CLAUDE_ARGS -ErrorAction SilentlyContinue }
-            $claudeArgs = @(Get-Content -LiteralPath $captureClaudeArgsPath -Raw | ConvertFrom-Json)
+            $claudeArgs = Get-Content -LiteralPath $captureClaudeArgsPath -Raw | ConvertFrom-Json
             $allowedToolsIndex = [Array]::IndexOf($claudeArgs, '--allowedTools')
-            Assert-Felix3 ($allowedToolsIndex -ge 0 -and $claudeArgs[$allowedToolsIndex + 1] -eq 'Bash(python -m unittest:*)' -and $claudeArgs[$allowedToolsIndex + 2] -eq 'Read') 'Claude adapter forwards scoped allowed tools without widening the default policy'
+            Assert-Felix3 ($allowedToolsIndex -ge 0 -and $claudeArgs[$allowedToolsIndex + 1] -eq 'Bash(python -m unittest:*)' -and $claudeArgs[$allowedToolsIndex + 2] -eq 'Read') "Claude adapter forwards scoped allowed tools without widening the default policy (captured args: $($claudeArgs -join ' | '))"
         }
         elseif ($name -eq 'opencode') { $result = Invoke-OpenCodeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -Journal $journal -EventSink $sink }
+        elseif ($name -eq 'grok') {
+            $grokArgsPath = Join-Path $tempRoot 'grok-args.json'; $env:FELIX3_CAPTURE_GROK_ARGS = $grokArgsPath
+            try { $result = Invoke-GrokBuildHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -PermissionMode 'dontAsk' -AllowRules @('Read','Edit','Bash') -DenyRules @('Bash(git push *)') -Journal $journal -EventSink $sink }
+            finally { Remove-Item Env:FELIX3_CAPTURE_GROK_ARGS -ErrorAction SilentlyContinue }
+            $grokArgs = Get-Content -LiteralPath $grokArgsPath -Raw | ConvertFrom-Json
+            Assert-Felix3 (($grokArgs -join ' ') -match '--permission-mode dontAsk' -and $grokArgs -contains '--allow' -and @($grokArgs | Where-Object { $_ -eq 'Bash' }).Count -eq 1 -and $grokArgs -contains '--deny' -and @($grokArgs | Where-Object { $_ -eq 'Bash(git push *)' }).Count -eq 1) 'Grok adapter forwards native shell and scoped deny rules'
+        }
         else {
             $captureArgsPath = Join-Path $tempRoot 'codex-args.json'; $env:FELIX3_CAPTURE_ARGS = $captureArgsPath
             try { $result = Invoke-CodexHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -WindowsSandbox 'unelevated' -Journal $journal -EventSink $sink }
             finally { Remove-Item Env:FELIX3_CAPTURE_ARGS -ErrorAction SilentlyContinue }
-            $codexArgs = @(Get-Content -LiteralPath $captureArgsPath -Raw | ConvertFrom-Json)
+            $codexArgs = Get-Content -LiteralPath $captureArgsPath -Raw | ConvertFrom-Json
             Assert-Felix3 ($codexArgs -notcontains '-a' -and $codexArgs -contains '-c' -and ($codexArgs -join ' ') -match 'approval_policy="on-request"') 'Codex adapter uses supported approval config overrides'
             Assert-Felix3 (($codexArgs -join ' ') -match 'windows\.sandbox="unelevated"') 'Codex adapter forwards the optional Windows sandbox backend override'
         }
-        $expectedHarness = @{ claude='claude-code'; opencode='opencode'; codex='codex' }[$name]
+        $expectedHarness = @{ claude='claude-code'; opencode='opencode'; codex='codex'; grok='grok-build' }[$name]
         Assert-Felix3 ((Assert-Felix3HarnessResultContract -Result $result -ExpectedHarness $expectedHarness -ExpectedPhase 'building').Harness -eq $expectedHarness) "$name adapter satisfies the common result contract"
         $invalidResult = $result | ConvertTo-Json -Depth 10 | ConvertFrom-Json
         $invalidResult.Succeeded = $true
@@ -332,7 +408,180 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
         Assert-Felix3 $result.Succeeded "$name adapter succeeds on its JSONL protocol"
         Assert-Felix3 (Test-Path -LiteralPath $result.RawOutputPath) "$name raw output is written while streaming"
         Assert-Felix3 ([string]$result.SessionId -eq "$name-session") "$name session ID is normalized"
+        if ($name -eq 'claude') {
+            $claudeEvents = @(Get-Content -LiteralPath $journal.EventPath -Encoding UTF8 | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.phase -eq 'adapter-claude' })
+            $claudeDeltas = @($claudeEvents | Where-Object kind -eq 'output.delta')
+            $claudeProjection = @($claudeEvents | ForEach-Object { ConvertTo-Felix3LiveProjection -Event $_ } | Where-Object { $_ })
+            Assert-Felix3 ($claudeDeltas.Count -eq 1 -and $claudeDeltas[0].summary -eq 'Claude surfaced delta') 'Claude stream-json text deltas enter the normalized event stream'
+            Assert-Felix3 (@($claudeProjection | Where-Object { $_.kind -eq 'assistant.delta' -and $_.text -eq 'Claude surfaced delta' }).Count -eq 1) 'Claude surfaced text maps to the shared live assistant-delta contract'
+            Assert-Felix3 ((($claudeEvents + $claudeProjection) | ConvertTo-Json -Depth 10) -notmatch 'PRIVATE_CLAUDE_THOUGHT_SENTINEL|PRIVATE_CLAUDE_TOOL_INPUT_SENTINEL') 'Claude reasoning and tool input never enter normalized or live events'
+            Assert-Felix3 (@($claudeProjection | Where-Object { $_.kind -eq 'tool.started' -and $_.tool -eq 'Read' }).Count -eq 1) 'Claude tool start projects only its allowlisted tool name'
+        }
+        elseif ($name -eq 'grok') {
+            Assert-Felix3 ($result.ResultText -eq 'Grok surfaced response' -and $result.CostUsd -eq 0.004 -and $result.Turns -eq 2) 'Grok normalizes surfaced text and provider usage metadata'
+            $grokEvents = @(Get-Content -LiteralPath $journal.EventPath -Encoding UTF8 | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.phase -eq 'adapter-grok' })
+            Assert-Felix3 (($grokEvents | ConvertTo-Json -Depth 10) -notmatch 'PRIVATE_GROK_THOUGHT_SENTINEL|PRIVATE_TOOL_OUTPUT_SENTINEL') 'Grok thought and tool output content never enter normalized events'
+            $questionExe = New-FakeCli -Root $tempRoot -Name 'fake-grok-question' -Source @'
+import json
+for text in ['visible before <felix3-ques','tion>{"question":"PRIVATE_GROK_QUESTION_SENTINEL"}','</felix3-question>']:
+ e={'method':'session/update','params':{'sessionId':'grok-question-session','update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':text}}}}
+ print(json.dumps(e),flush=True)
+'@
+            $questionDir = Join-Path $tempRoot 'adapter-grok-question'; New-Item -ItemType Directory -Path $questionDir -Force | Out-Null
+            $questionLiveEvents = [System.Collections.ArrayList]::new()
+            $questionLiveSink = { param($event) [void]$questionLiveEvents.Add($event) }.GetNewClosure()
+            $questionSink = New-Felix3EventSink -Journal $journal -Phase 'adapter-grok-question' -Harness 'grok-build' -CloudSink $questionLiveSink
+            $questionResult = Invoke-GrokBuildHarness -Phase planning -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $questionDir -Executable $questionExe -EventSink $questionSink
+            Assert-Felix3 ($questionResult.NeedsInput -and -not $questionResult.Succeeded) 'Grok question marker interrupts the phase and enters the shared human-input workflow'
+            $questionLiveJson = $questionLiveEvents | ConvertTo-Json -Depth 10
+            $questionLiveKinds = (@($questionLiveEvents | ForEach-Object { $_.kind }) -join ',')
+            $questionBodyLeaked = $questionLiveJson.Contains('PRIVATE_GROK_QUESTION_SENTINEL')
+            Assert-Felix3 (-not $questionBodyLeaked -and $questionLiveKinds -match 'question.requested') "Grok live sink event kinds: $questionLiveKinds; private question included: $questionBodyLeaked"
+        }
     }
+
+    $previousCloudKey = $env:FELIX_SYNC_KEY
+    $previousAgentKey = $env:FELIX_SYNC_AGENT_KEY
+    $previousLivePipe = $env:FELIX3_LIVE_PIPE
+    $env:FELIX_SYNC_KEY = 'private-cloud-key-sentinel'
+    $env:FELIX_SYNC_AGENT_KEY = 'private-agent-key-sentinel'
+    $env:FELIX3_LIVE_PIPE = 'private-pipe-name-sentinel'
+    $envCapturePath = Join-Path $tempRoot 'harness-environment.txt'
+    $env:FELIX3_CAPTURE_ENV = $envCapturePath
+    try {
+        $environmentExe = New-FakeCli -Root $tempRoot -Name 'fake-environment' -Source @'
+import json,os
+open(os.environ['FELIX3_CAPTURE_ENV'],'w',encoding='utf-8').write('|'.join(os.getenv(k,'') for k in ['FELIX_SYNC_KEY','FELIX_SYNC_AGENT_KEY','FELIX3_LIVE_PIPE']))
+for e in [{'type':'text','sessionID':'environment-session','part':{'text':'safe'}},{'type':'step_finish','sessionID':'environment-session','part':{}}]: print(json.dumps(e),flush=True)
+'@
+        $environmentPhase = Join-Path $tempRoot 'adapter-environment'
+        New-Item -ItemType Directory -Path $environmentPhase -Force | Out-Null
+        $environmentResult = Invoke-OpenCodeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $environmentPhase -Executable $environmentExe
+        Assert-Felix3 $environmentResult.Succeeded 'environment isolation fixture harness completed'
+        Assert-Felix3 ([string](Get-Content -LiteralPath $envCapturePath -Raw) -eq '||') 'native harness processes do not inherit Cloud credentials or Felix live pipe address'
+    }
+    finally {
+        if ($null -eq $previousCloudKey) { Remove-Item Env:FELIX_SYNC_KEY -ErrorAction SilentlyContinue } else { $env:FELIX_SYNC_KEY = $previousCloudKey }
+        if ($null -eq $previousAgentKey) { Remove-Item Env:FELIX_SYNC_AGENT_KEY -ErrorAction SilentlyContinue } else { $env:FELIX_SYNC_AGENT_KEY = $previousAgentKey }
+        if ($null -eq $previousLivePipe) { Remove-Item Env:FELIX3_LIVE_PIPE -ErrorAction SilentlyContinue } else { $env:FELIX3_LIVE_PIPE = $previousLivePipe }
+        Remove-Item Env:FELIX3_CAPTURE_ENV -ErrorAction SilentlyContinue
+    }
+
+    # The coordinator uses PowerShell as the pipe client and the CLI as server.
+    # Exercise the real PowerShell writer against a local pipe with no Cloud dependency.
+    if (-not ('Felix3PipeContractTest.LocalPipeReader' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System.IO;
+using System.IO.Pipes;
+using System.Text;
+using System.Threading.Tasks;
+namespace Felix3PipeContractTest {
+    public static class LocalPipeReader {
+        public static Task<string> ReadLine(string name) {
+            return Task.Run(() => {
+                using (var server = new NamedPipeServerStream(name, PipeDirection.In, 1, PipeTransmissionMode.Byte)) {
+                    server.WaitForConnection();
+                    using (var reader = new StreamReader(server, new UTF8Encoding(false))) {
+                        return reader.ReadLine();
+                    }
+                }
+            });
+        }
+    }
+}
+'@
+    }
+    $previousPipeAddress = $env:FELIX3_LIVE_PIPE
+    $pipeName = 'felix3-live-ps-test-{0}' -f [guid]::NewGuid().ToString('N')
+    $pipeReadTask = [Felix3PipeContractTest.LocalPipeReader]::ReadLine($pipeName)
+    try {
+        $env:FELIX3_LIVE_PIPE = $pipeName
+        $pipeEvent = @{ type='event'; event=@{ kind='phase.started'; phase='planning'; harness='opencode'; run_id='pipe-test'; seq=1 } }
+        Assert-Felix3 (Send-Felix3LivePipeMessage -Message $pipeEvent) 'PowerShell coordinator connects to the live named pipe'
+        Assert-Felix3 ($pipeReadTask.Wait([TimeSpan]::FromSeconds(5))) 'named-pipe server receives the PowerShell event'
+        $pipeLine = $pipeReadTask.Result
+        $pipeEnvelope = $pipeLine | ConvertFrom-Json
+        Assert-Felix3 ($pipeEnvelope.type -eq 'event' -and $pipeEnvelope.event.kind -eq 'phase.started' -and $pipeEnvelope.event.phase -eq 'planning') 'PowerShell named-pipe writer delivers a normalized event envelope'
+    }
+    finally {
+        try { if ($global:Felix3LivePipeWriter) { $global:Felix3LivePipeWriter.Dispose() } } catch { }
+        $global:Felix3LivePipeWriter = $null
+        if ($null -eq $previousPipeAddress) { Remove-Item Env:FELIX3_LIVE_PIPE -ErrorAction SilentlyContinue } else { $env:FELIX3_LIVE_PIPE = $previousPipeAddress }
+    }
+
+    $previousPipeAddress = $env:FELIX3_LIVE_PIPE
+    $pipeName = 'felix3-live-ps-stall-{0}' -f [guid]::NewGuid().ToString('N')
+    $stalledServer = [System.IO.Pipes.NamedPipeServerStream]::new($pipeName, [System.IO.Pipes.PipeDirection]::In, 1, [System.IO.Pipes.PipeTransmissionMode]::Byte, [System.IO.Pipes.PipeOptions]::Asynchronous)
+    $stalledConnect = $stalledServer.WaitForConnectionAsync()
+    try {
+        $env:FELIX3_LIVE_PIPE = $pipeName
+        $watch = [System.Diagnostics.Stopwatch]::StartNew()
+        $dropped = 0
+        for ($i = 0; $i -lt 256; $i++) {
+            $message = @{ type = 'event'; event = @{ kind = 'assistant.delta'; text = ('x' * 8192); seq = $i } }
+            if (-not (Send-Felix3LivePipeMessage -Message $message)) { $dropped++ }
+        }
+        $watch.Stop()
+        Assert-Felix3 ($stalledConnect.Wait([TimeSpan]::FromSeconds(5))) 'slow-consumer test accepts the Felix producer pipe'
+        Assert-Felix3 ($watch.Elapsed.TotalSeconds -lt 5) 'a stalled live-pipe reader cannot block event production'
+        Assert-Felix3 ($dropped -gt 0) 'slow live-pipe consumers cause bounded transient drops'
+    }
+    finally {
+        $stalledServer.Dispose()
+        try { if ($global:Felix3LivePipeWriter) { $global:Felix3LivePipeWriter.Dispose() } } catch { }
+        $global:Felix3LivePipeWriter = $null
+        $global:Felix3LivePipeWriteTask = $null
+        if ($null -eq $previousPipeAddress) { Remove-Item Env:FELIX3_LIVE_PIPE -ErrorAction SilentlyContinue } else { $env:FELIX3_LIVE_PIPE = $previousPipeAddress }
+    }
+
+    $claudeLiveSource = @'
+import json
+events=[
+ {'type':'stream_event','event':{'type':'content_block_delta','delta':{'type':'thinking_delta','thinking':'PRIVATE_THINKING_SENTINEL'}}},
+ {'type':'stream_event','event':{'type':'content_block_delta','delta':{'type':'text_delta','text':'surfaced assistant text'}}},
+ {'type':'stream_event','event':{'type':'content_block_delta','delta':{'type':'input_json_delta','partial_json':'PRIVATE_TOOL_INPUT_SENTINEL'}}},
+ {'type':'assistant','session_id':'claude-live-session','message':{'content':[{'type':'tool_use','name':'Bash','input':{'command':'PRIVATE_COMMAND_SENTINEL'}}]}},
+ {'type':'assistant','session_id':'claude-live-session','message':{'content':[{'type':'tool_use','name':'AskUserQuestion','input':{'questions':[{'question':'PRIVATE_QUESTION_SENTINEL'}]}}]}},
+ {'type':'result','session_id':'claude-live-session','result':'complete'}]
+for e in events: print(json.dumps(e),flush=True)
+'@
+    $claudeLiveExe = New-FakeCli -Root $tempRoot -Name 'fake-claude-live-filter' -Source $claudeLiveSource
+    $claudeLivePhase = Join-Path $tempRoot 'claude-live-filter'; New-Item -ItemType Directory -Path $claudeLivePhase -Force | Out-Null
+    $claudeLiveSink = New-Felix3EventSink -Journal $journal -Phase 'claude-live-filter' -Harness 'claude-code'
+    $claudeLiveResult = Invoke-ClaudeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $claudeLivePhase -Executable $claudeLiveExe -Journal $journal -EventSink $claudeLiveSink
+    Assert-Felix3 $claudeLiveResult.Succeeded 'Claude privacy fixture completes normally'
+    $claudeLiveEvents = @([IO.File]::ReadLines($journal.EventPath) | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.phase -eq 'claude-live-filter' })
+    $claudeProjection = @($claudeLiveEvents | ForEach-Object { ConvertTo-Felix3LiveProjection -Event $_ } | Where-Object { $_ })
+    $claudeOutput = @($claudeProjection | Where-Object { $_.kind -eq 'assistant.delta' })
+    $claudeProjectionJson = $claudeProjection | ConvertTo-Json -Depth 10 -Compress
+    Assert-Felix3 ($claudeOutput.Count -eq 1 -and $claudeOutput[0].text -eq 'surfaced assistant text') 'Claude live projection emits only surfaced text deltas'
+    Assert-Felix3 (@($claudeProjection | Where-Object { $_.kind -eq 'tool.started' -and $_.tool -eq 'Bash' }).Count -eq 1) 'Claude live projection retains safe tool identity only'
+    Assert-Felix3 (@($claudeProjection | Where-Object { $_.kind -eq 'question.requested' }).Count -eq 1) 'Claude question projection is a generic prompt indicator'
+    Assert-Felix3 ($claudeProjectionJson -notmatch 'PRIVATE_THINKING|PRIVATE_TOOL_INPUT|PRIVATE_COMMAND|PRIVATE_QUESTION') 'Claude reasoning, tool input, command arguments, and question wording stay out of live projection'
+
+    $codexLiveSource = @'
+import json
+events=[
+ {'type':'thread.started','thread_id':'codex-live-session'},
+ {'type':'item.started','thread_id':'codex-live-session','item':{'type':'command_execution','command':'PRIVATE_CODEX_COMMAND_SENTINEL'}},
+ {'type':'item.completed','thread_id':'codex-live-session','item':{'type':'agent_message','text':'Codex surfaced assistant text'}},
+ {'type':'item.completed','thread_id':'codex-live-session','item':{'type':'command_execution','output':'PRIVATE_CODEX_OUTPUT_SENTINEL'}},
+ {'type':'turn.completed','thread_id':'codex-live-session','usage':{'input_tokens':8,'output_tokens':3,'total_tokens':11}}]
+for e in events: print(json.dumps(e),flush=True)
+'@
+    $codexLiveExe = New-FakeCli -Root $tempRoot -Name 'fake-codex-live-filter' -Source $codexLiveSource
+    $codexLivePhase = Join-Path $tempRoot 'codex-live-filter'; New-Item -ItemType Directory -Path $codexLivePhase -Force | Out-Null
+    $codexLiveSink = New-Felix3EventSink -Journal $journal -Phase 'codex-live-filter' -Harness 'codex'
+    $codexLiveResult = Invoke-CodexHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $codexLivePhase -Executable $codexLiveExe -Journal $journal -EventSink $codexLiveSink
+    Assert-Felix3 $codexLiveResult.Succeeded 'Codex privacy fixture completes normally'
+    $codexLiveEvents = @([IO.File]::ReadLines($journal.EventPath) | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.phase -eq 'codex-live-filter' })
+    $codexProjection = @($codexLiveEvents | ForEach-Object { ConvertTo-Felix3LiveProjection -Event $_ } | Where-Object { $_ })
+    $codexOutput = @($codexProjection | Where-Object { $_.kind -eq 'assistant.delta' })
+    $codexProjectionJson = $codexProjection | ConvertTo-Json -Depth 10 -Compress
+    Assert-Felix3 ($codexOutput.Count -eq 1 -and $codexOutput[0].text -eq 'Codex surfaced assistant text') 'Codex completed assistant messages become live output chunks'
+    Assert-Felix3 (@($codexProjection | Where-Object { $_.kind -eq 'tool.started' -and $_.tool -eq 'command_execution' }).Count -eq 1) 'Codex live projection retains safe command tool identity only'
+    Assert-Felix3 ($codexProjectionJson -notmatch 'PRIVATE_CODEX_COMMAND|PRIVATE_CODEX_OUTPUT') 'Codex command arguments and tool output stay out of live projection'
+
     $adapterUsage = Get-Content -LiteralPath (Join-Path $tempRoot 'usage.json') -Raw | ConvertFrom-Json
     Assert-Felix3 ($adapterUsage.totals.input_tokens -ge 30 -and $adapterUsage.totals.output_tokens -ge 9) 'all adapters contribute normalized usage'
 
@@ -405,15 +654,20 @@ time.sleep(15)
     $cloud = [pscustomobject]@{ Client = $fakeCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; live_activity = $false; artifacts = @() } }
     Add-Felix3CloudEvent -Cloud $cloud -Event ([pscustomobject]@{ kind = 'output.delta'; event_id = 'e1'; run_id = 'local'; seq = 1; phase = 'building'; harness = 'codex'; summary = 'private source text'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{} })
     Assert-Felix3 ($fakeCloudClient.Events.Count -eq 0 -and $cloud.Buffer.Count -eq 0) 'cloud never receives streamed assistant text'
+    $outputProjection = ConvertTo-Felix3LiveProjection -Event ([pscustomobject]@{ kind = 'output.delta'; run_id = 'local'; seq = 1; timestamp = [DateTime]::UtcNow.ToString('o'); phase = 'building'; harness = 'opencode'; summary = 'surfaced text'; payload = @{ provider_event = 'text'; private = 'must not pass' } })
+    Assert-Felix3 ($outputProjection.kind -eq 'assistant.delta' -and $outputProjection.text -eq 'surfaced text' -and -not ($outputProjection | ConvertTo-Json -Compress | Select-String 'private|provider_event')) 'live projection copies only surfaced assistant text into a versioned allowlist'
+    $pathAndSecretProjection = ConvertTo-Felix3LiveProjection -Event ([pscustomobject]@{ kind = 'output.delta'; run_id = 'local'; seq = 2; timestamp = [DateTime]::UtcNow.ToString('o'); phase = 'building'; harness = 'opencode'; summary = 'Open C:\Users\Alice Smith\project\src\main.cs and /home/alice/project/src/main.py; token=sk-or-v1-0123456789abcdefghijklmnop; xai-0123456789abcdefghijklmnopqrstuv; https://example.com/docs'; payload = @{} })
+    Assert-Felix3 ($pathAndSecretProjection.text -notmatch 'C:\\Users|/home/alice|sk-or-v1-|xai-0123456789' -and $pathAndSecretProjection.text -match '\[local path\]' -and $pathAndSecretProjection.text -match 'https://example.com/docs') 'live assistant text redacts absolute machine paths and provider credentials while preserving URLs'
+    $questionProjection = ConvertTo-Felix3LiveProjection -Event ([pscustomobject]@{ kind = 'question.requested'; run_id = 'local'; seq = 2; timestamp = [DateTime]::UtcNow.ToString('o'); phase = 'planning'; harness = 'claude-code'; summary = 'Sensitive question wording'; payload = @{ question = 'Sensitive question wording'; tool = 'AskUserQuestion' } })
+    Assert-Felix3 (($questionProjection | ConvertTo-Json -Compress) -notmatch 'Sensitive question|AskUserQuestion') 'live question projection contains no question text or question tool payload'
     Add-Felix3CloudEvent -Cloud $cloud -Event ([pscustomobject]@{ kind = 'question.requested'; event_id = 'e2'; run_id = 'local'; seq = 2; phase = 'planning'; harness = 'codex'; summary = 'Sensitive project question?'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{ question = 'Sensitive project question?' } })
     $sentQuestion = $fakeCloudClient.Events[0]
     Assert-Felix3 ($sentQuestion.message -eq 'Human input requested.' -and ($sentQuestion | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Sensitive project question') 'durable cloud question summaries never contain question text'
     $liveCloudClient = [Fel3TestCloudClient]::new()
-    $liveCloud = [pscustomobject]@{ Client = $liveCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; live_activity = $true; artifacts = @() } }
+    $liveCloud = [pscustomobject]@{ Client = $liveCloudClient; CloudRunId = 'cloud-id'; LiveEnabled = $true; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = [pscustomobject]@{ include_phase_summaries = $true; live_activity = $true; artifacts = @() } }
     Add-Felix3CloudEvent -Cloud $liveCloud -Event ([pscustomobject]@{ kind = 'tool.started'; event_id = 'e-live'; run_id = 'local'; seq = 4; phase = 'building'; harness = 'opencode'; summary = 'Sensitive command and model reasoning'; timestamp = [DateTime]::UtcNow.ToString('o'); payload = @{ tool = 'shell'; status = 'started'; provider_event = 'private provider payload'; usage = @{ output_tokens = 99 } } })
-    $liveActivity = $liveCloudClient.Activity[0]
-    Assert-Felix3 ($liveActivity.kind -eq 'tool.started' -and $liveActivity.phase -eq 'building' -and $liveActivity.tool -eq 'shell' -and $liveActivity.status -eq 'started') 'opt-in live activity sends only the allowlisted action metadata'
-    Assert-Felix3 (($liveActivity | ConvertTo-Json -Depth 10 -Compress) -notmatch 'Sensitive command|private provider|output_tokens|harness') 'live activity does not carry provider output, reasoning, usage, or harness internals'
+    Assert-Felix3 ($liveCloudClient.Activity.Count -eq 0 -and $liveCloud.Buffer.Count -eq 1 -and $liveCloud.Buffer[0].message -eq 'Tool started.') 'opt-in live activity avoids synchronous HTTP and durable metadata remains a fixed summary'
+    Assert-Felix3 (($liveCloud.Buffer[0] | ConvertTo-Json -Depth 10 -Compress) -notmatch 'Sensitive command|private provider|output_tokens|harness') 'durable Cloud action metadata excludes provider output, reasoning, usage, and harness internals'
     $retryCloudClient = [Fel3TestCloudClient]::new()
     $retryCloudClient.FailAppend = $true
     $retryCloud = [pscustomobject]@{ Client = $retryCloudClient; CloudRunId = 'cloud-id'; Buffer = [System.Collections.ArrayList]::new(); LastFlush = [DateTime]::UtcNow; StatePath = $cloudStatePath; Settings = $cloud.Settings }
@@ -446,9 +700,11 @@ time.sleep(15)
         $global:felix3OutboxOffline = $false
         $syncClient.FinishRun('felix3-outbox-smoke', @{ status = 'completed' })
         Assert-Felix3 ((-not (Test-Path -LiteralPath $runOutboxPath)) -and $global:felix3OutboxRequests.Count -ge 1) 'sync-http reconnect retries queued events and removes the run-event outbox file'
-        Assert-Felix3 (($global:felix3OutboxRequests | Where-Object { $_.Uri -match '/api/runs/felix3-outbox-smoke/events$' }).Count -eq 1) 'disk outbox retry sends the queued event batch to the run events endpoint'
-        $startedCloudRun = $syncClient.StartRun(@{ agent_key = 'ag-test'; project_id = 'project-test' })
+        Assert-Felix3 (@($global:felix3OutboxRequests | Where-Object { $_.Uri -match '/api/runs/felix3-outbox-smoke/events$' }).Count -eq 1) 'disk outbox retry sends the queued event batch to the run events endpoint'
+        $startedCloudRun = $syncClient.StartRun(@{ agent_key = 'ag-test'; project_id = 'project-test'; metadata = @{ felix3_run_id = 'local-run'; live_stream_enabled = $true } })
         Assert-Felix3 ([bool]$startedCloudRun -and @($global:felix3OutboxRequests | Where-Object { $_.Uri -match '/api/runs$' }).Count -eq 1) 'a single queued run-start request flushes through the outbox'
+        $runStartBody = @($global:felix3OutboxRequests | Where-Object { $_.Uri -match '/api/runs$' })[0].Body | ConvertFrom-Json
+        Assert-Felix3 ($runStartBody.metadata.live_stream_enabled -eq $true -and $runStartBody.metadata.felix3_run_id -eq 'local-run') 'run-start sync sends the live-stream opt-in as nested non-content metadata'
     }
     finally {
         if ($savedRestFunction) { Set-Item Function:\global:Invoke-RestMethod -Value $savedRestFunction.ScriptBlock }
@@ -516,6 +772,23 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $project '.felix3\config.json') -Encoding UTF8
     $savedCaptureArgs = $env:FELIX3_CAPTURE_ARGS; $captureArgsPath = Join-Path $tempRoot 'coordinator-args.jsonl'; $env:FELIX3_CAPTURE_ARGS = $captureArgsPath
     try {
+        $invalidConfig = $config | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $invalidConfig.workflow.validation.commands = @()
+        $invalidConfigPath = Join-Path $project '.felix3\invalid-config.json'
+        $invalidConfig | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $invalidConfigPath -Encoding UTF8
+        $preflightRejected = $false
+        $preflightError = ''
+        try { Invoke-Felix3Task -ProjectPath $project -RequirementId 'S-PREFLIGHT' -SpecPath 'specs/S-1.md' -ConfigPath '.felix3/invalid-config.json' -NewRunId 'preflight-rejected' | Out-Null }
+        catch { $preflightError = $_.Exception.Message; $preflightRejected = $preflightError -match 'no harness phases were run' }
+        $preflightRunPath = Join-Path $project '.felix3/runs/preflight-rejected'
+        Assert-Felix3 ($preflightRejected -and -not (Test-Path -LiteralPath $preflightRunPath) -and -not (Test-Path -LiteralPath $captureArgsPath)) "missing required validation commands fail before run creation and provider calls (error='$preflightError', run_exists=$(Test-Path -LiteralPath $preflightRunPath), provider_called=$(Test-Path -LiteralPath $captureArgsPath))"
+        $invalidConfig.workflow.validation.commands = @(@{ name = 'bad-args'; executable = 'python'; args = '-c' })
+        $invalidConfig | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $invalidConfigPath -Encoding UTF8
+        $invalidArgsRejected = $false
+        try { Invoke-Felix3Task -ProjectPath $project -RequirementId 'S-PREFLIGHT-ARGS' -SpecPath 'specs/S-1.md' -ConfigPath '.felix3/invalid-config.json' -NewRunId 'preflight-args-rejected' | Out-Null }
+        catch { $invalidArgsRejected = $_.Exception.Message -match 'args must be an array of strings' }
+        $invalidArgsRunPath = Join-Path $project '.felix3/runs/preflight-args-rejected'
+        Assert-Felix3 ($invalidArgsRejected -and -not (Test-Path -LiteralPath $invalidArgsRunPath) -and -not (Test-Path -LiteralPath $captureArgsPath)) 'scalar validation args fail before run creation and provider calls'
         $first = Invoke-Felix3Task -ProjectPath $project -RequirementId 'S-1' -SpecPath 'specs/S-1.md'
         Assert-Felix3 ($first.Status -eq 'awaiting-input') 'coordinator persists an agent question and pauses the run'
         Assert-Felix3 (Test-Path -LiteralPath (Join-Path $first.RunDirectory 'question.json')) 'question is durable and inspectable'
@@ -530,6 +803,50 @@ if os.environ.get('FELIX3_CAPTURE_ARGS'): open(os.environ['FELIX3_CAPTURE_ARGS']
     $state = Get-Content -LiteralPath $resumed.StatePath -Raw | ConvertFrom-Json
     Assert-Felix3 ($state.run_id -eq $first.RunId -and $state.status -eq 'completed') 'resumption preserves run identity and terminal state'
     Assert-Felix3 (Test-Path -LiteralPath (Join-Path $resumed.RunDirectory 'usage.json')) 'resumed run retains aggregated usage'
+
+    # A failed Grok shell action must be reported as a harness failure, not as a validation failure.
+    $failedGrokProject = Join-Path $tempRoot 'failed-grok-project'
+    New-Item -ItemType Directory -Path (Join-Path $failedGrokProject 'specs') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $failedGrokProject '.felix3') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $failedGrokProject 'specs/S-GROK-FAIL.md') -Value @'
+---
+id: S-GROK-FAIL
+title: Grok failure diagnostic
+---
+# Verify greeting
+'@ -Encoding UTF8
+    $failedGrokSource = @'
+import os,sys,json
+a=sys.argv[1:]
+prompt=open(a[a.index('--prompt-file')+1],encoding='utf-8').read()
+if '# Felix 3 Planning Phase' in prompt:
+    print(json.dumps({'type':'text','data':'# Plan\n\n## Acceptance Coverage\n| Criterion | Task | Check |\n|---|---|---|\n| The check passes | Task 1 | Run the hello validator |\n\n## Tasks\n- [ ] Run the check.\n\n## Validation\nRun the configured command.'}),flush=True)
+    print(json.dumps({'type':'end','stopReason':'end_turn','sessionId':'failed-grok-session'}),flush=True)
+else:
+    prompt_path=a[a.index('--prompt-file')+1]
+    open(os.path.join(os.path.dirname(prompt_path),'captured-build-prompt.txt'),'w',encoding='utf-8').write(prompt)
+    print(json.dumps({'type':'tool_call','toolCallId':'call-1','toolName':'run_terminal_command'}),flush=True)
+    print(json.dumps({'type':'tool_call_update','toolCallId':'call-1','status':'failed','content':{'type':'text','text':'User cancelled the execution for tool run_terminal_command'}}),flush=True)
+    print(json.dumps({'type':'end','stopReason':'cancelled','sessionId':'failed-grok-session'}),flush=True)
+'@
+    $failedGrokExe = New-FakeCli -Root $tempRoot -Name 'fake-grok-cancel' -Source $failedGrokSource
+    $failedGrokConfig = Import-Felix3Config -Path (Join-Path $PSScriptRoot '..\grok\felix3-grok.config.example.json')
+    $failedGrokConfig.execution.worktree.enabled = $false
+    $failedGrokConfig.artifacts.runs_dir = '.felix3/runs'
+    $failedGrokConfig.cloud_sync.enabled = $false
+    $failedGrokConfig.harness.'grok-build'.executable = $failedGrokExe
+    $failedGrokConfig.workflow.max_build_attempts = 1
+    $failedGrokConfig.workflow.validation.commands = @(@{ name = 'should-not-run'; executable = 'python'; args = @('-c','raise SystemExit(0)') })
+    Write-Felix3Json -Path (Join-Path $failedGrokProject '.felix3\config.json') -Value $failedGrokConfig
+    $failedGrokRun = Invoke-Felix3Task -ProjectPath $failedGrokProject -RequirementId 'S-GROK-FAIL' -SpecPath 'specs/S-GROK-FAIL.md'
+    Assert-Felix3 ($failedGrokRun.Status -eq 'blocked' -and $failedGrokRun.Outcome -match "Grok Build tool 'run_terminal_command' failed with status 'failed'" -and $failedGrokRun.Outcome -match "Grok Build stopped with reason 'cancelled'") 'failed build diagnostics preserve the tool name/status and provider cancellation reason'
+    Assert-Felix3 (-not $failedGrokRun.ValidationPath) 'validation is not reported as failed when no validation command ran'
+    $failedGrokBuildPrompt = Get-Content -LiteralPath (Join-Path $failedGrokRun.RunDirectory 'building-1\captured-build-prompt.txt') -Raw -Encoding UTF8
+    $grokBuildGuidanceHasSingleCommand = $failedGrokBuildPrompt -match '(?i)one terminal command per tool call'
+    $grokBuildGuidanceDelegatesValidation = $failedGrokBuildPrompt -match '(?i)Felix runs configured validation commands'
+    Assert-Felix3 ($grokBuildGuidanceHasSingleCommand -and $grokBuildGuidanceDelegatesValidation) "Grok build prompt avoids compound terminal calls and delegates acceptance validation to Felix (single=$grokBuildGuidanceHasSingleCommand, validation=$grokBuildGuidanceDelegatesValidation)"
+    $failedGrokResult = Get-Content -LiteralPath (Join-Path $failedGrokRun.RunDirectory 'building-1\harness-result.json') -Raw | ConvertFrom-Json
+    Assert-Felix3 ($failedGrokResult.failed_tool_name -eq 'run_terminal_command' -and $failedGrokResult.failed_tool_status -eq 'failed' -and $failedGrokResult.error -notmatch 'User cancelled the execution') 'Grok local result records only safe failure metadata and excludes the raw tool result'
 
     # New configs default to a per-run worktree, and resume returns to that exact checkout.
     $worktreeRepo = Join-Path $tempRoot 'worktree-repo'
@@ -650,7 +967,22 @@ print(json.dumps({'type':'result','session_id':'claude-coordinator-session','res
     Assert-Felix3 ((Get-Felix3SpecMetadata -Path $localReadySpec)['status'] -eq 'completed') 'successful local work marks its spec completed'
     Assert-Felix3 (-not (Test-Path -LiteralPath (Join-Path $project '.felix3\work-source\local-active.json'))) 'successful local work clears the resumable active claim'
 
-    Write-Output 'Felix 3 tests passed: three harness adapters, local and Cloud work-source lifecycles, streamed events/usage, native questions, plan approval/rejection, cancellation, Cloud privacy, in-memory retry, disk outbox persistence/retry, and resumable workflows.'
+    # Explicit local-spec linking creates a safe, opt-in upload request.
+    . (Join-Path $PSScriptRoot '..\..\..\.felix\core\sync-interface.ps1')
+    . (Join-Path $PSScriptRoot '..\..\..\.felix\plugins\sync-http\http-client.ps1')
+    $uploadBody = New-FelixSyncSpecUploadRequest -RelativePath 'specs\S-0001-cloud-link.md' -Content '# Cloud link smoke — café'
+    $uploadedSpec = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($uploadBody.files[0].content))
+    Assert-Felix3 ($uploadBody.create_missing -and $uploadBody.files[0].path -eq 'specs/S-0001-cloud-link.md' -and $uploadedSpec -eq '# Cloud link smoke — café') 'local spec upload opts into requirement mapping and preserves UTF-8 content'
+    $uploadAccepted = Resolve-FelixSyncSpecUploadResponse -Response ([pscustomobject]@{ results = @([pscustomobject]@{ path = 'specs/S-0001-cloud-link.md'; uploaded = $true; error = $null }) }) -RelativePath 'specs\S-0001-cloud-link.md'
+    $uploadRejected = Resolve-FelixSyncSpecUploadResponse -Response ([pscustomobject]@{ results = @([pscustomobject]@{ path = 'specs/S-0001-cloud-link.md'; uploaded = $false; error = 'No mapping' }) }) -RelativePath 'specs\S-0001-cloud-link.md'
+    Assert-Felix3 ($uploadAccepted.Success -and -not $uploadRejected.Success -and $uploadRejected.Error -eq 'No mapping') 'local spec linking requires Cloud to confirm the matching upload'
+    Assert-Felix3 (Test-Felix3LocalSpecCodeMatch -RequirementId 'S-0001' -RelativeSpecPath $uploadBody.files[0].path) 'local spec linking accepts a matching requirement code'
+    Assert-Felix3 (-not (Test-Felix3LocalSpecCodeMatch -RequirementId 'S-0002' -RelativeSpecPath $uploadBody.files[0].path)) 'local spec linking rejects a mismatched requirement code'
+    $invalidUploadRejected = $false
+    try { New-FelixSyncSpecUploadRequest -RelativePath '../outside.md' -Content 'unsafe' | Out-Null } catch { $invalidUploadRejected = $true }
+    Assert-Felix3 $invalidUploadRejected 'local spec upload rejects paths outside specs/'
+
+    Write-Output 'Felix 3 tests passed: four harness adapters, local and Cloud work-source lifecycles, streamed events/usage, native questions, plan approval/rejection, cancellation, Cloud privacy, in-memory retry, disk outbox persistence/retry, and resumable workflows.'
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

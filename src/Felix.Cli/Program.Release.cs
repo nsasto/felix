@@ -746,4 +746,38 @@ rm -rf "$STAGE_ROOT"
 
         AnsiConsole.MarkupLine($"[grey]  Extracted {count} files[/]");
     }
+
+    internal static string ExtractFelix3ScriptsToDirectory(string targetDirectory)
+    {
+        var root = Path.GetFullPath(targetDirectory);
+        Directory.CreateDirectory(root);
+        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+        var asm = typeof(Program).Assembly;
+        using var zip = new ZipArchive(asm.GetManifestResourceStream("felix-scripts.zip")
+            ?? throw new Exception("Embedded felix-scripts.zip not found"), ZipArchiveMode.Read);
+
+        foreach (var entry in zip.Entries)
+        {
+            const string prefix = "felix3/";
+            if (string.IsNullOrEmpty(entry.Name) || !entry.FullName.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var relativePath = entry.FullName[prefix.Length..].Replace('/', Path.DirectorySeparatorChar);
+            var destination = Path.GetFullPath(Path.Combine(root, relativePath));
+            if (!destination.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            using var source = entry.Open();
+            using var target = File.Create(destination);
+            source.CopyTo(target);
+        }
+
+        var scriptPath = Path.Combine(root, "felix3-cli.ps1");
+        if (!File.Exists(scriptPath))
+            throw new FileNotFoundException("The embedded Felix 3 CLI script is missing.", scriptPath);
+        return scriptPath;
+    }
 }

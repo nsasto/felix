@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+$global:Felix3LivePipeWriter = $null
 
 function global:Initialize-Felix3RunJournal {
     [CmdletBinding()]
@@ -19,7 +20,7 @@ function global:Protect-Felix3Text {
     if ($null -eq $Text) { return $null }
     $safe = $Text -replace '(?i)(api[_-]?key|token|password|secret)(\s*[=:]\s*)([^\s,;"'']+)', '$1$2[REDACTED]'
     $safe = $safe -replace '(?i)Bearer\s+[A-Za-z0-9._~+/=-]+', 'Bearer [REDACTED]'
-    $safe = $safe -replace '(?i)\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|fsk_[A-Za-z0-9_-]{16,})\b', '[REDACTED]'
+    $safe = $safe -replace '(?i)\b(?:sk-[A-Za-z0-9_-]{20,}|xai-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|fsk_[A-Za-z0-9_-]{16,})\b', '[REDACTED]'
     $safe = $safe -replace '(?i)\bAKIA[0-9A-Z]{16}\b', '[REDACTED]'
     $safe = $safe -replace '\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b', '[REDACTED]'
     if ($safe.Length -gt $MaxLength) { return $safe.Substring(0, $MaxLength) + '…[truncated]' }
@@ -87,6 +88,97 @@ function global:New-Felix3EventSink {
         }
         if ($Kind -eq 'question.requested') { return 'question.requested' }
     }.GetNewClosure()
+}
+
+function global:Send-Felix3LivePipeMessage {
+    param([Parameter(Mandatory)]$Message)
+    $pipeName = [string]$env:FELIX3_LIVE_PIPE
+    if (-not $pipeName) { return $false }
+    try {
+        if (-not $global:Felix3LivePipeWriter) {
+            $pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [System.IO.Pipes.PipeDirection]::Out)
+            $pipe.Connect(300)
+            $writer = [System.IO.StreamWriter]::new($pipe, [System.Text.UTF8Encoding]::new($false))
+            $writer.AutoFlush = $true
+            $global:Felix3LivePipeWriter = $writer
+        }
+        $json = ConvertTo-Json -InputObject $Message -Depth 8 -Compress
+        # Never wait for the optional Cloud consumer. One outstanding async
+        # write bounds memory; if the reader falls behind, drop this live-only
+        # message and let the durable local event log remain authoritative.
+        $pendingVariable = Get-Variable -Name Felix3LivePipeWriteTask -Scope Global -ErrorAction SilentlyContinue
+        $pending = if ($pendingVariable) { $pendingVariable.Value } else { $null }
+        if ($pending -and -not $pending.IsCompleted) { return $false }
+        if ($pending -and $pending.IsFaulted) { throw $pending.Exception }
+        $global:Felix3LivePipeWriteTask = $global:Felix3LivePipeWriter.WriteLineAsync($json)
+        return $true
+    } catch {
+        try { if ($global:Felix3LivePipeWriter) { $global:Felix3LivePipeWriter.Dispose() } } catch { }
+        $global:Felix3LivePipeWriter = $null
+        return $false
+    }
+}
+
+function global:ConvertTo-Felix3LiveProjection {
+    param([Parameter(Mandatory)]$Event)
+    $kind = switch ([string]$Event.kind) {
+        'output.delta' { 'assistant.delta' }
+        'tool.started' { 'tool.started' }
+        'tool.completed' { 'tool.completed' }
+        'tool.failed' { 'tool.failed' }
+        'phase.started' { 'phase.started' }
+        'phase.completed' { 'phase.completed' }
+        'phase.failed' { 'phase.failed' }
+        'run.completed' { 'run.completed' }
+        'run.blocked' { 'run.blocked' }
+        'run.interrupted' { 'run.interrupted' }
+        'question.requested' { 'question.requested' }
+        'plan.approval_requested' { 'plan.approval_requested' }
+        default { return $null }
+    }
+
+    $projection = [ordered]@{
+        schema = 'felix3-live-event-v1'
+        run_id = [string]$Event.run_id
+        seq = [long]$Event.seq
+        timestamp = [string]$Event.timestamp
+        harness = [string]$Event.harness
+        kind = $kind
+    }
+    if ($Event.phase -in @('planning','building','reviewing')) { $projection.phase = [string]$Event.phase }
+
+    if ($kind -eq 'assistant.delta') {
+        $text = [string]$Event.summary
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        $projection.text = Protect-Felix3LiveText -Text $text
+    }
+    elseif ($kind -like 'tool.*') {
+        $payload = $Event.payload
+        $candidate = [string](Get-Felix3PropertyValue $payload 'tool')
+        $allowedTools = @('Bash','Read','Edit','Write','Glob','Grep','LS','NotebookEdit','WebFetch','WebSearch','Task','TodoRead','TodoWrite','shell','read','edit','write','glob','grep','list','search','task','webfetch','command_execution','mcp_tool_call')
+        $projection.tool = if ($candidate -in $allowedTools) { $candidate } else { 'tool' }
+        $status = [string](Get-Felix3PropertyValue $payload 'status')
+        if ($status -in @('started','completed','failed','blocked','interrupted','waiting')) { $projection.status = $status }
+    }
+    elseif ($kind -in @('run.completed','run.blocked','run.interrupted')) {
+        $projection.status = switch ($kind) {
+            'run.completed' { 'completed' }
+            'run.blocked' { 'blocked' }
+            default { 'interrupted' }
+        }
+    }
+    return [pscustomobject]$projection
+}
+
+function global:Protect-Felix3LiveText {
+    param([AllowEmptyString()][string]$Text)
+    if ($null -eq $Text) { return $null }
+    $safe = Protect-Felix3Text -Text $Text -MaxLength 2000
+    $safe = [regex]::Replace($safe, '(?i)(?:"|'')((?:[A-Z]:\\|\\\\)[^"''\r\n]+)(?:"|'')', '[local path]')
+    $safe = [regex]::Replace($safe, '(?i)(?<![A-Z0-9])(?:[A-Z]:\\|\\\\[^\\\s]+\\[^\\\s]+\\)(?:[^\s"''<>|]+\\)*[^\s"''<>|]+', '[local path]')
+    $safe = [regex]::Replace($safe, '(?i)(?:"|'')/(?:Users|home|root|tmp|private|var|mnt|workspace|workspaces|Volumes)/[^"''\r\n]+(?:"|'')', '[local path]')
+    $safe = [regex]::Replace($safe, '(?i)(?<![:\w])/(?:Users|home|root|tmp|private|var|mnt|workspace|workspaces|Volumes)/[^\s"''<>|]+', '[local path]')
+    return $safe
 }
 
 function global:ConvertTo-Felix3UsageRecord {

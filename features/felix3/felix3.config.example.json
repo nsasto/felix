@@ -16,7 +16,9 @@
     "base_url": "https://api.runfelix.io",
     "api_key": "",
     "agent_key": "",
+    "upload_local_spec": false,
     "live_activity": false,
+    "live_output": false,
     "include_phase_summaries": true,
     "artifacts": []
   },

@@ -9,6 +9,17 @@ partial class Program
         if (args.Length > 0 && string.Equals(args[0], "copilot-bridge", StringComparison.OrdinalIgnoreCase))
             return await CopilotBridgeCommand.ExecuteAsync(args.Skip(1).ToArray());
 
+        // Felix 3 ships in the embedded bundle and must be runnable from the
+        // standalone release binary without first resolving the V2 felix.ps1.
+        if (args.Length > 0 && string.Equals(args[0], "v3", StringComparison.OrdinalIgnoreCase))
+        {
+            _felixProjectRoot = Directory.GetCurrentDirectory();
+            var felix3Root = new RootCommand("Felix 3 - Harness-driven development workflows");
+            felix3Root.AddCommand(CreateFelix3Command());
+            var felix3ExitCode = await felix3Root.InvokeAsync(args);
+            return ResolveCommandExitCode(felix3ExitCode, Environment.ExitCode);
+        }
+
         var felixPs1 = ResolveFelixScriptPath();
 
         if (felixPs1 == null || !File.Exists(felixPs1))

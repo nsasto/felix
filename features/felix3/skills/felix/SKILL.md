@@ -10,8 +10,8 @@ Felix keeps the spec, plan, validation, review, work selection, and run record. 
 ## Set up a project
 
 1. Check `felix --version` and `felix v3 --help` to confirm the installed CLI exposes V3.
-2. For an existing Felix 2 project, run `felix v3 migrate` first. This is preview-only. It preserves V2 files and does not import V2 requirement or agent settings. Use `felix v3 migrate --harness <claude-code|opencode|codex> --apply` only when you want to create the separate `.felix3/config.json`.
-3. For a new project, run `felix v3 setup --harness <claude-code|opencode|codex>`.
+2. For an existing Felix 2 project, run `felix v3 migrate` first. This is preview-only. It preserves V2 files and does not import V2 requirement or agent settings. Use `felix v3 migrate --harness <claude-code|opencode|codex|grok-build> --apply` only when you want to create the separate `.felix3/config.json`.
+3. For a new project, run `felix v3 setup --harness <claude-code|opencode|codex|grok-build>`.
 4. Install and authenticate the selected harness yourself, then edit `.felix3/config.json`. Configure independent validation commands before running work.
 5. Keep V3 specs under the configured `work_source.specs_dir` (default `specs`). To queue a spec locally, give its Markdown frontmatter an `id`, a `title`, and `status: ready-for-agent`. Optional `depends_on: [S-0001]` entries are ready only after those specs are `completed` or `done`.
 
@@ -21,6 +21,8 @@ Felix keeps the spec, plan, validation, review, work selection, and run record. 
 - Pick the next item with `felix v3 next`; continuously pick work with `felix v3 loop`.
 - `next` and `loop` use the configured work source: local Markdown specs by default, or Felix Cloud when `work_source.provider` is `felix-cloud`.
 - Inspect an active run with `felix v3 status <run-id>`. Resume a question or plan approval with `felix v3 resume <run-id> --answer <answer>`. Stop cooperatively with `felix v3 stop <run-id>`.
+
+For optional Cloud run telemetry on a manually selected local spec, set `cloud_sync.enabled` and configure the project-scoped API key. `cloud_sync.upload_local_spec` defaults to false; enable it only when the spec should also be stored in Cloud. It uploads a Markdown file under `specs/` and creates a missing `S-0001`-style requirement mapping only when the filename code matches the run's requirement ID. Cloud-claimed specs already exist remotely and skip this upload. See the README for live activity/output options and their privacy behavior.
 - Felix marks local work complete only after its configured validation passes and the review approves. If the run pauses for a question or approval, resume the saved run; don't start a duplicate.
 
 ## Change Felix itself

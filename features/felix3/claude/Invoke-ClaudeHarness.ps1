@@ -1,8 +1,77 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot '..\Invoke-Felix3Process.ps1')
 
+function Get-ClaudePlanRoots {
+    $roots = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_CONFIG_DIR)) {
+        $roots += Join-Path $env:CLAUDE_CONFIG_DIR 'plans'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        $roots += Join-Path $env:USERPROFILE '.claude\plans'
+    }
+    return @($roots | Select-Object -Unique)
+}
+
+function Resolve-ClaudeNativePlanReference {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text,
+        [string[]]$PlanRoots = @()
+    )
+
+    $match = [regex]::Match($Text, '(?im)^\s*Plan written to\s+`(?<path>[^`\r\n]+?\.md)`\.?\s*$')
+    if (-not $match.Success) {
+        $match = [regex]::Match($Text, '(?im)^\s*Plan written to\s+"(?<path>[^"\r\n]+?\.md)"\.?\s*$')
+    }
+    if (-not $match.Success) {
+        $match = [regex]::Match($Text, '(?im)^\s*Plan written to\s+(?<path>[^`"\r\n]+?\.md)\.?\s*$')
+    }
+    if (-not $match.Success) {
+        if ($Text -match '(?im)^\s*Plan written to\b') {
+            return [pscustomobject]@{ IsReference = $true; Text = $Text; Path = $null; Error = 'Claude Code returned a native plan path Felix could not parse.' }
+        }
+        return [pscustomobject]@{ IsReference = $false; Text = $Text; Path = $null; Error = $null }
+    }
+
+    $candidate = $match.Groups['path'].Value.Trim()
+    if (-not [System.IO.Path]::IsPathRooted($candidate) -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        return [pscustomobject]@{ IsReference = $true; Text = $Text; Path = $null; Error = 'Claude Code native plan file is missing or is not an absolute file path.' }
+    }
+
+    $resolvedFile = (Resolve-Path -LiteralPath $candidate).ProviderPath
+    $allowed = $false
+    if ($PlanRoots.Count -eq 0) { $PlanRoots = @(Get-ClaudePlanRoots) }
+    foreach ($root in $PlanRoots) {
+        if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+        $resolvedRoot = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $root).ProviderPath).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+        $rootPrefix = $resolvedRoot + [System.IO.Path]::DirectorySeparatorChar
+        if ($resolvedFile.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) { $allowed = $true; break }
+    }
+    if (-not $allowed) {
+        return [pscustomobject]@{ IsReference = $true; Text = $Text; Path = $null; Error = 'Claude native plan path is outside the allowed Claude plans directory.' }
+    }
+
+    $planText = Get-Content -LiteralPath $resolvedFile -Raw -Encoding UTF8
+    return [pscustomobject]@{ IsReference = $true; Text = $planText; Path = $resolvedFile; Error = $null }
+}
+
+function Save-ClaudeNativePlanArtifact {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text,
+        [Parameter(Mandatory = $true)][string]$RunDirectory,
+        [string]$NativePlanPath
+    )
+    if (-not $NativePlanPath) { return $null }
+    $artifactPath = Join-Path $RunDirectory 'claude-native-plan.md'
+    [System.IO.File]::WriteAllText($artifactPath, $Text, [System.Text.UTF8Encoding]::new($false))
+    return $artifactPath
+}
+
 function ConvertFrom-ClaudeHarnessResponse {
-    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Output)
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Output,
+        [string[]]$PlanRoots = @(),
+        [switch]$CaptureNativePlan
+    )
 
     $resultEvent = $null
     try {
@@ -26,6 +95,7 @@ function ConvertFrom-ClaudeHarnessResponse {
             IsValid = $false
             Error = 'Claude Code did not return a recognized result event.'
             Text = $Output
+            NativePlanPath = $null
             SessionId = $null
             Usage = $null
             CostUsd = $null
@@ -38,10 +108,19 @@ function ConvertFrom-ClaudeHarnessResponse {
         $errorText = if (Get-Felix3ProcessProperty $resultEvent 'result') { [string](Get-Felix3ProcessProperty $resultEvent 'result') } else { 'Claude Code reported an error.' }
     }
 
+    $text = [string](Get-Felix3ProcessProperty $resultEvent 'result')
+    $nativePlan = [pscustomobject]@{ IsReference = $false; Text = $text; Path = $null; Error = $null }
+    if ($CaptureNativePlan) { $nativePlan = Resolve-ClaudeNativePlanReference -Text $text -PlanRoots $PlanRoots }
+    if ($nativePlan.IsReference) {
+        if ($nativePlan.Error) { $errorText = $nativePlan.Error }
+        else { $text = $nativePlan.Text }
+    }
+
     return @{
         IsValid = ($null -eq $errorText)
         Error = $errorText
-        Text = [string](Get-Felix3ProcessProperty $resultEvent 'result')
+        Text = $text
+        NativePlanPath = $nativePlan.Path
         SessionId = [string](Get-Felix3ProcessProperty $resultEvent 'session_id')
         Usage = Get-Felix3ProcessProperty $resultEvent 'usage'
         CostUsd = Get-Felix3ProcessProperty $resultEvent 'total_cost_usd'
@@ -139,6 +218,12 @@ function Invoke-ClaudeHarness {
             try {
                 $e = $line | ConvertFrom-Json -ErrorAction Stop
                 $type = [string]$e.type
+                if ($type -eq 'stream_event') {
+                    # Claude's stream also contains thinking_delta and tool
+                    # input fragments. Only surfaced text blocks may become
+                    # live assistant output.
+                    if ([string]$e.event.type -ne 'content_block_delta' -or [string]$e.event.delta.type -ne 'text_delta') { return }
+                }
                 $questionTool = if ($type -eq 'assistant') { @($e.message.content | Where-Object { $_.type -eq 'tool_use' -and $_.name -match 'AskUserQuestion|question' } | Select-Object -First 1)[0] } else { $null }
                 $kind = if ($questionTool) { 'question.requested' } else { switch ($type) { 'stream_event' { 'output.delta' } 'assistant' { if (@($e.message.content | Where-Object { $_.type -eq 'tool_use' }).Count) { 'tool.started' } else { 'assistant.message' } } 'user' { 'tool.completed' } 'result' { 'turn.completed' } 'error' { 'phase.failed' } default { 'harness.event' } } }
                 $summary = if ($questionTool) { 'Claude requested human input.' } elseif ($type -eq 'stream_event') { [string]$e.event.delta.text } elseif ($type -eq 'result') { 'Claude phase result received.' } else { "Claude event: $type" }
@@ -156,13 +241,18 @@ function Invoke-ClaudeHarness {
         $processOutput = Invoke-Felix3Process -Process $process -Prompt $Prompt -RawOutputPath $rawPath -StderrPath $stderrPath -OnOutputLine $onLine -OnErrorLine $onErrorLine -CancelTokenPath $CancelTokenPath -OnProcessStart $onStart -OnProcessExit $onExit
         $stdout = $processOutput.Stdout
         $stderr = $processOutput.Stderr
-        $parsed = ConvertFrom-ClaudeHarnessResponse -Output $stdout
+        $parsed = ConvertFrom-ClaudeHarnessResponse -Output $stdout -CaptureNativePlan:($Phase -eq 'planning')
         $exitCode = $processOutput.ExitCode
         $succeeded = ($exitCode -eq 0 -and $parsed.IsValid)
         $finishedAt = [DateTime]::UtcNow
 
         $resultPath = Join-Path $RunDirectory 'harness-result.json'
         $sessionPath = Join-Path $RunDirectory 'claude-session.json'
+        $artifacts = @('claude-response.jsonl', 'claude-stderr.log')
+        $nativePlanArtifact = Save-ClaudeNativePlanArtifact -Text ([string]$parsed.Text) -RunDirectory $RunDirectory -NativePlanPath $parsed.NativePlanPath
+        if ($nativePlanArtifact) {
+            $artifacts += 'claude-native-plan.md'
+        }
 
         $normalized = [ordered]@{
             schema = 'felix3-harness-result-v1'
@@ -180,7 +270,7 @@ function Invoke-ClaudeHarness {
             usage = $parsed.Usage
             cost_usd = $parsed.CostUsd
             turns = $parsed.Turns
-            artifacts = @('claude-response.jsonl', 'claude-stderr.log')
+            artifacts = $artifacts
         }
         $normalized | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $resultPath -Encoding UTF8
         if ($Journal) {

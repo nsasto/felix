@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "work_source": { "provider": "manual-spec", "specs_dir": "specs", "ready_status": "ready-for-agent", "cloud": { "agent_id": "" } },
+  "artifacts": { "runs_dir": ".felix3/runs", "local_retention_days": 30 },
+  "execution": { "worktree": { "enabled": true } },
+  "cloud_sync": { "enabled": false, "base_url": "https://api.runfelix.io", "api_key": "", "agent_key": "", "live_activity": false, "live_output": false, "include_phase_summaries": true, "artifacts": [] },
+  "harness": {
+    "provider": "grok-build",
+    "grok-build": {
+      "executable": "grok", "model": "", "session_policy": "fresh",
+      "phases": {
+        "planning": { "permission_mode": "dontAsk", "max_turns": 60, "session_policy": "fresh", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob"], "deny_rules": ["Bash"] },
+        "building": { "permission_mode": "dontAsk", "max_turns": 100, "session_policy": "resume", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob", "Edit", "Bash"], "deny_rules": [] },
+        "reviewing": { "permission_mode": "dontAsk", "max_turns": 30, "session_policy": "fresh", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob", "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)"], "deny_rules": [] }
+      }
+    }
+  },
+  "workflow": { "require_plan_approval": false, "max_build_attempts": 3, "max_review_cycles": 2, "validation": { "require_at_least_one_command": true, "commands": [] } }
+}

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.IO.Pipes;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Spectre.Console;
 
@@ -40,6 +42,24 @@ partial class Program
             return;
         }
 
+        var pipeName = $"felix3-live-{Guid.NewGuid():N}";
+        var pipeOptions = PipeOptions.Asynchronous;
+        if (OperatingSystem.IsWindows())
+            pipeOptions |= PipeOptions.CurrentUserOnly;
+        await using var pipe = new NamedPipeServerStream(
+            pipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, pipeOptions);
+        using var liveCancellation = new CancellationTokenSource();
+        await using var livePublisher = new Felix3LivePublisher(ResolveFelix3CloudApiKey());
+        livePublisher.ConnectionStateChanged += state => Console.Error.WriteLine(state switch
+        {
+            "connected" => "[felix3:live] Cloud live stream connected.",
+            "disconnected" => "[felix3:live] Cloud live stream disconnected; local run continues.",
+            _ => "[felix3:live] Cloud live stream unavailable; local run continues."
+        });
+        livePublisher.ViewerStateChanged += active => Console.Error.WriteLine(active
+            ? "[felix3:live] Cloud run viewer attached; live output is enabled."
+            : "[felix3:live] No Cloud run viewer attached; live output is not queued.");
+
         var psi = new ProcessStartInfo
         {
             FileName = FindPowerShell(),
@@ -57,6 +77,10 @@ partial class Program
         psi.ArgumentList.Add("-File");
         psi.ArgumentList.Add(scriptPath);
         foreach (var arg in args) psi.ArgumentList.Add(arg);
+        psi.Environment["FELIX_INSTALL_DIR"] = ResolveFelix3InstallDirectory(
+            AppDomain.CurrentDomain.BaseDirectory,
+            _felixInstallDir);
+        psi.Environment["FELIX3_LIVE_PIPE"] = pipeName;
 
         using var process = new Process { StartInfo = psi };
         process.OutputDataReceived += (_, e) => { if (e.Data != null) Console.WriteLine(e.Data); };
@@ -64,20 +88,115 @@ partial class Program
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+        var livePipeTask = ConsumeFelix3LivePipeAsync(pipe, livePublisher, liveCancellation.Token);
         await process.WaitForExitAsync();
+        liveCancellation.Cancel();
+        try { await livePipeTask; } catch (OperationCanceledException) { }
         Environment.ExitCode = process.ExitCode;
+    }
+
+    private static string? ResolveFelix3CloudApiKey()
+    {
+        var environmentKey = Environment.GetEnvironmentVariable("FELIX_SYNC_KEY");
+        if (!string.IsNullOrWhiteSpace(environmentKey)) return environmentKey;
+        if (string.IsNullOrWhiteSpace(_felixProjectRoot)) return null;
+        var configPath = Path.Combine(_felixProjectRoot, ".felix3", "config.json");
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(configPath));
+            if (document.RootElement.TryGetProperty("cloud_sync", out var cloudSync) &&
+                cloudSync.TryGetProperty("api_key", out var apiKey) &&
+                apiKey.ValueKind == JsonValueKind.String)
+                return apiKey.GetString();
+        }
+        catch (IOException) { }
+        catch (JsonException) { }
+        return null;
+    }
+
+    static async Task ConsumeFelix3LivePipeAsync(
+        NamedPipeServerStream pipe,
+        Felix3LivePublisher publisher,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await pipe.WaitForConnectionAsync(cancellationToken);
+            await publisher.ReadPipeAsync(pipe, cancellationToken);
+        }
+        catch (OperationCanceledException) { }
+        catch (IOException) { }
     }
 
     static string? ResolveFelix3CliScriptPath()
     {
         var candidates = new List<string>();
+        candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "felix3", "felix3-cli.ps1"));
         if (!string.IsNullOrWhiteSpace(_felixInstallDir))
         {
             candidates.Add(Path.Combine(_felixInstallDir, "felix3", "felix3-cli.ps1"));
             candidates.Add(Path.GetFullPath(Path.Combine(_felixInstallDir, "..", "felix3", "felix3-cli.ps1")));
             candidates.Add(Path.GetFullPath(Path.Combine(_felixInstallDir, "..", "features", "felix3", "felix3-cli.ps1")));
         }
-        return candidates.FirstOrDefault(File.Exists);
+        var existing = candidates.FirstOrDefault(File.Exists);
+        if (existing != null) return existing;
+
+        var version = new string(ReadEmbeddedVersion().Where(ch => char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_').ToArray());
+        if (string.IsNullOrWhiteSpace(version)) version = "unknown";
+        using var bundle = typeof(Program).Assembly.GetManifestResourceStream("felix-scripts.zip");
+        if (bundle == null)
+        {
+            Console.Error.WriteLine("Felix 3 workflow bundle is missing from this installation.");
+            Environment.ExitCode = 1;
+            return null;
+        }
+
+        using var bundleBytes = new MemoryStream();
+        bundle.CopyTo(bundleBytes);
+        var cacheKey = GetFelix3BundleCacheKey(bundleBytes.ToArray());
+        var cacheRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Felix", "cache", "felix3", $"{version}-{cacheKey}");
+        try { return ExtractFelix3ScriptsToDirectory(cacheRoot); }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Felix 3 workflow bundle could not be prepared: {ex.Message}");
+            return null;
+        }
+    }
+
+    internal static string ResolveFelix3InstallDirectory(string applicationDirectory, string? installedDirectory)
+    {
+        var appDirectory = Path.GetFullPath(applicationDirectory);
+        var roots = new[]
+        {
+            string.IsNullOrWhiteSpace(installedDirectory) ? null : Path.GetFullPath(installedDirectory),
+            appDirectory
+        }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+        foreach (var root in roots)
+        {
+            if (File.Exists(Path.Combine(root!, "plugins", "sync-http", "http-client.ps1")))
+                return root!;
+            var felixDirectory = Path.Combine(root!, ".felix");
+            if (File.Exists(Path.Combine(felixDirectory, "plugins", "sync-http", "http-client.ps1")))
+                return felixDirectory;
+        }
+
+        for (var parent = new DirectoryInfo(appDirectory); parent is not null; parent = parent.Parent)
+        {
+            var felixDirectory = Path.Combine(parent.FullName, ".felix");
+            if (File.Exists(Path.Combine(felixDirectory, "plugins", "sync-http", "http-client.ps1")))
+                return felixDirectory;
+        }
+
+        return roots.FirstOrDefault() ?? appDirectory;
+    }
+
+    internal static string GetFelix3BundleCacheKey(byte[] bundleBytes)
+    {
+        ArgumentNullException.ThrowIfNull(bundleBytes);
+        return Convert.ToHexString(SHA256.HashData(bundleBytes)).ToLowerInvariant()[..16];
     }
 
     static async Task ExecuteFelixRichCommand(string felixPs1, string commandLabel, params string[] args)

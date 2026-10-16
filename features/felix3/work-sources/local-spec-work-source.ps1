@@ -41,7 +41,7 @@ function Get-Felix3ReadyLocalSpec {
             if (-not $dependencyMetadata -or -not $dependencyMetadata.ContainsKey('status') -or [string]$dependencyMetadata['status'] -notin @('completed','done')) { $dependenciesReady = $false; break }
         }
         if (-not $dependenciesReady) { continue }
-        $relative = [IO.Path]::GetRelativePath([IO.Path]::GetFullPath($ProjectPath), $file.FullName).Replace('\','/')
+        $relative = (Get-Felix3RelativePath -BasePath $ProjectPath -TargetPath $file.FullName).Replace('\','/')
         return [pscustomobject]@{ Id = $id; Title = $title; SpecPath = $relative; FilePath = $file.FullName; Metadata = $meta }
     }
     return $null

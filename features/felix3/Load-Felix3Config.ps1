@@ -31,8 +31,8 @@ function Import-Felix3Config {
         if (-not [guid]::TryParse([string]$cloudWorkSource.agent_id, [ref]$agentUuid)) { throw 'work_source.cloud.agent_id must be a Cloud agent UUID.' }
     }
     $provider = [string]$config.harness.provider
-    if ($provider -notin @('claude-code', 'opencode', 'codex')) {
-        throw "Unsupported Felix 3 harness '$provider'; supported harnesses are 'claude-code', 'opencode', and 'codex'."
+    if ($provider -notin @('claude-code', 'opencode', 'codex', 'grok-build')) {
+        throw "Unsupported Felix 3 harness '$provider'; supported harnesses are 'claude-code', 'opencode', 'codex', and 'grok-build'."
     }
     $harnessConfig = $config.harness.$provider
     if (-not $harnessConfig) {
@@ -56,8 +56,17 @@ function Import-Felix3Config {
                 throw "harness.claude-code.phases.$key.allowed_tools must contain non-empty Claude Code tool names."
             }
         }
-        if ($provider -eq 'claude-code' -and $phase.max_turns -and ([int]$phase.max_turns -lt 1 -or [int]$phase.max_turns -gt 500)) {
-            throw "harness.claude-code.phases.$key.max_turns must be between 1 and 500."
+        if ($provider -in @('claude-code','grok-build') -and $phase.max_turns -and ([int]$phase.max_turns -lt 1 -or [int]$phase.max_turns -gt 500)) {
+            throw "harness.$provider.phases.$key.max_turns must be between 1 and 500."
+        }
+        if ($provider -eq 'grok-build') {
+            if ($phase.permission_mode -and $phase.permission_mode -notin @('default','acceptEdits','auto','dontAsk','bypassPermissions','plan')) { throw "harness.grok-build.phases.$key.permission_mode is not supported by Grok Build." }
+            foreach ($listName in @('tools','disallowed_tools')) {
+                if ($phase.PSObject.Properties[$listName] -and @($phase.$listName | Where-Object { $_ -isnot [string] -or [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) { throw "harness.grok-build.phases.$key.$listName must contain non-empty tool names." }
+            }
+            foreach ($listName in @('allow_rules','deny_rules')) {
+                if ($phase.PSObject.Properties[$listName] -and @($phase.$listName | Where-Object { $_ -isnot [string] -or [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) { throw "harness.grok-build.phases.$key.$listName must contain non-empty Grok permission rules." }
+            }
         }
         $configuredSessionPolicy = if ($phase.PSObject.Properties['session_policy']) { [string]$phase.session_policy } else { $null }
         if ($configuredSessionPolicy -and $configuredSessionPolicy -notin @('fresh', 'resume')) {
@@ -107,6 +116,18 @@ function Get-Felix3PhaseConfig {
     $baseAutoApprove = if ($base.PSObject.Properties['auto_approve']) { $base.auto_approve } else { $null }
     $phaseAllowedTools = if ($phaseConfig.PSObject.Properties['allowed_tools']) { @($phaseConfig.allowed_tools) } else { $null }
     $baseAllowedTools = if ($base.PSObject.Properties['allowed_tools']) { @($base.allowed_tools) } else { @() }
+    $phaseTools = if ($phaseConfig.PSObject.Properties['tools']) { @($phaseConfig.tools) } else { $null }
+    $baseTools = if ($base.PSObject.Properties['tools']) { @($base.tools) } else { @() }
+    $phaseDisallowedTools = if ($phaseConfig.PSObject.Properties['disallowed_tools']) { @($phaseConfig.disallowed_tools) } else { $null }
+    $baseDisallowedTools = if ($base.PSObject.Properties['disallowed_tools']) { @($base.disallowed_tools) } else { @() }
+    $phaseAllowRules = if ($phaseConfig.PSObject.Properties['allow_rules']) { @($phaseConfig.allow_rules) } else { $null }
+    $baseAllowRules = if ($base.PSObject.Properties['allow_rules']) { @($base.allow_rules) } else { @() }
+    $phaseDenyRules = if ($phaseConfig.PSObject.Properties['deny_rules']) { @($phaseConfig.deny_rules) } else { $null }
+    $baseDenyRules = if ($base.PSObject.Properties['deny_rules']) { @($base.deny_rules) } else { @() }
+    $phaseSandboxProfile = if ($phaseConfig.PSObject.Properties['sandbox_profile']) { $phaseConfig.sandbox_profile } else { $null }
+    $baseSandboxProfile = if ($base.PSObject.Properties['sandbox_profile']) { $base.sandbox_profile } else { $null }
+    $phaseAlwaysApprove = if ($phaseConfig.PSObject.Properties['always_approve']) { $phaseConfig.always_approve } else { $null }
+    $baseAlwaysApprove = if ($base.PSObject.Properties['always_approve']) { $base.always_approve } else { $null }
     $phaseSessionPolicy = if ($phaseConfig.PSObject.Properties['session_policy']) { $phaseConfig.session_policy } else { $null }
     $baseSessionPolicy = if ($base.PSObject.Properties['session_policy']) { $base.session_policy } else { $null }
     return [pscustomobject]@{
@@ -118,6 +139,12 @@ function Get-Felix3PhaseConfig {
         agent = if ($phaseAgent) { [string]$phaseAgent } elseif ($baseAgent) { [string]$baseAgent } else { $null }
         auto_approve = if ($null -ne $phaseAutoApprove) { [bool]$phaseAutoApprove } elseif ($null -ne $baseAutoApprove) { [bool]$baseAutoApprove } else { $false }
         allowed_tools = if ($null -ne $phaseAllowedTools) { $phaseAllowedTools } else { $baseAllowedTools }
+        tools = if ($null -ne $phaseTools) { $phaseTools } else { $baseTools }
+        disallowed_tools = if ($null -ne $phaseDisallowedTools) { $phaseDisallowedTools } else { $baseDisallowedTools }
+        allow_rules = if ($null -ne $phaseAllowRules) { $phaseAllowRules } else { $baseAllowRules }
+        deny_rules = if ($null -ne $phaseDenyRules) { $phaseDenyRules } else { $baseDenyRules }
+        sandbox_profile = if ($phaseSandboxProfile) { [string]$phaseSandboxProfile } elseif ($baseSandboxProfile) { [string]$baseSandboxProfile } else { $null }
+        always_approve = if ($null -ne $phaseAlwaysApprove) { [bool]$phaseAlwaysApprove } elseif ($null -ne $baseAlwaysApprove) { [bool]$baseAlwaysApprove } else { $false }
         session_policy = if ($phaseSessionPolicy) { [string]$phaseSessionPolicy } elseif ($baseSessionPolicy) { [string]$baseSessionPolicy } else { 'fresh' }
         sandbox = if ($phaseConfig.PSObject.Properties['sandbox'] -and $phaseConfig.sandbox) { [string]$phaseConfig.sandbox } elseif ($base.PSObject.Properties['sandbox'] -and $base.sandbox) { [string]$base.sandbox } else { 'read-only' }
         approval_policy = if ($phaseConfig.PSObject.Properties['approval_policy'] -and $phaseConfig.approval_policy) { [string]$phaseConfig.approval_policy } elseif ($base.PSObject.Properties['approval_policy'] -and $base.approval_policy) { [string]$base.approval_policy } else { 'on-request' }
