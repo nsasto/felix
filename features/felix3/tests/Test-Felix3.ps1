@@ -845,6 +845,10 @@ else:
     $grokBuildGuidanceHasSingleCommand = $failedGrokBuildPrompt -match '(?i)one terminal command per tool call'
     $grokBuildGuidanceDelegatesValidation = $failedGrokBuildPrompt -match '(?i)Felix runs configured validation commands'
     Assert-Felix3 ($grokBuildGuidanceHasSingleCommand -and $grokBuildGuidanceDelegatesValidation) "Grok build prompt avoids compound terminal calls and delegates acceptance validation to Felix (single=$grokBuildGuidanceHasSingleCommand, validation=$grokBuildGuidanceDelegatesValidation)"
+    foreach ($grokPhase in @('planning','building','reviewing')) {
+        $phasePrompt = Add-Felix3GrokTerminalGuidance -Prompt "Prompt for $grokPhase"
+        Assert-Felix3 ($phasePrompt -match '(?i)one terminal command per tool call in every phase' -and $phasePrompt -match "Do not chain commands with PowerShell ';'") "Grok $grokPhase prompt forbids compound terminal commands"
+    }
     $failedGrokResult = Get-Content -LiteralPath (Join-Path $failedGrokRun.RunDirectory 'building-1\harness-result.json') -Raw | ConvertFrom-Json
     Assert-Felix3 ($failedGrokResult.failed_tool_name -eq 'run_terminal_command' -and $failedGrokResult.failed_tool_status -eq 'failed' -and $failedGrokResult.error -notmatch 'User cancelled the execution') 'Grok local result records only safe failure metadata and excludes the raw tool result'
 

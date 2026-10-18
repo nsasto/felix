@@ -324,7 +324,9 @@ This is the implementation order. Keep each stage independently reviewable and m
 
 **Exit check:** same plan/build/validation/review outcome contract as existing adapters, plus installation and interruption behavior verified. CLI startup alone does not meet this gate.
 
-**Latest cancellation diagnosis (2026-10-16):** A controlled Grok 4.6 probe reproduced the build failure only when the terminal command chained the validation with `; Write-Host` to echo its exit code. The single validation command passed from both the project root and Felix worktree, through both direct Grok and Felix's redirected adapter. Felix now tells Grok build to issue one terminal command per call and rely on coordinator validation; the Felix 3 contract suite verifies the guidance reaches the build prompt. The six bounded diagnostic calls cost a combined $0.11269368. A full post-fix plan/build/validation/review smoke remains unverified; keep Grok experimental until it passes.
+**Latest cancellation diagnosis (2026-10-18):** The first post-fix Grok 4.6 run completed planning, building, and independent validation, but review failed when Grok issued a compound terminal command beginning with `git status --porcelain`; the tool returned `failed` and the provider stopped as cancelled. Felix now applies the single-terminal-command rule to every Grok phase. The run was local-only because the local Cloud/PostgreSQL stack could not be started; reported total cost was $0.11427128. The contract suite now asserts the guidance for planning, building, and reviewing. A full retry is still required; keep Grok experimental until it passes.
+
+**Initial cancellation diagnosis (2026-10-16):** A controlled Grok 4.6 probe reproduced the build failure only when the terminal command chained the validation with `; Write-Host` to echo its exit code. The single validation command passed from both the project root and Felix worktree, through both direct Grok and Felix's redirected adapter. The six bounded diagnostic calls cost a combined $0.11269368.
 
 ### Stage 7 — Release and operational readiness
 
