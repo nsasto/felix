@@ -196,8 +196,12 @@ function Suspend-Felix3ForStop {
 }
 
 function Add-Felix3GrokTerminalGuidance {
-    param([string]$Prompt)
-    return $Prompt + "`n`n## Grok Build terminal commands`nUse one terminal command per tool call in every phase. Do not chain commands with PowerShell ';' or append commands to print exit codes. Felix runs configured validation commands after the build and records their exit codes, so do not wrap or duplicate those validations. When a sequence is needed, run each command separately and inspect its result before proceeding."
+    param([string]$Prompt, [ValidateSet('planning','building','reviewing')][string]$Phase = 'building')
+    $guidance = "`n`n## Grok Build terminal commands`nUse one terminal command per tool call in every phase. Do not chain commands with PowerShell ';' or append commands to print exit codes. Felix runs configured validation commands after the build and records their exit codes, so do not wrap or duplicate those validations. When a sequence is needed, run each command separately and inspect its result before proceeding."
+    if ($Phase -eq 'reviewing') {
+        $guidance += "`nDuring review, do not call terminal tools. Inspect relevant files with file-read and search tools, and use the supplied validation evidence. Do not run shell commands for hashes, status, or other checks."
+    }
+    return $Prompt + $guidance
 }
 
 function Invoke-Felix3Task {
@@ -360,7 +364,7 @@ function Invoke-Felix3Task {
         $phaseConfig = Get-Felix3PhaseConfig -Config $config -Phase $Phase
         $session = if ($ResumeSession) { $ResumeSession } else { $null }
         $Prompt = Add-Felix3QuestionProtocol -Prompt $Prompt
-        if ($phaseConfig.provider -eq 'grok-build') { $Prompt = Add-Felix3GrokTerminalGuidance -Prompt $Prompt }
+        if ($phaseConfig.provider -eq 'grok-build') { $Prompt = Add-Felix3GrokTerminalGuidance -Prompt $Prompt -Phase $Phase }
         if ($resuming -and $Phase -eq $resumePhase -and $Answer) { $Prompt += "`n`n## Human answer to your pending question`n$Answer`nContinue the same phase and complete its requested output." }
         $eventSink = New-Felix3EventSink -Journal $journal -Phase $Phase -Harness $phaseConfig.provider -CloudSink $cloudSink
         if ($phaseConfig.provider -eq 'claude-code') {

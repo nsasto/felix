@@ -10,8 +10,8 @@
       "executable": "grok", "model": "", "session_policy": "fresh",
       "phases": {
         "planning": { "permission_mode": "dontAsk", "max_turns": 60, "session_policy": "fresh", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob"], "deny_rules": ["Bash"] },
-        "building": { "permission_mode": "dontAsk", "max_turns": 100, "session_policy": "resume", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob", "Edit", "Bash"], "deny_rules": [] },
-        "reviewing": { "permission_mode": "dontAsk", "max_turns": 30, "session_policy": "fresh", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob", "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)"], "deny_rules": [] }
+        "building": { "permission_mode": "dontAsk", "max_turns": 100, "session_policy": "resume", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob", "Edit", "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)", "Bash(dotnet *)", "Bash(npm *)", "Bash(pnpm *)", "Bash(py *)", "Bash(python *)", "Bash(pytest *)", "Bash(cargo *)", "Bash(go *)", "Bash(uv *)", "Bash(powershell -NoProfile -File *)", "Bash(pwsh -NoProfile -File *)"], "deny_rules": ["Bash(git push *)", "Bash(git reset --hard *)", "Bash(git clean *)", "Bash(rm -rf *)", "Bash(del /s *)", "Bash(Remove-Item * -Recurse*)"] },
+        "reviewing": { "permission_mode": "dontAsk", "max_turns": 30, "session_policy": "fresh", "tools": [], "disallowed_tools": [], "allow_rules": ["Read", "Grep", "Glob"], "deny_rules": ["Bash"] }
       }
     }
   },

@@ -156,6 +156,20 @@ function global:ConvertTo-Felix3LiveProjection {
         $payload = $Event.payload
         $candidate = [string](Get-Felix3PropertyValue $payload 'tool')
         $allowedTools = @('Bash','Read','Edit','Write','Glob','Grep','LS','NotebookEdit','WebFetch','WebSearch','Task','TodoRead','TodoWrite','shell','read','edit','write','glob','grep','list','search','task','webfetch','command_execution','mcp_tool_call')
+        $grokToolAliases = @{
+            'run_terminal_command' = 'command_execution'
+            'read_file' = 'read'
+            'search_replace' = 'edit'
+            'list_dir' = 'list'
+            'todo_write' = 'TodoWrite'
+            'web_search' = 'WebSearch'
+            'web_fetch' = 'WebFetch'
+            'get_command_or_subagent_output' = 'task'
+            'kill_command_or_subagent' = 'task'
+            'spawn_subagent' = 'task'
+            'search_tool' = 'search'
+        }
+        if ($grokToolAliases.ContainsKey($candidate)) { $candidate = $grokToolAliases[$candidate] }
         $projection.tool = if ($candidate -in $allowedTools) { $candidate } else { 'tool' }
         $status = [string](Get-Felix3PropertyValue $payload 'status')
         if ($status -in @('started','completed','failed','blocked','interrupted','waiting')) { $projection.status = $status }

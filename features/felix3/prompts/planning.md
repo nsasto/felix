@@ -14,7 +14,7 @@ Do not run terminal commands during planning. Inspect files and search the repos
 
 ## Investigation
 
-1. Discover repository instruction files first (for example, `AGENTS.md`, `CLAUDE.md`, and relevant nested guidance). Read only files that exist; never try to open a guessed or missing path. If no instruction file exists, continue without one.
+1. Discover repository instruction files first. Use directory listings to identify the exact files present, then read only those listed paths. Never use a file-read call to check whether a guessed path exists. If no instruction file appears in a directory listing, continue without one.
 2. Read the full specification and acceptance criteria.
 3. Search the repository and inspect the current implementation, related tests, and conventions.
 4. Identify dependencies, risks, unknowns, and any acceptance criteria that are unclear or not testable.

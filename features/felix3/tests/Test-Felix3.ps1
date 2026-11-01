@@ -33,7 +33,7 @@ $tempRoot = Join-Path $PSScriptRoot (".test-run-{0}" -f [guid]::NewGuid().ToStri
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 try {
     $planningTemplate = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\prompts\planning.md') -Raw -Encoding UTF8
-    Assert-Felix3 ($planningTemplate -match 'Discover repository instruction files first' -and $planningTemplate -match 'never try to open a guessed or missing path') 'planning prompt requires discovering optional guidance files before reading'
+    Assert-Felix3 ($planningTemplate -match 'Discover repository instruction files first' -and $planningTemplate -match 'directory listings to identify the exact files present' -and $planningTemplate -match 'Never use a file-read call to check whether a guessed path exists' -and $planningTemplate -notmatch 'CLAUDE\.md') 'planning prompt requires listing before reading and avoids suggesting absent candidate filenames'
 
     # Claude Code plan mode writes the plan to its native plans folder and returns a pointer.
     # Felix must capture that file only from the configured Claude plan root.
@@ -141,10 +141,10 @@ try {
     $grokPlanningPhase = Get-Felix3PhaseConfig -Config $grokConfig -Phase planning
     Assert-Felix3 (@($grokPlanningPhase.deny_rules) -contains 'Bash') 'Grok planning phase denies native shell while Felix owns validation'
     $grokBuildPhase = Get-Felix3PhaseConfig -Config $grokConfig -Phase building
-    Assert-Felix3 ($grokBuildPhase.permission_mode -eq 'dontAsk' -and @($grokBuildPhase.allow_rules) -contains 'Bash' -and @($grokBuildPhase.allow_rules) -contains 'Edit') 'Grok build phase explicitly allows native shell and edits for build commands'
+    Assert-Felix3 ($grokBuildPhase.permission_mode -eq 'dontAsk' -and @($grokBuildPhase.allow_rules) -contains 'Bash(dotnet *)' -and @($grokBuildPhase.allow_rules) -contains 'Bash(powershell -NoProfile -File *)' -and @($grokBuildPhase.allow_rules) -contains 'Edit' -and @($grokBuildPhase.allow_rules) -notcontains 'Bash(*)' -and @($grokBuildPhase.deny_rules) -contains 'Bash(git push *)' -and @($grokBuildPhase.deny_rules) -contains 'Bash(rm -rf *)') 'Grok build phase allows common project build commands while denying broad shell and destructive operations'
     $grokReviewPhase = Get-Felix3PhaseConfig -Config $grokConfig -Phase reviewing
     $grokReviewRules = @($grokReviewPhase.allow_rules)
-    Assert-Felix3 (@($grokReviewRules) -contains 'Bash(git status *)' -and @($grokReviewRules) -contains 'Bash(git diff *)' -and @($grokReviewRules) -contains 'Bash(git log *)' -and @($grokReviewRules) -notcontains 'Bash' -and @($grokReviewPhase.deny_rules).Count -eq 0) 'Grok review phase allows only scoped read-only Git inspection commands'
+    Assert-Felix3 (@($grokReviewRules) -contains 'Read' -and @($grokReviewRules) -contains 'Grep' -and @($grokReviewRules) -contains 'Glob' -and @($grokReviewRules) -notcontains 'Bash' -and @($grokReviewPhase.deny_rules) -contains 'Bash') 'Grok review phase allows native read/search tools and denies shell commands'
     $savedSyncUrl = $env:FELIX_SYNC_URL
     try {
         Remove-Item Env:FELIX_SYNC_URL -ErrorAction SilentlyContinue
@@ -384,10 +384,10 @@ if os.environ.get('FELIX3_CAPTURE_GROK_ARGS'): open(os.environ['FELIX3_CAPTURE_G
         elseif ($name -eq 'opencode') { $result = Invoke-OpenCodeHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -Journal $journal -EventSink $sink }
         elseif ($name -eq 'grok') {
             $grokArgsPath = Join-Path $tempRoot 'grok-args.json'; $env:FELIX3_CAPTURE_GROK_ARGS = $grokArgsPath
-            try { $result = Invoke-GrokBuildHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -PermissionMode 'dontAsk' -AllowRules @('Read','Edit','Bash') -DenyRules @('Bash(git push *)') -Journal $journal -EventSink $sink }
+            try { $result = Invoke-GrokBuildHarness -Phase building -WorkingDirectory $tempRoot -Prompt 'prompt' -RunDirectory $phaseDirectory -Executable $executable -PermissionMode 'dontAsk' -AllowRules @('Read','Edit','Bash(git status *)') -DenyRules @('Bash(git push *)') -Journal $journal -EventSink $sink }
             finally { Remove-Item Env:FELIX3_CAPTURE_GROK_ARGS -ErrorAction SilentlyContinue }
             $grokArgs = Get-Content -LiteralPath $grokArgsPath -Raw | ConvertFrom-Json
-            Assert-Felix3 (($grokArgs -join ' ') -match '--permission-mode dontAsk' -and $grokArgs -contains '--allow' -and @($grokArgs | Where-Object { $_ -eq 'Bash' }).Count -eq 1 -and $grokArgs -contains '--deny' -and @($grokArgs | Where-Object { $_ -eq 'Bash(git push *)' }).Count -eq 1) 'Grok adapter forwards native shell and scoped deny rules'
+            Assert-Felix3 (($grokArgs -join ' ') -match '--permission-mode dontAsk' -and $grokArgs -contains '--allow' -and @($grokArgs | Where-Object { $_ -eq 'Bash(git status *)' }).Count -eq 1 -and $grokArgs -contains '--deny' -and @($grokArgs | Where-Object { $_ -eq 'Bash(git push *)' }).Count -eq 1) 'Grok adapter forwards scoped shell matcher and deny rules'
         }
         else {
             $captureArgsPath = Join-Path $tempRoot 'codex-args.json'; $env:FELIX3_CAPTURE_ARGS = $captureArgsPath
@@ -656,6 +656,18 @@ time.sleep(15)
     Assert-Felix3 ($fakeCloudClient.Events.Count -eq 0 -and $cloud.Buffer.Count -eq 0) 'cloud never receives streamed assistant text'
     $outputProjection = ConvertTo-Felix3LiveProjection -Event ([pscustomobject]@{ kind = 'output.delta'; run_id = 'local'; seq = 1; timestamp = [DateTime]::UtcNow.ToString('o'); phase = 'building'; harness = 'opencode'; summary = 'surfaced text'; payload = @{ provider_event = 'text'; private = 'must not pass' } })
     Assert-Felix3 ($outputProjection.kind -eq 'assistant.delta' -and $outputProjection.text -eq 'surfaced text' -and -not ($outputProjection | ConvertTo-Json -Compress | Select-String 'private|provider_event')) 'live projection copies only surfaced assistant text into a versioned allowlist'
+    $grokLiveToolAliases = @(
+        @{ Native = 'run_terminal_command'; Expected = 'command_execution' },
+        @{ Native = 'read_file'; Expected = 'read' },
+        @{ Native = 'search_replace'; Expected = 'edit' },
+        @{ Native = 'list_dir'; Expected = 'list' },
+        @{ Native = 'grep'; Expected = 'grep' },
+        @{ Native = 'write'; Expected = 'write' }
+    )
+    foreach ($toolAlias in $grokLiveToolAliases) {
+        $grokToolProjection = ConvertTo-Felix3LiveProjection -Event ([pscustomobject]@{ kind = 'tool.started'; run_id = 'local'; seq = 3; timestamp = [DateTime]::UtcNow.ToString('o'); phase = 'building'; harness = 'grok-build'; summary = 'Grok started a tool.'; payload = @{ tool = $toolAlias.Native; status = 'started' } })
+        Assert-Felix3 ($grokToolProjection.tool -eq $toolAlias.Expected) "Grok live tool '$($toolAlias.Native)' maps to '$($toolAlias.Expected)'"
+    }
     $pathAndSecretProjection = ConvertTo-Felix3LiveProjection -Event ([pscustomobject]@{ kind = 'output.delta'; run_id = 'local'; seq = 2; timestamp = [DateTime]::UtcNow.ToString('o'); phase = 'building'; harness = 'opencode'; summary = 'Open C:\Users\Alice Smith\project\src\main.cs and /home/alice/project/src/main.py; token=sk-or-v1-0123456789abcdefghijklmnop; xai-0123456789abcdefghijklmnopqrstuv; https://example.com/docs'; payload = @{} })
     Assert-Felix3 ($pathAndSecretProjection.text -notmatch 'C:\\Users|/home/alice|sk-or-v1-|xai-0123456789' -and $pathAndSecretProjection.text -match '\[local path\]' -and $pathAndSecretProjection.text -match 'https://example.com/docs') 'live assistant text redacts absolute machine paths and provider credentials while preserving URLs'
     $questionProjection = ConvertTo-Felix3LiveProjection -Event ([pscustomobject]@{ kind = 'question.requested'; run_id = 'local'; seq = 2; timestamp = [DateTime]::UtcNow.ToString('o'); phase = 'planning'; harness = 'claude-code'; summary = 'Sensitive question wording'; payload = @{ question = 'Sensitive question wording'; tool = 'AskUserQuestion' } })
@@ -846,8 +858,11 @@ else:
     $grokBuildGuidanceDelegatesValidation = $failedGrokBuildPrompt -match '(?i)Felix runs configured validation commands'
     Assert-Felix3 ($grokBuildGuidanceHasSingleCommand -and $grokBuildGuidanceDelegatesValidation) "Grok build prompt avoids compound terminal calls and delegates acceptance validation to Felix (single=$grokBuildGuidanceHasSingleCommand, validation=$grokBuildGuidanceDelegatesValidation)"
     foreach ($grokPhase in @('planning','building','reviewing')) {
-        $phasePrompt = Add-Felix3GrokTerminalGuidance -Prompt "Prompt for $grokPhase"
+        $phasePrompt = Add-Felix3GrokTerminalGuidance -Prompt "Prompt for $grokPhase" -Phase $grokPhase
         Assert-Felix3 ($phasePrompt -match '(?i)one terminal command per tool call in every phase' -and $phasePrompt -match "Do not chain commands with PowerShell ';'") "Grok $grokPhase prompt forbids compound terminal commands"
+        if ($grokPhase -eq 'reviewing') {
+            Assert-Felix3 ($phasePrompt -match '(?i)During review, do not call terminal tools' -and $phasePrompt -match '(?i)supplied validation evidence') 'Grok review prompt avoids terminal approval requests and relies on provided validation evidence'
+        }
     }
     $failedGrokResult = Get-Content -LiteralPath (Join-Path $failedGrokRun.RunDirectory 'building-1\harness-result.json') -Raw | ConvertFrom-Json
     Assert-Felix3 ($failedGrokResult.failed_tool_name -eq 'run_terminal_command' -and $failedGrokResult.failed_tool_status -eq 'failed' -and $failedGrokResult.error -notmatch 'User cancelled the execution') 'Grok local result records only safe failure metadata and excludes the raw tool result'
