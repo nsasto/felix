@@ -1,8 +1,8 @@
 # Felix 3 compatibility
 
-Status checked: 2026-11-04. Felix 3.0.0-preview.2 is a breaking preview; do not treat this matrix as a stable-release promise.
+Status checked: 2026-11-04. Felix 3.0.0-preview.3 is a breaking preview; do not treat this matrix as a stable-release promise.
 
-| Area | Felix 2.2.0 (final V2) | Felix 3.0.0-preview.2 | Cutover position |
+| Area | Felix 2.2.0 (final V2) | Felix 3.0.0-preview.3 | Cutover position |
 | --- | --- | --- | --- |
 | CLI | V2 command surface (`felix run`, `felix loop`, and related commands) | V3 bridge under `felix v3`; the V2 surface remains available in this preview build | Stable V3 may replace the V2 workflow; migration is required for the V3 project model |
 | Project state | `.felix/` configuration, requirements database, and V2 agent profiles | Separate `.felix3/config.json`, Markdown specs with readiness frontmatter, and durable `.felix3` run/work-source state | V3 migration previews before writing and does not convert V2 requirements or agent settings |
@@ -10,7 +10,7 @@ Status checked: 2026-11-04. Felix 3.0.0-preview.2 is a breaking preview; do not 
 | Local work source | V2 requirement selection | Explicit spec, `felix v3 next`, and `felix v3 loop` over `ready-for-agent` Markdown specs | Local V3 queue is supported in the preview |
 | Felix Cloud | Existing V2 sync client | Claim status and ownership checks are implemented; live output is opt-in, viewer-gated, and transient | Felix Cloud is deployed and healthy. The live activity route is present in production OpenAPI and requires authentication. A real production browser-stream run remains unverified; keep the final cutover gated |
 | Recovery | V2 run recovery behavior | Durable same-checkout resume; missing local state on an active Cloud claim stops safely for recovery | Cross-machine takeover is not supported because harness session and working-tree state are local |
-| Release availability | [Felix 2.2.0](https://github.com/nsasto/felix/releases/tag/v2.2.0) | [Felix 3.0.0-preview.2](https://github.com/nsasto/felix/releases/tag/v3.0.0-preview.2) is the current breaking preview | Felix 2.2.0 is the final V2 release; users need V3 to continue with Cloud work |
+| Release availability | [Felix 2.2.0](https://github.com/nsasto/felix/releases/tag/v2.2.0) | [Felix 3.0.0-preview.3](https://github.com/nsasto/felix/releases/tag/v3.0.0-preview.3) is the current breaking preview | Felix 2.2.0 is the final V2 release; users need V3 to continue with Cloud work |
 
 ## Upgrade guidance
 

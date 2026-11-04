@@ -12,9 +12,10 @@ public sealed class UpdateCommandTests
 {
     [Theory]
     [InlineData("v1.2.3", "1.2.3")]
-    [InlineData("1.2.3-beta.1", "1.2.3")]
+    [InlineData("1.2.3-beta.1", "1.2.3-beta.1")]
+    [InlineData("v3.0.0-preview.2+build.7", "3.0.0-preview.2+build.7")]
     [InlineData("  v2.0.0  ", "2.0.0")]
-    public void NormalizeVersionString_StripsPrefixesAndPrerelease(string input, string expected)
+    public void NormalizeVersionString_StripsPrefixAndPreservesPrerelease(string input, string expected)
     {
         Assert.Equal(expected, Program.NormalizeVersionString(input));
     }
@@ -25,6 +26,10 @@ public sealed class UpdateCommandTests
         Assert.True(Program.CompareVersions("1.0.1", "1.0.2") < 0);
         Assert.True(Program.CompareVersions("v1.2.0", "1.1.9") > 0);
         Assert.Equal(0, Program.CompareVersions("1.0.2", "v1.0.2"));
+        Assert.True(Program.CompareVersions("3.0.0-preview.1", "3.0.0-preview.2") < 0);
+        Assert.True(Program.CompareVersions("3.0.0-preview.2", "3.0.0") < 0);
+        Assert.True(Program.CompareVersions("3.0.0-preview.2+abc", "3.0.0-preview.2+def") == 0);
+        Assert.True(Program.CompareVersions("3.0.0-preview.10", "3.0.0-preview.2") > 0);
     }
 
     [Fact]

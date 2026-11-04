@@ -383,13 +383,6 @@ partial class Program
         {
             normalized = normalized.Substring(1);
         }
-
-        var prereleaseIndex = normalized.IndexOf('-');
-        if (prereleaseIndex > 0)
-        {
-            normalized = normalized.Substring(0, prereleaseIndex);
-        }
-
         return normalized;
     }
 
@@ -398,12 +391,86 @@ partial class Program
         var normalizedLeft = NormalizeVersionString(left);
         var normalizedRight = NormalizeVersionString(right);
 
-        if (Version.TryParse(normalizedLeft, out var leftVersion) && Version.TryParse(normalizedRight, out var rightVersion))
+        var leftParts = ParseSemanticVersion(normalizedLeft);
+        var rightParts = ParseSemanticVersion(normalizedRight);
+        if (leftParts != null && rightParts != null)
         {
-            return leftVersion.CompareTo(rightVersion);
+            var coreComparison = leftParts.Value.Core.CompareTo(rightParts.Value.Core);
+            if (coreComparison != 0)
+            {
+                return coreComparison;
+            }
+
+            var leftPrerelease = leftParts.Value.Prerelease;
+            var rightPrerelease = rightParts.Value.Prerelease;
+            if (leftPrerelease == null || rightPrerelease == null)
+            {
+                return leftPrerelease == rightPrerelease ? 0 : leftPrerelease == null ? 1 : -1;
+            }
+
+            var leftIdentifiers = leftPrerelease.Split('.');
+            var rightIdentifiers = rightPrerelease.Split('.');
+            for (var index = 0; index < Math.Min(leftIdentifiers.Length, rightIdentifiers.Length); index++)
+            {
+                var leftIdentifier = leftIdentifiers[index];
+                var rightIdentifier = rightIdentifiers[index];
+                var leftIsNumeric = IsNumericIdentifier(leftIdentifier);
+                var rightIsNumeric = IsNumericIdentifier(rightIdentifier);
+                int identifierComparison;
+                if (leftIsNumeric && rightIsNumeric)
+                {
+                    identifierComparison = CompareNumericIdentifiers(leftIdentifier, rightIdentifier);
+                }
+                else if (leftIsNumeric != rightIsNumeric)
+                {
+                    identifierComparison = leftIsNumeric ? -1 : 1;
+                }
+                else
+                {
+                    identifierComparison = string.Compare(leftIdentifier, rightIdentifier, StringComparison.Ordinal);
+                }
+
+                if (identifierComparison != 0)
+                {
+                    return identifierComparison;
+                }
+            }
+
+            return leftIdentifiers.Length.CompareTo(rightIdentifiers.Length);
         }
 
         return string.Compare(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
+
+    static (Version Core, string? Prerelease)? ParseSemanticVersion(string version)
+    {
+        var withoutBuildMetadata = version.Split('+', 2)[0];
+        var prereleaseIndex = withoutBuildMetadata.IndexOf('-');
+        var coreText = prereleaseIndex >= 0 ? withoutBuildMetadata[..prereleaseIndex] : withoutBuildMetadata;
+        var prerelease = prereleaseIndex >= 0 ? withoutBuildMetadata[(prereleaseIndex + 1)..] : null;
+        if (string.IsNullOrWhiteSpace(prerelease))
+        {
+            prerelease = null;
+        }
+
+        return Version.TryParse(coreText, out var core) && core != null
+            ? (core, prerelease)
+            : null;
+    }
+
+    static bool IsNumericIdentifier(string identifier) =>
+        identifier.Length > 0 && identifier.All(char.IsAsciiDigit);
+
+    static int CompareNumericIdentifiers(string left, string right)
+    {
+        var normalizedLeft = left.TrimStart('0');
+        var normalizedRight = right.TrimStart('0');
+        if (normalizedLeft.Length != normalizedRight.Length)
+        {
+            return normalizedLeft.Length.CompareTo(normalizedRight.Length);
+        }
+
+        return string.Compare(normalizedLeft, normalizedRight, StringComparison.Ordinal);
     }
 
     static string? ExtractApiErrorMessage(string? responseBody)
