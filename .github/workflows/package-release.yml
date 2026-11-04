@@ -52,6 +52,7 @@ jobs:
           $patch = if ($parts.Length -ge 3) { $parts[2] } else { '' }
 
           $candidates = @()
+          $candidates += "release_notes/RELEASE_NOTES_v$version.md"
           if ($patch) {
             $candidates += "release_notes/RELEASE_NOTES_v$major.$minor.$patch.md"
           }
